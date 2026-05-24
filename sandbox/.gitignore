@@ -1,0 +1,9 @@
+# aegis/sandbox/.gitignore
+# Sandbox content is local-only by design. Auto-pruned per-use + 7-day TTL.
+
+# Ignore everything by default
+*
+
+# But keep:
+!.gitignore
+!README.md

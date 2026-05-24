@@ -1,0 +1,100 @@
+# =============================================================================
+# Aegis QA Framework — gitignore (Defense-in-Depth Layer 1)
+# =============================================================================
+# These rules prevent secret leakage, repo bloat, and copyright issues.
+# A parallel block lives in the target's root .gitignore (Layer 2).
+# Pre-commit hook (gitleaks + path blockers) is Layer 3.
+# `/qa-health --gitignore` is Layer 4 (drift detection).
+# =============================================================================
+
+# ─── Books & Knowledge (copyright + size) ────────────────────────────────────
+books/raw/
+!books/raw/.gitkeep
+
+# Knowledge chunks: gitignored by default (opt-in via aegis.config.json.shareKnowledge)
+knowledge/
+!knowledge/.gitkeep
+!knowledge/INDEX.md
+
+# ─── Runs ─────────────────────────────────────────────────────────────────────
+runs/*/
+.taskmaster/
+
+# ─── Machine-generated state ──────────────────────────────────────────────────
+# .aegis/ contains target-profile.json, counters, and other generated state
+.aegis/
+!.aegis/.gitkeep
+
+# ─── Secrets ─────────────────────────────────────────────────────────────────
+# Entirely gitignored except .example files and README
+secrets/*
+!secrets/*.example
+!secrets/*.example.*
+!secrets/README.md
+!secrets/.gitignore
+
+# ─── Test data credentials ────────────────────────────────────────────────────
+test-data/credentials/*.env.local
+test-data/credentials/*.local.*
+!test-data/credentials/*.example
+!test-data/credentials/README.md
+
+# ─── Test state ───────────────────────────────────────────────────────────────
+tests/state/*.json
+
+# ─── Sandbox ──────────────────────────────────────────────────────────────────
+sandbox/*
+!sandbox/README.md
+!sandbox/.gitignore
+
+# ─── Pending promotions (curator proposals; reviewed locally) ─────────────────
+pending-promotions/
+
+# ─── Local config overlays ────────────────────────────────────────────────────
+aegis.config.development.json
+aegis.config.testing.json
+aegis.config.staging.json
+aegis.config.production.json
+aegis.config.*.local.json
+*.local.json
+
+# ─── Counter & cache files (regenerable) ─────────────────────────────────────
+.counters.json
+
+# ─── Node ─────────────────────────────────────────────────────────────────────
+node_modules/
+.pnpm-store/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── OS / Editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# ─── Coverage ─────────────────────────────────────────────────────────────────
+coverage/
+*.lcov
+.nyc_output/
+
+# ─── Temporary files ──────────────────────────────────────────────────────────
+*.tmp
+*.bak
+
+# ─── Locks ────────────────────────────────────────────────────────────────────
+runs/*/locks/*.lock

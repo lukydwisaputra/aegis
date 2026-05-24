@@ -1,0 +1,29 @@
+{
+  "name": "@qa/pdf-renderer",
+  "version": "1.0.0",
+  "description": "PDF generation for executive report outputs: slide deck, technical report, and sign-off document",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@qa/contracts": "workspace:*",
+    "@react-pdf/renderer": "^3.4.2",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0"
+  }
+}

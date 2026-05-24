@@ -1,0 +1,156 @@
+# aegis/model-policy.yaml
+# Central model-tier → agent assignment. The ONLY file where model names appear.
+# Build step (qa-build-agents skill) reads this and stamps `model:` into each
+# agent definition's frontmatter. Changing a tier here updates all assigned agents.
+
+version: "1.0"
+
+# Tier definitions
+tiers:
+  planning:        claude-opus-4-7       # deep reasoning, synthesis, strategy
+  implementation:  claude-sonnet-4-6     # high-volume writing/coding workhorse
+  validation:      claude-opus-4-7       # SPVs — upgraded for high-leverage review
+  read-only:       claude-haiku-4-5-20251001  # cheap classification & scanning
+
+# Agent → tier assignments
+# Every agent must appear exactly once. Build step validates.
+assignments:
+
+  planning:
+    # Orchestrator
+    - qa-orchestrator
+    # Tier-1 planning roles
+    - qa-test-planner
+    - qa-executive-reporter
+    # Cross-cutting
+    - qa-curator
+    # Compliance reviewers (all 6 — parallel batch, shared prompt cache)
+    - qa-compliance-iso25010
+    - qa-compliance-iso5055
+    - qa-compliance-istqb
+    - qa-compliance-cmmi
+    - qa-compliance-gdpr
+    - qa-compliance-pdpa
+    # DevOps planner roles
+    - qa-github-planner
+    - qa-cicd-planner
+
+  implementation:
+    # Tier-1 STLC phase agents
+    - qa-requirements-analyst
+    - qa-test-designer
+    - qa-environment-engineer
+    - qa-test-executor
+    - qa-defect-manager
+    - qa-closure-reporter
+    # Tier-2 specialists
+    - qa-ui-specialist
+    - qa-api-specialist
+    - qa-unit-specialist
+    - qa-performance-specialist
+    - qa-security-specialist
+    - qa-accessibility-specialist
+    - qa-exploratory-specialist
+    - qa-email-specialist
+    - qa-web-explorer
+    - qa-ui-designer
+    - qa-database-specialist
+    - qa-realtime-specialist
+    - qa-feature-flag-specialist
+    - qa-responsive-specialist
+    # DevOps implementer roles
+    - qa-github-implementer
+    - qa-cicd-implementer
+
+  validation:
+    # Tier-1 SPVs
+    - qa-orchestrator-spv
+    - qa-requirements-analyst-spv
+    - qa-test-planner-spv
+    - qa-test-designer-spv
+    - qa-environment-engineer-spv
+    - qa-test-executor-spv
+    - qa-defect-manager-spv
+    - qa-closure-reporter-spv
+    - qa-executive-reporter-spv
+    # Tier-2 specialist SPVs
+    - qa-ui-specialist-spv
+    - qa-api-specialist-spv
+    - qa-unit-specialist-spv
+    - qa-performance-specialist-spv
+    - qa-security-specialist-spv
+    - qa-accessibility-specialist-spv
+    - qa-exploratory-specialist-spv
+    - qa-email-specialist-spv
+    - qa-web-explorer-spv
+    - qa-ui-designer-spv
+    - qa-database-specialist-spv
+    - qa-realtime-specialist-spv
+    - qa-feature-flag-specialist-spv
+    - qa-responsive-specialist-spv
+    # DevOps SPVs
+    - qa-github-spv
+    - qa-cicd-spv
+
+  read-only:
+    # Cross-cutting read-only agents
+    - qa-context-scanner
+    - qa-knowledge-librarian
+    - qa-metrics-collector
+    - qa-event-bus
+    # DevOps read-only
+    - qa-cicd-evaluator
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Book ingestion uses a multi-model per-book strategy (see docs/71-book-ingestion-model-strategy.md).
+# These are NOT single-agent assignments — they're per-phase model overrides
+# applied by the qa-ingest-book skill, not resolved by the build step.
+# ─────────────────────────────────────────────────────────────────────────────
+ingestion:
+  metadata:        claude-haiku-4-5-20251001   # ToC + page boundaries (~$0.01/book)
+  skipFilter:      claude-haiku-4-5-20251001   # Identify chapters to skip (~$0.02/book)
+  chunkingPrimary: claude-sonnet-4-6           # Per-chapter extraction, cached (~$0.20/book)
+  synthesis:       claude-opus-4-7             # Cross-book topic consolidation (rare, ~$0.30/topic)
+  audit:           claude-opus-4-7             # Optional quality spot-check (~$0.10/book)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SPV fast-path (Winteringham-inspired escalation policy):
+# All SPVs default to their assigned tier (validation = Opus 4.7).
+# The orchestrator MAY downgrade an SPV to Sonnet 4.6 for initial triage pass
+# by setting `escalateOnFinding: true` in the dispatch brief. The SPV then:
+# 1. Runs first-pass on Sonnet (faster, cheaper)
+# 2. Escalates to Opus on finding: requested-changes, security/compliance work,
+#    or novel pattern not in lessons.md
+# This is implemented in qa-orchestrator dispatch logic, not here.
+# Estimated savings: 40-60% of SPV token cost on clean runs.
+# ─────────────────────────────────────────────────────────────────────────────
+spvFastPath:
+  enabled: true
+  firstPassModel: claude-sonnet-4-6
+  escalateToModel: claude-opus-4-7
+  escalationTriggers:
+    - requested-changes
+    - passed-with-notes
+    - security-domain            # any SPV reviewing security/auth/compliance work
+    - novel-pattern              # pattern not in worker's lessons.md
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cost tier rates (USD per 1M tokens) — used by qa-metrics-collector.
+# Updated when Anthropic changes pricing. Source: Anthropic pricing page.
+# ─────────────────────────────────────────────────────────────────────────────
+tokenRates:
+  claude-opus-4-7:
+    inputPerMillion:  15.00
+    outputPerMillion: 75.00
+    cacheWritePerMillion: 18.75
+    cacheReadPerMillion:  1.50
+  claude-sonnet-4-6:
+    inputPerMillion:  3.00
+    outputPerMillion: 15.00
+    cacheWritePerMillion: 3.75
+    cacheReadPerMillion:  0.30
+  claude-haiku-4-5-20251001:
+    inputPerMillion:  0.80
+    outputPerMillion: 4.00
+    cacheWritePerMillion: 1.00
+    cacheReadPerMillion:  0.08

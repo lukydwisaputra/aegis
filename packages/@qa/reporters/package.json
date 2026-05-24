@@ -1,0 +1,27 @@
+{
+  "name": "@qa/reporters",
+  "version": "1.0.0",
+  "description": "writeArtifact pipeline: Zod validate → brand-exposure check → path-guard → atomic dual-write → event emit",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@qa/contracts": "workspace:*",
+    "@qa/path-guard": "workspace:*",
+    "@qa/event-bus": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  }
+}

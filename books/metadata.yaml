@@ -1,0 +1,223 @@
+# =============================================================================
+# Aegis Book Registry
+# =============================================================================
+# Records titles + authors of ingested QA books. No copyrighted content here —
+# just metadata about WHICH books were processed into knowledge/.
+# =============================================================================
+
+books:
+  - slug: full-stack-testing-mohan
+    title: "Full Stack Testing"
+    subtitle: "A Practical Guide for Delivering High Quality Software"
+    author: "Gayathri Mohan"
+    publisher: "O'Reilly Media"
+    isbn: "978-1-098-13317-7"
+    edition: "First Edition"
+    year: 2022
+    pages: 672
+    ingestionDate: "2026-05-24"
+    chaptersChunked: 14
+    chaptersSkipped: 4
+    primaryTopics:
+      - full-stack-testing
+      - shift-left
+      - exploratory-testing
+      - test-design-techniques
+      - automation-strategy
+      - continuous-testing
+      - data-testing
+      - visual-testing
+      - security-testing
+      - performance-testing
+      - accessibility-testing
+      - cross-functional-requirements
+      - mobile-testing
+      - emerging-tech
+    synthesisFilesUpdated:
+      - test-design-techniques.md
+      - automation-strategy.md
+      - performance-testing.md
+      - security-testing.md
+      - accessibility-testing.md
+      - exploratory-testing.md
+      - continuous-testing.md
+      - data-testing.md
+      - visual-testing.md
+      - mobile-testing.md
+      - cross-functional-requirements.md
+      - stlc-process.md
+      - metrics-and-reporting.md
+      - compliance-and-regulations.md
+      - api-testing.md
+      - ui-testing.md
+      - emerging-tech-testing.md
+    aegisRoleClaim: "anchor reference — 10-skill framework drives Tier-2 specialist design"
+    cacheTokens:
+      haikuTotal: ~100000
+      sonnetChunkingTotal: ~432000
+      sonnetSynthesisTotal: ~292000
+      estimatedUsdCost: 2.85
+
+  - slug: practical-playwright-greffier
+    title: "Practical Playwright Test"
+    subtitle: "Next-Generation Web Testing and Automation"
+    author: "Jean-François Greffier"
+    publisher: "Apress Media LLC"
+    isbn: "979-8-8688-2159-2"
+    edition: "First Edition"
+    year: 2026
+    pages: 279
+    ingestionDate: "2026-05-24"
+    chaptersChunked: 12
+    chaptersSkipped: 4
+    primaryTopics:
+      - playwright
+      - e2e-testing
+      - ui-testing
+      - locators
+      - fixtures
+      - page-object-model
+      - auth-fixture
+      - mocking
+      - flakiness
+      - ci-cd
+      - parallelism
+      - testing-stack
+    synthesisFilesNeedingMerge:
+      - ui-testing.md           # Greffier Ch 1-9 dominates
+      - automation-strategy.md  # Ch 12 trophy-of-tests critique
+      - continuous-testing.md   # Ch 4-5 Playwright-specific CI
+      - api-testing.md          # Ch 11 APIRequest
+      - visual-testing.md       # Ch 2 ARIA snapshots
+      - accessibility-testing.md # Ch 3 getByRole-driven a11y
+      - mobile-testing.md       # Ch 8 device emulation
+    synthesisFilesNew:
+      - playwright-patterns.md       # all 12 chapters
+      - flake-management.md          # Ch 9 + Mohan Ch 4
+      - fixtures-and-pom.md          # Ch 7
+      - test-stack-composition.md    # Ch 12 + Mohan Ch 1
+    aegisRoleClaim: "Playwright specialist reference — drives qa-ui-specialist agent design end-to-end; Ch 7 is THE source for Aegis's per-role auth fixture pattern"
+    cacheTokens:
+      haikuTotal: ~70000
+      sonnetChunkingTotal: ~310000   # 12 chapters, parallel batches
+      sonnetSynthesisTotal: ~0       # deferred to cross-book Opus pass
+      estimatedUsdCost: 1.45
+
+  - slug: lessons-learned-kaner
+    title: "Lessons Learned in Software Testing"
+    subtitle: "A Context-Driven Approach"
+    authors: ["Cem Kaner", "James Bach", "Bret Pettichord"]
+    publisher: "John Wiley & Sons"
+    isbn: "0-471-08112-4"
+    edition: "First Edition"
+    year: 2002
+    pages: 405
+    ingestionDate: "2026-05-24"
+    chaptersChunked: 12   # 11 chapters + appendix
+    chaptersSkipped: 2    # front matter + bibliography/index
+    primaryTopics:
+      - context-driven-testing
+      - tester-mindset
+      - heuristics
+      - bug-advocacy
+      - automation-strategy
+      - test-strategy
+      - test-management
+      - testing-philosophy
+      - test-design-techniques
+      - soft-skills
+    uniqueContributions:    # NOT in other ingested books
+      - 7-context-driven-principles
+      - five-fold-technique-system
+      - all-pairs-combination-construction-method
+      - heuristic-consistency-oracle-types
+      - bug-advocacy-selling-model
+      - bug-variation-testing-protocol
+      - 65-char-summary-rule
+      - 15-percent-automation-find-rate
+      - 10x-cost-to-automate-rule
+      - testability-vs-automation
+      - 8-cognitive-biases-for-testers
+      - quiet-abandonment-doc-failure
+      - release-signoff-as-category-error
+      - diverse-half-measures-strategy
+    synthesisFilesNeedingMergeOrCreation:
+      - defect-management.md            # NEW — Ch 4 anchors
+      - test-design-techniques.md       # MERGE — add 11 Kaner techniques
+      - exploratory-testing.md          # MERGE — add Kaner Ch 2 mindset
+      - automation-strategy.md          # MERGE — add Ch 5 limits + ROI
+      - test-strategy.md                # NEW — Ch 11
+      - testing-philosophy.md           # NEW — Appendix + context-driven
+      - tester-mindset.md               # NEW — Ch 2
+      - bug-investigation.md            # NEW — Ch 4 variation
+      - test-management.md              # NEW — Ch 8
+      - team-and-career.md              # NEW — Ch 9 + 10 + Mohan Ch 12
+    aegisRoleClaim: "Philosophical anchor + judgment reference. Appendix's 7 context-driven principles are Aegis's universal context-aware stance. Ch 4 is THE canonical defect-management spec. Ch 2 + 5 + 11 provide the judgment counterweight to canonical frameworks."
+    cacheTokens:
+      haikuTotal: ~75000
+      sonnetChunkingTotal: ~380000   # 12 sections, parallel batches
+      sonnetSynthesisTotal: ~0       # deferred to cross-book Opus pass
+      estimatedUsdCost: 1.65
+
+  - slug: genai-testing-winteringham
+    title: "Software Testing with Generative AI"
+    author: "Mark Winteringham"
+    publisher: "Manning Publications"
+    isbn: "9781633437364"
+    year: 2025
+    pages: 306
+    ingestionDate: "2026-05-24"
+    chaptersChunked: 12
+    chaptersSkipped: 7
+    primaryTopics:
+      - llm-for-testing
+      - prompt-engineering
+      - ai-augmented-testing
+      - ai-agents
+      - rag
+      - fine-tuning
+      - test-data-generation
+      - ai-coding-assistant
+      - ai-ui-automation
+      - ai-exploratory-testing
+    uniqueContributions:
+      - 6-canonical-prompt-patterns                  # Ch 2
+      - sfdipot-for-llm-risk-analysis                # Ch 5
+      - cascading-sub-prompt-orchestration-pattern   # Ch 9 — validates Aegis
+      - tool-description-quality-as-leverage          # Ch 9
+      - rag-pipeline                                   # Ch 11
+      - lora-feasible-fine-tuning                     # Ch 12
+      - dataset-granularity-over-size                 # Ch 12
+      - human-in-the-loop-for-llm-output             # all chapters
+    synthesisFilesNeedingMergeOrCreation:
+      - ai-augmented-testing.md            # NEW — anchored here
+      - prompt-engineering.md              # NEW — Ch 2 canonical
+      - ai-agents-patterns.md              # NEW — Ch 9, Aegis meta-relevance
+      - rag-and-knowledge-design.md        # NEW — Ch 11
+      - test-data-generation.md            # NEW — Mohan Ch 5 + Winteringham Ch 6
+      - exploratory-testing.md             # MERGE — add Winteringham Ch 8
+      - emerging-tech-testing.md           # MERGE — replace Mohan stub w/ Winteringham canon
+      - ui-testing.md                      # MERGE — add Winteringham Ch 7
+    aegisRoleClaim: "AI-augmented testing reference + Aegis architecture validation. Ch 9 (AI agents) explicitly names the patterns Aegis implements; Ch 11 (RAG) validates the knowledge/ design. Drives qa-curator + qa-knowledge-librarian; provides patterns target teams can use."
+    cacheTokens:
+      haikuTotal: ~70000
+      sonnetChunkingTotal: ~410000  # 12 chapters, parallel batches
+      sonnetSynthesisTotal: ~0      # deferred to cross-book Opus pass
+      estimatedUsdCost: 1.85
+
+# =============================================================================
+# Phase A summary (all 4 books ingested)
+# =============================================================================
+phaseASummary:
+  booksIngested: 4
+  totalSourcePages: 1662    # 672 + 279 + 405 + 306
+  totalChaptersChunked: 50  # 14 + 12 + 12 + 12
+  totalChaptersSkipped: 17  # 4 + 4 + 2 + 7
+  totalKnowledgeLines: ~19358  # 4693 + 5657 + 3436 + 5572
+  totalIngestCostUsd: ~7.80  # 2.85 + 1.45 + 1.65 + 1.85
+  ingestionWindowDate: "2026-05-24"
+  pendingNextSteps:
+    - cross-book Opus synthesis pass
+    - synthesis/ folder reconciliation
+    - Phase A.B (Post-Ingest Validation) gate
+

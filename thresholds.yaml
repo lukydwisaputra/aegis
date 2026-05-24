@@ -1,0 +1,208 @@
+# =============================================================================
+# Aegis QA Framework — thresholds.yaml
+# Industry-default quality gates for all pipeline stages.
+#
+# Sources:
+#   ISO/IEC 25010:2023  — Software product quality characteristics
+#   ISO/IEC 5055:2021   — Automated source code quality measures
+#   ISTQB CTFL v4.0     — Foundation Level syllabus pass/fail norms
+#   OWASP ASVS 4.0      — Application Security Verification Standard
+#   WCAG 2.2 (Level AA) — Web Content Accessibility Guidelines
+#   Google CWV 2024     — Core Web Vitals thresholds (LCP/INP/CLS)
+#   k6 community norms  — Load test SLA defaults
+#   CMMI-DEV v2.0       — Process maturity defect density targets
+# =============================================================================
+
+# ─── STAGE: testing (PR gate — fast feedback, ~10 min budget) ─────────────────
+testing:
+
+  # --- Coverage (Istanbul / c8) -------------------------------------------
+  # Industry baseline for PR gates: 80% line/branch (ISTQB CTFL 4.0 §5.2)
+  coverage:
+    lines:      80    # percent; fail PR if below
+    branches:   75    # percent; branch coverage slightly lower by convention
+    functions:  80    # percent
+    statements: 80    # percent
+
+  # --- Unit tests -----------------------------------------------------------
+  # Zero tolerance on regressions in the fast loop
+  unit:
+    maxFailures:    0   # any unit failure blocks merge
+    maxSkipped:     5   # warn (but don't fail) if skipped > 5
+
+  # --- API tests (contract + functional) ------------------------------------
+  api:
+    maxFailures:    0
+    maxCritical:    0   # critical = data-loss or auth bypass class
+
+  # --- UI / E2E (Playwright smoke subset) -----------------------------------
+  # PR gate runs smoke suite only; full regression on staging
+  ui:
+    maxFailures:    0
+    flakyRetries:   2   # allow up to 2 retries before marking flaky
+    maxFlaky:       3   # warn if flaky count > 3
+
+  # --- Security (OWASP ASVS L1 subset) -------------------------------------
+  # Source: OWASP ASVS 4.0 §2, §3, §13 — L1 is minimum for any web app
+  security:
+    maxCritical:    0   # CVSS ≥ 9.0 — block immediately
+    maxHigh:        0   # CVSS 7.0–8.9 — block on PR gate
+    maxMedium:      5   # CVSS 4.0–6.9 — warn; must be triaged within 5 days
+    maxLow:         20  # CVSS < 4.0 — track; no hard block
+
+  # --- Accessibility (WCAG 2.2 AA) -----------------------------------------
+  # Source: WCAG 2.2 §1–4; axe-core rule severity mapping
+  a11y:
+    maxCritical:    0   # axe impact=critical (e.g., missing alt, no label)
+    maxSerious:     0   # axe impact=serious (e.g., color contrast < 4.5:1)
+    maxModerate:    5   # axe impact=moderate — warn; triaged next sprint
+    maxMinor:       20  # axe impact=minor — informational
+
+  # --- Performance (Core Web Vitals — Google 2024 thresholds) ---------------
+  # Source: web.dev/vitals — "Good" range upper bounds
+  # PR gate uses Lighthouse CI against dev build; not real-user data
+  performance:
+    lcp:    2500   # ms  Largest Contentful Paint — Good ≤ 2500 ms
+    inp:    200    # ms  Interaction to Next Paint — Good ≤ 200 ms
+    cls:    0.10   # score  Cumulative Layout Shift — Good ≤ 0.10
+    fcp:    1800   # ms  First Contentful Paint — Good ≤ 1800 ms
+    ttfb:   800    # ms  Time to First Byte — Good ≤ 800 ms
+    score:  80     # Lighthouse performance score minimum
+
+# ─── STAGE: staging (full regression on main-branch merges + nightly) ────────
+staging:
+
+  # --- Coverage -------------------------------------------------------------
+  # Staging requires higher confidence; CMMI-DEV L3 target is 85%
+  coverage:
+    lines:      85
+    branches:   80
+    functions:  85
+    statements: 85
+
+  # --- Unit tests -----------------------------------------------------------
+  unit:
+    maxFailures:    0
+    maxSkipped:     3   # tighter tolerance — skipped tests should be resolved
+
+  # --- API tests ------------------------------------------------------------
+  api:
+    maxFailures:    0
+    maxCritical:    0
+    maxDegradation: 10  # percent regression vs previous baseline
+
+  # --- UI / E2E (full regression suite) ------------------------------------
+  ui:
+    maxFailures:    0
+    flakyRetries:   2
+    maxFlaky:       2   # stricter: flaky tests must be fixed before prod
+
+  # --- Security (OWASP ASVS L2) -------------------------------------------
+  # Source: OWASP ASVS 4.0 §2–14 — L2 for handling sensitive data
+  security:
+    maxCritical:    0
+    maxHigh:        0
+    maxMedium:      3   # must be accepted with JIRA ticket reference
+    maxLow:         15
+
+  # --- Accessibility --------------------------------------------------------
+  a11y:
+    maxCritical:    0
+    maxSerious:     0
+    maxModerate:    3
+    maxMinor:       15
+
+  # --- Performance ----------------------------------------------------------
+  # Staging uses WebPageTest or k6 browser; slightly tighter than PR gate
+  performance:
+    lcp:    2500
+    inp:    200
+    cls:    0.10
+    fcp:    1800
+    ttfb:   600    # stricter TTFB — staging infra should be production-like
+    score:  85
+
+  # --- Load / stress (k6) --------------------------------------------------
+  # Source: k6 community SLA norms; adjust for app SLA
+  load:
+    p95ResponseMs:  1000   # 95th percentile response ≤ 1000 ms
+    p99ResponseMs:  2000   # 99th percentile response ≤ 2000 ms
+    errorRate:      0.01   # < 1% error rate under normal load
+    vus:            50     # virtual users for the staging load test
+
+  # --- Defect density (ISO/IEC 5055) ---------------------------------------
+  # Source: ISO 5055:2021 Annex B — structural quality targets
+  # measured as critical violations per KLOC (1000 lines of code)
+  defectDensity:
+    criticalPerKloc:  0.5   # ISO 5055 "Reliability" threshold
+    highPerKloc:      2.0
+
+# ─── STAGE: production (read-only synthetic monitoring) ──────────────────────
+production:
+
+  # --- Smoke tests (critical path only) ------------------------------------
+  ui:
+    maxFailures:    0   # any failure triggers PagerDuty / on-call
+    flakyRetries:   1   # single retry only — prod smoke must be stable
+    maxFlaky:       0   # zero tolerance for flaky in prod monitoring
+
+  # --- API health checks ---------------------------------------------------
+  api:
+    maxFailures:    0
+    uptimePercent:  99.9   # SLA target (three nines)
+
+  # --- Security (OWASP ASVS L2 continuous) ---------------------------------
+  security:
+    maxCritical:    0
+    maxHigh:        0   # high severity escalated immediately in prod
+    maxMedium:      2   # immediate triage required
+
+  # --- Accessibility --------------------------------------------------------
+  # Prod monitoring checks critical path pages only
+  a11y:
+    maxCritical:    0
+    maxSerious:     0
+
+  # --- Performance (real-user Core Web Vitals thresholds) ------------------
+  # Source: Google CWV 2024 — "Good" range; measured via Lighthouse CI + RUM
+  performance:
+    lcp:    2500
+    inp:    200
+    cls:    0.10
+    fcp:    1800
+    ttfb:   600
+    score:  85
+
+  # --- Synthetic load (canary / low-VU prod probe) -------------------------
+  load:
+    p95ResponseMs:  800    # tighter for prod — users expect faster responses
+    p99ResponseMs:  1500
+    errorRate:      0.005  # < 0.5% error rate
+    vus:            10     # low-VU canary only — never stress prod
+
+# =============================================================================
+# Module-level overrides (uncomment and customize as needed)
+# Use case: a legacy module with known tech debt has a lower coverage bar,
+#   or a payments module requires stricter security thresholds.
+#
+# moduleOverrides:
+#   "packages/@qa/core":
+#     testing:
+#       coverage:
+#         lines: 90       # higher bar for the framework core itself
+#         branches: 85
+#   "apps/legacy-portal":
+#     testing:
+#       coverage:
+#         lines: 60       # legacy module; known tech debt; tracked for improvement
+#       security:
+#         maxMedium: 10   # accepted backlog; JIRA epic LEGACY-42
+#   "apps/payments":
+#     testing:
+#       security:
+#         maxHigh: 0
+#         maxMedium: 0    # zero tolerance for payments module
+#     staging:
+#       security:
+#         maxMedium: 0
+# =============================================================================

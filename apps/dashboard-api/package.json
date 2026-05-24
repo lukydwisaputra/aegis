@@ -1,0 +1,25 @@
+{
+  "name": "dashboard-api",
+  "version": "1.0.0",
+  "description": "Fastify sidecar API server for the Aegis dashboard",
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/static": "^7.0.4",
+    "@qa/contracts": "workspace:*",
+    "@qa/event-bus": "workspace:*",
+    "@qa/path-guard": "workspace:*",
+    "fastify": "^4.28.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.5"
+  }
+}

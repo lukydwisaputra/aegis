@@ -1,0 +1,27 @@
+{
+  "name": "@aegis-qa/cli",
+  "version": "1.0.0",
+  "description": "Aegis QA Framework CLI — init, update, doctor",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "aegis": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "enquirer": "^2.4.1",
+    "picocolors": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "typescript": "^5.4.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
