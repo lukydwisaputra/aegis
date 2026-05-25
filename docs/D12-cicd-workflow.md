@@ -128,6 +128,35 @@ Before any workflow file is committed, `qa-cicd-spv` verifies:
 
 ---
 
+## Prerequisite: test scripts must exist before CI can run them
+
+CI/CD workflows execute test scripts — they do not generate them. This is a deliberate sequencing requirement:
+
+```
+Step 1 — local (developer machine)
+  /qa-start --env=development
+  └─ Aegis agents run, generate Playwright + Jest scripts → ../tests/
+  └─ Developer reviews and commits ../tests/ to the target repo
+
+Step 2 — CI/CD bootstrap (once, after step 1)
+  /qa-ci-bootstrap
+  └─ Writes .github/workflows/*.yml into the target repo
+  └─ Now CI has both the scripts and the workflows to run them
+
+Step 3 — ongoing (automated)
+  PR opened → qa-smoke.yml picks up ../tests/ and runs them
+  Push to main → qa-full.yml runs the full suite
+```
+
+**Never run `/qa-ci-bootstrap` before at least one full `/qa-start` cycle.** The workflows will be syntactically valid but `../tests/` will be empty, so every CI run will pass vacuously with 0 tests executed — a false green.
+
+When adding a new feature, the flow repeats:
+1. Run `/qa-start` locally against the new feature
+2. Commit the new test scripts Aegis generated
+3. CI picks them up automatically on the next PR — no workflow changes needed
+
+---
+
 ## Bootstrapping via `/qa-ci-bootstrap`
 
 ```bash
