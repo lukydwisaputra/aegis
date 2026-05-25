@@ -24,11 +24,12 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 ## Review Checklist
 
 1. **Adapter interface used.** Email tests use the `EmailAdapter` interface from `@qa/email-adapters` — not direct SMTP calls or raw `nodemailer`. Direct SMTP = requested-changes.
-2. **No real external recipients.** All email test recipients use `plus-alias` addresses (`qa+*@example.com`, `test+*@example.com`) routed to the Mailhog/Gmail adapter. Real external domain addresses = requested-changes.
+2. **No real external recipients.** All email test recipients use `plus-alias` addresses (`qa+*@example.com`, `test+*@example.com`) routed to the Mailpit/Gmail adapter. Real external domain addresses = requested-changes.
 3. **Triple assertion.** Every email test asserts: (a) delivery (email received within timeout), (b) content (subject, body sections, sender), (c) links (at least one link in the email is asserted for format/target). Missing any of the three = passed-with-notes.
 4. **Production prohibition.** Work report confirms tests ran against `development` or `testing` environment only. The email specialist is in `forbiddenSpecialists` for production. Any attempt to test against production = requested-changes.
-5. **Adapter matches config.** The adapter used (`mailhog` or `gmail`) matches `aegis.config.json.emailAdapter` for the current environment. Adapter mismatch = requested-changes.
-6. **File naming.** Email tests match `*.email.spec.ts`. Incorrect extension = passed-with-notes.
+5. **Adapter matches config.** The adapter used (`mailpit` or `gmail`) matches `aegis.config.json.emailAdapter` for the current environment. Adapter mismatch = requested-changes.
+6. **Inbox purged before each test.** Each test calls `adapter.purgeAll()` in `beforeEach`. Tests that skip the purge may produce false passes from stale messages = requested-changes.
+7. **File naming.** Email tests match `*.email.spec.ts`. Incorrect extension = passed-with-notes.
 
 ## Verdict
 
