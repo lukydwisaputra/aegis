@@ -43,5 +43,4 @@ Static binary/JSON/CSV files that tests upload or compare against. Sample images
 
 ## See also
 
-- `docs/33-test-data-conventions.md` (full deep dive)
-- `docs/49-test-data-and-secrets.md`
+- `docs/D11-secrets-handling.md`

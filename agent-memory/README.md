@@ -44,5 +44,5 @@ Yes — lessons persist across machines so team members benefit from learnings m
 
 ## See also
 
-- `docs/10a-per-agent-auto-learning.md`
+- `docs/D10-per-agent-auto-learning.md`
 - `@qa/agent-memory` package

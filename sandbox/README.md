@@ -45,5 +45,4 @@ When an agent is unsure how to solve a problem, it can scratch in `sandbox/` wit
 
 ## See also
 
-- `docs/50-sandbox-folder.md` (deep dive)
 - `@qa/sandbox-manager` package

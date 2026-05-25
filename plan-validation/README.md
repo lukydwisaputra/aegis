@@ -39,4 +39,4 @@ plan-validation/
 
 This folder is **populated once** per Aegis build. After Phase A.B completes and Phase B begins, these files become historical reference. They're not regenerated on every cycle.
 
-If books are added later (post-v1), Phase A.B can be re-run on a delta basis — see `docs/72-phase-ab-validation.md`.
+If books are added later (post-v1), Phase A.B can be re-run on a delta basis.
