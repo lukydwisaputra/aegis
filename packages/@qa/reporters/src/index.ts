@@ -34,7 +34,7 @@ export function collectDefectScreenshots(runDir: string): EvidenceIndexEntry[] {
       if (shots.length === 0) continue;
       entries.push({
         defectId: String(raw["id"] ?? file.replace(".json", "")),
-        tcId: raw["tcId"] ? String(raw["tcId"]) : undefined,
+        ...(raw["tcId"] ? { tcId: String(raw["tcId"]) } : {}),
         screenshots: shots.map((p) =>
           p.startsWith("/") ? p : resolve(runDir, p)
         ),
@@ -99,7 +99,7 @@ export class BrandExposureError extends Error {
  */
 const ArtifactDataSchema = z
   .record(z.string(), z.unknown())
-  .refine((v) => typeof v["id"] === "string" && v["id"].length > 0, {
+  .refine((v: Record<string, unknown>) => typeof v["id"] === "string" && (v["id"] as string).length > 0, {
     message: "Artefact data must contain a non-empty string `id` field",
   });
 
@@ -215,6 +215,7 @@ export async function writeArtifact(params: WriteArtifactParams): Promise<void> 
       type: "artifact.created",
       kind,
       path: jsonPath,
+      schemaVersion: "1.0",
       ts: new Date().toISOString(),
     },
     busPath

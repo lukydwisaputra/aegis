@@ -72,15 +72,15 @@ function collectFiles(dir: string, maxDepth: number, depth = 0): string[] {
   if (depth > maxDepth) return [];
   if (!existsSync(dir)) return [];
   let results: string[] = [];
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: import("node:fs").Dirent[];
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
+    entries = readdirSync(dir, { withFileTypes: true }) as import("node:fs").Dirent[];
   } catch {
     return [];
   }
   for (const entry of entries) {
     if (SKIP_DIRS.has(entry.name)) continue;
-    const fullPath = join(dir, entry.name);
+    const fullPath = join(dir, String(entry.name));
     if (entry.isDirectory()) {
       results = results.concat(collectFiles(fullPath, maxDepth, depth + 1));
     } else if (entry.isFile()) {
@@ -509,7 +509,7 @@ export async function scanTarget(targetRoot: string): Promise<TargetProfile> {
     framework: {
       name: frameworkName,
       version: frameworkVersion,
-      ...(frameworkName === "nextjs" ? { appRouter } : {}),
+      ...(frameworkName === "nextjs" && appRouter !== undefined ? { appRouter } : {}),
     },
     language: {
       typescript: hasTypeScript,

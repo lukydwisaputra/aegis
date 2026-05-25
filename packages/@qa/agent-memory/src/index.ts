@@ -231,20 +231,20 @@ export async function proposeLesson(
     // 4. Cap enforcement — evict oldest + lowest hitCount if over cap
     if (file.entries.length >= MAX_ACTIVE_ENTRIES) {
       const evictable = file.entries
-        .filter((e) => e.hitCount < PRUNE_MIN_HIT_COUNT)
-        .sort((a, b) => {
+        .filter((e: LessonEntry) => e.hitCount < PRUNE_MIN_HIT_COUNT)
+        .sort((a: LessonEntry, b: LessonEntry) => {
           if (a.hitCount !== b.hitCount) return a.hitCount - b.hitCount;
           return a.lastSeen.localeCompare(b.lastSeen);
         });
 
       if (evictable.length === 0) {
         // All entries are high-value; evict oldest by lastSeen
-        file.entries.sort((a, b) => a.lastSeen.localeCompare(b.lastSeen));
+        file.entries.sort((a: LessonEntry, b: LessonEntry) => a.lastSeen.localeCompare(b.lastSeen));
         evictable.push(file.entries[0]!);
       }
 
       const toEvict = evictable[0]!;
-      file.entries = file.entries.filter((e) => e.id !== toEvict.id);
+      file.entries = file.entries.filter((e: LessonEntry) => e.id !== toEvict.id);
 
       // Write to archive
       const archivePath = resolve(archiveDir(aegisRoot, agentName), `${now2.slice(0, 7)}.json`);
@@ -291,7 +291,7 @@ export async function pipeCorrectiveInstruction(
       mistake: validated.data.mistake,
       rootCause: validated.data.rootCause,
       correctiveRule: validated.data.correctiveRule,
-      appliesWhen: validated.data.appliesWhen,
+      ...(validated.data.appliesWhen !== undefined && { appliesWhen: validated.data.appliesWhen }),
       evidence,
     },
     aegisRoot
@@ -314,7 +314,7 @@ export async function pruneAgedEntries(
     const file = readLessonsFile(jsonPath, agentName);
     const now = Date.now();
     const cutoff = now - AGE_PRUNE_DAYS * 24 * 60 * 60 * 1000;
-    const toEvict = file.entries.filter((e) => {
+    const toEvict = file.entries.filter((e: LessonEntry) => {
       return e.hitCount < PRUNE_MIN_HIT_COUNT && new Date(e.lastSeen).getTime() < cutoff;
     });
 
@@ -332,8 +332,8 @@ export async function pruneAgedEntries(
     archive.push(...toEvict);
     writeFileSync(archivePath, JSON.stringify(archive, null, 2) + "\n", "utf-8");
 
-    const evictIds = new Set(toEvict.map((e) => e.id));
-    file.entries = file.entries.filter((e) => !evictIds.has(e.id));
+    const evictIds = new Set(toEvict.map((e: LessonEntry) => e.id));
+    file.entries = file.entries.filter((e: LessonEntry) => !evictIds.has(e.id));
     file.lastUpdatedAt = new Date().toISOString();
 
     writeLessonsFile(jsonPath, file);
@@ -352,4 +352,3 @@ export function readLessons(agentName: string, aegisRoot: string): LessonsFile {
   return readLessonsFile(lessonsJsonPath(aegisRoot, agentName), agentName);
 }
 
-export type { LessonCandidate, LessonEntry, LessonsFile, ProposeResult };

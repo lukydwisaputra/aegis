@@ -236,7 +236,7 @@ export async function runSecurityAudit(
       latest: wanted,
       tier: "security",
       isSecurity: true,
-      cveIds: cveIds.length > 0 ? cveIds : undefined,
+      ...(cveIds.length > 0 && { cveIds }),
     });
   }
 

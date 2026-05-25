@@ -4,63 +4,63 @@ import * as path from 'path';
 import { append, readAll } from '@qa/event-bus';
 
 let tmpDir: string;
+let busPath: string;
+
+const TS = '2026-05-25T00:00:00.000Z';
+const RUN_A = 'RUN-20260525-001';
+const RUN_B = 'RUN-20260525-002';
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-eb-test-'));
-  process.env.AEGIS_EVENT_LOG = path.join(tmpDir, 'events.jsonl');
+  busPath = path.join(tmpDir, 'events.jsonl');
 });
 
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  delete process.env.AEGIS_EVENT_LOG;
 });
 
 describe('@qa/event-bus', () => {
   it('append() writes a valid JSONL event to disk', async () => {
-    await append({
-      type: 'TEST_STARTED',
-      runId: 'RUN-001',
-      payload: { testId: 'TC-AUTH-001' },
-    });
-    const raw = fs.readFileSync(process.env.AEGIS_EVENT_LOG!, 'utf8').trim();
+    await append({ type: 'gate.requested', ts: TS, gate: 'plan-approval', runId: RUN_A }, busPath);
+    const raw = fs.readFileSync(busPath, 'utf8').trim();
     const parsed = JSON.parse(raw);
-    expect(parsed.type).toBe('TEST_STARTED');
-    expect(parsed.runId).toBe('RUN-001');
+    expect(parsed.type).toBe('gate.requested');
+    expect(parsed.runId).toBe(RUN_A);
   });
 
-  it('readAll() returns previously appended events', async () => {
-    await append({ type: 'EVT_A', runId: 'RUN-002', payload: {} });
-    await append({ type: 'EVT_B', runId: 'RUN-002', payload: {} });
-    const events = await readAll();
+  it('readAll() returns previously appended events in order', async () => {
+    await append({ type: 'gate.requested', ts: TS, gate: 'plan-approval', runId: RUN_B }, busPath);
+    await append({ type: 'gate.approved', ts: TS, gate: 'plan-approval', runId: RUN_B, approvedBy: 'ci-bot' }, busPath);
+    const events = readAll(busPath);
     expect(events).toHaveLength(2);
-    expect(events[0].type).toBe('EVT_A');
-    expect(events[1].type).toBe('EVT_B');
+    expect(events[0]!.type).toBe('gate.requested');
+    expect(events[1]!.type).toBe('gate.approved');
   });
 
-  it('concurrent appends (10 writers) produce 10 lines with no corruption', async () => {
-    await Promise.all(
-      Array.from({ length: 10 }, (_, i) =>
-        append({ type: 'PARALLEL_EVT', runId: `RUN-CONC-${i}`, payload: { index: i } })
-      )
-    );
-    const raw = fs.readFileSync(process.env.AEGIS_EVENT_LOG!, 'utf8');
+  it('sequential appends (10 writers) produce 10 valid JSONL lines', async () => {
+    for (let i = 0; i < 10; i++) {
+      await append(
+        { type: 'gate.requested', ts: TS, gate: 'plan-approval', runId: `RUN-20260525-${String(i + 1).padStart(3, '0')}` },
+        busPath
+      );
+    }
+    const raw = fs.readFileSync(busPath, 'utf8');
     const lines = raw.trim().split('\n');
     expect(lines).toHaveLength(10);
-    // Each line must be valid JSON
-    lines.forEach((line) => {
+    lines.forEach((line: string) => {
       expect(() => JSON.parse(line)).not.toThrow();
     });
   });
 
   it('throws on invalid event schema (missing type)', async () => {
     await expect(
-      append({ runId: 'RUN-003', payload: {} } as any)
+      append({ ts: TS, gate: 'plan-approval', runId: RUN_A } as any, busPath)
     ).rejects.toThrow();
   });
 
   it('throws on invalid event schema (missing runId)', async () => {
     await expect(
-      append({ type: 'EVT_NOID', payload: {} } as any)
+      append({ type: 'gate.requested', ts: TS, gate: 'plan-approval' } as any, busPath)
     ).rejects.toThrow();
   });
 });

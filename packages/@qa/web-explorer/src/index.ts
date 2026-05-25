@@ -175,9 +175,9 @@ export class WebExplorer {
 
   constructor(config: ExplorerConfig) {
     this.config = {
-      maxDepth: 5,
-      maxPages: 100,
       ...config,
+      maxDepth: config.maxDepth ?? 5,
+      maxPages: config.maxPages ?? 100,
     };
   }
 
@@ -333,7 +333,7 @@ export class WebExplorer {
             testIds,
             consoleErrors,
             brokenImages,
-            screenshotPath,
+            ...(screenshotPath !== undefined && { screenshotPath }),
             depth,
             role,
           };

@@ -1,6 +1,5 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import lockfile from "proper-lockfile";
 import {
   IdKindSchema,
@@ -14,15 +13,13 @@ import {
   WorkReportIdSchema,
 } from "@qa/contracts";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 // ─── Counter file location ────────────────────────────────────────────────────
 
 // Resolved relative to the aegis/ root, two levels up from packages/@qa/ids/src
 function getCountersPath(): string {
   const envPath = process.env["AEGIS_COUNTERS_PATH"];
   if (envPath) return resolve(envPath);
+  // __dirname is available in CJS; in ESM builds AEGIS_COUNTERS_PATH must be set
   return resolve(__dirname, "../../../../.aegis/.counters.json");
 }
 

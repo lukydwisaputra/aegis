@@ -1,6 +1,10 @@
 packages:
   - 'packages/@qa/*'
   - 'apps/*'
+  - '__internal-tests__'
 allowBuilds:
   esbuild: set this to true or false
   msw: false
+overrides:
+  typescript: "^5.5.0"
+  "@types/node": "^20.0.0"

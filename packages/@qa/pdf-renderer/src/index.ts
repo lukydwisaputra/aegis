@@ -8,6 +8,7 @@ import {
   Image,
   StyleSheet,
 } from "@react-pdf/renderer";
+import type { DocumentProps } from "@react-pdf/renderer";
 
 // ─── Tone-check ───────────────────────────────────────────────────────────────
 
@@ -788,7 +789,7 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
  * Generate executive slide deck PDF bytes.
  */
 export async function renderSlideDeck(spec: SlideSpec): Promise<Buffer> {
-  const element = React.createElement(SlideDeckDocument, { spec });
+  const element = React.createElement(SlideDeckDocument, { spec }) as React.ReactElement<DocumentProps>;
   return renderToBuffer(element);
 }
 
@@ -798,7 +799,7 @@ export async function renderSlideDeck(spec: SlideSpec): Promise<Buffer> {
 export async function renderTechnicalReport(
   spec: TechnicalReportSpec
 ): Promise<Buffer> {
-  const element = React.createElement(TechnicalReportDocument, { spec });
+  const element = React.createElement(TechnicalReportDocument, { spec }) as React.ReactElement<DocumentProps>;
   return renderToBuffer(element);
 }
 
@@ -806,6 +807,6 @@ export async function renderTechnicalReport(
  * Generate sign-off document PDF bytes.
  */
 export async function renderSignoffDocument(spec: SignoffSpec): Promise<Buffer> {
-  const element = React.createElement(SignoffDocument, { spec });
+  const element = React.createElement(SignoffDocument, { spec }) as React.ReactElement<DocumentProps>;
   return renderToBuffer(element);
 }

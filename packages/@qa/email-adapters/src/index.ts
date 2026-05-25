@@ -3,7 +3,6 @@
  * Gmail API + Mailpit adapters behind a unified EmailAdapter interface.
  */
 
-import fetch from "node-fetch";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -304,7 +303,7 @@ export class GmailAdapter implements EmailAdapter {
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
       },
-    }) as unknown as Response;
+    } as RequestInit);
   }
 
   async getEmails(predicate?: (msg: EmailMessage) => boolean): Promise<EmailMessage[]> {

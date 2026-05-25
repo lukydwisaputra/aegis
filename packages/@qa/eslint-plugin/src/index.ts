@@ -1,4 +1,5 @@
-import type { Rule, Plugin } from 'eslint';
+import type { Rule } from 'eslint';
+type Plugin = { rules?: Record<string, Rule.RuleModule>; [key: string]: unknown };
 
 // ---------------------------------------------------------------------------
 // Rule 1: no-raw-page-in-e2e

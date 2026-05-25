@@ -19,8 +19,5 @@
   "dependencies": {
     "zod": "^3.23.0"
   },
-  "devDependencies": {
-    "typescript": "^5.5.0",
-    "@types/node": "^20.0.0"
-  }
+  "devDependencies": {}
 }

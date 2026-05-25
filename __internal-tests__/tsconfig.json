@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@qa/*": ["../packages/@qa/*/src/index"]
+    },
+    "types": ["jest", "node"]
+  },
+  "include": ["./**/*.ts"]
+}

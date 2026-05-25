@@ -193,8 +193,8 @@ export async function collectRunMetrics(runDir: string): Promise<void> {
   for (const event of events) {
     if (event.type === "defect.opened") {
       defectOpened++;
-      const sev = event.severity;
-      openBySeverity[sev] = (openBySeverity[sev] ?? 0) + 1;
+      const sevCode = event.severity.code;
+      openBySeverity[sevCode] = (openBySeverity[sevCode] ?? 0) + 1;
     } else if (event.type === "defect.closed") {
       defectClosed++;
     } else if (event.type === "defect.reopened") {
