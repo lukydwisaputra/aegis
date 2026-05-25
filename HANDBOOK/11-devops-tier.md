@@ -84,7 +84,7 @@ DevOps agents reference secrets via `aegis.config.json.environments.{env}.secret
 
 ## 11.9 → Deep dives
 
-- [docs/35-devops-tier-overview.md](../docs/35-devops-tier-overview.md) — purpose, sub-roles, activation gates
-- [docs/36-github-workflow.md](../docs/36-github-workflow.md) — branch strategy, PR conventions, gh CLI usage
-- [docs/37-cicd-workflow.md](../docs/37-cicd-workflow.md) — GitHub Actions workflow templates + safety
-- [docs/38-worktree-isolation.md](../docs/38-worktree-isolation.md) — when/why worktree is used
+- [docs/D11-devops-tier-overview.md](../docs/D11-devops-tier-overview.md) — purpose, sub-roles, activation gates
+- [docs/D11-github-workflow.md](../docs/D11-github-workflow.md) — branch strategy, PR conventions, gh CLI usage
+- [docs/D12-cicd-workflow.md](../docs/D12-cicd-workflow.md) — GitHub Actions workflow templates + safety
+- [docs/D11-worktree-isolation.md](../docs/D11-worktree-isolation.md) — when/why worktree is used

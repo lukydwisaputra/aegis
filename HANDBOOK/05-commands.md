@@ -341,6 +341,6 @@ Resets an agent's memory and lessons to factory defaults.
 
 ### Further Reading
 
-- `docs/14-command-reference.md` — full CLI reference with all exit codes
-- `docs/15-ci-commands.md` — CI/CD command integration guide
-- `docs/16-knowledge-ingestion.md` — book ingestion pipeline and token budgets
+- `docs/D05-command-reference.md` — full CLI reference with all exit codes
+- `docs/D05-ci-commands.md` — CI/CD command integration guide
+- `docs/D05-knowledge-ingestion.md` — book ingestion pipeline and token budgets

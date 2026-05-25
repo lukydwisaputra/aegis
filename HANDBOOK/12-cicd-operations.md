@@ -167,7 +167,7 @@ ERROR: Error budget exhausted (43.2 min / month limit reached at 39.7 min).
 
 ## 12.9 → Deep dives
 
-- [docs/41-environments-overview.md](../docs/41-environments-overview.md)
-- [docs/42-cicd-stage-map.md](../docs/42-cicd-stage-map.md)
-- [docs/43-env-safety-and-prod.md](../docs/43-env-safety-and-prod.md)
-- [docs/44-secrets-handling.md](../docs/44-secrets-handling.md)
+- [docs/D12-environments-overview.md](../docs/D12-environments-overview.md)
+- [docs/D12-cicd-stage-map.md](../docs/D12-cicd-stage-map.md)
+- [docs/D12-env-safety-and-prod.md](../docs/D12-env-safety-and-prod.md)
+- [docs/D11-secrets-handling.md](../docs/D11-secrets-handling.md)

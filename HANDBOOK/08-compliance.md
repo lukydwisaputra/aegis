@@ -180,6 +180,6 @@ The ISO 5055 warning was documented as a non-blocking finding. The team added a 
 
 ### Further Reading
 
-- `docs/24-compliance-frameworks.md` — regulation summaries with article references
-- `docs/25-gdpr-test-data.md` — GDPR-compliant test data generation guide
-- `docs/26-pdpa-checklist.md` — PDPA article-by-article test coverage checklist
+- `docs/D08-compliance-frameworks.md` — regulation summaries with article references
+- `docs/D08-gdpr-test-data.md` — GDPR-compliant test data generation guide
+- `docs/D08-pdpa-checklist.md` — PDPA article-by-article test coverage checklist

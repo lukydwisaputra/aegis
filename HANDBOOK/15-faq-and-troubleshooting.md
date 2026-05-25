@@ -62,7 +62,7 @@ When an artifact can't be written because its JSON doesn't match the Zod schema:
 
 1. Check the error message — it will name the failing field and the Zod constraint
 2. If the artifact was hand-edited, revert to the JSON and let the agent re-render the MD
-3. If the schema changed (after an Aegis version bump), run the migration script from `docs/55-upgrade-guide.md`
+3. If the schema changed (after an Aegis version bump), run the migration script from `docs/D14-upgrade-guide.md`
 
 Never bypass Zod validation by commenting it out — it's the primary data-integrity guard.
 

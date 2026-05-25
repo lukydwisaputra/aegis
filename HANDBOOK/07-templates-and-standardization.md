@@ -207,7 +207,7 @@ Fixture files follow the naming convention `<module>-<type>.json` (e.g., `auth-u
 
 ### Further Reading
 
-- `docs/20-id-scheme.md` — full ID scheme with edge cases
-- `docs/21-defect-fields.md` — defect field validation rules
-- `docs/22-rtm-schema.md` — RTM JSON schema with validation
-- `docs/23-test-data.md` — test data management policy
+- `docs/D07-id-scheme.md` — full ID scheme with edge cases
+- `docs/D07-defect-fields.md` — defect field validation rules
+- `docs/D07-rtm-schema.md` — RTM JSON schema with validation
+- `docs/D07-test-data.md` — test data management policy

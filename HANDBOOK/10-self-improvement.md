@@ -104,5 +104,5 @@ Each proposal shows evidence, context, and a proposed change. Accept moves it to
 
 ## 10.8 → Deep dives
 
-- [docs/10a-per-agent-auto-learning.md](../docs/10a-per-agent-auto-learning.md) — dedup algorithm, archive format
-- [docs/10b-self-improvement-cycle.md](../docs/10b-self-improvement-cycle.md) — curator flow, proposal format
+- [docs/D10-per-agent-auto-learning.md](../docs/D10-per-agent-auto-learning.md) — dedup algorithm, archive format
+- [docs/D10-self-improvement-cycle.md](../docs/D10-self-improvement-cycle.md) — curator flow, proposal format

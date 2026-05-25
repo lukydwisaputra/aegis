@@ -33,7 +33,7 @@ The `ingestion` section of `model-policy.yaml` defines a multi-stage strategy:
 - Cross-book synthesis: Opus (~$0.30 for 5 triggers)
 - Quality audit: Opus (optional, ~$0.10)
 
-See `docs/71-book-ingestion-model-strategy.md` for full cost breakdown.
+See `docs/D05-book-ingestion-model-strategy.md` for full cost breakdown.
 
 ## SPV fast-path
 

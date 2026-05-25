@@ -203,5 +203,5 @@ A 0–100 quality score assigned by an SPV agent to a worker's artefact. Scores 
 
 ### Further Reading
 
-- `docs/50-glossary-extended.md` — extended definitions with regulatory article references
-- `docs/51-metrics-guide.md` — how each metric is calculated, visualised, and interpreted
+- `docs/D16-glossary-extended.md` — extended definitions with regulatory article references
+- `docs/D09-metrics-guide.md` — how each metric is calculated, visualised, and interpreted

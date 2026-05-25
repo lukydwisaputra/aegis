@@ -79,7 +79,7 @@ Skills are the implementation of slash commands.
    - `category: "command"` event at start
    - `{relevant events}` during execution
    ```
-2. If the command needs new options, document them in `docs/39-commands-reference.md`
+2. If the command needs new options, document them in `docs/D05-commands-reference.md`
 3. All commands must emit `{ type: 'command.invoked', command: '/qa-{name}', ts }` at start
 4. All commands should support `--json` for machine-readable output
 
@@ -90,7 +90,7 @@ Skills are the implementation of slash commands.
 3. Call `@qa/reporters.writeArtifact({ kind: '{report-name}', data })` from the closure reporter or relevant phase agent
 4. Add a route to the Fastify API at `apps/dashboard-api/src/routes/reports.ts`
 5. Add a dashboard page at `apps/dashboard/src/routes/`
-6. Update `docs/17-reports-catalog.md` with the new report's fields
+6. Update `docs/D09-reports-catalog.md` with the new report's fields
 
 ## 14.7 Adding a new event type
 
@@ -98,7 +98,7 @@ Skills are the implementation of slash commands.
    ```typescript
    | { type: 'your.new.event'; field1: string; field2: number; ts: string }
    ```
-2. Update `docs/08-event-bus-spec.md` with the new event's key fields
+2. Update `docs/D13-event-bus-spec.md` with the new event's key fields
 3. Any agent that subscribes to the new event must add it to its `knowledge_refs` section
 
 ## 14.8 Versioning the boilerplate
@@ -115,16 +115,16 @@ Changes that **are** breaking (require major version bump):
 - Removing or renaming config fields that users are likely to have set
 - Changing the ID format for any artifact kind
 
-Breaking changes require a migration guide in `docs/55-upgrade-guide.md`.
+Breaking changes require a migration guide in `docs/D14-upgrade-guide.md`.
 
 ## 14.9 ⚠ Extension pitfalls
 
 - **Don't add agents without SPVs.** The review loop is how quality is enforced; solo agents drift.
 - **Don't add config fields without schema updates.** `@qa/contracts/QaConfig` must be updated or `pnpm build` will fail.
 - **Don't hardcode model names in agent definitions.** Always use `modelTier` — model names are resolved at build time from `model-policy.yaml`.
-- **Don't forget to update `docs/39-commands-reference.md`** when adding commands. The cheat sheet and `/qa-help` pull from this file.
+- **Don't forget to update `docs/D05-commands-reference.md`** when adding commands. The cheat sheet and `/qa-help` pull from this file.
 - **Don't skip the `aegis.territory.violated` event setup** when adding agents that write to non-standard paths.
 
 ## 14.10 → Deep dive
 
-- [docs/19-extending-the-system.md](../docs/19-extending-the-system.md) — step-by-step recipes for each extension type
+- [docs/D14-extending-the-system.md](../docs/D14-extending-the-system.md) — step-by-step recipes for each extension type

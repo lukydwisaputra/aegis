@@ -154,10 +154,10 @@ If a lock file is stale but the task is still running (e.g., the agent is just s
 
 ## 13.10 → Deep dives
 
-- [docs/07-concurrency-and-locking.md](../docs/07-concurrency-and-locking.md)
-- [docs/08-event-bus-spec.md](../docs/08-event-bus-spec.md)
-- [docs/09a-spv-review-pattern.md](../docs/09a-spv-review-pattern.md)
-- [docs/09b-work-report-schema.md](../docs/09b-work-report-schema.md)
-- [docs/09c-model-policy.md](../docs/09c-model-policy.md)
-- [docs/62-prompt-caching.md](../docs/62-prompt-caching.md)
-- [docs/63-spv-fast-path.md](../docs/63-spv-fast-path.md)
+- [docs/D13-concurrency-and-locking.md](../docs/D13-concurrency-and-locking.md)
+- [docs/D13-event-bus-spec.md](../docs/D13-event-bus-spec.md)
+- [docs/D13-spv-review-pattern.md](../docs/D13-spv-review-pattern.md)
+- [docs/D13-work-report-schema.md](../docs/D13-work-report-schema.md)
+- [docs/D13-model-policy.md](../docs/D13-model-policy.md)
+- [docs/D13-prompt-caching.md](../docs/D13-prompt-caching.md)
+- [docs/D13-spv-fast-path.md](../docs/D13-spv-fast-path.md)

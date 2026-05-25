@@ -100,7 +100,7 @@ Standard dedup/conflict/cap rules apply. Worker reads the updated `lessons.md` a
 
 ## SPV model assignment
 
-All SPVs default to the `validation` tier (Opus 4.7). The SPV fast-path (from `docs/63-spv-fast-path.md`) allows first-pass review on Sonnet with Opus escalation only when:
+All SPVs default to the `validation` tier (Opus 4.7). The SPV fast-path (from `docs/D13-spv-fast-path.md`) allows first-pass review on Sonnet with Opus escalation only when:
 - Verdict is `requested-changes` or `passed-with-notes`
 - Work touches security/compliance/auth
 - Novel pattern not seen in lessons

@@ -194,6 +194,6 @@ Total: 14 agents (vs 63 in full mode). Cost is approximately 80% lower; coverage
 
 ### Further Reading
 
-- `docs/17-agent-roster.md` — full agent specification with input/output schemas
-- `docs/18-spv-rubrics.md` — scoring rubric dimensions per SPV
-- `docs/19-lite-mode.md` — Lite mode trade-offs and when to use each profile
+- `docs/D06-agent-roster.md` — full agent specification with input/output schemas
+- `docs/D06-spv-rubrics.md` — scoring rubric dimensions per SPV
+- `docs/D06-lite-mode.md` — Lite mode trade-offs and when to use each profile

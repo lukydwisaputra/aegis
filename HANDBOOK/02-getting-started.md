@@ -397,7 +397,7 @@ After setting the value and re-running `/qa-health`, all checks passed. `/qa-smo
 
 ### Further Reading
 
-- `docs/02b-teammate-onboarding.md` — standalone 5-minute checklist for teammates
-- `docs/00-cheat-sheet.md` — printable top-10 command reference
+- `docs/D02-teammate-onboarding.md` — standalone 5-minute checklist for teammates
+- `docs/D05-cheat-sheet.md` — printable top-10 command reference
 - Chapter 5 — All 28 commands with flags
 - Chapter 12 — CI/CD pipeline in depth

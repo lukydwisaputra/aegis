@@ -188,6 +188,6 @@ These ranges are defaults. Set project-specific thresholds in `aegis/thresholds.
 
 ### Further Reading
 
-- `docs/27-report-schema.md` — full schema for run-report data
-- `docs/28-dashboard-api.md` — dashboard API endpoints and SSE event catalogue
-- `docs/29-executive-pdf.md` — PDF template customisation
+- `docs/D09-report-schema.md` — full schema for run-report data
+- `docs/D09-dashboard-api.md` — dashboard API endpoints and SSE event catalogue
+- `docs/D09-executive-pdf.md` — PDF template customisation

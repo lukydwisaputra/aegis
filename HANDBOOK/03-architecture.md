@@ -191,7 +191,7 @@ For `RUN-20260523-001` (Login/SSO feature), the architecture flow was:
 
 ### Further Reading
 
-- `docs/07-orchestrator-internals.md` — Orchestrator state machine
-- `docs/08-taskmaster-protocol.md` — task schema and queue semantics
-- `docs/09-model-policy.md` — model tier assignment rules and override syntax
-- `docs/10-path-guard.md` — path-guard configuration and bypass procedures
+- `docs/D03-orchestrator-internals.md` — Orchestrator state machine
+- `docs/D03-taskmaster-protocol.md` — task schema and queue semantics
+- `docs/D13-model-policy.md` — model tier assignment rules and override syntax
+- `docs/D03-path-guard.md` — path-guard configuration and bypass procedures
