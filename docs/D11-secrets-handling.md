@@ -45,7 +45,7 @@ Standard secret names (consistent across environments):
 | `SUPABASE_ANON_KEY` | Public anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin key (DB specialist only) |
 | `APP_URL` | Base URL of the deployed app |
-| `MAILHOG_URL` | Mailhog API endpoint (testing env only) |
+| `MAILPIT_URL` | Mailpit API endpoint (testing env only) |
 | `SMTP_HOST` | SMTP host (staging env only) |
 
 ---

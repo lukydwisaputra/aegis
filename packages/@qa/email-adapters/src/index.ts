@@ -1,6 +1,6 @@
 /**
  * @qa/email-adapters
- * Gmail API + Mailhog adapters behind a unified EmailAdapter interface.
+ * Gmail API + Mailpit adapters behind a unified EmailAdapter interface.
  */
 
 import fetch from "node-fetch";
@@ -48,88 +48,83 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Mailhog adapter ─────────────────────────────────────────────────────────
+// ─── Mailpit adapter ─────────────────────────────────────────────────────────
 
-interface MailhogHeader {
-  [key: string]: string[];
+interface MailpitAddress {
+  Address: string;
+  Name: string;
 }
 
-interface MailhogContent {
-  Headers: MailhogHeader;
-  Body: string;
-  MIME: unknown;
-}
-
-interface MailhogItem {
+interface MailpitItem {
   ID: string;
-  Content: MailhogContent;
-  Created: string;
+  From: MailpitAddress;
+  To: MailpitAddress[];
+  Subject: string;
+  Date: string;
+  Snippet: string;
 }
 
-interface MailhogResponse {
+interface MailpitListResponse {
   total: number;
+  unread: number;
   count: number;
-  start: number;
-  items: MailhogItem[];
+  messages: MailpitItem[];
 }
 
-function mailhogItemToMessage(item: MailhogItem): EmailMessage {
-  const headers = item.Content.Headers;
+interface MailpitMessageDetail {
+  ID: string;
+  From: MailpitAddress;
+  To: MailpitAddress[];
+  Subject: string;
+  Date: string;
+  Text: string;
+  HTML: string;
+  Headers: Record<string, string[]>;
+}
 
+function mailpitItemToMessage(detail: MailpitMessageDetail): EmailMessage {
   const flatHeaders: Record<string, string> = {};
-  for (const [key, values] of Object.entries(headers)) {
+  for (const [key, values] of Object.entries(detail.Headers)) {
     flatHeaders[key] = Array.isArray(values) ? values.join(", ") : String(values);
   }
 
-  const toHeader = headers["To"] ?? [];
-  const toAddresses = toHeader.flatMap((t: string) =>
-    t.split(",").map((a) => a.trim())
-  );
-
-  const fromHeader = headers["From"]?.[0] ?? "";
-  const subject = headers["Subject"]?.[0] ?? "";
-  const dateHeader = headers["Date"]?.[0] ?? item.Created;
-
-  let receivedAt: string;
-  try {
-    receivedAt = new Date(dateHeader).toISOString();
-  } catch {
-    receivedAt = item.Created;
-  }
-
-  // Mailhog stores the body as a plain string (text or HTML depending on content-type)
-  const contentType = (headers["Content-Type"]?.[0] ?? "").toLowerCase();
-  const isHtml = contentType.includes("text/html");
-
   return {
-    id: item.ID,
-    to: toAddresses,
-    from: fromHeader,
-    subject,
+    id: detail.ID,
+    to: detail.To.map((a) => a.Address),
+    from: detail.From.Address,
+    subject: detail.Subject,
     body: {
-      text: isHtml ? null : item.Content.Body,
-      html: isHtml ? item.Content.Body : null,
+      text: detail.Text || null,
+      html: detail.HTML || null,
     },
-    receivedAt,
+    receivedAt: new Date(detail.Date).toISOString(),
     headers: flatHeaders,
   };
 }
 
-export class MailhogAdapter implements EmailAdapter {
+export class MailpitAdapter implements EmailAdapter {
   private readonly apiUrl: string;
 
   constructor(opts: { apiUrl: string }) {
-    // Normalise trailing slash
     this.apiUrl = opts.apiUrl.replace(/\/$/, "");
   }
 
   async getEmails(predicate?: (msg: EmailMessage) => boolean): Promise<EmailMessage[]> {
-    const res = await fetch(`${this.apiUrl}/api/v2/messages`);
-    if (!res.ok) {
-      throw new Error(`Mailhog GET /api/v2/messages failed: ${res.status} ${res.statusText}`);
+    const listRes = await fetch(`${this.apiUrl}/api/v1/messages`);
+    if (!listRes.ok) {
+      throw new Error(`Mailpit GET /api/v1/messages failed: ${listRes.status} ${listRes.statusText}`);
     }
-    const data = (await res.json()) as MailhogResponse;
-    const messages = (data.items ?? []).map(mailhogItemToMessage);
+    const listData = (await listRes.json()) as MailpitListResponse;
+    const items = listData.messages ?? [];
+
+    const messages: EmailMessage[] = [];
+    for (const item of items) {
+      const detailRes = await fetch(`${this.apiUrl}/api/v1/message/${item.ID}`);
+      if (!detailRes.ok) continue;
+      const detail = (await detailRes.json()) as MailpitMessageDetail;
+      messages.push(mailpitItemToMessage(detail));
+    }
+
     return predicate ? messages.filter(predicate) : messages;
   }
 
@@ -151,7 +146,7 @@ export class MailhogAdapter implements EmailAdapter {
   async purgeAll(): Promise<void> {
     const res = await fetch(`${this.apiUrl}/api/v1/messages`, { method: "DELETE" });
     if (!res.ok) {
-      throw new Error(`Mailhog DELETE /api/v1/messages failed: ${res.status} ${res.statusText}`);
+      throw new Error(`Mailpit DELETE /api/v1/messages failed: ${res.status} ${res.statusText}`);
     }
   }
 }
@@ -369,8 +364,8 @@ export class GmailAdapter implements EmailAdapter {
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
 export interface EmailAdapterConfig {
-  emailAdapter: "mailhog" | "gmail";
-  mailhogUrl?: string;
+  emailAdapter: "mailpit" | "gmail";
+  mailpitUrl?: string;
   gmail?: {
     clientId: string;
     clientSecret: string;
@@ -381,12 +376,12 @@ export interface EmailAdapterConfig {
 
 /**
  * Creates the appropriate EmailAdapter from an aegis.config.json-shaped config object.
- * Uses MailhogAdapter when emailAdapter === "mailhog"; GmailAdapter otherwise.
+ * Uses MailpitAdapter when emailAdapter === "mailpit"; GmailAdapter otherwise.
  */
 export function createEmailAdapter(config: EmailAdapterConfig): EmailAdapter {
-  if (config.emailAdapter === "mailhog") {
-    return new MailhogAdapter({
-      apiUrl: config.mailhogUrl ?? "http://localhost:8025",
+  if (config.emailAdapter === "mailpit") {
+    return new MailpitAdapter({
+      apiUrl: config.mailpitUrl ?? "http://localhost:8025",
     });
   }
 

@@ -47,7 +47,7 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 | `qa-spec-security` | B | OWASP-aligned security test cases | No |
 | `qa-spec-a11y` | B | WCAG 2.2 accessibility test cases | No |
 | `qa-spec-perf` | B | k6 performance scripts | No |
-| `qa-spec-email` | B | Email flow test cases (Mailhog) | No |
+| `qa-spec-email` | B | Email flow test cases (Mailpit) | No |
 | `qa-spec-visual` | B | Visual regression baselines | No |
 | `qa-spec-exploratory` | B | Exploratory charters | No |
 | `qa-executor` | C | Test results (JUnit XML + JSON) | Yes |

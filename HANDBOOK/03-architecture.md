@@ -88,7 +88,7 @@ Fourteen workers execute concrete tasks:
 | `qa-spec-security` | Security test cases (OWASP-aligned) |
 | `qa-spec-a11y` | Accessibility test cases (WCAG 2.2) |
 | `qa-spec-perf` | Performance test cases (k6 scripts) |
-| `qa-spec-email` | Email flow test cases (Mailhog) |
+| `qa-spec-email` | Email flow test cases (Mailpit) |
 | `qa-spec-visual` | Visual regression baselines and cases |
 | `qa-spec-exploratory` | Exploratory charters |
 | `qa-executor` | Runs test scripts and captures results |

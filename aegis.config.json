@@ -7,7 +7,7 @@
   "shareBooks": false,
   "stack": "auto-detect",
   "packageManager": "auto-detect",
-  "emailAdapter": "mailhog",
+  "emailAdapter": "mailpit",
   "profile": "full",
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 4 },
@@ -32,7 +32,7 @@
       "ephemeralProvisioning": {
         "type": "vercel-preview",
         "dbSnapshotFrom": "staging",
-        "mailhogPerInstance": true
+        "mailpitPerInstance": true
       },
       "allowedSpecialists": ["unit", "api", "ui", "security", "a11y", "email"],
       "purpose": "PR gate; /qa-smoke 10-min budget; isolated per PR"
@@ -58,7 +58,7 @@
   "ports": {
     "dashboard": 3030,
     "dashboardApi": 3031,
-    "mailhog": { "smtp": 1025, "http": 8025 },
+    "mailpit": { "smtp": 1025, "http": 8025 },
     "storybook": 6006,
     "k6Dashboard": 5665,
     "playwrightUI": 9323,

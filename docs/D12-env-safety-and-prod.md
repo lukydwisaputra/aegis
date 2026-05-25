@@ -25,7 +25,7 @@ This covers:
 - Database writes (INSERT, UPDATE, DELETE)
 - File uploads
 - User creation / modification
-- Email sends (real SMTP, not Mailhog)
+- Email sends (real SMTP, not Mailpit)
 - Any `POST/PUT/PATCH/DELETE` HTTP request from a specialist
 
 Read-only actions allowed in production:
@@ -75,7 +75,7 @@ Before `qa-smoke-prod.yml` triggers, the following must be true:
 - [ ] `env.readOnly === true` in config
 - [ ] All forbidden specialists listed in `forbiddenSpecialists[]`
 - [ ] No `--force` flag on any specialist invocation
-- [ ] Mailhog adapter disabled (no email test infrastructure in prod)
+- [ ] Mailpit adapter disabled (no email test infrastructure in prod)
 - [ ] No DB snapshot or migration steps in the workflow
 - [ ] ZAP passive scan only (no active scan) — `qa-security-specialist` uses `--passive-only` when not forbidden
 
@@ -100,7 +100,7 @@ Before `qa-smoke-prod.yml` triggers, the following must be true:
 
 Each environment has its own:
 - Supabase project (separate URL + anon key)
-- Mailhog instance (`testing` only — staging uses real SMTP to a test inbox)
+- Mailpit instance (`testing` only — staging uses real SMTP to a test inbox)
 - Ephemeral database snapshot (testing: restored from staging snapshot per PR)
 
 Secrets for each environment are prefixed by environment (see [D11-secrets-handling.md](D11-secrets-handling.md)).

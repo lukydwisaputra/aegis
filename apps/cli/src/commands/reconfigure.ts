@@ -7,7 +7,7 @@ export function reconfigureCommand(): Command {
   return new Command("reconfigure")
     .description("Edit aegis settings without re-initialising")
     .argument("[aegis-dir]", "path to aegis/ directory", "aegis")
-    .option("--email <adapter>", "change email adapter (mailhog|gmail)")
+    .option("--email <adapter>", "change email adapter (mailpit|gmail)")
     .option("--project-name <name>", "change dashboard project name")
     .option("--profile <profile>", "change profile (full|lite)")
     .action((aegisDir: string, opts: ReconfigureOptions) => {

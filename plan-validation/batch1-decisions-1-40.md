@@ -503,7 +503,7 @@ auditedAt: 2026-05-24
 
 ---
 
-### Decision 37 — Port configuration (All ports in aegis.config.json.ports block; dashboard 3030, Mailhog 8025/1025, Storybook 6006, k6 5665)
+### Decision 37 — Port configuration (All ports in aegis.config.json.ports block; dashboard 3030, Mailpit 8025/1025, Storybook 6006, k6 5665)
 **Score: AFFIRMED**
 
 **Book evidence:**

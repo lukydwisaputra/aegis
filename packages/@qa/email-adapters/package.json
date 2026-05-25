@@ -1,7 +1,7 @@
 {
   "name": "@qa/email-adapters",
   "version": "1.0.0",
-  "description": "Gmail API and Mailhog adapters behind a unified EmailAdapter interface for Aegis QA",
+  "description": "Gmail API and Mailpit adapters behind a unified EmailAdapter interface for Aegis QA",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

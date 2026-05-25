@@ -30,7 +30,7 @@ development (local)
         ▼
 testing (ephemeral per PR)
   trigger: pull_request opened / synchronize
-  provision: per-PR preview deploy + DB snapshot + per-PR Mailhog
+  provision: per-PR preview deploy + DB snapshot + per-PR Mailpit
   workflow: qa-smoke.yml
   command:  /qa-smoke --env=testing --budget=10m
   gate:     TESTING

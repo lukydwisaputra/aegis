@@ -26,7 +26,7 @@ development (local)  →  testing (ephemeral per PR)  →  staging (prod mirror)
          ▼
 ┌────────────────┐
 │    testing     │  trigger: pull_request opened / synchronize
-│ (ephemeral     │  provision: per-PR preview deploy + DB snapshot + per-PR Mailhog
+│ (ephemeral     │  provision: per-PR preview deploy + DB snapshot + per-PR Mailpit
 │  per PR)       │  workflow: .github/workflows/qa-smoke.yml
 │                │  command:  /qa-smoke --env=testing --budget=10m
 └────────┬───────┘  gate:     TESTING (cov≥80%, pass=100%, p95<500ms, 0 CVEs, 0 a11y)

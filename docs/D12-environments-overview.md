@@ -17,7 +17,7 @@ The QA system runs against 4 target environments. Each has distinct capabilities
 |-----------|-------------|---------|---------|-----------|
 | All specialists | ✓ | Subset | ✓ | Subset |
 | Mutating test data | ✓ | ✓ | ✓ | ✗ |
-| Email testing | ✓ (Mailhog) | ✓ (per-PR Mailhog) | ✓ (Mailhog/Gmail) | ✗ |
+| Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit/Gmail) | ✗ |
 | Performance testing | ✓ | ✗ | ✓ | ✗ |
 | Unit testing | ✓ | ✓ | ✓ | ✗ |
 | Read-only enforced | ✗ | ✗ | ✗ | ✓ |
@@ -26,7 +26,7 @@ The QA system runs against 4 target environments. Each has distinct capabilities
 ## Testing environment — ephemeral per PR
 
 Each PR gets its own isolated instance:
-1. PR opened → provision preview deploy (Vercel/Netlify) + DB snapshot from staging + per-PR Mailhog
+1. PR opened → provision preview deploy (Vercel/Netlify) + DB snapshot from staging + per-PR Mailpit
 2. `/qa-smoke --env=testing` runs against the preview URL
 3. PR closed → all resources torn down
 

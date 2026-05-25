@@ -8,7 +8,7 @@ export function initCommand(): Command {
   return new Command("init")
     .description("Initialise Aegis inside an existing project directory")
     .argument("[target]", "path to target project root", ".")
-    .option("--email <adapter>", "email adapter (mailhog|gmail)", "mailhog")
+    .option("--email <adapter>", "email adapter (mailpit|gmail)", "mailpit")
     .option(
       "--compliance <list>",
       "comma-separated compliance modules",
@@ -173,7 +173,7 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
     ports: {
       dashboard: 3030,
       dashboardApi: 3031,
-      mailhog: { smtp: 1025, http: 8025 },
+      mailpit: { smtp: 1025, http: 8025 },
       storybook: 6006,
     },
     dashboard: {
