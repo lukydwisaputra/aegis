@@ -73,9 +73,11 @@ You do not run tests. You prepare the runway.
    - If Gmail email adapter: verify OAuth credentials set
    - Emit `EnvSetupFailed` with specific missing vars if any are absent
 
-6. **Smoke-ping the target.** Make one unauthenticated GET to the target's base URL. If non-2xx or timeout: emit `EnvSetupFailed` with the URL and response. Do not continue if the environment is unreachable.
+6. **Install Playwright Agent CLI.** Run `npm install -g @playwright/cli@latest` then `playwright-cli install --skills` to install the Playwright Agent CLI and its skills. This tool is used by `qa-web-explorer` and `qa-exploratory-specialist` for browser automation via shell commands. If the install fails, emit `EnvSetupFailed` — discovery and exploratory phases cannot run without it. Record the installed version in the env-setup-report.
 
-7. **Write env-setup-report.** Document: what was configured (browser matrix, roles, factories created), what was skipped (role not found in credentials), health status (READY / PARTIAL / FAILED).
+7. **Smoke-ping the target.** Make one unauthenticated GET to the target's base URL. If non-2xx or timeout: emit `EnvSetupFailed` with the URL and response. Do not continue if the environment is unreachable.
+
+8. **Write env-setup-report.** Document: what was configured (browser matrix, roles, factories created, `@playwright/cli` version), what was skipped (role not found in credentials), health status (READY / PARTIAL / FAILED).
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -86,6 +88,7 @@ You do not run tests. You prepare the runway.
 - Playwright configured with a single browser only (all three required unless explicitly overridden)
 - `storageState` path not gitignored (`tests/state/*.json` must be gitignored)
 - `playwright.config.ts` sets `retries: 0` on CI (minimum 2 retries required on CI for flake tolerance before quarantine)
+- `playwright-cli install --skills` skipped — qa-web-explorer and qa-exploratory-specialist cannot function without it
 - Smoke-ping skipped or silenced
 
 ## Events You Emit

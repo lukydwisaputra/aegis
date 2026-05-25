@@ -29,6 +29,7 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 4. **COTE on defects.** Any defect raised from exploratory testing meets the COTE criteria (Correct, Objective, Timely, Evidential). Defects without reproducible evidence = requested-changes.
 5. **Time boxing.** Each session has a `startedAt` and `endedAt` timestamp and was within the configured time box (typically 60-90 minutes). Untimed sessions = passed-with-notes.
 6. **Coverage notes.** Session notes identify coverage gaps — areas the agent noticed but did not have time to explore. These are candidates for future charters. Missing coverage notes = passed-with-notes.
+7. **Correct browser tool used.** Work report confirms browser interactions were performed via Playwright MCP (`mcp__playwright__*`) or Playwright CLI (`playwright-cli`). Any `.spec.ts` file created during the exploratory session, or evidence that `@playwright/test` Node API was used for session navigation, = requested-changes — scripted test authoring belongs in the test design phase, not during charter execution.
 
 ## Verdict
 

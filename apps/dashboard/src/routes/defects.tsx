@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, type DefectSummary } from "@/lib/api-client";
 import { DefectCard } from "@/components/domain/DefectCard";
 
 export default function DefectsPage() {
+  const navigate = useNavigate();
   const [defects, setDefects] = useState<DefectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function DefectsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {defects.map((d) => (
-            <DefectCard key={d.id} defect={d} />
+            <DefectCard key={d.id} defect={d} onClick={() => navigate(`/defects/${d.id}`)} />
           ))}
         </div>
       )}

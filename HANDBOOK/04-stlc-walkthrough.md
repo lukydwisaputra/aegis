@@ -37,6 +37,8 @@ Discovery runs automatically when a new feature area is tested or when `discover
 7. Flags routes that appear destructive (DELETE endpoints, "delete account" buttons) via heuristic pattern matching
 8. Generates Page Object Model skeletons in `tests/pages/` for each discovered route
 
+**Browser automation tool:** Discovery is inherently _deciding as you go_ — the page structure is unknown until each page is reached. `qa-web-explorer` uses **Playwright MCP** (`mcp__playwright__*` tools) when available, falling back to **Playwright CLI** (`playwright-cli` from `@playwright/cli`) in Bash-only contexts. It never uses `@playwright/test` Node API for discovery — that tool is for executing known scripts, not observation-driven crawling.
+
 For the Login/SSO feature in `RUN-20260523-001`, discovery found 12 auth-related routes including `/login`, `/auth/callback`, `/auth/signout`, and `/dashboard`.
 
 ---
@@ -102,6 +104,8 @@ Teardown:     Log out; clear session
 ### 4.6 Phase 4 — Execution
 
 `qa-test-executor` runs test scripts against the configured environment. Playwright handles UI and API tests; Vitest handles unit tests; k6 handles performance.
+
+**Browser automation tool routing:** Scripted specialists (`qa-ui-specialist`, `qa-responsive-specialist`, `qa-accessibility-specialist`) author and run `.spec.ts` files using `@playwright/test` — the test suite is known in advance. However, these agents may use **Playwright MCP** (or `playwright-cli` as fallback) mid-task to inspect a live page when a selector or ARIA role is ambiguous, then switch back to spec authoring once the page structure is understood. Exploratory testing (`qa-exploratory-specialist`) uses MCP or CLI exclusively — it never produces `.spec.ts` files during charter execution.
 
 Results are written to `runs/<RUN-ID>/results/` in JUnit XML format plus a JSON summary.
 

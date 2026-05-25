@@ -65,13 +65,13 @@
     "trace": 9322
   },
   "artifacts": {
-    "mode": "on-failure",
+    "mode": "always",
     "format": "screenshot",
     "videoTranscodeMp4": false,
     "videoQuality": "medium",
     "screenshotOnEveryStep": false,
     "retention": {
-      "onSuccess": "delete-current",
+      "onSuccess": "replace-latest",
       "onFailure": "preserve-history",
       "historicalLimit": 5,
       "maxAgeRunsKept": 30

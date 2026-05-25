@@ -68,7 +68,7 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 
 5. **Validate evidence quality.** As specialists complete and emit `SpecialistComplete`, spot-check their evidence:
    - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `HARSanitizationRequired`)
-   - Screenshots must exist for any failed TC (if missing, flag in work report)
+   - Screenshots must exist for every TC (pass and fail) — artifact mode is `always`; if missing for any TC, flag in work report
    - Video files must be WebM format (per artifact policy); if MP4 found without transcode flag, flag it
    - Stack traces must be text files, not binary dumps
 
@@ -90,7 +90,7 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 - More than 4 specialists active simultaneously (concurrency violation)
 - HAR file with unsanitised Authorization/Cookie headers in evidence
 - Execution summary produced with missing modules (every module from the test plan must appear)
-- A failed TC with no evidence (screenshot or log) counted as "failed" without evidence flags
+- Any TC (pass or fail) with no screenshot in evidence — artifact mode is `always`, screenshots are mandatory for all TCs
 - Manual TCs counted as "skipped" rather than "pending-manual"
 - Specialist dispatched without enriched brief (no mission goal, no lessons ref)
 - Work report does not cite lessons applied

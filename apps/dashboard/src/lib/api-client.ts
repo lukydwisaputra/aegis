@@ -1,7 +1,7 @@
-const BASE = "/api";
+const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:3031") + "/api";
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -28,6 +28,26 @@ export interface DefectSummary {
   runId: string;
 }
 
+export interface DefectEvidence {
+  screenshots: string[];
+  videos: string[];
+  logs: string[];
+  har: string[];
+  stackTrace?: string;
+}
+
+export interface DefectDetail extends DefectSummary {
+  description?: string;
+  stepsToReproduce?: string[];
+  expectedResult?: string;
+  actualResult?: string;
+  environment?: string;
+  tcId?: string;
+  evidence: DefectEvidence;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface GateResult {
   stage: string;
   passed: boolean;
@@ -44,6 +64,7 @@ export const api = {
   defects: {
     list: (runId?: string) =>
       get<DefectSummary[]>(`/defects${runId ? `?runId=${runId}` : ""}`),
+    get: (defectId: string) => get<DefectDetail>(`/defects/${defectId}`),
   },
   cases: {
     list: (runId?: string) =>

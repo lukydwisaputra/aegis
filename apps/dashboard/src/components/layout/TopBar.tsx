@@ -1,10 +1,10 @@
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { setTheme, getTheme } from "@/lib/theme";
+import { setTheme } from "@/lib/theme";
 import { useState } from "react";
 
 export function TopBar() {
-  const [dark, setDark] = useState(() => getTheme() === "dark");
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
 
   function toggle() {
     const next = dark ? "light" : "dark";

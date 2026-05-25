@@ -13,7 +13,7 @@ export interface ArtifactsConfig {
   videoQuality?: "low" | "medium" | "high";
   screenshotOnEveryStep?: boolean;
   retention: {
-    onSuccess: "delete-current";
+    onSuccess: "delete-current" | "replace-latest";
     onFailure: "preserve-history";
     historicalLimit: number;
     maxAgeRunsKept: number;
@@ -59,8 +59,9 @@ export function shouldCapture(config: ArtifactsConfig, testPassed: boolean): boo
 
 /**
  * Enforce retention after a test completes.
- * - On success: delete artifacts in evidenceDir for this TC
- * - On failure: keep + enforce historicalLimit
+ * - On success + delete-current: wipe evidenceDir immediately (no storage cost for passes)
+ * - On success + replace-latest: keep current run's dir, delete all older runs' dirs for this TC
+ * - On failure: keep + enforce historicalLimit across runs
  */
 export async function enforceRetention(opts: {
   config: ArtifactsConfig;
@@ -85,6 +86,25 @@ export async function enforceRetention(opts: {
           deleted.push(filePath);
         } catch {
           // File may already be gone or be a directory — skip
+        }
+      }
+    }
+    return { deleted, kept };
+  }
+
+  if (testPassed && config.retention.onSuccess === "replace-latest") {
+    // Keep current run's evidenceDir, delete same TC's evidence from all older runs
+    const historical = await listHistoricalArtifacts(opts.tcId, allRunsEvidenceDirs);
+    for (const artifact of historical) {
+      const artifactDir = path.dirname(artifact.path);
+      if (artifactDir === evidenceDir) {
+        kept.push(artifact.path);
+      } else {
+        try {
+          fs.unlinkSync(artifact.path);
+          deleted.push(artifact.path);
+        } catch {
+          // Skip
         }
       }
     }

@@ -7,9 +7,11 @@
 # `/qa-health --gitignore` is Layer 4 (drift detection).
 # =============================================================================
 
+# ─── Root files ──────────────────────────────────────────────────────────────
+/README.md
+
 # ─── Books & Knowledge (copyright + size) ────────────────────────────────────
-books/raw/
-!books/raw/.gitkeep
+books/
 
 # Knowledge chunks: gitignored by default (opt-in via aegis.config.json.shareKnowledge)
 knowledge/

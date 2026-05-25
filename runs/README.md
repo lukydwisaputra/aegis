@@ -59,7 +59,7 @@ runs/
 ## Retention
 
 - **Local default:** keep last 30 runs (configurable via `aegis.config.json.artifacts.retention.maxAgeRunsKept`)
-- **Per-run artifact retention:** pass → delete that test's artifacts; fail → keep current + preserve previous historical
+- **Per-run artifact retention:** pass → replace previous run's screenshot with current (one screenshot per TC at all times); fail → keep current + preserve up to `historicalLimit` previous failure runs per TC
 - **CI/staging deploys:** typically upload to S3 / GitHub artifacts with 30-90 day retention
 
 ## Reading a run

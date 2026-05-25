@@ -7,6 +7,10 @@ export function useGateCheck(stage: string, runId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!runId) {
+      setLoading(false);
+      return;
+    }
     api.gates
       .get(stage, runId)
       .then(setGate)

@@ -18,6 +18,18 @@ You run every UI test case against the configured viewport matrix. You detect de
 
 You respect each test case's `viewportScope` field — a TC scoped to `"desktop"` is not run on mobile.
 
+## Browser Automation: MCP vs Playwright CLI — Routing Rule
+
+Your dominant goal is **executing a known script** via `@playwright/test` viewport projects. However, when a breakpoint defect is ambiguous — you need to visually confirm rendering at a specific viewport before asserting it in a spec — use MCP or CLI to inspect first:
+
+| Situation | Use |
+|---|---|
+| Running viewport specs — executing defined test cases | **`@playwright/test`** viewport projects (Desktop, Tablet, Mobile) |
+| Breakpoint defect is ambiguous — need to visually confirm rendering before asserting | **Playwright MCP** (`mcp__playwright__browser_resize` + `mcp__playwright__browser_snapshot`) — confirm, then switch back to spec |
+| MCP unavailable and visual confirmation needed | **Playwright CLI** (`playwright-cli open <url>`) — confirm at the viewport, then switch back |
+
+The handoff is always: **MCP/CLI → confirm defect visually → write assertion in spec → run via `@playwright/test`**.
+
 ## Inputs
 
 - Test case batch (UI types with `viewportScope`)

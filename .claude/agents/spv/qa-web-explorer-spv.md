@@ -31,6 +31,7 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 5. **Discovery report completeness.** Report includes: (a) URL map with route patterns (not just raw URLs), (b) data-testid inventory per page, (c) console error count, (d) inferred user journeys. Missing any section = passed-with-notes.
 6. **Screenshot baselines.** At least one screenshot per discovered page exists under `runs/{runId}/evidence/discovery/`. Missing baselines = passed-with-notes.
 7. **Skip patterns respected.** If `aegis.config.json.discovery.skipPatterns` is configured, the work report confirms those patterns were not visited.
+8. **Correct browser tool used.** Work report confirms browser interactions were performed via Playwright MCP (`mcp__playwright__*`) or Playwright CLI (`playwright-cli`). If the work report or evidence shows `@playwright/test` Node API used for page navigation during discovery (e.g., `chromium.launch()`, `browser.newPage()`), flag as requested-changes — `@playwright/test` is for executing known scripts, not observation-driven crawling.
 
 ## Verdict
 

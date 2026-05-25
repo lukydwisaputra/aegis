@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -13,12 +14,22 @@ import {
 } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// aegis root = apps/dashboard-api/../../ = aegis/
-const AEGIS_ROOT = resolve(__dirname, "../..");
+// aegis root = apps/dashboard-api/src/../../../ = aegis/
+const AEGIS_ROOT = resolve(__dirname, "../../..");
 const RUNS_ROOT = resolve(AEGIS_ROOT, "runs");
 
 const app = Fastify({ logger: { level: "info" } });
 await app.register(cors, { origin: "*" });
+
+// Serve evidence files (screenshots, videos, logs, HAR) from any run directory.
+// The wildcard captures everything after /api/evidence/:runId/
+if (existsSync(RUNS_ROOT)) {
+  await app.register(fastifyStatic, {
+    root: RUNS_ROOT,
+    prefix: "/api/evidence/",
+    decorateReply: false,
+  });
+}
 
 // ─── Health ─────────────────────────────────────────────────────────────────
 app.get("/health", async () => ({ status: "ok", ts: new Date().toISOString() }));
@@ -131,6 +142,33 @@ app.get("/api/defects", async (req, reply) => {
     }
   }
   return reply.send(defects);
+});
+
+// ─── Single defect (with full evidence) ──────────────────────────────────────
+app.get("/api/defects/:defectId", async (req, reply) => {
+  const { defectId } = req.params as { defectId: string };
+  if (!existsSync(RUNS_ROOT)) return reply.code(404).send({ error: "No runs found" });
+
+  for (const dir of readdirSync(RUNS_ROOT)) {
+    if (!statSync(resolve(RUNS_ROOT, dir)).isDirectory()) continue;
+    const filePath = resolve(RUNS_ROOT, dir, "defects", `${defectId}.json`);
+    if (existsSync(filePath)) {
+      try {
+        const defect = JSON.parse(readFileSync(filePath, "utf-8")) as Record<string, unknown>;
+        // Resolve evidence screenshot paths to API URLs the browser can fetch
+        const evidence = defect["evidence"] as Record<string, string[]> | undefined;
+        if (evidence?.["screenshots"]) {
+          evidence["screenshots"] = evidence["screenshots"].map(
+            (p) => `/api/evidence/${dir}/${p.replace(/^evidence\//, "evidence/")}`
+          );
+        }
+        return reply.send({ ...defect, runId: dir });
+      } catch {
+        return reply.code(500).send({ error: "Malformed defect file" });
+      }
+    }
+  }
+  return reply.code(404).send({ error: "Defect not found" });
 });
 
 // ─── Test cases ───────────────────────────────────────────────────────────────

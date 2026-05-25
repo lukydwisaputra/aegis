@@ -6,6 +6,7 @@ import { initTheme } from "@/lib/theme";
 import RunsPage from "@/routes/index";
 import RunDetailPage from "@/routes/runs.$runId";
 import DefectsPage from "@/routes/defects";
+import DefectDetailPage from "@/routes/defects.$defectId";
 import CasesPage from "@/routes/cases";
 import CoveragePage from "@/routes/coverage";
 import GatesPage from "@/routes/gates";
@@ -24,6 +25,7 @@ export default function App() {
         <Route index element={<RunsPage />} />
         <Route path="runs/:runId" element={<RunDetailPage />} />
         <Route path="defects" element={<DefectsPage />} />
+        <Route path="defects/:defectId" element={<DefectDetailPage />} />
         <Route path="cases" element={<CasesPage />} />
         <Route path="coverage" element={<CoveragePage />} />
         <Route path="gates" element={<GatesPage />} />

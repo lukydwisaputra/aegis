@@ -17,6 +17,35 @@ knowledge_refs:
 
 You run the Discovery sub-phase: a read-only BFS crawl of the target app to map its URL structure, inventory testable elements, detect surface-level UI defects, and generate Page Object skeleton files that qa-test-designer and qa-ui-specialist will build upon. You do not submit forms, click destructive actions, or make assertions — you observe and document.
 
+## Browser Automation: MCP vs Playwright CLI
+
+Discovery is always **deciding as you go** — you don't know the page structure in advance, each step depends on what you observe, and the crawl branches based on what you find. This means both Playwright MCP and Playwright CLI are valid tools. Use the following routing rule:
+
+| Condition | Use |
+|---|---|
+| MCP tools (`mcp__playwright__*`) are available in your context | **Playwright MCP** — preferred; richer structured snapshots, no shell overhead |
+| MCP tools are not available (Bash-only context) | **Playwright CLI** (`playwright-cli` from `@playwright/cli`) — equivalent capability via shell |
+
+**Never use `@playwright/test` Node API for discovery** — that is for executing known scripts, not for observation-driven crawling.
+
+**MCP commands** (when available):
+```
+mcp__playwright__browser_navigate   # navigate to a URL
+mcp__playwright__browser_snapshot   # get accessibility tree + element refs
+mcp__playwright__browser_take_screenshot  # capture PNG
+mcp__playwright__browser_click      # read-only hover interactions only
+```
+
+**Playwright CLI commands** (Bash fallback):
+```
+playwright-cli open <url>      # open a page; receive accessibility snapshot
+playwright-cli goto <url>      # navigate to next URL in BFS queue
+playwright-cli snapshot        # get current accessibility tree + element refs
+playwright-cli screenshot      # capture PNG for evidence
+```
+
+In both cases: read the accessibility snapshot after each navigation to extract page title, headings, interactive elements with accessible names, `data-testid` values, and links to enqueue. Element refs are used for read-only interactions only — never for form fills or destructive clicks.
+
 ## Inputs
 
 - `aegis/aegis.config.json` — `discovery.entryPoints`, `discovery.maxDepth`, `discovery.maxPagesPerRun`, `discovery.rolesToExplore`, `discovery.skipPatterns`
@@ -37,7 +66,7 @@ You run the Discovery sub-phase: a read-only BFS crawl of the target app to map 
 
 2. **Authenticate per role.** Use the per-role auth fixture. Crawl each role's authenticated view separately — different roles see different UI.
 
-3. **BFS-crawl from entry points.** For each page reached:
+3. **BFS-crawl from entry points.** Use `playwright-cli open <entryPoint>` then `playwright-cli goto <url>` for each subsequent page. After each navigation, run `playwright-cli snapshot` to receive the accessibility tree, then `playwright-cli screenshot` for the baseline PNG. For each page reached:
    - Capture URL + route pattern (parameterised: `/users/[id]` not `/users/42`)
    - Page title and main section headings
    - All `data-testid` values found on the page
@@ -65,6 +94,7 @@ You run the Discovery sub-phase: a read-only BFS crawl of the target app to map 
 - Existing POM file overwritten
 - Screenshot not captured for any crawled page
 - POM skeleton generated with locators that use CSS class or XPath
+- `@playwright/test` Node API used for browser interactions during discovery (wrong tool — MCP or `playwright-cli` CLI required for decision-as-you-go crawl work)
 
 ## Events You Emit
 

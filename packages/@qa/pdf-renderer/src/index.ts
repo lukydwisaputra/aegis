@@ -5,6 +5,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 
@@ -143,6 +144,14 @@ export interface TechnicalReportSpec {
   }>;
   compliance: Record<string, { covered: number; gapped: number }>;
   tokenCostUsd: number;
+  /** Optional evidence index — base64-encoded PNG data URIs keyed by defect ID */
+  evidenceScreenshots?: Array<{
+    defectId: string;
+    tcId?: string;
+    /** base64 data URI: "data:image/png;base64,..." */
+    dataUri: string;
+    label: string;
+  }>;
 }
 
 // ─── Sign-off document spec ───────────────────────────────────────────────────
@@ -541,6 +550,28 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
           ),
           React.createElement(Text, { style: baseStyles.cell }, defect.status)
         )
+      )
+    ),
+    // Evidence appendix — one screenshot per page entry (only when evidence provided)
+    ...(spec.evidenceScreenshots ?? []).map((entry, i) =>
+      React.createElement(
+        Page,
+        { key: `evidence-${i}`, size: "A4", style: baseStyles.page },
+        React.createElement(
+          Text,
+          { style: baseStyles.subheader },
+          `Evidence: ${entry.defectId}${entry.tcId ? ` (${entry.tcId})` : ""}`
+        ),
+        React.createElement(View, { style: baseStyles.divider }),
+        React.createElement(
+          Text,
+          { style: { ...baseStyles.label, marginBottom: 8 } },
+          entry.label
+        ),
+        React.createElement(Image, {
+          src: entry.dataUri,
+          style: { maxWidth: "100%", objectFit: "contain" },
+        })
       )
     )
   );

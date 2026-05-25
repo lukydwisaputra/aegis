@@ -1,5 +1,5 @@
-import { writeFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, resolve, relative } from "node:path";
 import { z } from "zod";
 import { CLASS_B_KINDS, checkBrandExposure } from "@qa/contracts";
 import { assertWritable, assertAegisOwnership, PathGuardError } from "@qa/path-guard";
@@ -7,6 +7,74 @@ import { append } from "@qa/event-bus";
 
 // ─── Re-export PathGuardError for convenience ─────────────────────────────────
 export { PathGuardError } from "@qa/path-guard";
+
+// ─── Screenshot evidence helpers ──────────────────────────────────────────────
+
+export interface EvidenceIndexEntry {
+  defectId: string;
+  tcId?: string;
+  screenshots: string[]; // absolute paths
+}
+
+/**
+ * Collect all screenshot paths from every defect JSON in a run.
+ * Returns entries only for defects that have at least one screenshot.
+ */
+export function collectDefectScreenshots(runDir: string): EvidenceIndexEntry[] {
+  const defectsDir = resolve(runDir, "defects");
+  if (!existsSync(defectsDir)) return [];
+
+  const entries: EvidenceIndexEntry[] = [];
+  for (const file of readdirSync(defectsDir)) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      const raw = JSON.parse(readFileSync(resolve(defectsDir, file), "utf-8")) as Record<string, unknown>;
+      const evidence = raw["evidence"] as Record<string, string[]> | undefined;
+      const shots = evidence?.["screenshots"] ?? [];
+      if (shots.length === 0) continue;
+      entries.push({
+        defectId: String(raw["id"] ?? file.replace(".json", "")),
+        tcId: raw["tcId"] ? String(raw["tcId"]) : undefined,
+        screenshots: shots.map((p) =>
+          p.startsWith("/") ? p : resolve(runDir, p)
+        ),
+      });
+    } catch {
+      // skip malformed
+    }
+  }
+  return entries;
+}
+
+/**
+ * Render a Markdown evidence appendix section.
+ * Paths are written relative to `mdOutputDir` so the markdown is portable.
+ *
+ * Each screenshot is rendered as a Markdown image reference:
+ *   ![DEF-ID screenshot 1](relative/path/to/file.png)
+ */
+export function renderEvidenceAppendix(
+  entries: EvidenceIndexEntry[],
+  mdOutputDir: string
+): string {
+  if (entries.length === 0) return "";
+
+  const lines: string[] = ["", "---", "", "## Evidence Index", ""];
+
+  for (const entry of entries) {
+    lines.push(`### ${entry.defectId}${entry.tcId ? ` (${entry.tcId})` : ""}`);
+    lines.push("");
+    for (let i = 0; i < entry.screenshots.length; i++) {
+      const absPath = entry.screenshots[i]!;
+      const rel = relative(mdOutputDir, absPath);
+      const label = `${entry.defectId} screenshot ${i + 1}`;
+      lines.push(`![${label}](${rel})`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
 
 // ─── BrandExposureError ───────────────────────────────────────────────────────
 
