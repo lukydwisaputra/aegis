@@ -16,7 +16,7 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 
 ## Inputs
 
-- `runs/{runId}/reports/work/closure-reporter-*.json` — work report
+- `runs/{runId}/reports/work/qa-closure-reporter.json` — work report
 - `runs/{runId}/reports/closure.{md,json}` — the closure report
 - `runs/{runId}/events.jsonl` — for metric verification
 - `runs/{runId}/defects/*.json` — to verify defect counts

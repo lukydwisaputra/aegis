@@ -12,9 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "test": "node --experimental-vm-modules ../../node_modules/.bin/jest",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc"
   },
   "dependencies": {
     "zod": "^3.23.0"

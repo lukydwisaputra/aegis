@@ -7,7 +7,6 @@ knowledge_refs:
   - knowledge/synthesis/ui-testing.md
   - knowledge/synthesis/accessibility-testing.md
   - knowledge/synthesis/visual-testing.md
-  - knowledge/synthesis/qa-frontend-skill.md
   - agent-memory/qa-ui-designer/lessons.md
 ---
 

@@ -16,7 +16,7 @@ You review the work reports produced by `qa-orchestrator`. You verify that the o
 
 ## Inputs
 
-- `runs/{runId}/reports/work/orchestrator-*.json` — orchestrator work report
+- `runs/{runId}/reports/work/qa-orchestrator.json` — orchestrator work report
 - `runs/{runId}/events.jsonl` — full event log for the run
 - `runs/{runId}/plan.json` — the test plan the orchestrator is executing
 - `agent-memory/qa-orchestrator/lessons.md`

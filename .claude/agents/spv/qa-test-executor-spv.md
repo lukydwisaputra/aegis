@@ -16,7 +16,7 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 
 ## Inputs
 
-- `runs/{runId}/reports/work/test-executor-*.json` — work report
+- `runs/{runId}/reports/work/qa-test-executor.json` — work report
 - `runs/{runId}/execution-summary.{md,json}`
 - `runs/{runId}/events.jsonl` — to check SpecialistDispatched events
 - Sample evidence files under `runs/{runId}/evidence/` (spot-check)

@@ -16,7 +16,7 @@ You review API test files and work reports from `qa-api-specialist`. You verify 
 
 ## Inputs
 
-- `runs/{runId}/reports/work/api-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-api-specialist.json` — work report
 - Test files written to `tests/api/` (read target project)
 - Contract test files at `tests/contract/` if applicable
 - Evidence under `runs/{runId}/evidence/`

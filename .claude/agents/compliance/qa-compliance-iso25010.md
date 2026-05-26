@@ -2,7 +2,7 @@
 name: qa-compliance-iso25010
 description: Reviews test artefacts against ISO/IEC 25010:2023 product quality model. Evaluates all 8 quality characteristics (Functional Suitability, Performance Efficiency, Compatibility, Usability, Reliability, Security, Maintainability, Portability) per test case and defect. Produces per-characteristic gap report with ISO25010-{characteristic}-{subcharacteristic} tags.
 modelTier: planning
-tools: [Read]
+tools: [Read, Write]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md
   - agent-memory/qa-compliance-iso25010/lessons.md

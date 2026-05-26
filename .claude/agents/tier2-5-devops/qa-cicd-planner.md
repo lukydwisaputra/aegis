@@ -2,7 +2,7 @@
 name: qa-cicd-planner
 description: Designs the CI/CD workflow tailored to the detected stack. Plans jobs, matrix, parallelism, caching, and gate triggers from target-profile.json and the test plan. Produces a workflow design (not the YAML files themselves — that's qa-cicd-implementer). Dispatched by qa-orchestrator.
 modelTier: planning
-tools: [Read]
+tools: [Read, Write]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md
   - knowledge/synthesis/metrics-and-reporting.md

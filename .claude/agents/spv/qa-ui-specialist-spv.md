@@ -16,7 +16,7 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 
 ## Inputs
 
-- `runs/{runId}/reports/work/ui-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-ui-specialist.json` — work report
 - Test files written to `tests/e2e/` (read target project)
 - `tests/pages/` — POM files (read target project)
 - Evidence files under `runs/{runId}/evidence/` (spot-check)

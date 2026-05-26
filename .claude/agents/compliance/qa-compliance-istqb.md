@@ -2,7 +2,7 @@
 name: qa-compliance-istqb
 description: Reviews test artefacts against ISTQB Foundation Level 4.0 syllabus. Validates terminology usage, test process conformance (7-step STLC), test documentation standards (IEEE 829), and test technique application against ISTQB definitions. Produces ISTQB-{level}-{section} tagged gap report.
 modelTier: planning
-tools: [Read]
+tools: [Read, Write]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md
   - agent-memory/qa-compliance-istqb/lessons.md

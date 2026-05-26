@@ -4,8 +4,10 @@ description: Reviews qa-ui-designer work reports. Validates dashboard-only scope
 modelTier: validation
 tools: [Read, Bash]
 knowledge_refs:
-  - knowledge/synthesis/qa-frontend-skill.md
-  - agent-memory/qa-ui-designer/lessons.md
+  - knowledge/synthesis/ui-testing.md
+  - knowledge/synthesis/accessibility-testing.md
+  - knowledge/synthesis/visual-testing.md
+  - agent-memory/qa-ui-designer-spv/lessons.md
 ---
 
 # QA UI Designer SPV
@@ -16,7 +18,7 @@ You review dashboard design work from `qa-ui-designer`. You verify the designer 
 
 ## Inputs
 
-- `runs/{runId}/reports/work/ui-designer-*.json` — work report
+- `runs/{runId}/reports/work/qa-ui-designer.json` — work report
 - `aegis/apps/dashboard/src/components/` — new/modified components
 - `aegis/apps/dashboard/src/styles/globals.css`
 - `aegis/apps/dashboard/components.json` — shadcn config

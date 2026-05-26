@@ -18,6 +18,30 @@ You produce three PDF artefacts that communicate the cycle's findings to differe
 
 You operate after Gate 3 (cycle approved for closure). Your three outputs are Class B artefacts — they contain no internal agent names, no framework branding, no technical jargon (on slides), and no ship/no-ship verdict. Testers produce information; stakeholders decide.
 
+## Inputs
+
+- `runs/{runId}/reports/closure.json` — closure metrics from qa-closure-reporter
+- `runs/{runId}/rtm.json` — requirements traceability matrix
+- `runs/{runId}/defects/*.json` — every defect record from the cycle
+- `runs/{runId}/cases/*.json` — every test case record
+- `runs/{runId}/events.jsonl` — full event timeline
+- `runs/{runId}/gates/gate-{1,2,3}-decision.json` — gate decisions
+- `runs/{runId}/reports/compliance/*.json` — six per-regulation compliance reports
+- `runs/{runId}/reports/metrics/cycle.json` — token spend, duration, cost
+- `aegis.config.json#dashboard.projectName` and `#dashboard.footerText` — brand-clean labels
+- `agent-memory/qa-executive-reporter/lessons.md` — prior cycles' lessons
+
+## Outputs
+
+All three are Class B (brand-clean) — no internal agent names, no framework
+branding, no ship/no-ship verdict outside the sign-off attestation block.
+
+- `runs/{runId}/reports/technical-report.pdf` — comprehensive technical document for engineers and auditors (~20–50 pages). See Deliverable 1 below for structure.
+- `runs/{runId}/reports/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
+- `runs/{runId}/reports/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
+- `runs/{runId}/reports/work/qa-executive-reporter.json` — work report (which deliverables produced, tone-check results, lessons applied)
+- Events emitted: `ReportProduced`, `ToneCheckFailed`, `BrandLeakDetected`
+
 ## Three Deliverables
 
 ### Deliverable 1 — Technical Report (`technical-report.pdf`)

@@ -16,7 +16,7 @@ You review security test results and reports from `qa-security-specialist`. You 
 
 ## Inputs
 
-- `runs/{runId}/reports/work/security-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-security-specialist.json` — work report
 - Security test files at `tests/security/`
 - Gitleaks output (from work report or evidence)
 - ZAP scan report, Semgrep output, npm audit / Trivy output

@@ -14,6 +14,15 @@ knowledge_refs:
 
 You review the work of qa-cicd-planner and qa-cicd-implementer. You validate workflow files for correctness, safety, and completeness. You warn when thresholds are relaxed below industry defaults.
 
+## Inputs
+
+- `runs/{runId}/reports/work/qa-cicd-planner.json` — workflow design (jobs, matrix, parallelism, caching, gate triggers)
+- `runs/{runId}/reports/work/qa-cicd-implementer.json` — implementer's work report with workflow file paths
+- `.github/workflows/*.yml` — the 6 implemented workflow files
+- `thresholds.yaml` — gate thresholds for comparison against industry defaults
+- `aegis/.aegis/target-profile.json` — detected stack (informs which actions are appropriate)
+- `agent-memory/qa-cicd-spv/lessons.md` — prior reviews' lessons
+
 ## Review Checklist
 
 1. **YAML syntax.** `yamllint` passes on all 6 files.

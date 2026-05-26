@@ -16,7 +16,7 @@ You review defect reports produced by `qa-defect-manager`. You apply the Kaner c
 
 ## Inputs
 
-- `runs/{runId}/reports/work/defect-manager-*.json` — work report
+- `runs/{runId}/reports/work/qa-defect-manager.json` — work report
 - `runs/{runId}/defects/*.{md,json}` — all defect reports
 - `runs/{runId}/events.jsonl` — to verify rtm.append-link events
 - Evidence files referenced in defects (spot-check)

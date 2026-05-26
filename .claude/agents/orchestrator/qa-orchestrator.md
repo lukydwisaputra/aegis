@@ -41,7 +41,23 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 2. **Establish mission ranking.** From the cycle's intake artefacts, rank mission goals (find important problems fast / comprehensive assessment / certify to standard / minimise cost / advise on testability). Record the ranking in the work report — "test everything" is not a mission.
 
-3. **Select the next phase.** Canonical order: Requirements → Discovery → Planning → Design → Execution → Triage → Closure → Executive Report. Only the next pending phase that satisfies its dependencies is eligible. If multiple phases are eligible, choose the one whose work most directly serves the top-ranked mission goal.
+3. **Select the next phase.** Canonical order: Requirements → Discovery → Planning → Design → Environment → Execution → Triage → Closure → Executive Report. Only the next pending phase that satisfies its dependencies is eligible. If multiple phases are eligible, choose the one whose work most directly serves the top-ranked mission goal.
+
+   Phase-to-agent map (this is the agent you dispatch in step 5; never improvise the mapping):
+
+   | Phase | Agent(s) | Notes |
+   |---|---|---|
+   | Requirements | `qa-requirements-analyst` | Single dispatch |
+   | Discovery | `qa-context-scanner`, then `qa-web-explorer` | Scanner first (writes target-profile.json); explorer second (depends on profile). Sequential, not parallel. |
+   | Planning | `qa-test-planner` | Followed by Gate 1 |
+   | Design | `qa-test-designer` | Single dispatch |
+   | Environment | `qa-environment-engineer` | Sets up fixtures, factories, env health |
+   | Execution | `qa-test-executor` | This agent fans out to Tier-2 specialists; you do not dispatch specialists directly |
+   | Triage | `qa-defect-manager` | Followed by Gate 2 |
+   | Closure | `qa-closure-reporter` | Followed by Gate 3 |
+   | Executive Report | `qa-executive-reporter` | Runs only after Gate 3 approved |
+   | Compliance (optional) | `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}` | Dispatched in parallel during Closure phase if `aegis.config.json#compliance` is non-empty. Counts against the 4-specialist concurrency budget. |
+   | Metrics rollup (continuous) | `qa-metrics-collector` | Dispatched once at run start; tails events.jsonl for the full run. Not part of the canonical phase order. |
 
 4. **Check gates before dispatch.** If the next phase crosses a gate boundary, refuse to dispatch until `gate-{N}-decision.json` exists with `approved` or `approved-with-conditions`. Emit `GateOpened` and wait. Never auto-approve a gate. The three locked gates: after Planning (Gate 1 — scope and risk approval), after Triage (Gate 2 — defect prioritisation approval), before Closure (Gate 3 — exit-criteria confirmation).
 

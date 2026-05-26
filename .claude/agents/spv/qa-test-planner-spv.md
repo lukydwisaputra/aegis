@@ -17,10 +17,10 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 
 ## Inputs
 
-- `runs/{runId}/reports/work/test-planner-*.json` — work report
+- `runs/{runId}/reports/work/qa-test-planner.json` — work report
 - `runs/{runId}/plan.{md,json}` — the test plan
 - `runs/{runId}/risk-register.{md,json}`
-- `runs/{runId}/ambiguity-report.json` — preceding analyst output
+- `runs/{runId}/requirements/ambiguity-report.json` — preceding analyst output
 - `aegis/thresholds.yaml`
 - `agent-memory/qa-test-planner/lessons.md`
 

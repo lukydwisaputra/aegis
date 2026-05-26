@@ -16,7 +16,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 
 ## Inputs
 
-- `runs/{runId}/reports/work/realtime-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-realtime-specialist.json` — work report
 - Real-time test files at `tests/`
 - `target-profile.json` — for feature detection
 - `agent-memory/qa-realtime-specialist/lessons.md`

@@ -16,7 +16,7 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 
 ## Inputs
 
-- `runs/{runId}/reports/work/executive-reporter-*.json` — work report
+- `runs/{runId}/reports/work/qa-executive-reporter.json` — work report
 - `runs/{runId}/reports/executive/technical-report.pdf` (or source data)
 - `runs/{runId}/reports/executive/signoff.pdf` (or source data)
 - `runs/{runId}/reports/executive/executive-slides.pdf` (or source data)

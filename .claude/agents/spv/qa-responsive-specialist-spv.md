@@ -16,7 +16,7 @@ You review responsive/viewport test results from `qa-responsive-specialist`. You
 
 ## Inputs
 
-- `runs/{runId}/reports/work/responsive-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-responsive-specialist.json` — work report
 - Responsive test files
 - `runs/{runId}/cases/*.json` — TCs with `viewportScope` field
 - `runs/{runId}/defects/*.json` — responsive defects

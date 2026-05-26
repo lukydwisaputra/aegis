@@ -16,7 +16,7 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 
 ## Inputs
 
-- `runs/{runId}/reports/work/exploratory-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-exploratory-specialist.json` — work report
 - `runs/{runId}/reports/exploratory-sessions/*.json` — session notes
 - `runs/{runId}/defects/*.json` — defects opened from exploration
 - `agent-memory/qa-exploratory-specialist/lessons.md`

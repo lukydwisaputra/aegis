@@ -2,7 +2,7 @@
 name: qa-github-planner
 description: Plans the branch and PR strategy for a QA cycle. Drafts PR descriptions from defect, test case, and RTM context. Read-only on GitHub. Dispatched by qa-orchestrator during environment setup and execution phases.
 modelTier: planning
-tools: [Read, Bash]
+tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md
   - agent-memory/qa-github-planner/lessons.md

@@ -4,8 +4,10 @@ description: Reviews qa-web-explorer work reports. Validates BFS read-only disci
 modelTier: validation
 tools: [Read, Bash]
 knowledge_refs:
-  - knowledge/synthesis/web-exploration-techniques.md
-  - agent-memory/qa-web-explorer/lessons.md
+  - knowledge/synthesis/exploratory-testing.md
+  - knowledge/synthesis/playwright-patterns.md
+  - knowledge/synthesis/fixtures-and-pom.md
+  - agent-memory/qa-web-explorer-spv/lessons.md
 ---
 
 # QA Web Explorer SPV
@@ -16,7 +18,7 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 
 ## Inputs
 
-- `runs/{runId}/reports/work/web-explorer-*.json` — work report
+- `runs/{runId}/reports/work/qa-web-explorer.json` — work report
 - `runs/{runId}/discovery-report.{md,json}`
 - `tests/pages/*.ts` — generated POM skeletons (read target project)
 - `runs/{runId}/evidence/discovery/` — screenshot baselines

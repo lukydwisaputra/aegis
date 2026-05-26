@@ -16,7 +16,7 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 
 ## Inputs
 
-- `runs/{runId}/reports/work/feature-flag-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-feature-flag-specialist.json` — work report
 - Feature flag test files
 - `target-profile.json` — for detected flag system
 - `runs/{runId}/defects/*.json` — flag-related defects

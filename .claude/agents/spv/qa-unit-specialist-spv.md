@@ -16,7 +16,7 @@ You review unit test files and work reports from `qa-unit-specialist`. You verif
 
 ## Inputs
 
-- `runs/{runId}/reports/work/unit-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-unit-specialist.json` — work report
 - Unit test files (co-located `*.test.tsx` or `tests/unit/**/*.test.ts`)
 - `target-profile.json` — for `unitTestStyle` (colocated / tests-dir / mixed)
 - `agent-memory/qa-unit-specialist/lessons.md`

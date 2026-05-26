@@ -16,7 +16,7 @@ You review performance test scripts and results from `qa-performance-specialist`
 
 ## Inputs
 
-- `runs/{runId}/reports/work/performance-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-performance-specialist.json` — work report
 - k6 test files at `tests/perf/` (read target project)
 - Lighthouse-CI config at `.lighthouserc.*`
 - `aegis/thresholds.yaml` — authoritative thresholds

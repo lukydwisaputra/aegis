@@ -16,7 +16,7 @@ You review accessibility test files and reports from `qa-accessibility-specialis
 
 ## Inputs
 
-- `runs/{runId}/reports/work/accessibility-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-accessibility-specialist.json` — work report
 - A11y test files at `tests/a11y/`
 - axe-core results (from work report or evidence)
 - `runs/{runId}/defects/*.json` — a11y defects

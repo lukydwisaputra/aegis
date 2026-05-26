@@ -16,7 +16,7 @@ You review database test results from `qa-database-specialist`. You verify that 
 
 ## Inputs
 
-- `runs/{runId}/reports/work/database-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-database-specialist.json` — work report
 - DB test files at `tests/` relevant paths
 - Migration runner output from the work report
 - `agent-memory/qa-database-specialist/lessons.md`

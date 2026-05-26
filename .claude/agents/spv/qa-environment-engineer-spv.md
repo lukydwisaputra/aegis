@@ -16,7 +16,7 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 
 ## Inputs
 
-- `runs/{runId}/reports/work/environment-engineer-*.json` — work report
+- `runs/{runId}/reports/work/qa-environment-engineer.json` — work report
 - `runs/{runId}/env-setup-report.{md,json}`
 - `tests/fixtures/auth.fixture.ts` — the generated auth fixture
 - `tests/global-setup.ts` and `tests/global-teardown.ts`

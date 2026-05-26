@@ -41,10 +41,11 @@ For example, `D13-event-bus-spec.md` is a deep dive into [HANDBOOK chapter 13 �
 ### D12 — CI/CD Operations ([HANDBOOK/12](../HANDBOOK/12-cicd-operations.md))
 | File | Topic |
 |------|-------|
-| [D12-environments-overview.md](D12-environments-overview.md) | 4-env model |
+| [D12-environments-overview.md](D12-environments-overview.md) | 4-env model, recommended test strategy |
 | [D12-cicd-workflow.md](D12-cicd-workflow.md) | GitHub Actions workflow templates + safety |
 | [D12-cicd-stage-map.md](D12-cicd-stage-map.md) | Pipeline stages, triggers, gate thresholds |
 | [D12-env-safety-and-prod.md](D12-env-safety-and-prod.md) | Environment safety, read-only enforcement |
+| [D12-monorepo-multi-app.md](D12-monorepo-multi-app.md) | Multiple apps in one repo — config, workflow, CI matrix |
 
 ### D13 — Mechanics ([HANDBOOK/13](../HANDBOOK/13-mechanics.md))
 | File | Topic |

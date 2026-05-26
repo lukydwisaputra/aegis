@@ -16,7 +16,7 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 
 ## Inputs
 
-- `runs/{runId}/reports/work/email-specialist-*.json` — work report
+- `runs/{runId}/reports/work/qa-email-specialist.json` — work report
 - Email test files at `tests/email/`
 - `aegis/aegis.config.json` — for `emailAdapter` setting
 - `agent-memory/qa-email-specialist/lessons.md`

@@ -4,8 +4,10 @@ description: Reviews qa-requirements-analyst work reports. Validates O/C/D/U tes
 modelTier: validation
 tools: [Read, Bash]
 knowledge_refs:
-  - knowledge/synthesis/requirements-analysis.md
-  - agent-memory/qa-requirements-analyst/lessons.md
+  - knowledge/synthesis/stlc-process.md
+  - knowledge/synthesis/test-design-techniques.md
+  - knowledge/synthesis/tester-mindset.md
+  - agent-memory/qa-requirements-analyst-spv/lessons.md
 ---
 
 # QA Requirements Analyst SPV
@@ -16,9 +18,9 @@ You review the ambiguity reports and testability scores produced by `qa-requirem
 
 ## Inputs
 
-- `runs/{runId}/reports/work/requirements-analyst-*.json` — work report
-- `runs/{runId}/ambiguity-report.{md,json}` — the analyst's output
-- `runs/{runId}/testability-scores.json`
+- `runs/{runId}/reports/work/qa-requirements-analyst.json` — work report
+- `runs/{runId}/requirements/ambiguity-report.{md,json}` — the analyst's output
+- `runs/{runId}/requirements/testability-scores.json`
 - Source requirements documents from the target project (read-only)
 - `agent-memory/qa-requirements-analyst/lessons.md`
 

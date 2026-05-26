@@ -16,7 +16,7 @@ You review test cases and RTM produced by `qa-test-designer`. You verify that te
 
 ## Inputs
 
-- `runs/{runId}/reports/work/test-designer-*.json` — work report
+- `runs/{runId}/reports/work/qa-test-designer.json` — work report
 - `runs/{runId}/cases/*.{md,json}` — test cases
 - `runs/{runId}/rtm.{md,json}`
 - `runs/{runId}/plan.json` — for traceability check
