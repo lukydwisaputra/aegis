@@ -64,7 +64,7 @@ In both cases: after each action, read the returned snapshot to decide the next 
 - `runs/{runId}/exploratory/{session-id}-notes.md` — session notes (observations, hypotheses, threads followed)
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — unscripted defects discovered
 - `runs/{runId}/cases/{TC-ID}-result.json` — charter outcomes
-- `runs/{runId}/evidence/{TC-ID}/` — screenshots and console logs for discovered defects
+- `artifacts/evidence/{TC-ID}/` — screenshots and console logs for discovered defects (defect-linked evidence only; overwrites previous run)
 
 ## Process
 
@@ -78,6 +78,11 @@ In both cases: after each action, read the returned snapshot to decide the next 
 
 5. **Record session notes.** Everything observed — including non-defects — goes into the session notes. Notes are valuable for qa-curator pattern detection even when they don't produce defects.
 
+6. **Screenshot retention.** Screenshots taken mid-session are inspection aids. Two outcomes only:
+   - If the screenshot led to a **filed defect**: move it to `artifacts/evidence/{TC-ID}/` as evidence for that defect and keep it.
+   - If the observation was **not filed as a defect**: delete the screenshot immediately after recording the observation in session notes — the note is the artifact, not the image.
+   Never accumulate screenshots on disk at session end.
+
 6. **Do not automate-on-the-fly.** Exploratory testing is about discovery, not automation. If you find a reproducible defect, note it for TC creation in the next design phase — do not write scripted Playwright tests in this phase.
 
 ## Quality Standards (SPV rejects if violated)
@@ -87,6 +92,9 @@ In both cases: after each action, read the returned snapshot to decide the next 
 - Scripted assertions written during an exploratory session (wrong phase)
 - Session notes not written (observations with no notes have no value for qa-curator)
 - `@playwright/test` Node API used or `.spec.ts` files written during exploratory session (wrong tool — MCP or `playwright-cli` CLI required for decision-as-you-go work)
+- Evidence written anywhere other than `artifacts/evidence/{TC-ID}/` — never write to `runs/*/evidence/`, `tests/runs/`, or `test-results/`
+- Screenshot kept for an observation that was not filed as a defect — must be deleted after recording in session notes
+- Screenshots remaining on disk at session end that are not in `artifacts/evidence/` — any such file must be deleted before the session completes
 
 ## Events You Emit
 

@@ -12,17 +12,19 @@ The framework generates hundreds of artefacts per run. Consistency in IDs, field
 
 ### 7.2 The ID Scheme
 
-All IDs follow the pattern: `<TYPE>-<MODULE>-<SEQUENCE>`.
+Defect IDs follow `DEF-{NNN}-{MODULE}-{TYPE}`; all other IDs follow `<TYPE>-<MODULE>-<SEQUENCE>`.
 
-| Prefix | Artefact | Example | Sequence width |
+| Prefix | Artefact | Example | Format |
 |---|---|---|---|
-| `REQ` | Requirement | `REQ-AUTH-04` | 2 digits |
-| `STORY` | User story | `STORY-AUTH-204` | 3 digits |
-| `TC` | Test case | `TC-AUTH-031` | 3 digits |
-| `DEF` | Defect | `DEF-AUTH-0017` | 4 digits |
-| `RUN` | QA run | `RUN-20260523-001` | date + 3 digits |
-| `LESSON` | Agent lesson | `LESSON-qa-spec-ui-042` | agent name + 3 digits |
-| `BOOK` | Ingested book | `BOOK-auth-v2` | freeform slug |
+| `REQ` | Requirement | `REQ-AUTH-04` | `REQ-{MODULE}-{NN}` |
+| `STORY` | User story | `STORY-AUTH-204` | `STORY-{MODULE}-{NNN}` |
+| `TC` | Test case | `TC-AUTH-031` | `TC-{MODULE}-{NNN}` |
+| `DEF` | Defect | `DEF-001-AUTH-UI` | `DEF-{NNN}-{MODULE}-{TYPE}` |
+| `RUN` | QA run | `RUN-20260523-001` | `RUN-{YYYYMMDD}-{NNN}` |
+| `L` | Agent lesson | `L-TD-012` | `L-{AGENT-INITIALS}-{NNN}` |
+| `WR` | Work report | `WR-T-42` | `WR-T-{taskNumber}` |
+
+`{TYPE}` in defect IDs is one of: `UI`, `API`, `A11Y`, `SEC`, `PERF`, `DATA`, `UNIT`, `EXP`.
 
 **Module codes** are defined in `aegis/module-codes.md`. Always use the module code from that file; do not invent new codes.
 
@@ -62,7 +64,7 @@ Full field reference for files at `runs/<RUN-ID>/defects/<DEF-ID>.json`:
 
 ```jsonc
 {
-  "id":           "DEF-AUTH-0017",
+  "id":           "DEF-001-AUTH-UI",
   "title":        "SSO login redirects to / instead of /dashboard",
   "severity":     "High",
   "priority":     "P1",
@@ -81,7 +83,7 @@ Full field reference for files at `runs/<RUN-ID>/defects/<DEF-ID>.json`:
   ],
   "expected":     "URL = /dashboard",
   "actual":       "URL = /",
-  "screenshots":  ["runs/RUN-20260523-001/artifacts/DEF-AUTH-0017-01.png"],
+  "screenshots":  ["runs/RUN-20260523-001/artifacts/DEF-001-AUTH-UI-01.png"],
   "complianceTags": ["GDPR-SESSION", "ISO25010-REL"],
   "reportedAt":   "2026-05-23T14:32:00Z",
   "reportedBy":   "qa-defect-reporter",
@@ -104,7 +106,8 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
   "title":        "Verify redirect after successful SSO login",
   "story":        "STORY-AUTH-204",
   "requirement":  "REQ-AUTH-04",
-  "type":         "ui",           // unit | api | ui | security | a11y | perf | email | visual | exploratory
+  "testType":     "UI",           // Functional | UI | Integration | API | Security | Database | Performance | Compatibility | Usability
+  "testTechnique": ["Accessibility", "Regression"],  // optional — technique metadata + secondary specialist dispatch
   "priority":     "P1",
   "automationStatus": "auto",     // auto | manual | blocked
   "preconditions": [
@@ -129,6 +132,15 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
 
 The `teardown` field is required for all UI and API tests. Its absence is a common SPV finding.
 
+**`testType` vs `testTechnique`**
+
+| Field | Role | Drives routing? | Example values |
+|---|---|---|---|
+| `testType` | Primary classification — which specialist runs this TC | **Yes** — determines the primary specialist dispatched by qa-test-executor | `Functional`, `Security`, `Database`, `Performance`, `Compatibility`, `Usability`, `UI`, `Integration`, `API` |
+| `testTechnique` | Descriptive metadata — how the test is conducted; triggers a secondary specialist when applicable | **Conditionally** — `Unit`, `Accessibility`, `Email`, `Realtime`, `FeatureFlag` each dispatch a dedicated secondary specialist in addition to the primary | `Unit`, `Accessibility`, `Email`, `Realtime`, `FeatureFlag`, `Regression`, `Smoke`, `Exploratory`, `BoundaryValue`, `EquivalencePartition`, `StateTransition`, `DecisionTable`, `Pairwise` |
+
+Example: a functional login flow that must also pass accessibility checks would carry `testType: "Functional"` (routes to qa-ui-specialist) and `testTechnique: ["Accessibility"]` (also dispatches qa-accessibility-specialist).
+
 ---
 
 ### 7.6 RTM Columns
@@ -143,7 +155,7 @@ The Requirements Traceability Matrix is maintained at `runs/<RUN-ID>/rtm.json` a
 | `testCaseIds` | `["TC-AUTH-031", "TC-AUTH-032"]` |
 | `status` | `covered / partial / not-covered` |
 | `testResult` | `pass / fail / blocked / not-run` |
-| `defectIds` | `["DEF-AUTH-0017"]` |
+| `defectIds` | `["DEF-001-AUTH-UI"]` |
 | `complianceTags` | `["GDPR-SESSION", "ISO25010-SEC"]` |
 | `riskLevel` | `high / medium / low` |
 | `notes` | Free text |
@@ -158,7 +170,7 @@ A requirement is `covered` if it has at least one test case with `automationStat
 |---|---|---|
 | Run directories | `RUN-YYYYMMDD-NNN` | `RUN-20260523-001` |
 | Test script files | `<module>.<type>.spec.ts` | `auth.ui.spec.ts` |
-| Defect screenshots | `<DEF-ID>-<NN>.png` | `DEF-AUTH-0017-01.png` |
+| Defect screenshots | `<DEF-ID>-<NN>.png` | `DEF-001-AUTH-UI-01.png` |
 | Agent memory files | `<agent-name>/lessons.json` | `qa-spec-ui/lessons.json` |
 | Report files | `run-report.html`, `executive-summary.pdf` | fixed names per run |
 | Book files | `books/<slug>/book.json` | `books/auth-v2/book.json` |

@@ -75,14 +75,16 @@ function pad(n: number, width: number): string {
 
 export type NextIdOptions = { module?: string };
 
+export type DefectType = "UI" | "API" | "A11Y" | "SEC" | "PERF" | "DATA" | "UNIT" | "EXP";
+
 export async function nextId(kind: "TC", module: string): Promise<string>;
-export async function nextId(kind: "DEF", module: string): Promise<string>;
+export async function nextId(kind: "DEF", module: string, defectType: DefectType): Promise<string>;
 export async function nextId(kind: "STORY", module: string): Promise<string>;
 export async function nextId(kind: "REQ", module: string): Promise<string>;
 export async function nextId(kind: "RISK", module: string): Promise<string>;
 export async function nextId(kind: "L", agentInitials: string): Promise<string>;
 export async function nextId(kind: "WR", taskNumber: number | string): Promise<string>;
-export async function nextId(kind: IdKind, moduleOrArg: string | number): Promise<string> {
+export async function nextId(kind: IdKind, moduleOrArg: string | number, defectType?: DefectType): Promise<string> {
   const kindParsed = IdKindSchema.parse(kind);
   const mod = String(moduleOrArg).toUpperCase();
 
@@ -92,8 +94,10 @@ export async function nextId(kind: IdKind, moduleOrArg: string | number): Promis
       return `TC-${mod}-${pad(n, 3)}`;
     }
     case "DEF": {
+      const type = (defectType ?? "UI").toUpperCase();
+      // NNN is a single global counter per MODULE — leads the ID so files sort by discovery order
       const n = await nextCounter("DEF", mod);
-      return `DEF-${mod}-${pad(n, 4)}`;
+      return `DEF-${pad(n, 3)}-${mod}-${type}`;
     }
     case "STORY": {
       const n = await nextCounter("STORY", mod);
@@ -136,7 +140,7 @@ export type DuplicateScanResult = {
   duplicates: Array<{ id: string; paths: string[] }>;
 };
 
-const ID_PATTERN = /\b(TC|DEF|STORY|REQ|RISK|RISK)-[A-Z]{2,8}-\d{2,5}\b/g;
+const ID_PATTERN = /\b(TC|STORY|REQ|RISK)-[A-Z]{2,8}-\d{2,5}\b|\bDEF-\d{3,4}-[A-Z]{2,8}-(UI|API|A11Y|SEC|PERF|DATA|UNIT|EXP)\b/g;
 
 export async function scanForDuplicateIds(rootDir: string): Promise<DuplicateScanResult> {
   const { globby } = await import("globby");

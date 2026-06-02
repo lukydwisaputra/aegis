@@ -1,7 +1,7 @@
 import { formatRelativeTime } from "@/lib/utils";
 
 interface TimelineEvent {
-  type: string;
+  event: string;
   ts: string;
   [key: string]: unknown;
 }
@@ -12,7 +12,7 @@ interface RunTimelineProps {
 
 export function RunTimeline({ events }: RunTimelineProps) {
   const typed = events.filter(
-    (e): e is TimelineEvent => typeof e === "object" && e !== null && "type" in e && "ts" in e
+    (e): e is TimelineEvent => typeof e === "object" && e !== null && "event" in e && "ts" in e
   );
 
   if (typed.length === 0) {
@@ -27,7 +27,7 @@ export function RunTimeline({ events }: RunTimelineProps) {
             {i + 1}
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-xs text-primary">{evt.type}</span>
+            <span className="font-mono text-xs text-primary">{evt.event}</span>
             <time className="text-xs text-muted-foreground">{formatRelativeTime(evt.ts)}</time>
           </div>
           {"agent" in evt && (

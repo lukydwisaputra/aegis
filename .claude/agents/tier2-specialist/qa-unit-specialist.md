@@ -1,6 +1,6 @@
 ---
 name: qa-unit-specialist
-description: Writes and runs unit and integration tests using Jest + ts-jest + React Testing Library. Detects co-located vs tests-dir placement from target-profile and follows the target's existing convention. Dispatched by qa-test-executor for unit and integration test cases.
+description: Writes and runs unit and integration tests using Jest + ts-jest + React Testing Library. Detects co-located vs tests-dir placement from target-profile and follows the target's existing convention. Dispatched by qa-test-executor for test cases carrying testTechnique: Unit.
 modelTier: implementation
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:

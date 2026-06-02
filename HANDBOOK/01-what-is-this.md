@@ -35,7 +35,7 @@ Nothing in this framework is invoked from the terminal directly (except `pnpm in
 The framework covers the following concerns:
 
 1. **Planning** — requirement ingestion, risk analysis, test strategy, RTM skeleton
-2. **Design** — test case authoring for unit, API, UI, security, accessibility, performance, email, visual, and exploratory testing
+2. **Design** — test case authoring across all test types (Functional, UI, Integration, API, Security, Database, Performance, Compatibility, Usability) and techniques (Unit, Accessibility, Email, Realtime, FeatureFlag, Regression, Exploratory, and others)
 3. **Execution** — autonomous test runs against dev / testing / staging / production environments
 4. **Defect management** — structured defect reports with severity/priority, deduplication, and a triage gate
 5. **Compliance review** — parallel ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, and PDPA checks
@@ -64,7 +64,7 @@ The system uses a tiered agent hierarchy:
 
 - **Orchestrator** (`qa-orchestrator`) — a single director agent that receives commands, plans work, and dispatches to lower tiers
 - **Tier-1 phase agents** — eight agents that own each STLC phase: `qa-requirements-analyst`, `qa-test-planner`, `qa-test-designer`, `qa-environment-engineer`, `qa-test-executor`, `qa-defect-manager`, `qa-closure-reporter`, `qa-executive-reporter`
-- **Tier-2 specialists** — fourteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-ui-designer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`
+- **Tier-2 specialists** — fourteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-ui-designer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-email-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
 - **Tier-2.5 DevOps** — seven agents that own CI/CD, branch strategy, environment provisioning, and secrets
 - **SPVs (Supervisors)** — twenty-two reviewer agents that audit work produced by workers and return scored feedback
 - **Compliance agents** — six agents, one per regulation, running in parallel during every cycle
@@ -95,7 +95,7 @@ Throughout this handbook we use a single running example: the **Login / SSO feat
 | `REQ-AUTH-04` | Requirement: OAuth2/SSO login must redirect to `/dashboard` |
 | `STORY-AUTH-204` | User story: "As a user I can log in with Google SSO" |
 | `TC-AUTH-031` | Test case: Verify redirect after successful SSO login |
-| `DEF-AUTH-0017` | Defect: SSO redirect lands on `/` instead of `/dashboard` |
+| `DEF-001-AUTH-UI` | Defect: SSO redirect lands on `/` instead of `/dashboard` |
 | `RUN-20260523-001` | The QA run during which these artefacts were produced |
 
 When you see these IDs in later chapters, they always refer to this same scenario.

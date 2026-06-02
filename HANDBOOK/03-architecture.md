@@ -169,7 +169,7 @@ For `RUN-20260523-001` (Login/SSO feature), the architecture flow was:
 4. `qa-spec-api` and `qa-spec-ui` claimed their tasks in parallel
 5. `qa-spec-ui` produced `TC-AUTH-031`; its SPV scored it 84/100 (above threshold)
 6. Gate 1 (Plan Approval) paused the run; the user approved
-7. Execution produced `DEF-AUTH-0017`
+7. Execution produced `DEF-001-AUTH-UI`
 8. Gate 2 (Defect Triage) paused; the user confirmed severity Critical
 9. Gate 3 (Closure) presented a release-blocked recommendation
 

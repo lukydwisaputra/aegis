@@ -112,7 +112,7 @@ Options:
 
 ### /qa-regression
 
-Regression-only run. Executes TCs tagged `testType: Regression`.
+Regression-only run. Executes TCs tagged `regression: true`.
 
 ```
 /qa-regression [options]

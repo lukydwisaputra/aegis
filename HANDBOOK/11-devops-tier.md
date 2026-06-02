@@ -42,14 +42,14 @@ Non-DevOps agents never need worktree isolation — they only write to `aegis/ru
 ```
 <type>/<TICKET-ID>-<kebab-summary>
   feat/STORY-AUTH-204-sso-plus-email
-  fix/DEF-AUTH-0017-sso-callback-500
+  fix/DEF-001-AUTH-UI-sso-callback-500
   test/TC-AUTH-031-add-sso-e2e
 ```
 
 **Commits** (Conventional Commits 1.0):
 ```
 test(auth): add SSO regression for plus-aliased emails
-fix(auth): reject malformed SSO callback (closes DEF-AUTH-0017)
+fix(auth): reject malformed SSO callback (closes DEF-001-AUTH-UI)
 ```
 
 Commit footer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` (model name, never "Aegis").

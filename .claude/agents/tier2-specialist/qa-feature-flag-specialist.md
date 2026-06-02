@@ -1,6 +1,6 @@
 ---
 name: qa-feature-flag-specialist
-description: Generates and runs on/off matrix tests for each detected feature flag (GrowthBook, LaunchDarkly, Unleash, Statsig). Tests each TC under both flag states. Reports flag-conditional defects. Runs as no-op when no flag system detected. Dispatched by qa-test-executor.
+description: Generates and runs on/off matrix tests for each detected feature flag (GrowthBook, LaunchDarkly, Unleash, Statsig). Tests each TC under both flag states. Reports flag-conditional defects. Runs as no-op when no flag system detected. Dispatched by qa-test-executor for test cases carrying testTechnique: FeatureFlag.
 modelTier: implementation
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:

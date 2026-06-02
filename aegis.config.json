@@ -34,7 +34,7 @@
         "dbSnapshotFrom": "staging",
         "mailpitPerInstance": true
       },
-      "allowedSpecialists": ["unit", "api", "ui", "security", "a11y", "email"],
+      "allowedSpecialists": ["functional", "ui", "integration", "api", "security", "database"],
       "purpose": "PR gate; /qa-smoke 10-min budget; isolated per PR"
     },
     "staging": {
@@ -50,8 +50,8 @@
       "mutating": false,
       "readOnly": true,
       "branch": "main",
-      "allowedSpecialists": ["ui", "api", "security", "a11y"],
-      "forbiddenSpecialists": ["email", "performance", "unit"],
+      "allowedSpecialists": ["ui", "api", "security"],
+      "forbiddenSpecialists": ["database", "performance"],
       "purpose": "Read-only synthetic monitoring; critical-path smoke"
     }
   },
@@ -70,11 +70,11 @@
     "videoTranscodeMp4": false,
     "videoQuality": "medium",
     "screenshotOnEveryStep": false,
+    "inspectionScreenshots": "delete-after-use",
+    "evidenceStore": "artifacts/evidence",
     "retention": {
-      "onSuccess": "replace-latest",
-      "onFailure": "preserve-history",
-      "historicalLimit": 5,
-      "maxAgeRunsKept": 30
+      "tcEvidence": "replace-on-rerun",
+      "defectEvidence": "permanent"
     }
   },
   "testing": {

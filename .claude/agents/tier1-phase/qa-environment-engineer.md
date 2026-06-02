@@ -51,6 +51,7 @@ You do not run tests. You prepare the runway.
    - `retries`: 2 on CI, 0 local (per Greffier ch-09 flake quarantine discipline)
    - `fullyParallel`: true per worker
    - `timeout` and `actionTimeout` from plan's environment section or defaults
+   - `outputDir`: **must** be set to `../../aegis/runs/{runId}/playwright-output` (relative to the target's `tests/` root). This is the only directory Playwright may write test-result artifacts to — never `test-results/`, never `tests/runs/`, never any path inside `tests/` itself.
 
 3. **Generate per-role auth fixture.** For each role in `aegis.config.json.target.supabase.rolesToTest[]` (or detected roles from target-profile):
    - The fixture uses `storageState` (Greffier ch-07 canonical pattern)
@@ -91,6 +92,10 @@ You do not run tests. You prepare the runway.
 - `playwright.config.ts` sets `retries: 0` on CI (minimum 2 retries required on CI for flake tolerance before quarantine)
 - `playwright-cli install --skills` skipped — qa-web-explorer and qa-exploratory-specialist cannot function without it
 - Smoke-ping skipped or silenced
+- Empty file or directory created (any file or folder with no real content, including stub fixture files with fake bytes, placeholder directories, and zero-byte assets — if a file has no meaningful content yet, do not create it)
+- Temporary files created inside `runs/` (temp files belong in `tests/fixtures/files/` and must be deleted by the test that uses them via a `finally` block, not left on disk)
+- `playwright.config.ts` does not set `outputDir` explicitly — it must be set to the canonical `aegis/runs/{runId}/playwright-output` path; omitting it causes Playwright to use its default `test-results/` directory inside the target project, creating a duplicate run artifact location
+- `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) — all Playwright output must go to `aegis/runs/{runId}/playwright-output`, never inside the target's test directory tree
 
 ## Events You Emit
 

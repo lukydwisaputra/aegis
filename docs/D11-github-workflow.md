@@ -23,7 +23,7 @@ See [D11-devops-tier-overview.md](D11-devops-tier-overview.md) for agent roles.
 Examples:
 ```
 feat/STORY-AUTH-204-sso-plus-email
-fix/DEF-AUTH-0017-sso-callback-500
+fix/DEF-001-AUTH-UI-sso-callback-500
 test/TC-AUTH-031-add-sso-e2e
 ci/INFRA-009-add-nightly-regression
 ```
@@ -54,7 +54,7 @@ Examples:
 ```
 test(auth): add SSO regression for plus-aliased emails
 
-fix(auth): reject malformed SSO callback (closes DEF-AUTH-0017)
+fix(auth): reject malformed SSO callback (closes DEF-001-AUTH-UI)
 
 feat(billing)!: replace Stripe v1 with Stripe v2 SDK
 
@@ -77,7 +77,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 - [RTM rows affected: TC-AUTH-031, TC-AUTH-032]
 
 ## Defects addressed
-- [DEF-AUTH-0017 — link to defect record]
+- [DEF-001-AUTH-UI — link to defect record]
 
 ## Gate status
 - [ ] TESTING gate passed (`/qa-gate-check --stage=testing --run={id}`)
@@ -115,7 +115,7 @@ gh pr create --title "test(auth): add SSO E2E coverage" \
   --reviewer @qa-lead
 
 # Link issue to defect
-gh issue create --title "DEF-AUTH-0017: SSO callback returns 500" \
+gh issue create --title "DEF-001-AUTH-UI: SSO callback returns 500" \
   --body "$(cat defect-body.md)" \
   --label "bug,severity:2,priority:1,module:auth"
 

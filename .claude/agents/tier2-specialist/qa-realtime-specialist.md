@@ -1,6 +1,6 @@
 ---
 name: qa-realtime-specialist
-description: Tests WebSocket, SSE, and async real-time flows — connection lifecycle, reconnect behaviour, message ordering, backpressure, and race conditions. Uses Playwright + custom WS client. Runs as no-op when no real-time features are detected. Dispatched by qa-test-executor for realtime test cases.
+description: Tests WebSocket, SSE, and async real-time flows — connection lifecycle, reconnect behaviour, message ordering, backpressure, and race conditions. Uses Playwright + custom WS client. Runs as no-op when no real-time features are detected. Dispatched by qa-test-executor for test cases carrying testTechnique: Realtime.
 modelTier: implementation
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:

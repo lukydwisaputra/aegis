@@ -30,8 +30,8 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 - `tests/perf/{scenario}.perf.ts` — k6 test scripts
 - `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric
-- `runs/{runId}/evidence/{TC-ID}/k6-results.json` — raw k6 output
-- `runs/{runId}/evidence/{TC-ID}/lighthouse-report.html`
+- `artifacts/evidence/{TC-ID}/k6-results.json` — overwrites previous run's evidence for the same TC
+- `artifacts/evidence/{TC-ID}/lighthouse-report.html`
 
 ## Process
 

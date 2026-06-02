@@ -209,7 +209,7 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
         mode: "automated",
         mutating: true,
         ephemeral: true,
-        allowedSpecialists: ["unit", "api", "ui", "security", "a11y", "email"],
+        allowedSpecialists: ["functional", "ui", "integration", "api", "security", "database"],
       },
       staging: {
         url: "https://stg.example.com",
@@ -222,8 +222,8 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
         mode: "smoke-only",
         mutating: false,
         readOnly: true,
-        allowedSpecialists: ["ui", "api", "security", "a11y"],
-        forbiddenSpecialists: ["email", "performance", "unit"],
+        allowedSpecialists: ["ui", "api", "security"],
+        forbiddenSpecialists: ["database", "performance"],
       },
     },
   };

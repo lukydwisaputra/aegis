@@ -28,6 +28,30 @@ You also run variation testing: when a defect is found, you do not just document
 - `runs/{runId}/rtm.json` — to link defects back to requirements
 - `agent-memory/qa-defect-manager/lessons.md`
 
+## Defect ID Format
+
+Every defect ID follows: **`DEF-{NNN}-{MODULE}-{TYPE}`**
+
+- **MODULE** — 2–8 uppercase letters identifying the functional area (e.g. `AUTH`, `FORM`, `NAV`, `REFERRAL`, `PAYMENT`). Never use run IDs, scope codes, or TC IDs as the module.
+- **TYPE** — one of the fixed codes below, chosen by the specialist who found it:
+
+  | Code | When to use |
+  |------|-------------|
+  | `UI` | Visual / E2E flow failures found by qa-ui-specialist or qa-responsive-specialist |
+  | `API` | REST / contract failures found by qa-api-specialist |
+  | `A11Y` | Accessibility violations found by qa-accessibility-specialist |
+  | `SEC` | Security findings from qa-security-specialist (ZAP, Semgrep, etc.) |
+  | `PERF` | Performance threshold breaches from qa-performance-specialist |
+  | `DATA` | Data integrity / database failures from qa-database-specialist |
+  | `UNIT` | Unit or integration test failures from qa-unit-specialist (dispatched via testTechnique: Unit) |
+  | `EXP` | Exploratory findings with no parent TC (qa-exploratory-specialist, qa-web-explorer) |
+
+- **NNN** — 3-digit zero-padded global sequence per MODULE, always starting at `001`.
+
+Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-003-AUTH-SEC`
+
+**Dedup rule:** When multiple TCs trace to the same defect, assign the ID based on the first TC's specialist type. Link all subsequent TCs in the defect record's `relatedTcIds[]`.
+
 ## Outputs
 
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — one file pair per defect (Zod-validated)
@@ -55,7 +79,7 @@ You also run variation testing: when a defect is found, you do not just document
    - **Priority**: Business urgency only. qa-test-planner sets this in collaboration with the RTM and risk register. You propose; planner confirms. Codes: P0 (Hotfix) / P1 (Next release) / P2 (This quarter) / P3 (Backlog) / P4 (Won't fix).
    - **Reproduction steps**: Numbered, imperative, reproducible by any engineer. No "sometimes" or "usually" without evidence.
    - **Expected vs. Actual**: Concrete. "Expected: redirect to /dashboard with session cookie set" not "Expected: no error."
-   - **Evidence**: Link all relevant screenshots, HAR files, stack traces from `runs/{runId}/evidence/{TC-ID}/`.
+   - **Evidence**: Read from `artifacts/evidence/{TC-ID}/`. Copy all relevant files to `artifacts/evidence/{TC-ID}/defects/{DEF-ID}/` — this copy is permanent and will not be overwritten by future runs. Link the `defects/{DEF-ID}/` path in the defect record's `evidence[]` array.
    - **Root cause**: If known, document. If investigating: set `status: "investigating"`, populate `investigationLog`.
    - **Compliance tags**: Inherit from the parent test case. Add any additional tags discovered during variation testing.
 
@@ -96,4 +120,6 @@ Claims `task:defect-management` via taskmaster-client. Writes to `runs/{runId}/d
 
 ## Worked Example
 
-DEF-AUTH-0017 (SSO plus-aliased email): Title (61 chars): "SSO callback 500 when email contains '+'" — passes 65-char rule. Variation testing: Behaviour — `+` fails, `-` passes, `.` passes (localised to plus-sign encoding). State — fails on first and re-login. Environment — Chrome, Firefox, WebKit all fail; staging and dev both fail (server-side validation, not client). Severity: Sev2 (Critical) — core auth path broken for plus-aliased email users; workaround is to use a non-plus email (not acceptable for enterprise users). Priority proposed: P1 (Next release) — based on RISK-AUTH-007 HIGH rating and customer-facing status.
+`DEF-001-AUTH-UI` (SSO plus-aliased email, found by qa-ui-specialist): Title (61 chars): "SSO callback 500 when email contains '+'" — passes 65-char rule. MODULE=`AUTH` (functional area: authentication), TYPE=`UI` (found via E2E flow test TC-AUTH-031). Variation testing: Behaviour — `+` fails, `-` passes, `.` passes (localised to plus-sign encoding). State — fails on first and re-login. Environment — Chrome, Firefox, WebKit all fail; staging and dev both fail (server-side, not client-side). Severity: Sev2 (Critical) — core auth path broken for plus-aliased email users; workaround is to use a non-plus email (not acceptable for enterprise users). Priority proposed: P1 (Next release) — based on RISK-AUTH-007 HIGH rating.
+
+If a security scan later also surfaces the same root cause, it would be `DEF-AUTH-SEC-001` — a separate defect record linked to the UI one, not a duplicate, because the specialist type and evidence differ.

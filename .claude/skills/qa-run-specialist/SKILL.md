@@ -16,7 +16,7 @@ Dispatches one specialist testing agent in isolation, bypassing the full STLC or
 ## Key flags
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--specialist` | *(required)* | Specialist type: `api`, `ui`, `unit`, `perf`, `security`, `a11y`, `exploratory`, `email`, `database`, `realtime`, `feature-flag`, `responsive` |
+| `--specialist` | *(required)* | Specialist type: `api`, `ui`, `unit`, `perf`, `security`, `a11y`, `exploratory`, `email`, `database`, `realtime`, `feature-flag`, `responsive`. Primary specialists (`api`, `ui`, `perf`, `security`, `exploratory`, `database`, `responsive`) are auto-dispatched by `testType`. Technique specialists (`unit`, `a11y`, `email`, `realtime`, `feature-flag`) are auto-dispatched by `testTechnique`. Use this command to invoke any specialist directly, bypassing the cycle. |
 | `--target` | *(none)* | Feature, module, or file path to focus the specialist on |
 
 ## Behaviour

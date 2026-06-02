@@ -33,12 +33,13 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 6. **Smoke ping results.** `env-setup-report.json` shows that smoke pings hit all configured environments and received expected HTTP status codes. Failed smoke pings with no resolution = requested-changes.
 7. **Playwright Agent CLI install.** `env-setup-report.json` confirms that `@playwright/cli` was installed and `playwright-cli install --skills` ran successfully. If absent, flag as requested-changes — `qa-web-explorer` and `qa-exploratory-specialist` cannot function without it.
 8. **Browser matrix.** `playwright.config.ts` `projects:` block contains Chromium + Firefox + WebKit (unless overridden in `aegis.config.json.browsers`). Missing browsers = passed-with-notes.
+9. **Playwright `outputDir`.** `playwright.config.ts` must explicitly set `outputDir` to the canonical `aegis/runs/{runId}/playwright-output` path. Missing `outputDir` (Playwright falls back to `test-results/` inside the target project) = requested-changes. `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — browser matrix incomplete, minor teardown order issue; emit CorrectiveInstruction
-- `requested-changes` — auth fixture uses raw credentials, missing factory cleanup, no halt-on-fail; block
+- `requested-changes` — auth fixture uses raw credentials, missing factory cleanup, no halt-on-fail, missing or incorrect `outputDir`; block
 
 ## Events You Emit
 

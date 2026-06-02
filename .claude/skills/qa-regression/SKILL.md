@@ -6,7 +6,7 @@ description: Execute only regression-tagged test cases, optionally filtered by p
 # /qa-regression
 
 ## Purpose
-Runs the full regression suite — all test cases carrying `testType: Regression` in their metadata. Designed for pre-release validation, sprint-end checks, and post-hotfix verification. Supports priority filtering to run critical regressions first and baseline comparison to surface newly introduced failures.
+Runs the full regression suite — all test cases tagged for regression (via `regression: true` flag or by module scope) in their metadata. Designed for pre-release validation, sprint-end checks, and post-hotfix verification. Supports priority filtering to run critical regressions first and baseline comparison to surface newly introduced failures.
 
 ## Usage
 ```
@@ -21,7 +21,7 @@ Runs the full regression suite — all test cases carrying `testType: Regression
 | `--against` | *(none)* | Baseline run ID for delta comparison; triggers qa-compare after execution |
 
 ## Behaviour
-1. Scan `artifacts/test-cases/` for all TCs tagged `testType: Regression`.
+1. Scan `artifacts/test-cases/` for all TCs tagged `regression: true`.
 2. Apply `--priority` and `--module` filters to the TC set.
 3. Create a new run directory (RUN-{date}-NNN) with type `regression`.
 4. Dispatch specialist agents for each TC's `specialistType` in parallel (up to `max-parallel` from project config).

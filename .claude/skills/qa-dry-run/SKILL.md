@@ -10,7 +10,7 @@ Simulates the planning phase of a `/qa-start` invocation and outputs the full ta
 
 ## Usage
 ```
-/qa-dry-run [--module=AUTH] [--env=development|testing|staging|production] [--scope=<feature>] [--type=Functional,Regression] [--max-parallel=4] [--apps=prospect,bishan]
+/qa-dry-run [--module=AUTH] [--env=development|testing|staging|production] [--scope=<feature>] [--type=Functional,Security] [--technique=Accessibility,Unit] [--max-parallel=4] [--apps=prospect,bishan]
 ```
 
 ## Key flags
@@ -21,7 +21,8 @@ Accepts all the same scope flags as `/qa-start` — see that skill for details.
 | `--module` | `ALL` | Module to simulate |
 | `--env` | `testing` | Target environment (affects env-setup task count) |
 | `--scope` | *(none)* | Narrow to a specific feature |
-| `--type` | `Functional,Regression` | Test types to simulate |
+| `--type` | `Functional,Security` | Test types to simulate (TestTypeSchema values: Functional, UI, Integration, API, Security, Database, Performance, Compatibility, Usability) |
+| `--technique` | *(none)* | Test techniques to include (TestTechniqueSchema values: Unit, Accessibility, Email, Realtime, FeatureFlag, Regression, Smoke, Exploratory, BoundaryValue, etc.) |
 | `--max-parallel` | `4` | Parallelism assumption for duration estimate |
 | `--apps` | `all` | Apps to include in simulation |
 

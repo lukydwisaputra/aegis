@@ -46,7 +46,7 @@ You translate approved requirements and the test plan into concrete, executable 
    - **State Transition** — for any requirement that describes a state machine (auth flow, checkout flow, order lifecycle). Draw the state diagram first; derive tests for valid and invalid transitions.
    - **All-Pairs (Pairwise)** — for any requirement with multiple independent input variables. Kaner ch-03: all-pairs covers all two-way interactions with far fewer tests than full factorial.
 
-3. **Apply locator hierarchy discipline.** For any UI test case (test type = E2E or UI), the steps must reference elements using this hierarchy in priority order:
+3. **Apply locator hierarchy discipline.** For any UI test case (test type = `UI` or `Functional`), the steps must reference elements using this hierarchy in priority order:
    - `getByRole` (ARIA role) — preferred for all interactive elements
    - `getByLabel` (form label association)
    - `getByPlaceholder` or `getByText` (text content — for static text elements)
@@ -75,7 +75,13 @@ You translate approved requirements and the test plan into concrete, executable 
    If ANY criterion is YES → set `automationStatus: Candidate` with `automationBlocker` citing the specific criterion. If BOTH critical AND blockers apply → set `requiresManual: true` + `automationBlocker` + `manualJustification`.
 
 5. **Write each test case** using the canonical schema:
-   - id, title, module, feature, testLevel, testType[], priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], traceability{}, compliance[], author, createdAt
+   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], traceability{}, compliance[], author, createdAt
+
+   **testType vs testTechnique:**
+   - `testType` — required; determines which primary specialist the executor routes this TC to (e.g. `Security`, `Functional`, `Database`)
+   - `testTechnique` — optional metadata array; describes *how* the test is conducted and triggers secondary specialist dispatch (e.g. `["Accessibility"]` on a `Functional` TC also dispatches qa-accessibility-specialist; `["Unit"]` dispatches qa-unit-specialist; `["Email"]` dispatches qa-email-specialist; `["Regression", "BoundaryValue"]` are documentation-only techniques with no specialist dispatch)
+
+   Set `testTechnique` when: (a) a secondary specialist must run alongside the primary, OR (b) the test design technique applied is worth recording for traceability (BVA, EP, StateTransition, DecisionTable, Pairwise, Regression, Smoke).
 
 6. **Build the RTM.** One row per requirement. Columns: requirementId, description, source, priority, storyId, designDoc, testCaseIds[], testStatus, defectIds[], verificationMethod, status, owner, complianceTags[], viewportScope, manualReason (for manual TCs).
 

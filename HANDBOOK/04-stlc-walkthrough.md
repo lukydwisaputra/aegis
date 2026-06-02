@@ -35,7 +35,7 @@ Discovery runs automatically when a new feature area is tested or when `discover
 5. Builds a route inventory at `runs/<RUN-ID>/discovery/routes.json`
 6. Identifies auth-required routes by testing with and without a session cookie
 7. Flags routes that appear destructive (DELETE endpoints, "delete account" buttons) via heuristic pattern matching
-8. Generates Page Object Model skeletons in `tests/pages/` for each discovered route
+8. Generates Page Object Model skeletons in `tests/pages/{url-path}/` for each discovered route, mirroring the app's URL structure
 
 **Browser automation tool:** Discovery is inherently _deciding as you go_ — the page structure is unknown until each page is reached. `qa-web-explorer` uses **Playwright MCP** (`mcp__playwright__*` tools) when available, falling back to **Playwright CLI** (`playwright-cli` from `@playwright/cli`) in Bash-only contexts. It never uses `@playwright/test` Node API for discovery — that tool is for executing known scripts, not observation-driven crawling.
 
@@ -105,7 +105,7 @@ Teardown:     Log out; clear session
 
 `qa-test-executor` runs test scripts against the configured environment. Playwright handles UI and API tests; Vitest handles unit tests; k6 handles performance.
 
-**Browser automation tool routing:** Scripted specialists (`qa-ui-specialist`, `qa-responsive-specialist`, `qa-accessibility-specialist`) author and run `.spec.ts` files using `@playwright/test` — the test suite is known in advance. However, these agents may use **Playwright MCP** (or `playwright-cli` as fallback) mid-task to inspect a live page when a selector or ARIA role is ambiguous, then switch back to spec authoring once the page structure is understood. Exploratory testing (`qa-exploratory-specialist`) uses MCP or CLI exclusively — it never produces `.spec.ts` files during charter execution.
+**Browser automation tool routing:** Scripted specialists (`qa-ui-specialist`, `qa-responsive-specialist`, `qa-accessibility-specialist`) author and run `.spec.ts` files using `@playwright/test` — the test suite is known in advance. `qa-accessibility-specialist` is dispatched as a secondary specialist for any TC carrying `testTechnique: Accessibility`. However, these agents may use **Playwright MCP** (or `playwright-cli` as fallback) mid-task to inspect a live page when a selector or ARIA role is ambiguous, then switch back to spec authoring once the page structure is understood. Exploratory testing (`qa-exploratory-specialist`) uses MCP or CLI exclusively — it never produces `.spec.ts` files during charter execution.
 
 Results are written to `runs/<RUN-ID>/results/` in JUnit XML format plus a JSON summary.
 
@@ -117,10 +117,10 @@ When `TC-AUTH-031` ran, the SSO redirect landed on `/` instead of `/dashboard`. 
 
 `qa-defect-manager` reviews raw failures and writes structured defect reports. Deduplication runs against the existing defect list — if the same root cause appeared in a previous run, the new occurrence is linked to the existing defect rather than creating a new one.
 
-For the redirect failure, `DEF-AUTH-0017` was created:
+For the redirect failure, `DEF-001-AUTH-UI` was created:
 
 ```
-ID:           DEF-AUTH-0017
+ID:           DEF-001-AUTH-UI
 Title:        SSO login redirects to / instead of /dashboard
 Severity:     Sev2 — Critical
 Priority:     P1 — Next release
@@ -155,7 +155,7 @@ Environment:  testing (Vercel preview, PR #42)
 - `runs/<RUN-ID>/reports/executive-slides.pdf` — 5–7 slide executive deck (business language, no jargon)
 - `runs/<RUN-ID>/reports/closure.md` + `closure.json` — full closure artefact
 
-**Gate 3 — Closure Sign-off** fires. For `RUN-20260523-001`, the closure summary showed one Critical open defect (`DEF-AUTH-0017`), which triggered a `release-blocked` recommendation. The user acknowledged and the run closed with status `blocked`.
+**Gate 3 — Closure Sign-off** fires. For `RUN-20260523-001`, the closure summary showed one Critical open defect (`DEF-001-AUTH-UI`), which triggered a `release-blocked` recommendation. The user acknowledged and the run closed with status `blocked`.
 
 ---
 

@@ -1,6 +1,6 @@
 # MODULE Codes Registry
 
-Living registry of all `MODULE` abbreviations used in Aegis IDs. Every ID follows the pattern `{KIND}-{MODULE}-{NNN}` (e.g., `TC-AUTH-031`, `DEF-AUTH-0017`).
+Living registry of all `MODULE` abbreviations used in Aegis IDs. Every ID follows the pattern `{KIND}-{MODULE}-{NNN}` (e.g., `TC-AUTH-031`). Defect IDs use `DEF-{NNN}-{MODULE}-{TYPE}` (e.g., `DEF-001-AUTH-UI`).
 
 Adding a new module = appending a row here + SPV review.
 
@@ -34,7 +34,7 @@ Adding a new module = appending a row here + SPV review.
 | API | Generic API endpoints (no domain) | `qa-api-specialist` | For cross-cutting API tests |
 | PERF | Performance / load | `qa-performance-specialist` | |
 | SEC | Security findings | `qa-security-specialist` | |
-| A11Y | Accessibility findings | `qa-accessibility-specialist` | |
+| A11Y | Accessibility findings | `qa-accessibility-specialist` | Dispatched via testTechnique: Accessibility |
 
 ## How to add a new module
 

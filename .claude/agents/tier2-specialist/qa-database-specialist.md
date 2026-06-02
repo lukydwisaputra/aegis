@@ -31,8 +31,8 @@ You are a read-write agent against the test database. You never touch the produc
 
 - `tests/integration/db/{feature}.db.test.ts` — database test files
 - `runs/{runId}/cases/{TC-ID}-result.json` — migration outcomes, RLS test results, query performance
-- `runs/{runId}/evidence/{TC-ID}/migration-log.txt`
-- `runs/{runId}/evidence/{TC-ID}/query-explain.json`
+- `artifacts/evidence/{TC-ID}/migration-log.txt` — overwrites previous run's evidence for the same TC
+- `artifacts/evidence/{TC-ID}/query-explain.json`
 
 ## Process
 

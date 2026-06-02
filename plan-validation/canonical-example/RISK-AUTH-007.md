@@ -5,7 +5,7 @@
 | **Risk ID**      | RISK-AUTH-007 |
 | **Module**       | AUTH |
 | **Category**     | Functional / Security |
-| **Status**       | Active — risk materialised (see DEF-AUTH-0017) |
+| **Status**       | Active — risk materialised (see DEF-001-AUTH-UI) |
 | **Owner**        | Auth squad lead |
 | **Reviewer**     | QA lead + Data Privacy Officer |
 | **Created**      | 2026-05-19 |
@@ -64,7 +64,7 @@ TC-AUTH-038 are executed.**
 
 ## Risk Status Update — 2026-05-24
 
-**Risk has materialised.** DEF-AUTH-0017 confirms that the OAuth callback handler
+**Risk has materialised.** DEF-001-AUTH-UI confirms that the OAuth callback handler
 does corrupt the `+` character (decoded to space via `application/x-www-form-urlencoded`
 decoding), producing an HTTP 500 for all plus-aliased email logins. The likelihood
 rating is moot; the risk is now a confirmed defect. The entry is retained in the risk
@@ -86,11 +86,11 @@ register to track the mitigation and contingency status.
 
 ## Contingency Plan
 
-If DEF-AUTH-0017 is not resolved before the v2.42.0 release date (2026-05-30):
+If DEF-001-AUTH-UI is not resolved before the v2.42.0 release date (2026-05-30):
 
 1. **Fallback to password login**: Enterprise users with plus-aliased emails can use the password login path if enabled for their account. Auth squad to confirm whether the password path is available for all affected accounts. This is a temporary workaround only.
 2. **Communication**: Customer Success to notify affected enterprise customers with guidance on the workaround. Template to be prepared by 2026-05-25.
-3. **Release gate decision**: If DEF-AUTH-0017 remains open on 2026-05-29, the release manager will convene a gate meeting. Options: (a) delay release, (b) release with workaround communication, (c) scope-limit release to exclude enterprise SSO users. See Gate 2 decision in RUN-20260524-001-overview.md.
+3. **Release gate decision**: If DEF-001-AUTH-UI remains open on 2026-05-29, the release manager will convene a gate meeting. Options: (a) delay release, (b) release with workaround communication, (c) scope-limit release to exclude enterprise SSO users. See Gate 2 decision in RUN-20260524-001-overview.md.
 
 ---
 
@@ -115,4 +115,4 @@ If DEF-AUTH-0017 is not resolved before the v2.42.0 release date (2026-05-30):
 |----------|-------------|
 | REQ-AUTH-04 | Requirement at risk |
 | STORY-AUTH-204 | User story whose delivery is at risk |
-| DEF-AUTH-0017 | Defect that materialised this risk |
+| DEF-001-AUTH-UI | Defect that materialised this risk |

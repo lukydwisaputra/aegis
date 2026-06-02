@@ -1,10 +1,11 @@
-# DEF-AUTH-0017 — Defect Report
+# DEF-001-AUTH-UI — Defect Report
 
 | Field                  | Value |
 |------------------------|-------|
-| **Defect ID**          | DEF-AUTH-0017 |
+| **Defect ID**          | DEF-001-AUTH-UI |
 | **Title (≤ 65 chars)** | SSO callback 500: '+' in email rejected by OAuth handler |
 | **Module**             | AUTH |
+| **Type**               | UI (E2E flow failure found by qa-ui-specialist) |
 | **Component**          | OAuth 2.0 callback handler (`/auth/callback`) |
 | **Severity**           | Sev2 — Critical |
 | **Priority**           | P1 — Fix before next release |

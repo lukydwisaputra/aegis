@@ -140,7 +140,7 @@ Coverage:
 
 Defects:
   Critical:   0
-  High:       1 (DEF-AUTH-0017)
+  High:       1 (DEF-001-AUTH-UI)
   Medium:     0
   Low:        0
 

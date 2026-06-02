@@ -130,7 +130,7 @@ Manually files a defect outside of an automated run.
 Example:
 ```bash
 /qa-defect-report --title "SSO redirect fails" --severity critical --tc TC-AUTH-031
-# Creates DEF-AUTH-0017
+# Creates DEF-001-AUTH-UI
 ```
 
 ---
@@ -165,7 +165,7 @@ Updates a defect field.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--id` | string | required | Defect ID (e.g., `DEF-AUTH-0017`) |
+| `--id` | string | required | Defect ID (e.g., `DEF-001-AUTH-UI`) |
 | `--status` | string | — | New status |
 | `--severity` | string | — | New severity |
 | `--note` | string | — | Triage note |

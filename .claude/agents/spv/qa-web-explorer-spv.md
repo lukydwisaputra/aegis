@@ -20,7 +20,7 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 
 - `runs/{runId}/reports/work/qa-web-explorer.json` — work report
 - `runs/{runId}/discovery-report.{md,json}`
-- `tests/pages/*.ts` — generated POM skeletons (read target project)
+- `tests/pages/**/*.ts` — generated POM skeletons organised by URL path (read target project)
 - `runs/{runId}/evidence/discovery/` — screenshot baselines
 - `agent-memory/qa-web-explorer/lessons.md`
 
@@ -28,18 +28,20 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 
 1. **Read-only discipline.** Work report confirms NO form submissions were made and NO destructive actions (delete, confirm, approve buttons) were clicked. Evidence: network HAR or work-report attestation. Missing attestation = passed-with-notes. Confirmed form submission = requested-changes.
 2. **Per-role authentication.** Discovery report shows results from at least 2 different roles (or all configured roles if ≤2). Single-role exploration of a multi-role app = passed-with-notes.
-3. **POM skeleton structure.** Spot-check one POM file: confirms it has `constructor(private page: Page)`, at least 3 locator methods, and a `goto()` method. Malformed POM (missing constructor, no methods) = passed-with-notes.
-4. **No overwrites of existing POMs.** If `tests/pages/{route}.page.ts` already existed before the discovery run, the explorer did not overwrite it. Work report should note skip-existing. Overwrite of existing POM = requested-changes.
-5. **Discovery report completeness.** Report includes: (a) URL map with route patterns (not just raw URLs), (b) data-testid inventory per page, (c) console error count, (d) inferred user journeys. Missing any section = passed-with-notes.
-6. **Screenshot baselines.** At least one screenshot per discovered page exists under `runs/{runId}/evidence/discovery/`. Missing baselines = passed-with-notes.
-7. **Skip patterns respected.** If `aegis.config.json.discovery.skipPatterns` is configured, the work report confirms those patterns were not visited.
-8. **Correct browser tool used.** Work report confirms browser interactions were performed via Playwright MCP (`mcp__playwright__*`) or Playwright CLI (`playwright-cli`). If the work report or evidence shows `@playwright/test` Node API used for page navigation during discovery (e.g., `chromium.launch()`, `browser.newPage()`), flag as requested-changes — `@playwright/test` is for executing known scripts, not observation-driven crawling.
+3. **No probe scripts in tests/specs/.** Check that no `inspect-*.spec.ts`, `env-probe.spec.ts`, or similar one-shot files exist anywhere under `tests/specs/`. If found = requested-changes (delete them; selectors must be verified via MCP snapshot, not spec files).
+4. **POM folder structure.** All POM skeletons are under `tests/pages/{url-path}/` mirroring the app's URL structure (e.g. `/auth/login` → `tests/pages/auth/login.page.ts`). Any POM written directly under `tests/pages/` with no URL-path subfolder = requested-changes.
+5. **POM skeleton structure.** Spot-check one POM file: confirms it has `constructor(private page: Page)`, at least 3 locator methods, and a `goto()` method. Malformed POM (missing constructor, no methods) = passed-with-notes.
+5. **No overwrites of existing POMs.** If `tests/pages/{url-path}/{route}.page.ts` already existed before the discovery run, the explorer did not overwrite it. Work report should note skip-existing. Overwrite of existing POM = requested-changes.
+6. **Discovery report completeness.** Report includes: (a) URL map with route patterns (not just raw URLs), (b) data-testid inventory per page, (c) console error count, (d) inferred user journeys. Missing any section = passed-with-notes.
+7. **Screenshot baselines.** At least one screenshot per discovered page exists under `runs/{runId}/evidence/discovery/`. Missing baselines = passed-with-notes.
+8. **Skip patterns respected.** If `aegis.config.json.discovery.skipPatterns` is configured, the work report confirms those patterns were not visited.
+9. **Correct browser tool used.** Work report confirms browser interactions were performed via Playwright MCP (`mcp__playwright__*`) or Playwright CLI (`playwright-cli`). If the work report or evidence shows `@playwright/test` Node API used for page navigation during discovery (e.g., `chromium.launch()`, `browser.newPage()`), flag as requested-changes — `@playwright/test` is for executing known scripts, not observation-driven crawling.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — single-role only, missing discovery sections; emit CorrectiveInstruction
-- `requested-changes` — form submissions, POM overwrites; block
+- `requested-changes` — form submissions, POM overwrites, POM written directly under `tests/pages/` with no URL-path subfolder, probe scripts found in `tests/specs/`; block
 
 ## Events You Emit
 

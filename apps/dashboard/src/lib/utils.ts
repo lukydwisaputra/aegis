@@ -13,7 +13,8 @@ export function formatDuration(ms: number): string {
   return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }
 
-export function formatRelativeTime(iso: string): string {
+export function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
   if (diff < 60_000) return "just now";
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;

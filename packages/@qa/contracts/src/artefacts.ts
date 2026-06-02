@@ -32,9 +32,14 @@ export const EvidenceSchema = z.object({
 
 export const TestLevelSchema = z.enum(["Unit", "Integration", "System", "Acceptance"]);
 export const TestTypeSchema = z.enum([
-  "Functional", "Regression", "Smoke", "Exploratory",
-  "Performance", "Security", "Accessibility", "Usability",
-  "API", "Unit", "Email", "Visual", "Contract",
+  "Functional", "UI", "Integration", "API",
+  "Security", "Database", "Performance", "Compatibility", "Usability",
+]);
+export const TestTechniqueSchema = z.enum([
+  "Unit", "Accessibility", "Email", "Realtime", "FeatureFlag",
+  "Regression", "Smoke", "Exploratory", "Visual", "Contract",
+  "E2E", "Load", "Migration",
+  "BoundaryValue", "EquivalencePartition", "StateTransition", "DecisionTable", "Pairwise",
 ]);
 
 export const AutomationStatusSchema = z.enum([
@@ -50,6 +55,7 @@ export const TestCaseSchema = z.object({
   feature: z.string(),
   testLevel: TestLevelSchema,
   testType: z.array(TestTypeSchema).min(1),
+  testTechnique: z.array(TestTechniqueSchema).optional(),
   priority: PrioritySchema,
   automationStatus: AutomationStatusSchema,
   automationBlocker: z.string().optional(),
@@ -114,6 +120,7 @@ export const DefectSchema = z.object({
   page: z.string().optional(),
   component: z.string().optional(),
   testCaseId: TestCaseIdSchema.optional(),
+  testTechnique: TestTechniqueSchema.optional(),
   requirementId: RequirementIdSchema.optional(),
   riskId: RiskIdSchema.optional(),
   reproductionSteps: z.array(z.object({

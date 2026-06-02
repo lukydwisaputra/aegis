@@ -33,11 +33,22 @@ describe('@qa/ids', () => {
 
   it('different kind+module combinations use independent counters', async () => {
     const tc1 = await nextId('TC', 'AUTH');
-    const def1 = await nextId('DEF', 'AUTH');
+    const def1 = await nextId('DEF', 'AUTH', 'UI');
     const tc2 = await nextId('TC', 'AUTH');
     expect(tc1).toBe('TC-AUTH-001');
-    expect(def1).toBe('DEF-AUTH-0001');
+    expect(def1).toBe('DEF-001-AUTH-UI');
     expect(tc2).toBe('TC-AUTH-002');
+  });
+
+  it('DEF counter is global per MODULE — NNN leads and increments across types', async () => {
+    const ui1 = await nextId('DEF', 'AUTH', 'UI');
+    const sec2 = await nextId('DEF', 'AUTH', 'SEC');
+    const ui3 = await nextId('DEF', 'AUTH', 'UI');
+    const a11y1 = await nextId('DEF', 'FORM', 'A11Y');
+    expect(ui1).toBe('DEF-001-AUTH-UI');
+    expect(sec2).toBe('DEF-002-AUTH-SEC');
+    expect(ui3).toBe('DEF-003-AUTH-UI');
+    expect(a11y1).toBe('DEF-001-FORM-A11Y');
   });
 
   it('concurrent calls do not produce duplicate IDs', async () => {
@@ -48,11 +59,11 @@ describe('@qa/ids', () => {
     expect(unique.size).toBe(5);
   });
 
-  it('pads counter to correct width per kind', async () => {
+  it('pads DEF counter to 3 digits and places it first', async () => {
     const tc = await nextId('TC', 'PAD');
-    const def = await nextId('DEF', 'PAD');
-    expect(tc).toMatch(/TC-PAD-\d{3}$/);
-    expect(def).toMatch(/DEF-PAD-\d{4}$/);
+    const def = await nextId('DEF', 'PAD', 'UI');
+    expect(tc).toMatch(/^TC-PAD-\d{3}$/);
+    expect(def).toMatch(/^DEF-\d{3}-PAD-UI$/);
   });
 
   it('WR kind returns WR-T-{taskNumber} without a counter', async () => {

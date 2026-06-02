@@ -16,7 +16,7 @@ The default policy by which the framework decides whether a test case should be 
 A recorded state used for comparison. In visual regression testing, a baseline screenshot is the approved reference. In performance testing, a baseline p95 latency is the approved reference.
 
 **Defect**
-A deviation between observed behaviour and specified expected behaviour. In this framework, defects are filed as structured JSON reports with IDs following the `DEF-MODULE-NNNN` scheme.
+A deviation between observed behaviour and specified expected behaviour. In this framework, defects are filed as structured JSON reports with IDs following the `DEF-{NNN}-{MODULE}-{TYPE}` scheme.
 
 **Defect Escape Rate**
 Defects found after a release (by users or monitoring) divided by total defects found (pre-release + post-release), expressed as a percentage. A low escape rate means QA is catching defects before they reach users.
@@ -112,7 +112,7 @@ The `qa-lesson-curator` agent that reviews pending lessons at end-of-cycle and d
 A mandatory pause in the STLC where human review is required before the run proceeds. There are three gates: Plan Approval (after Phase 2), Defect Triage (after Phase 4), and Closure Sign-off (after Phase 6).
 
 **Lesson**
-A captured piece of learning derived from SPV feedback. Stored in `agent-memory/<agent>/lessons.json`. Promoted lessons become part of the agent's standing instructions. Identifier format: `LESSON-<agent>-NNN`.
+A captured piece of learning derived from SPV feedback. Stored in `agent-memory/<agent>/lessons.json`. Promoted lessons become part of the agent's standing instructions. Identifier format: `L-{AGENT-INITIALS}-{NNN}`.
 
 **Module**
 A named domain area in the target application (e.g., `auth`, `billing`). Used as the middle segment of all artefact IDs. Defined in `aegis/module-codes.md`.
@@ -181,9 +181,9 @@ A 0–100 quality score assigned by an SPV agent to a worker's artefact. Scores 
 | `REQ-AUTH-04` | Requirement | OAuth2/SSO login must redirect to `/dashboard` |
 | `STORY-AUTH-204` | User story | "As a user I can log in with Google SSO" |
 | `TC-AUTH-031` | Test case | Verify redirect after successful SSO login |
-| `DEF-AUTH-0017` | Defect | SSO redirect lands on `/` instead of `/dashboard` |
+| `DEF-001-AUTH-UI` | Defect | SSO redirect lands on `/` instead of `/dashboard` |
 | `RUN-20260523-001` | QA run | The run during which the above artefacts were produced |
-| `LESSON-qa-spec-ui-042` | Lesson | "Always include teardown step in UI test cases" |
+| `L-UI-042` | Lesson | "Always include teardown step in UI test cases" |
 
 ---
 

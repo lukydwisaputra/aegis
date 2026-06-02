@@ -71,7 +71,7 @@ Before this story enters a sprint the following must be true:
 The story is done when all of the following are satisfied:
 
 - [ ] **DoD-1** — All 8 test cases TC-AUTH-031 through TC-AUTH-038 have been executed on the staging environment and results recorded in the test run RUN-20260524-001 (or a subsequent run).
-- [ ] **DoD-2** — Any Sev1 or Sev2 defects raised against this story are resolved or formally risk-accepted with a documented mitigation plan (see DEF-AUTH-0017 and RISK-AUTH-007).
+- [ ] **DoD-2** — Any Sev1 or Sev2 defects raised against this story are resolved or formally risk-accepted with a documented mitigation plan (see DEF-001-AUTH-UI and RISK-AUTH-007).
 - [ ] **DoD-3** — Code changes have been peer-reviewed and approved by two Auth squad members; no outstanding review comments.
 - [ ] **DoD-4** — The OAuth callback email-claim extraction path is covered by an automated integration test in CI with assertion on the verbatim email value.
 - [ ] **DoD-5** — GDPR Data Processing record has been updated to reflect that plus-aliased email addresses are stored and processed as first-class identifiers.

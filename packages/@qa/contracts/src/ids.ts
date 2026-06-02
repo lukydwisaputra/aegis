@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 // ID format patterns
-// TC-AUTH-031, DEF-AUTH-0017, STORY-AUTH-204, REQ-AUTH-04, RISK-AUTH-007
+// TC-AUTH-031, DEF-001-AUTH-UI, STORY-AUTH-204, REQ-AUTH-04, RISK-AUTH-007
 // TP-PROJECT-R2.4, RUN-20260523-001, L-TD-012, WR-T-42, RV-td-spv-T-42
 
 const MODULE = "[A-Z]{2,8}";
+const DEF_TYPE = "UI|API|A11Y|SEC|PERF|DATA|UNIT|EXP";
 
 export const TestCaseIdSchema = z.string().regex(
   new RegExp(`^TC-${MODULE}-\\d{3,4}$`),
@@ -12,8 +13,8 @@ export const TestCaseIdSchema = z.string().regex(
 );
 
 export const DefectIdSchema = z.string().regex(
-  new RegExp(`^DEF-${MODULE}-\\d{4,5}$`),
-  "Defect ID format: DEF-{MODULE}-{NNNN}"
+  new RegExp(`^DEF-\\d{3,4}-${MODULE}-(${DEF_TYPE})$`),
+  "Defect ID format: DEF-{NNN}-{MODULE}-{TYPE} where TYPE is UI|API|A11Y|SEC|PERF|DATA|UNIT|EXP"
 );
 
 export const StoryIdSchema = z.string().regex(

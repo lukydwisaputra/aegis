@@ -42,19 +42,25 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 
 2. **Plan the execution order.** Sort test case batches by risk (Critical risks first, then High, Medium, Low). Within a risk tier, order by: (1) smoke tests, (2) core functional, (3) regression, (4) compliance-tagged. This order ensures highest-value defects surface early.
 
-3. **Route test cases to specialists.** Assign TCs to the correct Tier-2 specialist by `testType`:
-   - `E2E`, `UI` → qa-ui-specialist
-   - `API`, `Contract` → qa-api-specialist
-   - `Unit`, `Integration` → qa-unit-specialist
-   - `Performance`, `Load` → qa-performance-specialist
+3. **Route test cases to specialists.** Two routing dimensions apply — check `testType` first, then `testTechnique` for technique-specific specialists.
+
+   **By `testType`** (primary routing — determines the specialist for every TC):
+   - `Functional`, `UI` → qa-ui-specialist
+   - `API`, `Integration` → qa-api-specialist
+   - `Performance` → qa-performance-specialist
    - `Security` → qa-security-specialist
+   - `Database` → qa-database-specialist
+   - `Compatibility` → qa-responsive-specialist
+   - `Usability` → qa-exploratory-specialist
+
+   **By `testTechnique`** (secondary routing — dispatched in addition to the primary specialist when the technique requires a dedicated specialist):
+   - `Unit` → qa-unit-specialist
    - `Accessibility` → qa-accessibility-specialist
-   - `Exploratory` → qa-exploratory-specialist
    - `Email` → qa-email-specialist
-   - `Database`, `Migration` → qa-database-specialist
    - `Realtime` → qa-realtime-specialist
    - `FeatureFlag` → qa-feature-flag-specialist
-   - `Responsive` → qa-responsive-specialist
+
+   A TC with `testType: Functional` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass.
 
 4. **Dispatch specialists in parallel (max 4 concurrently).** Use the `Agent` tool. For each specialist dispatch, include the enriched brief:
    - The test cases assigned to this specialist (IDs + schema)
@@ -118,4 +124,4 @@ Claims `task:execution` via taskmaster-client. The concurrency ledger is at `run
 
 ## Worked Example
 
-`RUN-20260524-001` execution order: RISK-AUTH-007 (Critical) → SSO callback TCs assigned to qa-ui-specialist (TC-AUTH-031 through TC-AUTH-034) and qa-security-specialist (TC-AUTH-035). Dispatched both simultaneously (2 concurrent). While both ran, dispatched qa-accessibility-specialist (TC-AUTH-036) and qa-api-specialist (TC-AUTH-037) — 4 concurrent total. qa-ui-specialist returned: TC-AUTH-031 FAILED (DEF-AUTH-0017 triggered — plus-sign in email caused 500). Evidence: screenshot `TC-AUTH-031_step3_20260524T1430Z.png`, HAR sanitised (checked: no Authorization header present). qa-security-specialist returned: TC-AUTH-035 BLOCKED (Singpass biometric — manual flag active).
+`RUN-20260524-001` execution order: RISK-AUTH-007 (Critical) → SSO callback TCs assigned to qa-ui-specialist (TC-AUTH-031 through TC-AUTH-034, `testType: Functional`) and qa-security-specialist (TC-AUTH-037, `testType: Security`). TC-AUTH-038 carries `testTechnique: Accessibility` → dispatches qa-accessibility-specialist as secondary alongside qa-ui-specialist. Dispatched qa-ui-specialist + qa-security-specialist simultaneously (2 concurrent); then qa-accessibility-specialist (TC-AUTH-038) and qa-api-specialist (TC-AUTH-036, `testType: Integration`) — 4 concurrent total. qa-ui-specialist returned: TC-AUTH-031 FAILED (DEF-001-AUTH-UI triggered — plus-sign in email caused 500). Evidence: screenshot `TC-AUTH-031_step3_20260524T1430Z.png`, HAR sanitised (checked: no Authorization header present). qa-accessibility-specialist returned: TC-AUTH-038 PASSED (zero axe-core critical/serious violations; keyboard operability confirmed).

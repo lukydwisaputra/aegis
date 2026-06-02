@@ -66,7 +66,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
    - **Comprehensiveness assessment**: Coverage of requirements, risk areas, compliance clauses. Where gaps remain and why.
    - **Results summary**: Pass/fail/blocked/skipped counts by module and test type. Tables, not prose.
    - **Defect metrics**: Severity breakdown, open/closed/deferred counts. Any Sev1/Sev2 that are still open must be explicitly called out.
-   - **Evaluation**: What was found, framed as information (not verdict). "DEF-AUTH-0017 affects plus-aliased email users on the SSO path. Fix is in review. Risk accepted by product owner pending Gate 3."
+   - **Evaluation**: What was found, framed as information (not verdict). "DEF-001-AUTH-UI affects plus-aliased email users on the SSO path. Fix is in review. Risk accepted by product owner pending Gate 3."
    - **Open questions**: The most valuable section. List what the testing did NOT answer — what remains unknown after this cycle. Example: "We did not test the SSO path with Singpass due to biometric constraint (TC-AUTH-035 manual). Real-user Singpass flows are untested in this cycle."
    - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
    - **Approvals**: Signature block for Gate 3. QA lead, engineering lead, product owner.
@@ -102,4 +102,4 @@ Claims `task:closure-reporting` via taskmaster-client. Read-only on all prior ar
 
 ## Worked Example
 
-`RUN-20260524-001` closure: Summary — "AUTH module tested over 3h across 8 TCs; 7 passed, 1 failed (DEF-AUTH-0017)." Open defects: DEF-AUTH-0017 Sev2 — open, fix in review. Open questions: "Plus-aliased email failure only tested on 3 browsers; Singpass integration not tested (biometric). Email delivery to plus-aliased addresses was tested via Mailpit but not with real Gmail routing." Residual risk: RISK-AUTH-007 remains HIGH (fix unverified). Gate 3 approvals block: product owner must acknowledge residual risk before closure.
+`RUN-20260524-001` closure: Summary — "AUTH module tested over 3h across 8 TCs; 7 passed, 1 failed (DEF-001-AUTH-UI)." Open defects: DEF-001-AUTH-UI Sev2 — open, fix in review. Open questions: "Plus-aliased email failure only tested on 3 browsers; Singpass integration not tested (biometric). Email delivery to plus-aliased addresses was tested via Mailpit but not with real Gmail routing." Residual risk: RISK-AUTH-007 remains HIGH (fix unverified). Gate 3 approvals block: product owner must acknowledge residual risk before closure.

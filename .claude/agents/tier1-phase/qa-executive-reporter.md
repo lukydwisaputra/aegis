@@ -116,7 +116,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - "monorepo" → "unified codebase" (or drop)
 - "p75 CLS" → "page layout stability" with a plain-language threshold
 
-**Format rule:** Never cite raw test counts ("147 test cases") unless rounded to context ("about 150 tests"). Never cite defect IDs (DEF-AUTH-0017 → "an authentication defect").
+**Format rule:** Never cite raw test counts ("147 test cases") unless rounded to context ("about 150 tests"). Never cite defect IDs (DEF-001-AUTH-UI → "an authentication defect").
 
 **Framing rule:** Start with the finding (What), then the business implication (So What), then the action (Now What). Never start with data or process.
 

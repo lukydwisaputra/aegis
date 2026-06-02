@@ -14,7 +14,7 @@ echo "| ABBR | Full name | Owner | Description |" >> aegis/module-codes.md
 pnpm qa-health
 ```
 
-Module abbreviations must be 2–6 uppercase letters. The abbreviation is used in all artifact IDs (TC-ABBR-001, DEF-ABBR-0001).
+Module abbreviations must be 2–6 uppercase letters. The abbreviation is used in all artifact IDs (TC-ABBR-001, DEF-001-ABBR-UI).
 
 ---
 

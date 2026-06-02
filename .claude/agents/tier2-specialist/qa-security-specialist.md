@@ -28,10 +28,10 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 - `tests/security/{surface}.security.spec.ts` — Playwright-based DAST trigger scripts
 - `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC
-- `runs/{runId}/evidence/{TC-ID}/zap-report.html` — ZAP HTML report
-- `runs/{runId}/evidence/{TC-ID}/semgrep-results.json`
-- `runs/{runId}/evidence/{TC-ID}/dependency-audit.json`
-- `runs/{runId}/evidence/{TC-ID}/secrets-scan.txt`
+- `artifacts/evidence/{TC-ID}/zap-report.html` — overwrites previous run's evidence for the same TC
+- `artifacts/evidence/{TC-ID}/semgrep-results.json`
+- `artifacts/evidence/{TC-ID}/dependency-audit.json`
+- `artifacts/evidence/{TC-ID}/secrets-scan.txt`
 
 ## Process
 

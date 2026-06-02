@@ -15,8 +15,8 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // aegis root = apps/dashboard-api/src/../../../ = aegis/
-const AEGIS_ROOT = resolve(__dirname, "../../..");
-const RUNS_ROOT = resolve(AEGIS_ROOT, "runs");
+const AEGIS_ROOT = process.env["AEGIS_ROOT"] ?? resolve(__dirname, "../../..");
+const RUNS_ROOT = process.env["AEGIS_RUNS_ROOT"] ?? resolve(AEGIS_ROOT, "runs");
 
 const app = Fastify({ logger: { level: "info" } });
 await app.register(cors, { origin: "*" });
@@ -46,10 +46,15 @@ app.get("/api/runs", async (_req, reply) => {
     const closure = existsSync(closurePath)
       ? JSON.parse(readFileSync(closurePath, "utf-8"))
       : null;
+    const runJsonPath = resolve(RUNS_ROOT, runId, "run.json");
+    const runJson = existsSync(runJsonPath)
+      ? (() => { try { return JSON.parse(readFileSync(runJsonPath, "utf-8")); } catch { return null; } })()
+      : null;
+    const dirMtime = statSync(resolve(RUNS_ROOT, runId)).mtime.toISOString();
     return {
       runId,
       status: closure ? "complete" : existsSync(eventsPath) ? "in-progress" : "unknown",
-      generatedAt: closure?.generatedAt ?? null,
+      generatedAt: closure?.generatedAt ?? runJson?.startedAt ?? runJson?.createdAt ?? dirMtime,
       passRate: closure?.metrics?.passRate ?? null,
     };
   });

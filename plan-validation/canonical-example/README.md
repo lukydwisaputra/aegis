@@ -29,7 +29,7 @@ major pattern in the Aegis framework within a single, compact feature boundary:
 |-------------------|-------------------------------|
 | Requirement analysis with ambiguity flags | AMB-01 through AMB-04 in REQ-AUTH-04 (e.g., RFC 5321 case-folding ambiguity) |
 | Multiple test design techniques | BVA, EP, Decision Table, State Transition, All-Pairs, Security, Privacy, Accessibility |
-| Realistic defect found and documented | DEF-AUTH-0017: `+` decoded to space by OAuth callback handler → HTTP 500 |
+| Realistic defect found and documented | DEF-001-AUTH-UI: `+` decoded to space by OAuth callback handler → HTTP 500 |
 | Risk that materialises | RISK-AUTH-007: known `oauth2-client` library issue; likelihood was 3/5; confirmed by execution |
 | Compliance coverage | GDPR Art. 32, WCAG 2.2, OWASP WSTG-AUTH-01, CWE-287, ISO 25010 |
 | Multi-phase test run with gate decisions | RUN-20260524-001: Gate 1 approved, Gate 2 conditionally approved, Gate 3 pending fix |
@@ -53,7 +53,7 @@ The `+` character is a genuine encoding hazard in HTTP form submissions (`applic
 | TC-AUTH-036 | TC-AUTH-031-through-038.md | GDPR Art. 32 + WCAG 2.2 compliance testing (PII-containing alias; data minimisation) |
 | TC-AUTH-037 | TC-AUTH-031-through-038.md | OWASP WSTG-AUTH-01 + CWE-287 security testing (injection via email local-part) |
 | TC-AUTH-038 | TC-AUTH-031-through-038.md | WCAG 2.2 SC 1.4.3 / 2.1.1 / 4.1.2 + axe-core accessibility testing |
-| Defect report | DEF-AUTH-0017.md | Kaner ch-04 — Bug advocacy model (impact framing, 65-char title, variation axes, IEEE 1044 classification) |
+| Defect report | DEF-001-AUTH-UI.md | Kaner ch-04 — Bug advocacy model (impact framing, 65-char title, variation axes, IEEE 1044 classification) |
 | Risk register | RISK-AUTH-007.md | ISO 31000 5×5 matrix + Kaner ch-11 — heuristic likelihood disclaimer |
 | Run overview | RUN-20260524-001-overview.md | Aegis full-run structure: 8 phases, gate decisions, token budget tracking |
 
@@ -79,7 +79,7 @@ that applies that technique.
 | Ch-09 | Accessibility Testing | TC-AUTH-038 (in TC file) | axe-core scan; keyboard navigation steps; contrast check |
 | Ch-10 | Privacy and Compliance Testing | TC-AUTH-036 (in TC file) | GDPR Art. 32; PII in plus alias; log and storage checks |
 | Ch-11 | Risk-Based Testing | RISK-AUTH-007.md | ISO 31000 5×5 matrix; heuristic likelihood note; materialised risk |
-| Ch-12 | Defect Reporting and Advocacy | DEF-AUTH-0017.md | Kaner ch-04 bug advocacy; variation axes; 65-char title |
+| Ch-12 | Defect Reporting and Advocacy | DEF-001-AUTH-UI.md | Kaner ch-04 bug advocacy; variation axes; 65-char title |
 | Ch-13 | Test Planning and Estimation | RUN-20260524-001-overview.md | Phase timeline; token estimates; scope decisions |
 | Ch-14 | Test Execution and Run Management | RUN-20260524-001-overview.md | Execution results table; environment setup notes |
 | Ch-15 | Gate Reviews and Release Decisions | RUN-20260524-001-overview.md | Gate 1, Gate 2 (conditional), Gate 3 (pending) |
@@ -103,6 +103,6 @@ All cross-references use these exact IDs throughout the set:
 | TC-AUTH-036 | Test case | TC-AUTH-031-through-038.md |
 | TC-AUTH-037 | Test case | TC-AUTH-031-through-038.md |
 | TC-AUTH-038 | Test case | TC-AUTH-031-through-038.md |
-| DEF-AUTH-0017 | Defect report | DEF-AUTH-0017.md |
+| DEF-001-AUTH-UI | Defect report | DEF-001-AUTH-UI.md |
 | RISK-AUTH-007 | Risk register entry | RISK-AUTH-007.md |
 | RUN-20260524-001 | Test run | RUN-20260524-001-overview.md |

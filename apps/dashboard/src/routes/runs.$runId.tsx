@@ -30,7 +30,7 @@ export default function RunDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 pt-4">
-          {closure && (
+          {closure ? (
             <div className="grid gap-3 sm:grid-cols-3">
               {Object.entries(closure).map(([k, v]) => (
                 <div key={k} className="rounded-md border p-3">
@@ -39,6 +39,10 @@ export default function RunDetailPage() {
                 </div>
               ))}
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Run is in-progress — closure report not yet available. Check the Events tab for live progress.
+            </p>
           )}
         </TabsContent>
 
