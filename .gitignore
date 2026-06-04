@@ -13,10 +13,7 @@
 # ─── Books & Knowledge (copyright + size) ────────────────────────────────────
 books/
 
-# Knowledge chunks: gitignored by default (opt-in via aegis.config.json.shareKnowledge)
-knowledge/
-!knowledge/.gitkeep
-!knowledge/INDEX.md
+# Knowledge chunks: included in repo (markdown only; raw PDFs stay in books/ above)
 
 # ─── Runs ─────────────────────────────────────────────────────────────────────
 runs/*/
