@@ -2,6 +2,8 @@
 
 > _Orchestrator, tiers, SPVs, model tiers, Taskmaster, event bus, path-guard, and the three human gates._
 
+> Visual diagram: [docs/D03-agent-workflow-diagram.svg](../docs/D03-agent-workflow-diagram.svg)
+
 ---
 
 ### 3.1 The Big Picture
@@ -63,50 +65,60 @@ Eight managers coordinate domain work:
 
 | Manager | Domain |
 |---|---|
-| `qa-strategy-manager` | Test strategy, scope, risk analysis |
-| `qa-planner` | Test case planning and RTM skeleton |
+| `qa-requirements-analyst` | Requirement ingestion, source-grounding, RTM skeleton |
+| `qa-test-planner` | Test strategy, scope, risk analysis, test case plan |
+| `qa-test-designer` | Test design coordination across specialists |
+| `qa-test-executor` | Execution coordination, Tier-2 fan-out, SPV dispatch |
 | `qa-defect-manager` | Defect lifecycle, triage coordination |
-| `qa-compliance-lead` | Compliance coordinator, parallel dispatch |
-| `qa-devops-manager` | CI/CD, environments, branch strategy |
-| `qa-reporting-manager` | Report generation, dashboard data |
-| `qa-knowledge-manager` | Book ingestion, knowledge base maintenance |
-| `qa-improvement-manager` | Lesson capture, curator coordination |
+| `qa-environment-engineer` | playwright.config.ts, fixtures, factories, test data seeding |
+| `qa-knowledge-librarian` | Book ingestion, knowledge base maintenance, query resolution |
+| `qa-curator` | Lesson capture, system-wide promotion proposals |
 
 Managers do not write test artefacts directly. They decompose work and dispatch to Tier-2 workers.
+
+> Compliance, DevOps, and reporting are not single Tier-1 managers. Compliance is six separate `qa-compliance-*` agents (see §6.7); DevOps is the `qa-cicd-*` / `qa-github-*` agents (§3.6); reporting is split between `qa-closure-reporter` and `qa-executive-reporter`.
 
 ---
 
 ### 3.5 Tier-2: Specialist Workers
 
-Fourteen workers execute concrete tasks:
+Specialist workers execute concrete tasks. Domain specialists:
 
 | Worker | Produces |
 |---|---|
-| `qa-spec-unit` | Unit test cases and scripts |
-| `qa-spec-api` | API test cases (contract + integration) |
-| `qa-spec-ui` | UI/E2E Playwright test cases |
-| `qa-spec-security` | Security test cases (OWASP-aligned) |
-| `qa-spec-a11y` | Accessibility test cases (WCAG 2.2) |
-| `qa-spec-perf` | Performance test cases (k6 scripts) |
-| `qa-spec-email` | Email flow test cases (Mailpit) |
-| `qa-spec-visual` | Visual regression baselines and cases |
-| `qa-spec-exploratory` | Exploratory charters |
-| `qa-executor` | Runs test scripts and captures results |
+| `qa-unit-specialist` | Unit test cases and scripts |
+| `qa-api-specialist` | API test cases (contract + integration) |
+| `qa-ui-specialist` | UI/E2E Playwright test cases |
+| `qa-security-specialist` | Security test cases (OWASP-aligned) |
+| `qa-accessibility-specialist` | Accessibility test cases (WCAG 2.2) |
+| `qa-performance-specialist` | Performance test cases (k6 scripts) |
+| `qa-email-specialist` | Email flow test cases (Mailpit) |
+| `qa-exploratory-specialist` | Exploratory charters (Playwright MCP) |
+| `qa-database-specialist` | Database / data-integrity test cases |
+| `qa-responsive-specialist` | Responsive / viewport test cases |
+| `qa-feature-flag-specialist` | Feature-flag matrix test cases |
+| `qa-realtime-specialist` | Realtime / websocket test cases |
+
+Supporting workers:
+
+| Worker | Produces |
+|---|---|
 | `qa-defect-reporter` | Writes structured defect reports |
 | `qa-rtm-builder` | Maintains the Requirements Traceability Matrix |
-| `qa-data-builder` | Generates test data fixtures |
-| `qa-report-writer` | Writes HTML/PDF run reports |
+| `qa-closure-reporter` | Writes `closure.md` + `closure.json` |
+| `qa-executive-reporter` | Renders the three executive PDFs |
 
 ---
 
 ### 3.6 Tier-2.5: DevOps Agents
 
-Seven agents handle infrastructure concerns:
+DevOps agents handle infrastructure and CI/CD concerns (GitHub planning, CI/CD planning and implementation, plus environment/secrets/sandbox utilities):
 
 | Agent | Responsibility |
 |---|---|
-| `qa-github-master` | Branch strategy, PR descriptions, merge gates |
-| `qa-cicd-master` | Workflow file generation and evaluation |
+| `qa-github-planner` | Branch strategy, PR descriptions, merge gates |
+| `qa-cicd-planner` | Workflow file planning and evaluation |
+| `qa-cicd-implementer` | Workflow file generation |
 | `qa-env-provisioner` | Ephemeral environment creation and teardown |
 | `qa-worktree-manager` | Git worktree isolation for parallel runs |
 | `qa-secrets-auditor` | Secrets leak detection in artefacts |
@@ -117,9 +129,9 @@ Seven agents handle infrastructure concerns:
 
 ### 3.7 SPVs (Supervisors)
 
-Twenty-two SPV agents review worker output. Each SPV is paired with one or more workers and scores their output on a 0–100 scale across rubric dimensions. If a score falls below the threshold defined in `thresholds.yaml`, the SPV returns the work with inline comments for revision.
+SPV agents (named `qa-{worker}-spv`) review worker output. Each SPV is paired with one worker and scores its output on a 0–100 scale across rubric dimensions. If a score falls below the threshold defined in `thresholds.yaml`, the SPV returns the work with inline comments for revision.
 
-SPVs do not rewrite work themselves. They annotate and return. This preserves attribution and forces workers to improve their own output.
+SPVs do not rewrite work themselves and are read-only (`tools: [Read, Bash]`). They write a `review.json` verdict; the **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads it and pipes any corrective instruction into the worker's `lessons.json`. This preserves attribution and forces workers to improve their own output.
 
 ---
 
@@ -165,9 +177,9 @@ For `RUN-20260523-001` (Login/SSO feature), the architecture flow was:
 
 1. User ran `/qa-start --feature login`
 2. Orchestrator created the run directory and published a plan task to Taskmaster
-3. `qa-strategy-manager` claimed the task, produced a strategy doc, published test-case tasks
-4. `qa-spec-api` and `qa-spec-ui` claimed their tasks in parallel
-5. `qa-spec-ui` produced `TC-AUTH-031`; its SPV scored it 84/100 (above threshold)
+3. `qa-test-planner` claimed the task, produced a strategy doc, published test-case tasks
+4. `qa-api-specialist` and `qa-ui-specialist` claimed their tasks in parallel
+5. `qa-ui-specialist` produced `TC-AUTH-031`; its SPV (`qa-ui-specialist-spv`) scored it 84/100 (above threshold)
 6. Gate 1 (Plan Approval) paused the run; the user approved
 7. Execution produced `DEF-001-AUTH-UI`
 8. Gate 2 (Defect Triage) paused; the user confirmed severity Critical

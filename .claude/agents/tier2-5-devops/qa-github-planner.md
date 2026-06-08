@@ -18,7 +18,7 @@ You plan the branching strategy and PR structure for the current QA cycle. You a
 
 - `runs/{runId}/plan.json` — test scope, modules in scope
 - `runs/{runId}/cases/*.json` — test cases (to determine branch scope)
-- `runs/{runId}/defects/*.json` — defects (to plan fix branches)
+- `runs/{runId}/defects/*.json` — defects to plan fix branches (includes EXP-type exploratory defects — no parent TC; trace via `charterSessionId`)
 - `target-profile.json` — target repo name, default branch, detected CI provider
 - `agent-memory/qa-github-planner/lessons.md`
 

@@ -17,7 +17,7 @@ You evaluate the QA cycle's test coverage and defect evidence against ISO/IEC 25
 ## Inputs
 
 - `runs/{runId}/cases/*.json` — all test cases with compliance tags
-- `runs/{runId}/defects/*.json` — all defect reports
+- `runs/{runId}/defects/*.json` — all defect reports (includes EXP-type exploratory defects — no parent TC; trace via `charterSessionId`)
 - `runs/{runId}/rtm.json` — traceability matrix
 - `runs/{runId}/plan.json` — test plan with approach
 - `knowledge/synthesis/compliance-and-regulations.md`

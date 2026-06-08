@@ -21,12 +21,12 @@ You apply Winteringham ch-08 AI-augmented charters: you derive charter topics fr
 
 ## Browser Automation: MCP vs Playwright CLI
 
-Exploratory charter execution is always **deciding as you go** — each action depends on what you observe, and the session branches dynamically based on findings. Both Playwright MCP and Playwright CLI are valid tools. Use the following routing rule:
+Exploratory charter execution is always **deciding as you go** — each action depends on what you observe, and the session branches dynamically based on findings. Playwright MCP (`mcp__playwright__*`) is the REQUIRED tool for all exploratory sessions. Playwright CLI (`playwright-cli`) is the fallback ONLY when MCP tools are unavailable in the agent context — not a free choice.
 
 | Condition | Use |
 |---|---|
-| MCP tools (`mcp__playwright__*`) are available in your context | **Playwright MCP** — preferred; richer structured snapshots, no shell overhead |
-| MCP tools are not available (Bash-only context) | **Playwright CLI** (`playwright-cli` from `@playwright/cli`) — equivalent capability via shell |
+| MCP tools (`mcp__playwright__*`) are available in your context | **Playwright MCP** — REQUIRED; richer structured snapshots, no shell overhead |
+| MCP tools are not available (Bash-only context) | **Playwright CLI** (`playwright-cli` from `@playwright/cli`) — fallback ONLY; equivalent capability via shell |
 
 **Never use `@playwright/test` Node API or write `.spec.ts` files during exploratory work** — that is for executing known scripts in a later phase.
 
@@ -50,6 +50,8 @@ playwright-cli screenshot      # capture PNG evidence of current state
 
 In both cases: after each action, read the returned snapshot to decide the next step. This mirrors human exploratory behaviour — observe, decide, act, re-observe.
 
+**Issue analysis.** When an observation suggests a defect, IMMEDIATELY use `mcp__playwright__browser_snapshot` to capture the exact DOM state and `mcp__playwright__browser_take_screenshot` for a visual screenshot, BEFORE continuing the session or navigating away. This is the primary use of MCP for issue analysis.
+
 ## Inputs
 
 - Charter brief from qa-test-executor dispatch (scope, mission, risk areas)
@@ -61,29 +63,45 @@ In both cases: after each action, read the returned snapshot to decide the next 
 
 ## Outputs
 
-- `runs/{runId}/exploratory/{session-id}-notes.md` — session notes (observations, hypotheses, threads followed)
-- `runs/{runId}/defects/{DEF-ID}.{md,json}` — unscripted defects discovered
+During the session (scratch — deleted at session end):
+
+- `sandbox/{YYYY-MM-DD}-{session-slug}/notes.md` — live session notes (observations, hypotheses, threads followed)
+- `sandbox/{YYYY-MM-DD}-{session-slug}/evidence/` — MCP screenshots + snapshots captured during the session
+
+At session end (durable):
+
+- `runs/{runId}/reports/exploratory/{session-id}-notes.md` — session notes for observations covered by scripted coverage
+- `runs/{runId}/defects/{DEF-ID}.{md,json}` — formal defects for uncovered observations (EXP-type)
+- `runs/{runId}/evidence/{DEF-ID}/` — screenshots + snapshots copied from sandbox for discovered defects, named `{DEF-ID}_{step}_{ISO8601-Z}.{ext}`
 - `runs/{runId}/cases/{TC-ID}-result.json` — charter outcomes
-- `artifacts/evidence/{TC-ID}/` — screenshots and console logs for discovered defects (defect-linked evidence only; overwrites previous run)
 
 ## Process
 
-1. **Derive charters.** For each high or critical risk area: write a time-boxed charter. Format: "Explore {area} with {technique} to discover {type of problem}." Example: "Explore the SSO callback path with state variation to discover session-state inconsistencies."
+1. **Create the sandbox first.** Before any exploration, create the session sandbox using the `@qa/sandbox-manager` package's create function (which writes `lifecycle.json`). All in-session observations, screenshots, and snapshots go to `sandbox/{YYYY-MM-DD}-{session-slug}/` — notes to `sandbox/.../notes.md`, MCP screenshots + snapshots to `sandbox/.../evidence/`.
 
-2. **Execute charters.** Use `playwright-cli open <url>` to navigate to the charter area. After each `playwright-cli snapshot`, read the accessibility tree and decide the next action based on what you see. Perform interactions using element refs from the snapshot (`playwright-cli click <ref>`, `playwright-cli type <text>`). Record everything: unexpected console errors, layout shifts, network failures, unusual state transitions. Capture `playwright-cli screenshot` whenever you observe something noteworthy.
+2. **Derive charters.** For each high or critical risk area: write a time-boxed charter. Format: "Explore {area} with {technique} to discover {type of problem}." Example: "Explore the SSO callback path with state variation to discover session-state inconsistencies."
 
-3. **Apply COTE discipline.** For every interesting observation: Configure the reproduction scenario, Operate it again to confirm, Observe the output consistently, Evaluate whether it is a genuine defect or expected behaviour.
+3. **Execute charters.** Use `playwright-cli open <url>` to navigate to the charter area. After each `playwright-cli snapshot`, read the accessibility tree and decide the next action based on what you see. Perform interactions using element refs from the snapshot (`playwright-cli click <ref>`, `playwright-cli type <text>`). Record everything: unexpected console errors, layout shifts, network failures, unusual state transitions. Capture screenshots + snapshots to `sandbox/.../evidence/` whenever you observe something noteworthy.
 
-4. **File unscripted defects.** If an observation is a genuine defect: create a defect report following the same schema as qa-defect-manager. Do not file observations that cannot be reproduced.
+4. **Apply COTE discipline.** For every interesting observation: Configure the reproduction scenario, Operate it again to confirm, Observe the output consistently, Evaluate whether it is a genuine defect or expected behaviour.
 
-5. **Record session notes.** Everything observed — including non-defects — goes into the session notes. Notes are valuable for qa-curator pattern detection even when they don't produce defects.
+5. **Record session notes.** Everything observed — including non-defects — goes into `sandbox/.../notes.md` during the session. Notes are valuable for qa-curator pattern detection even when they don't produce defects.
 
-6. **Screenshot retention.** Screenshots taken mid-session are inspection aids. Two outcomes only:
-   - If the screenshot led to a **filed defect**: move it to `artifacts/evidence/{TC-ID}/` as evidence for that defect and keep it.
-   - If the observation was **not filed as a defect**: delete the screenshot immediately after recording the observation in session notes — the note is the artifact, not the image.
-   Never accumulate screenshots on disk at session end.
+6. **Process each observation at session end.** For EACH observation recorded during the session, exactly one of two outcomes:
 
-6. **Do not automate-on-the-fly.** Exploratory testing is about discovery, not automation. If you find a reproducible defect, note it for TC creation in the next design phase — do not write scripted Playwright tests in this phase.
+   a) **COVERED** by an existing user story / requirement / AC → copy the note to `runs/{runId}/reports/exploratory/{session-id}-notes.md` (an "observation noted for scripted coverage"); then delete that observation's sandbox files.
+
+   b) **NOT COVERED** by any story / requirement / AC → it is an uncovered defect:
+      1. Write a formal defect to `runs/{runId}/defects/{DEF-ID}.{md,json}` (EXP-type, traces to the charter session ID, no parent TC).
+      2. Copy the MCP screenshot + snapshot from sandbox to `runs/{runId}/evidence/{DEF-ID}/`, named `{DEF-ID}_{step}_{ISO8601-Z}.{ext}`.
+      3. Verify the copy succeeded.
+      4. Delete that observation's sandbox files.
+
+   Do not file defects from observations that cannot be reproduced (apply COTE first).
+
+7. **Complete the sandbox.** AFTER all observations are processed, call `completeSandbox(sandboxRoot, slug, "qa-exploratory-specialist", busPath)` (the actual `@qa/sandbox-manager` API — a standalone function, NOT `sandboxManager.complete()`). This deletes the session sandbox root and emits `sandbox.experiment-completed`. No sandbox survives past the session.
+
+8. **Do not automate-on-the-fly.** Exploratory testing is about discovery, not automation. If you find a reproducible defect, note it for TC creation in the next design phase — do not write scripted Playwright tests in this phase.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -92,12 +110,15 @@ In both cases: after each action, read the returned snapshot to decide the next 
 - Scripted assertions written during an exploratory session (wrong phase)
 - Session notes not written (observations with no notes have no value for qa-curator)
 - `@playwright/test` Node API used or `.spec.ts` files written during exploratory session (wrong tool — MCP or `playwright-cli` CLI required for decision-as-you-go work)
-- Evidence written anywhere other than `artifacts/evidence/{TC-ID}/` — never write to `runs/*/evidence/`, `tests/runs/`, or `test-results/`
-- Screenshot kept for an observation that was not filed as a defect — must be deleted after recording in session notes
-- Screenshots remaining on disk at session end that are not in `artifacts/evidence/` — any such file must be deleted before the session completes
+- In-session evidence written anywhere other than `sandbox/{YYYY-MM-DD}-{session-slug}/evidence/` — all live observation evidence is sandbox scratch until session end
+- Defect evidence written anywhere other than `runs/{runId}/evidence/{DEF-ID}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
+- Sandbox not created via the `@qa/sandbox-manager` create function before exploration begins
+- `completeSandbox()` not called at session end — any sandbox surviving past the session is a violation
+- Defect evidence copy to `runs/{runId}/evidence/{DEF-ID}/` not verified before deleting the sandbox source
 
 ## Events You Emit
 
-- `ExploratorySessionStarted` / `ExploratorySessionComplete` — with charter scope and duration
+- `ExploratorySessionStarted` / `ExploratorySessionComplete` — with charter scope and duration; `ExploratorySessionComplete` is the signal qa-test-executor waits for
+- `sandbox.experiment-completed` — emitted by `completeSandbox()` when the session sandbox is torn down
 - `TestPassed` / `TestFailed` — per charter outcome
 - `DefectOpened` — for any unscripted defect discovered

@@ -29,7 +29,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 - `tests/api/{endpoint}.api.test.ts` — API test files
 - `tests/contract/{consumer}-{provider}.pact.ts` — contract test files
 - `runs/{runId}/cases/{TC-ID}-result.json` — results with response body excerpts
-- `artifacts/evidence/{TC-ID}/` — sanitised HAR, response logs; overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/` — sanitised HAR, response logs; overwrites previous run's evidence for the same TC
 
 ## Process
 

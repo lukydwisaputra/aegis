@@ -35,10 +35,17 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 13. **Node version.** Read `.nvmrc`, `.node-version`, or `engines.node` from root `package.json`.
 14. **Real-time features.** Detect `socket.io`, `@supabase/realtime`, native WebSocket usage in source files.
 15. **Feature flags.** Detect `@growthbook/growthbook`, `@launchdarkly/node-server-sdk`, `unleash-client`, `@statsig/js-client`.
+16. **Source inventory (for code-grounded test design).** Enumerate the target's source structure so downstream agents test against real code, not just documentation. Record under `sourceInventory`:
+    - `routes[]` — route/page paths from `app/`, `pages/`, or the router config (path + source file)
+    - `components[]` — exported component names + file paths under `src/` / `apps/*/src/`
+    - `apiHandlers[]` — API handler paths + exported HTTP methods
+    - `exportedFunctions[]` — notable exported functions from `lib/`, `utils/`, domain modules (name + file)
+    - `existingTestFiles[]` — already-present test files (path + type)
+    Names and paths only — never file contents. This is the source-of-truth that `qa-requirements-analyst` and `qa-test-designer` cross-reference to flag requirements with no matching implementation.
 
 ## Outputs
 
-- `aegis/.aegis/target-profile.json` — written (auto-generated dir, gitignored)
+- `runs/{runId}/target-profile.json` — written at the run root. This is the path every downstream agent reads as `target-profile.json`. (Previously documented as `aegis/.aegis/target-profile.json`; standardized to the run root so the ~28 consumers that reference the bare name resolve correctly.)
 
 ```jsonc
 {
@@ -68,20 +75,28 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
   "authProvider": "supabase",
   "nodeVersion": "20",
   "hasRealtimeFeatures": false,
-  "hasFeatureFlags": false
+  "hasFeatureFlags": false,
+  "sourceInventory": {
+    "routes": [{ "path": "/auth/login", "file": "apps/prospect/src/routes/auth/login.tsx" }],
+    "components": [{ "name": "LoginForm", "file": "apps/prospect/src/components/LoginForm.tsx" }],
+    "apiHandlers": [{ "path": "/api/auth/callback", "methods": ["GET"], "file": "app/api/auth/callback/route.ts" }],
+    "exportedFunctions": [{ "name": "computeInvoice", "file": "lib/pricing-engine/index.ts" }],
+    "existingTestFiles": [{ "path": "lib/pricing-engine/rules.test.ts", "type": "unit" }]
+  }
 }
 ```
 
 ## Change Detection
 
-- On every run, compare new profile to previous `target-profile.json`.
+- On every run, compare new profile to the previous `runs/{prevRunId}/target-profile.json` if one is referenced.
 - If any field changed: emit `target.changed` event with `changedFields[]`.
 - Always emit `target.profiled` regardless.
 
 ## Quality Standards
 
-- Never write to the target project — only to `aegis/.aegis/target-profile.json`
+- Never write to the target project — only to `runs/{runId}/target-profile.json`
 - Never read secret values — only variable names from `.env.example` files
+- `sourceInventory` records names and paths only — never file contents
 - Scan must complete in < 30 seconds (bash find + read, no heavy processing)
 - If scanning fails on a path, log `scan.warning` event and continue (no crash)
 
@@ -89,3 +104,4 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 
 - `target.profiled` — always, includes `scannedAt`, `platform`, `appCount`
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
+- `DiscoveryStepComplete` — `{ step: "scan", artifact: "target-profile.json" }`; the orchestrator collects this as one half of the Discovery two-event barrier (the other half is `qa-web-explorer`'s `{ step: "explore" }`)

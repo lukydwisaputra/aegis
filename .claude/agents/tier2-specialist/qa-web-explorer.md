@@ -50,6 +50,7 @@ In both cases: read the accessibility snapshot after each navigation to extract 
 
 ## Inputs
 
+- `runs/{runId}/target-profile.json` — detected framework, auth method, app list, route inventory; read this to know the app's URL structure before crawling
 - `aegis/aegis.config.json` — `discovery.entryPoints`, `discovery.maxDepth`, `discovery.maxPagesPerRun`, `discovery.rolesToExplore`, `discovery.skipPatterns`
 - `tests/fixtures/auth.fixture.ts` — per-role auth fixtures
 - `runs/{runId}/intake/requirements/` — requirement docs (read to understand what areas to prioritise)
@@ -83,11 +84,13 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 
 ## Process
 
-1. **Load configuration.** Read `discovery` config from `aegis.config.json`. Respect `skipPatterns` (regex patterns to skip), `maxDepth`, and `maxPagesPerRun` hard caps.
+1. **Read target profile.** Read `target-profile.json` to get `discovery.entryPoints`, detected framework, auth method, and app list before crawling.
 
-2. **Authenticate per role.** Use the per-role auth fixture. Crawl each role's authenticated view separately — different roles see different UI.
+2. **Load configuration.** Read `discovery` config from `aegis.config.json`. Respect `skipPatterns` (regex patterns to skip), `maxDepth`, and `maxPagesPerRun` hard caps. Any one-shot probe/inspection scripts go to a sandbox scratch dir (`sandbox/{YYYY-MM-DD}-{slug}/`), NEVER to `tests/specs/` — and are cleaned up via `completeSandbox()` at task end.
 
-3. **BFS-crawl from entry points.** Use `playwright-cli open <entryPoint>` then `playwright-cli goto <url>` for each subsequent page. After each navigation, run `playwright-cli snapshot` to receive the accessibility tree, then `playwright-cli screenshot` for the baseline PNG. For each page reached:
+3. **Authenticate per role.** Use the per-role auth fixture. Crawl each role's authenticated view separately — different roles see different UI.
+
+4. **BFS-crawl from entry points.** Use `playwright-cli open <entryPoint>` then `playwright-cli goto <url>` for each subsequent page. After each navigation, run `playwright-cli snapshot` to receive the accessibility tree, then `playwright-cli screenshot` for the baseline PNG. For each page reached:
    - Capture URL + route pattern (parameterised: `/users/[id]` not `/users/42`)
    - Page title and main section headings
    - All `data-testid` values found on the page
@@ -96,17 +99,17 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
    - Console errors and network failures during page lifetime
    - Screenshot baseline (PNG)
 
-4. **Skip destructive patterns.** Apply heuristics: skip any clickable element with text matching `/delete|remove|cancel|revoke|disable|approve/i` unless explicitly in `discovery.allowedDestructive`. Skip any URL matching `discovery.skipPatterns`.
+5. **Skip destructive patterns.** Apply heuristics: skip any clickable element with text matching `/delete|remove|cancel|revoke|disable|approve/i` unless explicitly in `discovery.allowedDestructive`. Skip any URL matching `discovery.skipPatterns`.
 
-5. **Detect UI defects.** For each page:
+6. **Detect UI defects.** For each page:
    - Broken images: any `<img>` returning 404 → file as Sev4 defect
    - Console errors: any `console.error` → file as Sev4 or Sev3 depending on frequency
    - Layout overflow: any element with `overflow: hidden` cutting visible text → file as Sev4
    - Axe-core quick pass: run `checkA11y` with `critical` and `serious` only → file as Sev3
 
-6. **Generate POM skeletons.** For each discovered page, derive the output path from the page's URL: take each path segment, collapse dynamic ID segments to `[id]`, and write to `tests/pages/{url-path}/{route-slug}.page.ts` (e.g. `/auth/callback` → `tests/pages/auth/callback.page.ts`, `/users/42/profile` → `tests/pages/users/[id]/profile.page.ts`). Create the file only if it does not already exist. Include: `goto()`, locators for all data-testid elements found, and a `// TODO: add actions` comment. Never overwrite existing POM files.
+7. **Generate POM skeletons.** For each discovered page, derive the output path from the page's URL: take each path segment, collapse dynamic ID segments to `[id]`, and write to `tests/pages/{url-path}/{route-slug}.page.ts` (e.g. `/auth/callback` → `tests/pages/auth/callback.page.ts`, `/users/42/profile` → `tests/pages/users/[id]/profile.page.ts`). Create the file only if it does not already exist. Include: `goto()`, locators for all data-testid elements found, and a `// TODO: add actions` comment. Never overwrite existing POM files.
 
-7. **Infer user journeys.** From link graphs and form sequences, infer the likely user flows (e.g., "Login → Dashboard → Create Appointment → Confirm"). Document in discovery report for qa-test-designer.
+8. **Infer user journeys.** From link graphs and form sequences, infer the likely user flows (e.g., "Login → Dashboard → Create Appointment → Confirm"). Document in discovery report for qa-test-designer.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -125,3 +128,4 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 - `POMGenerated` — one per new POM skeleton file
 - `UIDefectFound` — one per surface-level UI defect
 - `DiscoveryComplete` — single event; includes pageCount, pomCount, defectCount
+- `DiscoveryStepComplete` — `{ step: "explore", artifact: "discovery-report.json" }`; the orchestrator collects this as the second half of the Discovery two-event barrier (qa-context-scanner emits the `{ step: "scan" }` half)

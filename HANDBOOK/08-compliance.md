@@ -33,7 +33,7 @@ Tags are added by:
 2. **Compliance agents** — when reviewing artefacts, they add missing tags
 3. **SPV compliance reviewers** — when scoring compliance agent output
 
-A test case without any compliance tags will be flagged by `qa-spv-compliance-iso25010` as lacking traceability.
+A test case without any compliance tags will be flagged by `qa-compliance-iso25010` (reviewed by its SPV) as lacking traceability.
 
 ---
 
@@ -138,9 +138,9 @@ The PDPA agent mirrors the GDPR agent with Thailand-specific categories:
 The sequence during a full run:
 
 1. Phase 3 completes (test cases authored)
-2. The `qa-compliance-lead` dispatches all six compliance agents simultaneously
+2. The `qa-orchestrator` dispatches all six compliance agents simultaneously
 3. Each agent reads the test cases and RTM, annotates missing tags, and writes a compliance annotation file to `runs/<RUN-ID>/compliance/<framework>.json`
-4. Each annotation file is reviewed by its paired SPV (e.g., `qa-spv-compliance-gdpr`)
+4. Each annotation file is reviewed by its paired SPV (e.g., `qa-compliance-gdpr-spv`)
 5. Phase 6 report writer merges all six annotation files into the compliance section of the run report
 
 Total wall-clock time for compliance review: typically 3–8 minutes (depending on case count). This runs concurrently with defect analysis.

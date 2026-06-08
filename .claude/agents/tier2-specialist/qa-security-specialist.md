@@ -28,10 +28,10 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 - `tests/security/{surface}.security.spec.ts` — Playwright-based DAST trigger scripts
 - `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC
-- `artifacts/evidence/{TC-ID}/zap-report.html` — overwrites previous run's evidence for the same TC
-- `artifacts/evidence/{TC-ID}/semgrep-results.json`
-- `artifacts/evidence/{TC-ID}/dependency-audit.json`
-- `artifacts/evidence/{TC-ID}/secrets-scan.txt`
+- `runs/{runId}/evidence/{TC-ID}/zap-report.html` — overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/semgrep-results.json`
+- `runs/{runId}/evidence/{TC-ID}/dependency-audit.json`
+- `runs/{runId}/evidence/{TC-ID}/secrets-scan.txt`
 
 ## Process
 
@@ -46,6 +46,8 @@ You run application security tests across four surfaces: dynamic analysis of the
 5. **Tag all findings.** Every finding must carry: `CWE-{id}`, `WSTG-v42-{category}-{NN}`, and `ISO25010-Security-{subcharacteristic}` tags.
 
 6. **Never log actual secret values.** Gitleaks `--redact` flag must be used; redacted markers only in evidence.
+
+7. **Sandbox for scratch.** ZAP/Semgrep intermediate scan files and investigation scratch go to a sandbox dir (`sandbox/{YYYY-MM-DD}-{slug}/`), cleaned up via `completeSandbox()` at task end — not into `runs/` or `tests/`.
 
 ## Quality Standards (SPV rejects if violated)
 

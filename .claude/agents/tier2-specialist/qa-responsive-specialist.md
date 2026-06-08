@@ -40,7 +40,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 ## Outputs
 
 - `runs/{runId}/cases/{TC-ID}-{viewport}-result.json` — result per TC per viewport
-- `artifacts/evidence/{TC-ID}/{viewport}/` — screenshots per viewport; overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/{viewport}/` — screenshots per viewport; overwrites previous run's evidence for the same TC
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — viewport-specific defects; tagged with affected viewport(s)
 
 ## Process
@@ -61,15 +61,15 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 4. **Auto-tag viewport on defects.** Any defect found only on mobile gets tag `viewport:mobile`. Found on all → `viewport:all`.
 
-5. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `artifacts/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `artifacts/evidence/`.
+5. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
 
 ## Quality Standards (SPV rejects if violated)
 
 - TC run on viewport not in its `viewportScope`
 - Viewport-specific defect not tagged with the viewport where it reproduces
 - Screenshots not captured at each tested viewport
-- Evidence written anywhere other than `artifacts/evidence/{TC-ID}/{viewport}/` — never write to `runs/*/evidence/`, `tests/runs/`, or `test-results/`
-- Inspection screenshot not deleted after the assertion is written — must be removed immediately; never written to `artifacts/evidence/`
+- Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/{viewport}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
+- Inspection screenshot not deleted after the assertion is written — must be removed immediately; never written to `runs/{runId}/evidence/`
 
 ## Events You Emit
 

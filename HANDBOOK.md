@@ -7,22 +7,22 @@ This handbook is the complete guide to the Aegis QA framework. Read it cover-to-
 
 | # | Chapter | Summary |
 |---|---|---|
-| 1 | [What This System Is](HANDBOOK/01-what-is-this.md) | Philosophy, scope, non-goals, common misconceptions, and the running Login/SSO example introduced |
-| 2 | [Getting Started](HANDBOOK/02-getting-started.md) | Three onboarding tracks: fresh installer (~30 min), teammate after clone (~5 min), and CI/CD wiring (~10 min), each with verify commands |
-| 3 | [Architecture](HANDBOOK/03-architecture.md) | Orchestrator, four model tiers, eight Tier-1 managers, Taskmaster, event bus, path-guard enforcement, and the three human gates |
-| 4 | [STLC Walkthrough](HANDBOOK/04-stlc-walkthrough.md) | Phase-by-phase breakdown of what happens when `/qa-start` runs, including the Discovery sub-phase, illustrated with the Login/SSO feature |
-| 5 | [Commands](HANDBOOK/05-commands.md) | All 28 user commands in six groups, each with purpose, flags table, and a worked example |
-| 6 | [Agent Roster](HANDBOOK/06-agents.md) | All 63 agents in full mode — Orchestrator, Tier-1 through Tier-2.5, SPVs, compliance agents, and cross-cutting agents — with Lite mode notes |
-| 7 | [Templates and Standardization](HANDBOOK/07-templates-and-standardization.md) | ID scheme, severity/priority dual-format, defect report fields, test case fields, RTM columns, naming conventions, and test data policy |
-| 8 | [Compliance](HANDBOOK/08-compliance.md) | ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, and PDPA: tag formats, parallel reviewer workflow, and how findings appear in reports |
-| 9 | [Reports and Dashboards](HANDBOOK/09-reports-and-dashboards.md) | Per-run HTML reports, operational rollups, the live Vite+React dashboard on port 3030, three executive PDFs, and the SSE event stream |
-| 10 | [Self-Improvement](HANDBOOK/10-self-improvement.md) | Per-agent lessons.json lifecycle, the worker-to-SPV-to-instruction feedback loop, curator end-of-cycle review, and `/qa-promote` |
-| 11 | [DevOps Tier](HANDBOOK/11-devops-tier.md) | The seven DevOps agents: branch strategy, PR flow, merge gates, CI/CD implementation, worktree isolation, and secrets safety |
-| 12 | [CI/CD Operations](HANDBOOK/12-cicd-operations.md) | Full pipeline across four environments, stage triggers, ASCII pipeline diagram, gate thresholds reference table, four commands, and six workflow files |
-| 13 | [Mechanics](HANDBOOK/13-mechanics.md) | Event bus protocol, Taskmaster claim/release atomicity, path-guard enforcement, agent-memory dedup, SPV review pipeline, model-policy resolution, crash recovery |
-| 14 | [Extending the Framework](HANDBOOK/14-extending.md) | How to add a new module, agent, SPV, compliance regulation, specialist, command, report section, event type, or artefact schema |
-| 15 | [FAQ and Troubleshooting](HANDBOOK/15-faq-and-troubleshooting.md) | Diagnostic flows for stuck runs, CI failures, repeated agent mistakes, exploding costs, health check failures, common error codes, and where to file bugs |
-| 16 | [Glossary](HANDBOOK/16-glossary.md) | Plain-English definitions for defect, severity, priority, regression, smoke, RTM, all STLC phases, compliance acronyms, and framework-specific terms |
+| 1 | [What This System Is](HANDBOOK/01-what-is-this.md) | Philosophy, scope, non-goals, and common misconceptions about the QA framework. |
+| 2 | [Getting Started](HANDBOOK/02-getting-started.md) | Three onboarding tracks: fresh installer (~30 min), teammate after clone (~5 min), and CI/CD wiring (~10 min). Every step has a verify command. |
+| 3 | [Architecture](HANDBOOK/03-architecture.md) | Orchestrator, tiers, SPVs, model tiers, Taskmaster, event bus, path-guard, and the three human gates. |
+| 4 | [STLC Walkthrough](HANDBOOK/04-stlc-walkthrough.md) | What happens when `/qa-start` runs: a nine-phase breakdown (Requirements → Discovery → Planning → Design → Environment → Execution → Triage → Closure → Executive Report), illustrated with the Login/SSO feature. |
+| 5 | [Commands](HANDBOOK/05-commands.md) | All 28 user commands in 6 groups: each with purpose, flags table, and a worked example. |
+| 6 | [Agent Roster](HANDBOOK/06-agents.md) | All agents in full mode: Orchestrator (1), Tier-1 phase managers (8), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes. |
+| 7 | [Templates and Standardization](HANDBOOK/07-templates-and-standardization.md) | ID scheme, severity/priority dual-format, defect report fields, test case fields, RTM columns, naming conventions, and test data. |
+| 8 | [Compliance](HANDBOOK/08-compliance.md) | ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, and PDPA: tag formats per regulation, parallel reviewer workflow, and how findings appear in reports. |
+| 9 | [Reports and Dashboards](HANDBOOK/09-reports-and-dashboards.md) | Per-run reports, operational rollups, the live dashboard (Vite+React on port 3030), three executive PDFs, and the SSE event stream. |
+| 10 | [Self-Improvement](HANDBOOK/10-self-improvement.md) | Two layers: per-agent automatic lessons and the curator's system-wide curation cycle. |
+| 11 | [DevOps Tier](HANDBOOK/11-devops-tier.md) | GitHub and CI/CD masters: branch strategy, PR flow, workflow implementation, safety gates. |
+| 12 | [CI/CD Operations](HANDBOOK/12-cicd-operations.md) | The full pipeline: stages, triggers, gates, commands, thresholds. |
+| 13 | [Mechanics](HANDBOOK/13-mechanics.md) | The load-bearing internals — read this when extending or debugging. |
+| 14 | [Extending the System](HANDBOOK/14-extending.md) | Add agents, regulations, commands, reports, and stay consistent. |
+| 15 | [FAQ & Troubleshooting](HANDBOOK/15-faq-and-troubleshooting.md) | Common issues with diagnostic flows. First stop when something goes wrong. |
+| 16 | [Glossary](HANDBOOK/16-glossary.md) | Plain-English definitions for QA terms, STLC phases, compliance acronyms, framework-specific terms, and key metrics. |
 
 <!-- TOC END -->
 

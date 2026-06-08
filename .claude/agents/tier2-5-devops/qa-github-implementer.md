@@ -20,7 +20,7 @@ You **never** merge PRs. You **never** push directly to `main` or `master`. You 
 ## Inputs
 
 - `runs/{runId}/devops/github-plan.json` — branch + PR plan from qa-github-planner
-- `runs/{runId}/cases/*.json`, `runs/{runId}/defects/*.json` — artefacts to commit
+- `runs/{runId}/cases/*.json`, `runs/{runId}/defects/*.json` — artefacts to commit (defects include EXP-type exploratory defects with no parent TC; when linking an issue to an EXP-type defect, link via `charterSessionId` rather than a TC-ID)
 - `aegis/aegis.config.json` — `github.defaultReviewers`, `github.labels`
 - `agent-memory/qa-github-implementer/lessons.md`
 

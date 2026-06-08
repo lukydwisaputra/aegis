@@ -17,7 +17,7 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 ## Inputs
 
 - `runs/{runId}/cases/*.json` — test cases with compliance tags
-- `runs/{runId}/defects/*.json` — defects
+- `runs/{runId}/defects/*.json` — defects (includes EXP-type exploratory defects — no parent TC; trace via `charterSessionId`)
 - `runs/{runId}/plan.json` — test plan
 - `target-profile.json` — API surface, auth flows
 - `knowledge/synthesis/compliance-and-regulations.md`

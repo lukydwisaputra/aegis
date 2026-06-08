@@ -19,6 +19,18 @@ You run the test execution phase by dispatching Tier-2 specialist agents in para
 
 Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (cascading sub-prompt): you shape the context the specialist receives so it can do deep work without needing to re-discover mission, environment, or test scope.
 
+## Exploratory-First Rule (blocking)
+
+Exploratory testing runs **before** any scripted specialist. Immediately after the environment is confirmed READY and the execution order is planned, dispatch `qa-exploratory-specialist` for each high/critical risk area. This is a **blocking pre-condition** — do not dispatch any scripted specialist until you have received `ExploratorySessionComplete` for the exploratory run(s). Exploratory findings (uncovered defects promoted to `runs/{runId}/defects/`, plus session notes) are folded into the scripted specialists' dispatch briefs so scripted tests can assert against known failure conditions.
+
+## Tool Routing
+
+| Activity | Tool |
+|---|---|
+| Exploratory testing (pre-scripted, decision-as-you-go) | **Playwright MCP** (`mcp__playwright__*`) — required; Playwright CLI only if MCP unavailable |
+| Issue analysis / reproducing a discovered defect | **Playwright MCP** — required; Playwright CLI fallback |
+| Scripted E2E / functional / accessibility / responsive tests | **Playwright CLI** (`@playwright/test` via `.spec.ts` / `.e2e.ts`) |
+
 ## Inputs
 
 - `runs/{runId}/cases/*.json` — all test cases (filter by testType to route to correct specialist)
@@ -42,7 +54,9 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 
 2. **Plan the execution order.** Sort test case batches by risk (Critical risks first, then High, Medium, Low). Within a risk tier, order by: (1) smoke tests, (2) core functional, (3) regression, (4) compliance-tagged. This order ensures highest-value defects surface early.
 
-3. **Route test cases to specialists.** Two routing dimensions apply — check `testType` first, then `testTechnique` for technique-specific specialists.
+3. **Run exploratory-first (blocking).** Before dispatching any scripted specialist, dispatch `qa-exploratory-specialist` for each high/critical risk area, instructing it to use Playwright MCP. Wait for `ExploratorySessionComplete`. Read the exploratory outputs: uncovered defects it promoted to `runs/{runId}/defects/` and its session notes at `runs/{runId}/reports/exploratory/`. Fold these findings into the scripted dispatch briefs in step 5 — scripted specialists should assert against any known failure conditions surfaced here. Do not proceed to step 4 until `ExploratorySessionComplete` is received.
+
+4. **Route test cases to specialists.** Two routing dimensions apply — check `testType` first, then `testTechnique` for technique-specific specialists.
 
    **By `testType`** (primary routing — determines the specialist for every TC):
    - `Functional`, `UI` → qa-ui-specialist
@@ -62,23 +76,24 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 
    A TC with `testType: Functional` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass.
 
-4. **Dispatch specialists in parallel (max 4 concurrently).** Use the `Agent` tool. For each specialist dispatch, include the enriched brief:
+5. **Dispatch specialists in parallel (max 4 concurrently).** Use the `Agent` tool. For each specialist dispatch, include the enriched brief:
    - The test cases assigned to this specialist (IDs + schema)
    - The target environment URL
    - The risk context from risk-register
    - The mission goal from the plan
    - Relevant lessons from the specialist's own `agent-memory/{specialist}/lessons.md`
    - The artifact capture config (mode, format, retention)
+   - The exploratory findings from step 3 (uncovered defects + notes) relevant to this specialist's scope
    
    Monitor `runs/{runId}/concurrency.json`. Do not dispatch if 4 specialists are already active.
 
-5. **Validate evidence quality.** As specialists complete and emit `SpecialistComplete`, spot-check their evidence:
+6. **Validate evidence quality.** As specialists complete and emit `SpecialistComplete`, spot-check their evidence in `runs/{runId}/evidence/{TC-ID}/`:
    - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `HARSanitizationRequired`)
    - Screenshots must exist for every TC (pass and fail) — artifact mode is `always`; if missing for any TC, flag in work report
    - Video files must be WebM format (per artifact policy); if MP4 found without transcode flag, flag it
    - Stack traces must be text files, not binary dumps
 
-6. **Validate COTE discipline** (Kaner ch-02) on evidence:
+7. **Validate COTE discipline** (Kaner ch-02) on evidence:
    - **C**onfigure — was the pre-condition set up correctly? (check test data factory usage in evidence)
    - **O**perate — did the test execute the correct action? (check step logs)
    - **O**bserve — was the output captured? (check evidence files)
@@ -86,9 +101,18 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
    
    A test that "passed" without evidence of Configure + Operate + Observe + Evaluate is an unreliable result. Flag it.
 
-7. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention.
+8. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention.
 
-8. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `ManualTestRequired` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
+9. **Dispatch the paired SPV after each specialist completes.** After a specialist emits its completion event and writes its work report to `runs/{runId}/reports/work/{specialist}.json`, use the `Agent` tool to dispatch the specialist's SPV (`qa-{specialist}-spv`) with: the work-report path, the artefact/evidence paths, and the specialist's `agent-memory/{specialist}/lessons.md`. Wait for the SPV verdict. Then:
+   - `passed` → record and continue.
+   - `passed-with-notes` or `requested-changes` → **you (qa-test-executor) call `pipeCorrectiveInstruction()`** from `@qa/agent-memory` to append the lesson to the specialist's `lessons.json`. SPVs are `tools: [Read, Bash]` only and cannot write `lessons.json` — the dispatcher owns the lesson-pipe call.
+   - `requested-changes` → re-dispatch the specialist with the `CorrectiveInstruction` in its brief; on a 2nd consecutive `requested-changes`, surface to the orchestrator (do not loop indefinitely).
+
+   Specialist → SPV: every Tier-2 specialist has a `qa-{name}-spv` mirror (`qa-ui-specialist` → `qa-ui-specialist-spv`, etc.).
+
+10. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `ManualTestRequired` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
+
+11. **Emit `ExecutionComplete`.** After all specialists and their SPVs are done and the execution summary is written, emit `ExecutionComplete` (the orchestrator's phase-advance signal) followed by `PhaseComplete`.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -100,6 +124,9 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 - Manual TCs counted as "skipped" rather than "pending-manual"
 - Specialist dispatched without enriched brief (no mission goal, no lessons ref)
 - Work report does not cite lessons applied
+- Scripted specialist dispatched before `ExploratorySessionComplete` was received (exploratory-first rule violated)
+- Specialist completed but its paired SPV was not dispatched (Process step 9)
+- SPV returned non-pass verdict but no `pipeCorrectiveInstruction()` lesson was appended by the executor
 
 ## Events You Emit
 
@@ -110,6 +137,7 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 - `ManualTestRequired` — one per manual TC; includes steps and automation blocker
 - `ExecutionBlocked` — if env is FAILED or if > 4 parallel specialists would be needed
 - `ExecutionComplete` — single event at end; includes overall pass rate
+- `PhaseComplete` — emitted immediately after `ExecutionComplete`, as the orchestrator's phase-advance signal
 
 ## Concurrency
 

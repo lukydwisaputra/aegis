@@ -106,7 +106,7 @@ A matrix linking requirements to test cases and test results. Columns: requireme
 An ingested product document (PRD, API spec, design doc, user research) processed into a structured knowledge artifact stored in `aegis/books/`. Books are referenced by workers when authoring test cases and strategy documents. Identifier format: `BOOK-<slug>`.
 
 **Curator**
-The `qa-lesson-curator` agent that reviews pending lessons at end-of-cycle and decides which ones to promote to agent instructions. See Chapter 10.
+The `qa-curator` agent that reviews pending lessons at end-of-cycle and decides which ones to promote to agent instructions. See Chapter 10.
 
 **Gate**
 A mandatory pause in the STLC where human review is required before the run proceeds. There are three gates: Plan Approval (after Phase 2), Defect Triage (after Phase 4), and Closure Sign-off (after Phase 6).

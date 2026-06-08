@@ -20,7 +20,7 @@ You review the work of qa-cicd-planner and qa-cicd-implementer. You validate wor
 - `runs/{runId}/reports/work/qa-cicd-implementer.json` — implementer's work report with workflow file paths
 - `.github/workflows/*.yml` — the 6 implemented workflow files
 - `thresholds.yaml` — gate thresholds for comparison against industry defaults
-- `aegis/.aegis/target-profile.json` — detected stack (informs which actions are appropriate)
+- `runs/{runId}/target-profile.json` — detected stack (informs which actions are appropriate)
 - `agent-memory/qa-cicd-spv/lessons.md` — prior reviews' lessons
 
 ## Review Checklist

@@ -17,8 +17,9 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-exploratory-specialist.json` — work report
-- `runs/{runId}/reports/exploratory-sessions/*.json` — session notes
-- `runs/{runId}/defects/*.json` — defects opened from exploration
+- `runs/{runId}/reports/exploratory/{session-id}-notes.{md,json}` — session notes (promoted from sandbox at session end)
+- `runs/{runId}/defects/*.json` — EXP-type defects promoted from exploration
+- `runs/{runId}/evidence/{DEF-ID}/` — evidence for promoted defects
 - `agent-memory/qa-exploratory-specialist/lessons.md`
 
 ## Review Checklist
@@ -29,7 +30,8 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 4. **COTE on defects.** Any defect raised from exploratory testing meets the COTE criteria (Correct, Objective, Timely, Evidential). Defects without reproducible evidence = requested-changes.
 5. **Time boxing.** Each session has a `startedAt` and `endedAt` timestamp and was within the configured time box (typically 60-90 minutes). Untimed sessions = passed-with-notes.
 6. **Coverage notes.** Session notes identify coverage gaps — areas the agent noticed but did not have time to explore. These are candidates for future charters. Missing coverage notes = passed-with-notes.
-7. **Correct browser tool used.** Work report confirms browser interactions were performed via Playwright MCP (`mcp__playwright__*`) or Playwright CLI (`playwright-cli`). Any `.spec.ts` file created during the exploratory session, or evidence that `@playwright/test` Node API was used for session navigation, = requested-changes — scripted test authoring belongs in the test design phase, not during charter execution.
+7. **MCP is the primary tool.** Work report confirms browser interactions used Playwright MCP (`mcp__playwright__*`) as the primary tool, with `playwright-cli` only as a fallback when MCP was unavailable. Any `.spec.ts` file created during the session, or `@playwright/test` Node API used for session navigation, = requested-changes. When a defect was suspected, the work report must show `browser_snapshot` + `browser_take_screenshot` were captured before navigating away.
+8. **Sandbox-first + cleanup.** During the session, scratch work lived in `sandbox/{date}-{slug}/`. At session end: covered observations were promoted to `runs/{runId}/reports/exploratory/{session-id}-notes.md`; uncovered findings became EXP-type defects in `runs/{runId}/defects/` with evidence copied to `runs/{runId}/evidence/{DEF-ID}/`; and `completeSandbox(...)` was called (the sandbox dir no longer exists). Any leftover `sandbox/{date}-{slug}/` dir at session end, or a filed EXP defect with no evidence under `runs/{runId}/evidence/{DEF-ID}/`, = requested-changes.
 
 ## Verdict
 

@@ -83,7 +83,7 @@ Full field reference for files at `runs/<RUN-ID>/defects/<DEF-ID>.json`:
   ],
   "expected":     "URL = /dashboard",
   "actual":       "URL = /",
-  "screenshots":  ["runs/RUN-20260523-001/artifacts/DEF-001-AUTH-UI-01.png"],
+  "screenshots":  ["runs/RUN-20260523-001/evidence/DEF-001-AUTH-UI/01.png"],
   "complianceTags": ["GDPR-SESSION", "ISO25010-REL"],
   "reportedAt":   "2026-05-23T14:32:00Z",
   "reportedBy":   "qa-defect-reporter",
@@ -92,7 +92,7 @@ Full field reference for files at `runs/<RUN-ID>/defects/<DEF-ID>.json`:
 }
 ```
 
-All fields except `notes` and `screenshots` are required. The `spvScore` is populated by `qa-spv-defect` after review.
+All fields except `notes` and `screenshots` are required. The `spvScore` is populated by `qa-defect-manager-spv` after review.
 
 ---
 
@@ -126,7 +126,7 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
   "complianceTags": ["ISO25010-SEC", "GDPR-SESSION"],
   "spvScore":     91,
   "run":          "RUN-20260523-001",
-  "authoredBy":   "qa-spec-ui"
+  "authoredBy":   "qa-ui-specialist"
 }
 ```
 
@@ -169,13 +169,113 @@ A requirement is `covered` if it has at least one test case with `automationStat
 | Artefact | Convention | Example |
 |---|---|---|
 | Run directories | `RUN-YYYYMMDD-NNN` | `RUN-20260523-001` |
-| Test script files | `<module>.<type>.spec.ts` | `auth.ui.spec.ts` |
-| Defect screenshots | `<DEF-ID>-<NN>.png` | `DEF-001-AUTH-UI-01.png` |
-| Agent memory files | `<agent-name>/lessons.json` | `qa-spec-ui/lessons.json` |
-| Report files | `run-report.html`, `executive-summary.pdf` | fixed names per run |
+| Test spec files | see §7.7.1 suffix-by-type | `tests/specs/login/login.e2e.ts` |
+| Defect evidence | `evidence/<DEF-ID>/<NN>.png` | `evidence/DEF-001-AUTH-UI/01.png` |
+| Agent memory files | `<agent-name>/lessons.json` | `qa-ui-specialist/lessons.json` |
+| Closure files | `reports/closure/closure.{md,json}` | fixed names per run |
+| Executive PDFs | `technical-report.pdf`, `signoff.pdf`, `executive-deck.pdf` | fixed names per run |
 | Book files | `books/<slug>/book.json` | `books/auth-v2/book.json` |
 
 Module names in file paths must use **kebab-case** (`auth-sso`, `user-profile`). CamelCase or underscores are not accepted by the path-guard parser.
+
+---
+
+### 7.7.1 Test File Layout — one subdirectory per URL path
+
+All specs live under `tests/specs/{url-path}/`, with **one subdirectory per URL path** mirroring the app's route structure. The file **suffix encodes the test type**:
+
+```
+tests/
+  factories/                  data factories (create / cleanup)
+  pages/{url-path}/           Page Object Model skeletons (from Discovery)
+  specs/
+    login/
+      login.e2e.ts            multi-page E2E journey
+      ui.spec.ts              single-page UI checks
+      a11y.spec.ts            accessibility
+      responsive.spec.ts      responsive / viewport
+      flags.spec.ts           feature-flag matrix
+      auth.test.ts            unit
+    dashboard/
+      dashboard.e2e.ts
+      ui.spec.ts
+```
+
+| Test type | File suffix | Path | Author |
+|---|---|---|---|
+| Multi-page E2E journey | `{feature}.e2e.ts` | `tests/specs/{url-path}/` | `qa-ui-specialist` |
+| Single-page UI | `ui.spec.ts` | `tests/specs/{url-path}/` | `qa-ui-specialist` |
+| Accessibility | `a11y.spec.ts` | `tests/specs/{url-path}/` | `qa-accessibility-specialist` |
+| Responsive | `responsive.spec.ts` | `tests/specs/{url-path}/` | `qa-responsive-specialist` |
+| Feature flag | `flags.spec.ts` | `tests/specs/{url-path}/` | `qa-feature-flag-specialist` |
+| Unit | `*.test.ts` | `tests/specs/{url-path}/` | `qa-unit-specialist` |
+
+---
+
+### 7.7.2 The `reports/` Sub-Folder Structure
+
+Each run's reporting output is partitioned by owner:
+
+```
+runs/{runId}/reports/
+  closure/      closure.md + closure.json                       (qa-closure-reporter)
+  metrics/      coverage.json, defect-trend.json, cycle-time.json,
+                effectiveness.json, flaky.json, agent-reliability.json,
+                token-usage.jsonl                                (qa-metrics-collector — SOLE owner)
+  executive/    technical-report.pdf, signoff.pdf,
+                executive-deck.pdf                               (qa-executive-reporter)
+  compliance/   {iso25010,iso5055,istqb,cmmi,gdpr,pdpa}.{md,json}
+  exploratory/  {session-id}-notes.{md,json}
+  work/         qa-*.json  (work reports read by SPVs)
+```
+
+`qa-metrics-collector` is the **sole owner** of `reports/metrics/` — no other agent writes there.
+
+---
+
+### 7.7.3 Seed-Data Test Pattern
+
+Specs **seed their own data** and clean up after themselves — never assume pre-existing rows. Import a factory, create in `beforeEach`, and cleanup in `afterEach`:
+
+```ts
+import { test, expect } from '@playwright/test';
+import { userFactory } from '../../factories/user.factory';
+
+let user: TestUser;
+
+test.beforeEach(async () => {
+  user = await userFactory.create({ ssoProvider: 'google' });
+});
+
+test.afterEach(async () => {
+  await userFactory.cleanup(user);
+});
+
+test('SSO login redirects to /dashboard', async ({ page }) => {
+  await page.goto('/login');
+  // ... drive the SSO flow as `user` ...
+  await expect(page).toHaveURL('/dashboard');
+});
+```
+
+The `playwright.config.ts` written by `qa-environment-engineer` sets `screenshot: 'always'`, `video: 'retain-on-failure'`, and `trace: 'on-first-retry'`, so evidence lands in `runs/{runId}/evidence/{TC-ID}/` regardless of outcome.
+
+---
+
+### 7.7.4 Automation-First Decision Tree
+
+Marking a test `requiresManual` is a **last resort**. Before doing so, exhaust the automatable paths in order:
+
+```
+Can the behaviour be exercised by an automated test?
+  ├─ Yes, directly                          → write the spec
+  ├─ Depends on an external/3rd-party API   → MOCK it, then test (test-data/mocks/)
+  ├─ Depends on time/events/state           → SIMULATE it (fake timers, seeded events)
+  ├─ Purely visual / pixel-level concern     → VISUAL-REGRESSION snapshot
+  └─ None of the above are feasible          → mark requiresManual (with justification)
+```
+
+Only when mock, simulate, and visual-regression are all genuinely infeasible should a case be flagged `automationStatus: manual`. The justification is recorded on the test case and reviewed by the paired SPV.
 
 ---
 

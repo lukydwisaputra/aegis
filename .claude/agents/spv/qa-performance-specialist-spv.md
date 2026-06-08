@@ -29,7 +29,7 @@ You review performance test scripts and results from `qa-performance-specialist`
 3. **Good band comparison.** Results compare against web.dev Good band: LCP ≤2.5s, INP ≤200ms, CLS ≤0.1. Result summary that omits band comparison = passed-with-notes.
 4. **Lighthouse-CI integration.** `.lighthouserc.*` config exists and references the performance thresholds. Missing Lighthouse-CI integration = passed-with-notes.
 5. **Production never targeted.** Work report confirms tests ran against `development`, `testing`, or `staging` — never `production`. Evidence: `--env` flag in the work report or `APP_BASE_URL` not pointing to the production domain. Production targeting = requested-changes.
-6. **Regression comparison.** If a prior baseline run exists (`--against=RUN-...`), the results include a delta comparison (p95 vs baseline, LCP vs baseline). Missing comparison when baseline is available = passed-with-notes.
+6. **Regression comparison + baseline preserved.** Baseline results are preserved at `runs/{runId}/evidence/{TC-ID}/baseline/` (never overwritten on rerun). If a prior baseline exists, the results include a delta comparison (p95 vs baseline, LCP vs baseline). Missing comparison when a baseline is available, or no preserved baseline dir = passed-with-notes.
 7. **File naming.** Perf test files match `*.perf.ts`. Incorrect extension = passed-with-notes.
 
 ## Verdict

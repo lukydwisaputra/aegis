@@ -33,14 +33,17 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 7. **Evidence naming.** Spot-check evidence filenames: `{TC-ID}_{step}_{ISO8601-Z}.{ext}`. Arbitrary names = passed-with-notes.
 8. **No leftover temp files.** Grep the spec for `mkdirSync` or `writeFileSync` inside test bodies. If found, confirm a `finally` block deletes the directory. Any temp dir created in `runs/` without cleanup = requested-changes. Any file created with stub/placeholder content (fake bytes, zero-byte) = requested-changes.
 9. **Viewport coverage.** Tests that target UI features respect the `viewportScope` from their TC. If `viewportScope: all`, at least 3 viewport tests were run.
-10. **Evidence path.** Spot-check evidence output paths in the work report. Evidence must be in `artifacts/evidence/{TC-ID}/`. Any evidence written to `runs/*/evidence/`, `tests/runs/`, or `test-results/` = requested-changes.
-11. **Inspection screenshot cleanup.** Work report must confirm that any inspection screenshot taken mid-task was deleted after use. Any inspection screenshot referenced in `artifacts/evidence/` = requested-changes.
+10. **Evidence path.** Spot-check evidence output paths in the work report. Evidence must be in `runs/{runId}/evidence/{TC-ID}/`. Any evidence written to `runs/*/evidence/`, `tests/runs/`, or `test-results/` = requested-changes.
+11. **Inspection screenshot cleanup.** Work report must confirm that any inspection screenshot taken mid-task was deleted after use. Any inspection screenshot referenced in `runs/{runId}/evidence/` = requested-changes.
+12. **Artifact generation via `afterEach`.** Each spec file must implement a `test.afterEach` hook that captures a screenshot for every test (pass AND fail) to `runs/{runId}/evidence/{TC-ID}/`. Spec with no `afterEach` screenshot capture, or a work report that does not confirm artifacts were generated for every TC = requested-changes. Also verify the work report flags whether `playwright.config.ts` had `screenshot: 'always'` / `video: 'retain-on-failure'`.
+13. **Spec suffix matches test type.** File suffix must match the TC's declared `testType`: multi-page E2E journeys → `*.e2e.ts`; single-page/component UI → `ui.spec.ts`; accessibility → `a11y.spec.ts`; responsive → `responsive.spec.ts`. A file whose suffix does not match its test type (e.g. a unit-style test named `*.e2e.ts`, or a functional UI test in a bare `.e2e.ts`) = requested-changes.
+14. **Seed data via `beforeEach`.** For any TC with non-empty `preconditions` or `testData`, the spec must implement a `test.beforeEach` that calls the relevant factory's `create()`, and a `test.afterEach` calling `cleanup()`. Missing `beforeEach` factory call when preconditions/testData exist = requested-changes (test relies on pre-existing DB state).
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — CSS selector without explanation, missing HAR confirmation; emit CorrectiveInstruction
-- `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `artifacts/evidence/`, inspection screenshots not deleted after use; block
+- `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `runs/{runId}/evidence/`, inspection screenshots not deleted after use, missing `afterEach` artifact capture, spec suffix mismatched to test type, missing `beforeEach` factory seed when preconditions/testData exist; block
 
 ## Events You Emit
 

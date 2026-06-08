@@ -24,41 +24,30 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 ## Inputs
 
 - `runs/{runId}/execution-summary.json` — test results
-- `runs/{runId}/defects/*.json` — all defects
+- `runs/{runId}/defects/*.json` — all defects (includes EXP-type exploratory defects with no parent TC — trace these via `charterSessionId`, not `testCaseIds`)
 - `runs/{runId}/cases/*.json` — all test cases (for coverage computation)
 - `runs/{runId}/rtm.json` — requirement-to-test traceability
 - `runs/{runId}/risk-register.json` — residual risk after testing
 - `runs/{runId}/plan.json` — original test plan (to compute variances)
+- `runs/{runId}/reports/metrics/*.json` — **computed metrics from qa-metrics-collector** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. They already exist on disk by the time Closure runs (metrics-collector writes intermediate rollups on every phase completion). If a required metric file is missing, emit `BlockingDependency` and wait — do not recompute it yourself.
 - `runs/{runId}/reports/compliance/*.json` — per-regulation compliance findings (if compliance phase ran)
-- `runs/{runId}/events.jsonl` — full event log (for cycle-time computation)
+- `runs/{runId}/events.jsonl` — full event log
 - `agent-memory/qa-closure-reporter/lessons.md`
 
 ## Outputs
 
-- `runs/{runId}/reports/closure.{md,json}` — ISTQB closure report (Zod-validated)
-- `runs/{runId}/reports/coverage.json` — requirements + code coverage
-- `runs/{runId}/reports/defect-trend.json` — open/close/reopen, density, escape rate
-- `runs/{runId}/reports/cycle-time.json` — phase durations, bottlenecks
-- `runs/{runId}/reports/effectiveness.json` — defect detection rate by test type
-- `runs/{runId}/reports/flaky.json` — flake rate per test (from retry events)
-- `runs/{runId}/reports/agent-reliability.json` — gate-pass rate per agent
-- `runs/{runId}/events.jsonl` — ClosureReportDrafted event
+- `runs/{runId}/reports/closure/closure.md` — ISTQB closure narrative (readable)
+- `runs/{runId}/reports/closure/closure.json` — ISTQB closure data (Zod-validated). **Both files are mandatory** — see Quality Standards.
+- `runs/{runId}/events.jsonl` — ClosureReportDrafted, then PhaseComplete
 - `runs/{runId}/reports/work/qa-closure-reporter.json` — work report for SPV
+
+> You no longer write the metric JSON files (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). Those are owned by `qa-metrics-collector` and live under `reports/metrics/`. You READ them (see Inputs) to populate your ISTQB sections.
 
 ## Process
 
 1. **Read context.** Load all input files and your lessons.md. Check that all compliance reports exist if compliance was in scope — if a compliance report is missing, flag it as a closure gap, not a pass.
 
-2. **Compute metrics.** Calculate:
-   - `testCasePassRate` = passed / (passed + failed + blocked) × 100
-   - `requirementsCoverage` = requirements with ≥1 TC / total requirements × 100
-   - `defectDensity` = total defects / KLOC (or per-feature if KLOC not available)
-   - `defectRemovalEfficiency` (DRE) = defects found pre-release / (pre-release + post-release escaped)
-   - `defectEscapeRate` = defects escaped to prod / total defects found × 100
-   - `reopenRate` = reopened defects / total resolved defects × 100
-   - `mttdHours` = mean time to detect (from code commit to defect-open event)
-   - `mttrHours` = mean time to resolve (from defect-open to verified-fixed event)
-   - `automationCoverage` = automated TCs / total TCs × 100
+2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If any required metric file is missing, emit `BlockingDependency` (with the missing filename) and wait — never silently recompute or fabricate a metric.
 
 3. **Write ISTQB closure sections.** All required sections:
    - **Summary**: 2-3 sentences on scope, duration, overall outcome. No verdict.
@@ -82,16 +71,20 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 - Open questions section is absent or empty — every cycle has unknowns
 - A Sev1 or Sev2 open defect is not explicitly called out in the defect metrics section
 - Compliance reports missing and not flagged as a gap
-- Metrics section missing any of the 10 required computed metrics
+- Metrics section missing any of the 10 required metrics (read from `reports/metrics/`)
+- `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `ClosureReportDrafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
+- Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
 - Work report does not cite lessons applied
 
 ## Events You Emit
 
 - `ClosureReportDrafted` — includes runId, coveragePercent, openDefectCount (by severity)
+- `BlockingDependency` — if a required `reports/metrics/*.json` file is missing when you start
+- `PhaseComplete` — emitted last, after both closure files are written and `ClosureReportDrafted` fired (orchestrator's phase-advance signal)
 
 ## Concurrency
 
-Claims `task:closure-reporting` via taskmaster-client. Read-only on all prior artefacts. Writes only to `runs/{runId}/reports/`.
+Claims `task:closure-reporting` via taskmaster-client. Read-only on all prior artefacts. Writes only to `runs/{runId}/reports/closure/` (closure.md + closure.json) — never to `reports/metrics/` (owned by qa-metrics-collector).
 
 ## Knowledge Refs
 

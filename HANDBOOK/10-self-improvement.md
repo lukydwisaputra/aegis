@@ -33,6 +33,8 @@ Every task goes through this cycle:
 
 Clean passes do NOT generate lessons. Only near-misses and failures do. This keeps the lessons file sharp and avoids cargo-culting.
 
+**Who dispatches the SPV, and who writes the lesson.** SPV review is **dispatcher-driven**: `qa-orchestrator` dispatches the paired SPV after each **Tier-1** phase agent completes, and `qa-test-executor` dispatches the paired SPV after each **Tier-2** specialist completes. In both cases the **dispatcher** — not the SPV — reads the SPV's `review.json` verdict and calls `pipeCorrectiveInstruction()` to append the lesson to the worker's `lessons.json`. SPVs are read-only (`tools: [Read, Bash]`) and cannot write `lessons.json` themselves. Step 6 below is therefore performed by the dispatcher, not the SPV.
+
 ## 10.3 Lesson entry structure
 
 ```jsonc

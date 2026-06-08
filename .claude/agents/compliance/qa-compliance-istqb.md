@@ -18,7 +18,7 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 
 - `runs/{runId}/plan.{md,json}` — test plan
 - `runs/{runId}/cases/*.json` — test cases
-- `runs/{runId}/reports/closure.json` — closure report
+- `runs/{runId}/reports/closure/closure.json` — closure report
 - `runs/{runId}/rtm.json`
 - `knowledge/synthesis/compliance-and-regulations.md`
 - `agent-memory/qa-compliance-istqb/lessons.md`

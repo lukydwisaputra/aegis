@@ -43,12 +43,23 @@ The handoff is always: **MCP/CLI → inspect → decide selector → back to spe
 - `tests/specs/{url-path}/ui.spec.ts` — Playwright E2E spec file organised by URL path
 - `tests/pages/{url-path}/{page}.page.ts` — extended/created Page Object files organised by URL path
 - `runs/{runId}/cases/{TC-ID}-result.json` — pass/fail result + evidence paths
-- `artifacts/evidence/{TC-ID}/` — screenshots, console log, HAR (sanitised); overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/` — screenshots, console log, HAR (sanitised); overwrites previous run's evidence for the same TC
 - `runs/{runId}/proposed-changes/testid-additions.md` — missing testid proposals (never modifies app code)
 
 ### Folder convention
 
 All spec files **must** live under `tests/specs/{url-path}/` and all POM files under `tests/pages/{url-path}/`, mirroring the app's URL structure. Derive the path from the URL of the feature under test (e.g. `/auth/login` → `tests/specs/auth/login/`, `/dashboard` → `tests/specs/dashboard/`). The spec type is the filename: `ui.spec.ts`, `a11y.spec.ts`, `responsive.spec.ts`, `exploratory.spec.ts`. Never write specs directly under `tests/specs/` or POMs directly under `tests/pages/`.
+
+Suffix by test type:
+
+| Test type | Filename |
+|---|---|
+| Pure E2E user-journey flow (multi-page) | `{feature}.e2e.ts` |
+| UI functional (single page/component) | `ui.spec.ts` |
+| Accessibility | `a11y.spec.ts` |
+| Responsive | `responsive.spec.ts` |
+
+Each URL path maps to exactly one subdirectory under `tests/specs/` — no flat placement permitted.
 
 ```
 tests/
@@ -83,14 +94,19 @@ tests/
    - CSS selector — sparingly, structural-agnostic only
    - **Never**: XPath, CSS combinators that rely on DOM depth, class names that look auto-generated
 
-4. **Evidence capture.** Capture evidence for every TC (pass and fail) and write to `artifacts/evidence/{TC-ID}/`. This is a shared store — each run overwrites the previous evidence for the same TC ID, so only the latest result per TC is kept on disk.
+4. **Seed test data.** For every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
+
+5. **Mock external services and visual-regression.** Use Playwright `page.route()` to mock external services. Use `toHaveScreenshot()` for visual-regression checks instead of human-judgment checks.
+
+6. **Evidence capture.** Capture evidence for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/`. This is a shared store — each run overwrites the previous evidence for the same TC ID, so only the latest result per TC is kept on disk.
    - Capture screenshot at each key step for every TC
+   - Implement a `test.afterEach` hook that captures a screenshot after EVERY test (pass AND fail) via `await page.screenshot()`, named `{TC-ID}_{step}_{ISO8601-Z}.png` under `runs/{runId}/evidence/{TC-ID}/`. Also verify `playwright.config.ts` has `screenshot: 'always'` and `video: 'retain-on-failure'` — if absent, note it as a warning in the work report.
    - Also capture console log and HAR on failure
    - Sanitise HAR: strip `Authorization`, `Cookie`, `Set-Cookie` headers before saving
    - Name evidence: `{TC-ID}_{step}_{ISO8601-Z}.{ext}`
-   - **Inspection screenshots** (taken mid-task via MCP or CLI to resolve an ambiguous selector) must be deleted immediately after the selector decision is made — they are never written to `artifacts/evidence/`
+   - **Inspection screenshots** (taken mid-task via MCP or CLI to resolve an ambiguous selector) must be deleted immediately after the selector decision is made — they are never written to `runs/{runId}/evidence/`
 
-5. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
+7. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -101,8 +117,8 @@ tests/
 - Missing `data-testid` found but not proposed (must emit proposal, not fail silently)
 - Temporary files or directories created inside `runs/` — use `tests/fixtures/files/` for any file fixtures a test needs, and always delete them in a `finally` block after the test completes
 - File or directory created with no real content (stub bytes, zero-byte files, placeholder folders) — only create a file or folder when it has meaningful content to write into it
-- Evidence written anywhere other than `artifacts/evidence/{TC-ID}/` — never write to `runs/*/evidence/`, `tests/runs/`, or `test-results/`
-- Inspection screenshot not deleted after use — must be removed immediately once the selector decision is made; never written to `artifacts/evidence/`
+- Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
+- Inspection screenshot not deleted after use — must be removed immediately once the selector decision is made; never written to `runs/{runId}/evidence/`
 
 ## Events You Emit
 

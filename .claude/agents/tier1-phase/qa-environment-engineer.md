@@ -52,6 +52,9 @@ You do not run tests. You prepare the runway.
    - `fullyParallel`: true per worker
    - `timeout` and `actionTimeout` from plan's environment section or defaults
    - `outputDir`: **must** be set to `../../aegis/runs/{runId}/playwright-output` (relative to the target's `tests/` root). This is the only directory Playwright may write test-result artifacts to — never `test-results/`, never `tests/runs/`, never any path inside `tests/` itself.
+   - `screenshot: 'always'` — capture a screenshot for every test (pass AND fail), not only on failure. Without this, no per-test screenshots are generated (the failure observed in real runs).
+   - `video: 'retain-on-failure'` — record video, retained on failures.
+   - `trace: 'on-first-retry'` — capture a Playwright trace on the first retry.
 
 3. **Generate per-role auth fixture.** For each role in `aegis.config.json.target.supabase.rolesToTest[]` (or detected roles from target-profile):
    - The fixture uses `storageState` (Greffier ch-07 canonical pattern)
@@ -81,6 +84,8 @@ You do not run tests. You prepare the runway.
 
 8. **Write env-setup-report.** Document: what was configured (browser matrix, roles, factories created, `@playwright/cli` version), what was skipped (role not found in credentials), health status (READY / PARTIAL / FAILED).
 
+9. **Emit `PhaseComplete`.** After the report is written and `EnvReady` (or `EnvSetupFailed`) has fired, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Auth fixture missing teardown (logout + clearCookies + close) for any role
@@ -96,12 +101,14 @@ You do not run tests. You prepare the runway.
 - Temporary files created inside `runs/` (temp files belong in `tests/fixtures/files/` and must be deleted by the test that uses them via a `finally` block, not left on disk)
 - `playwright.config.ts` does not set `outputDir` explicitly — it must be set to the canonical `aegis/runs/{runId}/playwright-output` path; omitting it causes Playwright to use its default `test-results/` directory inside the target project, creating a duplicate run artifact location
 - `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) — all Playwright output must go to `aegis/runs/{runId}/playwright-output`, never inside the target's test directory tree
+- `playwright.config.ts` does not explicitly set `screenshot`, `video`, and `trace` — leaving them to Playwright defaults means screenshots/videos are not generated for every test (the artifact-generation failure observed in real runs)
 
 ## Events You Emit
 
 - `EnvReady` — all checks passed; includes rolesToTest, browserProjects, factoriesCreated
 - `EnvSetupFailed` — specific failure reason; blocks execution phase
 - `CredentialsMissing` — one per missing role credential file
+- `PhaseComplete` — emitted last, after `EnvReady`/`EnvSetupFailed` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

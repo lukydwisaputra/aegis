@@ -9,9 +9,14 @@ let aegisRoot: string;
 beforeEach(() => {
   aegisRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mem-test-'));
   fs.mkdirSync(path.join(aegisRoot, 'agent-memory', AGENT), { recursive: true });
+  // Isolate the @qa/ids counter to this tmp dir — otherwise nextId() writes to the
+  // shared repo .aegis/.counters.json, polluting it across runs (and eventually
+  // pushing the lesson counter past 999, which breaks the L-{INITIALS}-{NNN} format).
+  process.env['AEGIS_COUNTERS_PATH'] = path.join(aegisRoot, '.counters.json');
 });
 
 afterEach(() => {
+  delete process.env['AEGIS_COUNTERS_PATH'];
   fs.rmSync(aegisRoot, { recursive: true, force: true });
 });
 

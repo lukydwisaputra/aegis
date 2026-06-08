@@ -20,8 +20,8 @@ Your proposals feed the system's self-improvement loop. Over many cycles, well-c
 
 - `runs/{runId}/events.jsonl` — full event log
 - `runs/{runId}/reviews/*.json` — all SPV reviews
-- `runs/{runId}/defects/*.json` — defects with resolution outcomes
-- `runs/{runId}/reports/agent-reliability.json` — agent performance data
+- `runs/{runId}/defects/*.json` — defects with resolution outcomes (includes EXP-type exploratory defects — no parent TC; trace via `charterSessionId`)
+- `runs/{runId}/reports/metrics/agent-reliability.json` — agent performance data
 - `runs/{runId}/reports/work/*.json` — all work reports
 - `agent-memory/*/lessons.json` — all agent lessons (for conflict detection)
 - `runs/{runId}/pending-promotions/` — prior unreviewed proposals (don't re-propose)

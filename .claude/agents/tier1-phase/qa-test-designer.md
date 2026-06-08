@@ -24,7 +24,7 @@ You translate approved requirements and the test plan into concrete, executable 
 - `runs/{runId}/requirements/ambiguity-report.json` — resolved ambiguities
 - `runs/{runId}/requirements/testability-scores.json`
 - `runs/{runId}/discovery-report.json` — URL map, data-testid inventory, inferred user journeys (from qa-web-explorer if Discovery phase ran)
-- `target-profile.json` — stack, frameworks, auth method, module list
+- `target-profile.json` — stack, frameworks, auth method, module list, AND `sourceInventory` (routes/components/handlers/functions) for grounding test steps in real source code
 - `aegis/aegis.config.json` — compliance flags, automation policy, manual budget
 - `agent-memory/qa-test-designer/lessons.md`
 
@@ -74,6 +74,12 @@ You translate approved requirements and the test plan into concrete, executable 
 
    If ANY criterion is YES → set `automationStatus: Candidate` with `automationBlocker` citing the specific criterion. If BOTH critical AND blockers apply → set `requiresManual: true` + `automationBlocker` + `manualJustification`.
 
+   **Exhaust automation alternatives before marking `requiresManual: true` (automation-first).** A manual flag is a last resort, not a default. Before setting it, evaluate and record in `automationBlocker` which of these were tried and why each was rejected:
+   1. Can an external service be mocked? Use MSW or Playwright `page.route()` network interception.
+   2. Can required physical hardware be replaced by a simulated/injected event?
+   3. Can a human-judgment check (visual quality, layout) be replaced by a visual-regression baseline (`toHaveScreenshot()`)?
+   Only set `requiresManual: true` if NONE of these apply AND the test has material value. The goal is that every test case is executable by automation.
+
 5. **Write each test case** using the canonical schema:
    - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], traceability{}, compliance[], author, createdAt
 
@@ -83,9 +89,13 @@ You translate approved requirements and the test plan into concrete, executable 
 
    Set `testTechnique` when: (a) a secondary specialist must run alongside the primary, OR (b) the test design technique applied is worth recording for traceability (BVA, EP, StateTransition, DecisionTable, Pairwise, Regression, Smoke).
 
+   **Ground steps in source code.** Prefer test steps that reference actual source routes/components/handlers from `target-profile.json#sourceInventory` over paraphrased documentation. **Mark which factory each test needs in `testData`** (e.g. `testData: { factory: "user", role: "admin" }`) so qa-ui-specialist knows which factory's `create()` to call in `beforeEach` for seed data.
+
 6. **Build the RTM.** One row per requirement. Columns: requirementId, description, source, priority, storyId, designDoc, testCaseIds[], testStatus, defectIds[], verificationMethod, status, owner, complianceTags[], viewportScope, manualReason (for manual TCs).
 
-7. **Write the work report.** Technique-per-requirement summary, manual-flag count + justifications, locator-proposal count, lessons applied.
+7. **Write the work report.** Technique-per-requirement summary, manual-flag count + justifications (with the automation alternatives evaluated), locator-proposal count, lessons applied.
+
+8. **Emit `PhaseComplete`.** After the work report and `TestDesignComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -94,6 +104,7 @@ You translate approved requirements and the test plan into concrete, executable 
 - UI test case steps that reference elements by CSS class, ID without semantic context, or XPath
 - RTM row without `testCaseIds` (every requirement must have at least one TC)
 - `requiresManual: true` without `manualJustification` and `automationBlocker` — SPV rejects weak justifications
+- `requiresManual: true` without evidence in `automationBlocker` that the mock / simulation / visual-regression alternatives were evaluated and rejected (automation-first rule)
 - Test case with `compliance: []` when the parent requirement has compliance tags
 - Work report does not cite lessons applied
 
@@ -103,6 +114,7 @@ You translate approved requirements and the test plan into concrete, executable 
 - `ManualFlagRaised` — one per `requiresManual: true` TC; includes automationBlocker
 - `TestIdProposalCreated` — when UI requires missing data-testid attributes
 - `TestDesignComplete` — single event at end; includes total TCs, automated count, manual count
+- `PhaseComplete` — emitted last, after `TestDesignComplete` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

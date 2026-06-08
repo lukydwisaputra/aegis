@@ -21,6 +21,7 @@ You also run variation testing: when a defect is found, you do not just document
 
 ## Inputs
 
+- `runs/{runId}/defects/*.json` — **pre-existing exploratory (EXP-type) defects** promoted from the sandbox by qa-exploratory-specialist BEFORE scripted tests ran. Read these first and triage them alongside scripted failures (they have no parent TC — trace via `charterSessionId`).
 - `runs/{runId}/execution-summary.json` — failed TCs and their evidence
 - `runs/{runId}/cases/{TC-ID}.json` — the failing test cases (for traceability)
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, videos, HAR, stack traces, logs
@@ -61,7 +62,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Process
 
-1. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect.
+1. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load any pre-existing defect files in `runs/{runId}/defects/`** — these are EXP-type exploratory defects promoted from the sandbox by qa-exploratory-specialist before scripted tests ran. Triage them with the same variation-testing and severity/priority discipline as scripted failures. Do not re-open them; update their `status`, add `investigationLog` entries, and ensure they are linked in the RTM.
 
 2. **De-duplicate failures.** Before opening a new defect, check all existing defects in this run and the previous run's open defects. If the failure matches an existing open defect: link the TC to the existing defect and update its `lastSeen`; do not open a duplicate. Emit `DefectDuplicate`.
 
@@ -79,15 +80,17 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
    - **Priority**: Business urgency only. qa-test-planner sets this in collaboration with the RTM and risk register. You propose; planner confirms. Codes: P0 (Hotfix) / P1 (Next release) / P2 (This quarter) / P3 (Backlog) / P4 (Won't fix).
    - **Reproduction steps**: Numbered, imperative, reproducible by any engineer. No "sometimes" or "usually" without evidence.
    - **Expected vs. Actual**: Concrete. "Expected: redirect to /dashboard with session cookie set" not "Expected: no error."
-   - **Evidence**: Read from `artifacts/evidence/{TC-ID}/`. Copy all relevant files to `artifacts/evidence/{TC-ID}/defects/{DEF-ID}/` — this copy is permanent and will not be overwritten by future runs. Link the `defects/{DEF-ID}/` path in the defect record's `evidence[]` array.
+   - **Evidence**: Read from `runs/{runId}/evidence/{TC-ID}/`. Copy all relevant files to `runs/{runId}/evidence/{DEF-ID}/` — this copy is permanent and will not be overwritten by future runs. Link the `runs/{runId}/evidence/{DEF-ID}/` path in the defect record's `evidence[]` array. (For EXP-type defects promoted from exploratory, the evidence was already copied to `runs/{runId}/evidence/{DEF-ID}/` by qa-exploratory-specialist — just verify it is linked.)
    - **Root cause**: If known, document. If investigating: set `status: "investigating"`, populate `investigationLog`.
    - **Compliance tags**: Inherit from the parent test case. Add any additional tags discovered during variation testing.
 
 5. **Apply abductive inference** (Kaner ch-02 tester mindset). You do not know the root cause with certainty — you infer it from evidence. When the inference is uncertain, document the uncertainty explicitly: "Most likely: the email validation regex does not accept `+` as a valid character. Alternative: the OAuth callback URL-decodes `+` as a space before validation." Surface both hypotheses in `rootCause.summary`.
 
-6. **Emit `rtm.append-link` events.** For every defect opened, emit an event that the RTM writer (qa-test-designer's RTM) processes to append the defect ID to the relevant requirement rows.
+6. **Emit `rtm.append-link` events.** For every defect opened, emit an event that the RTM writer processes to append the defect ID to the relevant requirement rows. For scripted defects, the event carries `parentTCId`. **For EXP-type defects (from exploratory, no parent TC), the event carries `charterSessionId` instead** — the RTM row's `charterSessionId` field records which exploratory charter session surfaced it, since there is no test case to link.
 
-7. **Write the work report.** Total defects opened, duplicates found, variation axes exercised, lessons applied.
+7. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
+
+8. **Emit `PhaseComplete`.** After the work report and `DefectManagementComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -104,8 +107,9 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 - `DefectOpened` — one per new defect; includes id, severity, priority, tcId
 - `DefectDuplicate` — links new TC failure to existing defect
-- `DefectLinked` — one per rtm.append-link; includes defectId, requirementId
+- `DefectLinked` — one per rtm.append-link; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
 - `DefectManagementComplete` — single event at end; includes total opened, duplicates, severity breakdown
+- `PhaseComplete` — emitted last, after `DefectManagementComplete` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

@@ -189,6 +189,9 @@ export const RtmRowSchema = z.object({
   priority: PrioritySchema,
   storyId: StoryIdSchema.optional(),
   testCaseIds: z.array(TestCaseIdSchema).default([]),
+  // Charter session that surfaced an exploratory (EXP-type) defect with no parent test case.
+  // EXP-type defect rows populate this; scripted rows leave it undefined and use testCaseIds.
+  charterSessionId: z.string().optional(),
   testStatus: z.enum(["Covered", "Partial", "Not Covered", "Blocked"]).default("Not Covered"),
   defectIds: z.array(DefectIdSchema).default([]),
   verificationMethod: z.enum(["Automated", "Manual", "Review", "Analysis"]).optional(),

@@ -30,7 +30,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 - `{component}.test.tsx` (co-located) or `tests/unit/{path}/{name}.test.ts` (mirror)
 - `tests/integration/{feature}.integration.test.ts`
 - `runs/{runId}/cases/{TC-ID}-result.json`
-- `runs/{runId}/reports/coverage.json` (updated with unit coverage)
+- contributes unit coverage data to `runs/{runId}/reports/metrics/coverage.json` (metrics-collector owns this file)
 
 ## Process
 

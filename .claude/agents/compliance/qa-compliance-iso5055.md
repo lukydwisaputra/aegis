@@ -18,7 +18,7 @@ You evaluate the QA cycle against ISO/IEC 5055:2021, which defines automated sou
 
 - `runs/{runId}/reports/compliance/` — check what security specialist found (read only)
 - `runs/{runId}/cases/*.json` — test cases
-- `runs/{runId}/defects/*.json` — defects
+- `runs/{runId}/defects/*.json` — defects (includes EXP-type exploratory defects — no parent TC; trace via `charterSessionId`)
 - Semgrep and npm audit outputs from security specialist work report
 - `knowledge/synthesis/compliance-and-regulations.md`
 - `agent-memory/qa-compliance-iso5055/lessons.md`

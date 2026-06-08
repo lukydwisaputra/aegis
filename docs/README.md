@@ -13,6 +13,11 @@ For example, `D13-event-bus-spec.md` is a deep dive into [HANDBOOK chapter 13 �
 |------|-------|
 | [D02-teammate-onboarding.md](D02-teammate-onboarding.md) | Cloned an existing project? 5-min checklist |
 
+### D03 — Architecture ([HANDBOOK/03](../HANDBOOK/03-architecture.md))
+| File | Topic |
+|------|-------|
+| [D03-agent-workflow-diagram.md](D03-agent-workflow-diagram.md) | Full agent workflow Mermaid diagram (+ rendered .svg) |
+
 ### D05 — Commands ([HANDBOOK/05](../HANDBOOK/05-commands.md))
 | File | Topic |
 |------|-------|

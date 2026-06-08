@@ -39,8 +39,8 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 - `tests/specs/{url-path}/a11y.spec.ts` — axe-core Playwright specs organised by URL path
 - `runs/{runId}/cases/{TC-ID}-result.json` — axe violations list
-- `artifacts/evidence/{TC-ID}/axe-results.json` — overwrites previous run's evidence for the same TC
-- `artifacts/evidence/{TC-ID}/pa11y-report.json` — overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/axe-results.json` — overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/pa11y-report.json` — overwrites previous run's evidence for the same TC
 
 ## Process
 
@@ -54,7 +54,7 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 5. **Tag all findings.** `WCAG-2.2-{criterion}` per violation. Example: contrast failure → `WCAG-2.2-1.4.3`.
 
-6. **Evidence.** Write axe-results.json and pa11y-report.json for every TC (pass and fail) to `artifacts/evidence/{TC-ID}/`. This overwrites the previous run's evidence for the same TC — only the latest result per TC is kept. Inspection screenshots taken mid-task to resolve ARIA ambiguity must be deleted immediately after use and never written to `artifacts/evidence/`.
+6. **Evidence.** Write axe-results.json and pa11y-report.json for every TC (pass and fail) to `runs/{runId}/evidence/{TC-ID}/`. This overwrites the previous run's evidence for the same TC — only the latest result per TC is kept. Inspection screenshots taken mid-task to resolve ARIA ambiguity must be deleted immediately after use and never written to `runs/{runId}/evidence/`.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -62,8 +62,8 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 - Critical or serious axe violation not flagged as TC failure
 - Keyboard navigation test missing for any interactive component in scope
 - Finding lacks `WCAG-2.2-{criterion}` tag
-- Evidence written anywhere other than `artifacts/evidence/{TC-ID}/` — never write to `runs/*/evidence/`, `tests/runs/`, or `test-results/`
-- Inspection screenshot taken to resolve an ARIA ambiguity not deleted after use — must be removed immediately; never written to `artifacts/evidence/`
+- Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
+- Inspection screenshot taken to resolve an ARIA ambiguity not deleted after use — must be removed immediately; never written to `runs/{runId}/evidence/`
 
 ## Events You Emit
 

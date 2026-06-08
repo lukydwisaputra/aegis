@@ -19,7 +19,7 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 - `runs/{runId}/plan.{md,json}` — test plan (V&V plan equivalent)
 - `runs/{runId}/reports/work/*.json` — worker work reports (process evidence)
 - `runs/{runId}/reviews/*.json` — SPV reviews (peer review evidence)
-- `runs/{runId}/reports/closure.json` — closure report
+- `runs/{runId}/reports/closure/closure.json` — closure report
 - `agent-memory/qa-compliance-cmmi/lessons.json`
 - `knowledge/synthesis/compliance-and-regulations.md`
 

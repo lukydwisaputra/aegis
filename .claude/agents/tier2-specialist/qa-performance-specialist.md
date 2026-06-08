@@ -30,8 +30,9 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 - `tests/perf/{scenario}.perf.ts` — k6 test scripts
 - `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric
-- `artifacts/evidence/{TC-ID}/k6-results.json` — overwrites previous run's evidence for the same TC
-- `artifacts/evidence/{TC-ID}/lighthouse-report.html`
+- `runs/{runId}/evidence/{TC-ID}/k6-results.json` — overwrites previous run's evidence for the same TC
+- `runs/{runId}/evidence/{TC-ID}/lighthouse-report.html`
+- `runs/{runId}/evidence/{TC-ID}/baseline/` — preserved baseline results (one copy per run, never overwritten) for SPV baseline delta comparison
 
 ## Process
 
@@ -45,6 +46,10 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 3. **Run Lighthouse-CI** for frontend Core Web Vitals. Assert LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (Good tier per web.dev).
 
 4. **Compare results against thresholds.** Mark TC passed or failed per metric. Report both measured value and threshold in result JSON.
+
+5. **Preserve baseline.** Preserve baseline results in `runs/{runId}/evidence/{TC-ID}/baseline/` (one copy per run, never overwritten) so the SPV can run a baseline delta comparison. The overwrite-on-rerun rule applies only to the latest results dir, not the baseline.
+
+6. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()`.
 
 ## Quality Standards (SPV rejects if violated)
 

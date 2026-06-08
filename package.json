@@ -8,7 +8,8 @@
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "qa-build-toc": "tsx scripts/build-toc.ts",
-    "qa-check-onboarding-sync": "tsx scripts/check-onboarding-sync.ts"
+    "qa-check-onboarding-sync": "tsx scripts/check-onboarding-sync.ts",
+    "diagram": "mmdc -i docs/D03-agent-workflow-diagram.md -o docs/D03-agent-workflow-diagram.svg"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

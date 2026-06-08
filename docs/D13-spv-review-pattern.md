@@ -15,15 +15,22 @@ Worker writes work-report.json
   ↓
 Worker emits task.released with work-report path
   ↓
-SPV (auto-triggered by orchestrator):
+Dispatcher dispatches the paired SPV:
+  • Tier-1 phase agents → dispatched by qa-orchestrator
+  • Tier-2 specialists  → dispatched by qa-test-executor
+  ↓
+SPV (read-only, tools: [Read, Bash]):
   reads: work-report.json + actual artifacts + worker's lessons.md
   writes: review.json (verdict + findings + corrective instructions)
   ↓
-  passed                    → orchestrator advances
-  passed-with-notes         → lesson appended; orchestrator advances
-  requested-changes         → lesson appended; worker must redo task
+Dispatcher reads review.json verdict, then:
+  passed                    → advance
+  passed-with-notes         → dispatcher calls pipeCorrectiveInstruction(); advance
+  requested-changes         → dispatcher calls pipeCorrectiveInstruction(); worker must redo task
   2nd consecutive rejection → human gate
 ```
+
+> **SPVs do not self-trigger and do not write lessons.** Tier-1 SPVs are dispatched by `qa-orchestrator` after each phase; Tier-2 SPVs are dispatched by `qa-test-executor` after each specialist. The **dispatcher** reads the SPV's `review.json` verdict and calls `pipeCorrectiveInstruction()` to append the lesson — because SPVs hold `tools: [Read, Bash]` and cannot write `lessons.json` themselves.
 
 ## Work-report schema
 
@@ -85,7 +92,7 @@ Workers MUST write this before emitting `task.released`:
 
 ## Auto-lesson pipeline
 
-When SPV issues `correctiveInstructions`, `@qa/agent-memory` is called automatically:
+When an SPV writes `correctiveInstructions` into its `review.json`, the **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads the verdict and calls `pipeCorrectiveInstruction()`, which invokes `@qa/agent-memory`. The SPV itself never touches `lessons.json`:
 ```
 correctiveInstruction → proposeLesson(workerAgent, {
   polarity: "negative",

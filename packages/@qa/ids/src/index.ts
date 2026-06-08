@@ -1,6 +1,20 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, parse as parsePath, join } from "node:path";
 import lockfile from "proper-lockfile";
+
+// Find the aegis project root by walking up from cwd looking for a marker file
+// (`aegis.config.json`). Falls back to cwd if no marker is found. This avoids any
+// dependency on `__dirname`/`import.meta.url`, so it works identically whether the
+// module is loaded as ESM (the built dist) or transpiled to CommonJS (ts-jest).
+function findAegisRoot(): string {
+  let dir = process.cwd();
+  const { root } = parsePath(dir);
+  while (true) {
+    if (existsSync(join(dir, "aegis.config.json"))) return dir;
+    if (dir === root) return process.cwd();
+    dir = dirname(dir);
+  }
+}
 import {
   IdKindSchema,
   type IdKind,
@@ -19,8 +33,8 @@ import {
 function getCountersPath(): string {
   const envPath = process.env["AEGIS_COUNTERS_PATH"];
   if (envPath) return resolve(envPath);
-  // __dirname is available in CJS; in ESM builds AEGIS_COUNTERS_PATH must be set
-  return resolve(__dirname, "../../../../.aegis/.counters.json");
+  // Default: <aegis-root>/.aegis/.counters.json, discovered by walking up from cwd.
+  return resolve(findAegisRoot(), ".aegis", ".counters.json");
 }
 
 type Counters = Record<string, Record<string, number>>;

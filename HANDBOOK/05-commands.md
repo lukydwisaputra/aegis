@@ -297,7 +297,7 @@ Promotes validated lessons to agent instructions. See Chapter 10 for the full li
 
 Example:
 ```bash
-/qa-promote --agent qa-spec-ui
+/qa-promote --agent qa-ui-specialist
 # Applies lesson: "always include teardown step in UI test cases"
 ```
 

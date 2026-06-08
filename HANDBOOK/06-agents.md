@@ -1,6 +1,6 @@
 ## Chapter 6 — Agent Roster
 
-> _All 63 agents in full mode: Orchestrator, Tier-1 (8), Tier-2 (14), Tier-2.5 DevOps (7), SPVs (22), compliance (6), cross-cutting (5), with Lite mode notes._
+> _All agents in full mode: Orchestrator (1), Tier-1 phase managers (8), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes._
 
 ---
 
@@ -16,7 +16,7 @@ Each entry shows: agent name, tier, model tier (A/B/C/D), primary output, and wh
 
 | Agent | Tier | Model | Output | Lite? |
 |---|---|---|---|---|
-| `qa-director` | Orchestrator | B | Run plan, gate management, run summary | Yes |
+| `qa-orchestrator` | Orchestrator | Opus | Run plan, phase dispatch, gate management, SPV dispatch (Tier-1), run summary | Yes |
 
 The Orchestrator is always active. In Lite mode, it uses a simplified planning algorithm that skips the SPV review loop.
 
@@ -26,14 +26,16 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 | Agent | Model | Primary Output | Lite? |
 |---|---|---|---|
-| `qa-strategy-manager` | B | Test strategy doc, risk matrix | Yes (reduced) |
-| `qa-planner` | B | Test case plan, RTM skeleton | Yes |
-| `qa-defect-manager` | B | Defect lifecycle coordination | Yes |
-| `qa-compliance-lead` | A | Compliance dispatch, compliance summary | No |
-| `qa-devops-manager` | B | CI/CD plan, environment strategy | No |
-| `qa-reporting-manager` | B | Report assembly instructions | Yes (reduced) |
-| `qa-knowledge-manager` | B | Book processing, knowledge base updates | No |
-| `qa-improvement-manager` | B | Lesson queue management, curator dispatch | No |
+| `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton | Yes |
+| `qa-test-planner` | Sonnet | Test strategy doc, risk matrix, test case plan | Yes (reduced) |
+| `qa-test-designer` | Sonnet | Test design coordination | Yes |
+| `qa-test-executor` | Sonnet | Execution coordination, Tier-2 fan-out, SPV dispatch (Tier-2) | Yes |
+| `qa-defect-manager` | Sonnet | Defect lifecycle coordination | Yes |
+| `qa-environment-engineer` | Sonnet | `playwright.config.ts`, fixtures, data factories | Yes |
+| `qa-knowledge-librarian` | Sonnet | Book processing, knowledge base updates, query resolution | No |
+| `qa-curator` | Sonnet | Lesson queue management, promotion proposals | No |
+
+> Compliance, DevOps, and reporting are **not** single Tier-1 managers: compliance is six `qa-compliance-*` agents (§6.7), DevOps is the `qa-cicd-*` / `qa-github-*` agents (§6.5), and reporting is split between `qa-closure-reporter` and `qa-executive-reporter` (§6.4).
 
 ---
 
@@ -41,20 +43,22 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 | Agent | Model | Primary Output | Lite? |
 |---|---|---|---|
-| `qa-spec-unit` | B | Unit test cases, Vitest scripts | Yes |
-| `qa-spec-api` | B | API test cases, HTTP client scripts | Yes |
-| `qa-spec-ui` | B | UI/E2E Playwright scripts | Yes |
-| `qa-spec-security` | B | OWASP-aligned security test cases | No |
-| `qa-spec-a11y` | B | WCAG 2.2 accessibility test cases | No |
-| `qa-spec-perf` | B | k6 performance scripts | No |
-| `qa-spec-email` | B | Email flow test cases (Mailpit) | No |
-| `qa-spec-visual` | B | Visual regression baselines | No |
-| `qa-spec-exploratory` | B | Exploratory charters | No |
-| `qa-executor` | C | Test results (JUnit XML + JSON) | Yes |
-| `qa-defect-reporter` | B | Structured defect reports | Yes |
-| `qa-rtm-builder` | C | RTM JSON/CSV updates | Yes |
-| `qa-data-builder` | B | Test data fixtures, seed scripts | Yes |
-| `qa-report-writer` | B | HTML/PDF run reports | Yes (summary only) |
+| `qa-unit-specialist` | Sonnet | Unit test cases, Vitest scripts | Yes |
+| `qa-api-specialist` | Sonnet | API test cases, HTTP client scripts | Yes |
+| `qa-ui-specialist` | Sonnet | UI/E2E Playwright scripts | Yes |
+| `qa-security-specialist` | Sonnet | OWASP-aligned security test cases | No |
+| `qa-accessibility-specialist` | Sonnet | WCAG 2.2 accessibility test cases | No |
+| `qa-performance-specialist` | Sonnet | k6 performance scripts | No |
+| `qa-email-specialist` | Sonnet | Email flow test cases (Mailpit) | No |
+| `qa-exploratory-specialist` | Sonnet | Exploratory charters (Playwright MCP, runs first) | No |
+| `qa-database-specialist` | Sonnet | Database / data-integrity test cases | No |
+| `qa-responsive-specialist` | Sonnet | Responsive / viewport test cases | No |
+| `qa-feature-flag-specialist` | Sonnet | Feature-flag matrix test cases | No |
+| `qa-realtime-specialist` | Sonnet | Realtime / websocket test cases | No |
+| `qa-defect-reporter` | Sonnet | Structured defect reports | Yes |
+| `qa-rtm-builder` | Haiku | RTM JSON/CSV updates | Yes |
+| `qa-closure-reporter` | Sonnet | `closure.md` + `closure.json` | Yes (summary only) |
+| `qa-executive-reporter` | Opus | Three executive PDFs | No |
 
 ---
 
@@ -62,8 +66,9 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 | Agent | Model | Primary Output | Lite? |
 |---|---|---|---|
-| `qa-github-master` | B | Branch strategy, PR templates, merge gate config | No |
-| `qa-cicd-master` | B | GitHub Actions workflow YAML files | No |
+| `qa-github-planner` | Sonnet | Branch strategy, PR templates, merge gate config | No |
+| `qa-cicd-planner` | Sonnet | CI/CD workflow planning and evaluation | No |
+| `qa-cicd-implementer` | Sonnet | GitHub Actions workflow YAML files | No |
 | `qa-env-provisioner` | C | Ephemeral environment URLs and teardown scripts | No |
 | `qa-worktree-manager` | C | Git worktree creation/cleanup | No |
 | `qa-secrets-auditor` | A | Secrets scan report | No |
@@ -76,32 +81,35 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 SPVs score worker output on a 0–100 scale. Output below threshold triggers revision requests. SPVs are Tier-A model by default (quality matters more than cost here).
 
+SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the worker it reviews.
+
 | SPV | Reviews | Threshold |
 |---|---|---|
-| `qa-spv-strategy` | Strategy docs, risk matrices | 80 |
-| `qa-spv-plan` | Test case plans | 80 |
-| `qa-spv-unit` | Unit test cases | 85 |
-| `qa-spv-api` | API test cases | 85 |
-| `qa-spv-ui` | UI/E2E test cases | 85 |
-| `qa-spv-security` | Security test cases | 88 |
-| `qa-spv-a11y` | Accessibility test cases | 88 |
-| `qa-spv-perf` | Performance test cases | 82 |
-| `qa-spv-email` | Email test cases | 80 |
-| `qa-spv-visual` | Visual baselines | 80 |
-| `qa-spv-exploratory` | Exploratory charters | 78 |
-| `qa-spv-defect` | Defect reports | 90 |
-| `qa-spv-rtm` | RTM completeness | 88 |
-| `qa-spv-data` | Test data fixtures | 82 |
-| `qa-spv-report` | Run reports | 85 |
-| `qa-spv-executor` | Test result fidelity | 88 |
-| `qa-spv-devops` | CI/CD workflow files | 85 |
-| `qa-spv-secrets` | Secrets audit findings | 95 |
-| `qa-spv-compliance-iso25010` | ISO 25010 review | 88 |
-| `qa-spv-compliance-iso5055` | ISO 5055 review | 88 |
-| `qa-spv-compliance-gdpr` | GDPR review | 92 |
-| `qa-spv-compliance-pdpa` | PDPA review | 92 |
+| `qa-requirements-analyst-spv` | Source-grounded requirements | 80 |
+| `qa-test-planner-spv` | Strategy docs, risk matrices, test case plans | 80 |
+| `qa-test-designer-spv` | Test case design | 85 |
+| `qa-unit-specialist-spv` | Unit test cases | 85 |
+| `qa-api-specialist-spv` | API test cases | 85 |
+| `qa-ui-specialist-spv` | UI/E2E test cases | 85 |
+| `qa-security-specialist-spv` | Security test cases | 88 |
+| `qa-accessibility-specialist-spv` | Accessibility test cases | 88 |
+| `qa-performance-specialist-spv` | Performance test cases | 82 |
+| `qa-email-specialist-spv` | Email test cases | 80 |
+| `qa-exploratory-specialist-spv` | Exploratory charters | 78 |
+| `qa-database-specialist-spv` | Database test cases | 85 |
+| `qa-responsive-specialist-spv` | Responsive test cases | 82 |
+| `qa-feature-flag-specialist-spv` | Feature-flag test cases | 82 |
+| `qa-realtime-specialist-spv` | Realtime test cases | 82 |
+| `qa-defect-manager-spv` | Defect reports | 90 |
+| `qa-rtm-builder-spv` | RTM completeness | 88 |
+| `qa-environment-engineer-spv` | Config, fixtures, factories | 82 |
+| `qa-closure-reporter-spv` | Closure artefact | 85 |
+| `qa-executive-reporter-spv` | Executive PDFs | 85 |
+| `qa-test-executor-spv` | Test result fidelity | 88 |
+| `qa-cicd-planner-spv` | CI/CD workflow files | 85 |
+| `qa-github-planner-spv` | Branch / PR strategy | 85 |
 
-All SPVs are **disabled in Lite mode**.
+SPVs are read-only (`tools: [Read, Bash]`): they write `review.json` but never edit worker artefacts or `lessons.json`. The **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads the verdict and pipes any corrective instruction into the worker's lessons. All SPVs are **disabled in Lite mode**.
 
 ---
 
@@ -124,15 +132,16 @@ Compliance agents are **disabled in Lite mode**.
 
 ### 6.8 Cross-Cutting Agents
 
-Five agents operate across the entire framework lifecycle:
+Cross-cutting agents operate across the entire framework lifecycle. The four Haiku-tier utilities run constantly; the Discovery and curation agents run at specific phases:
 
 | Agent | Role | Lite? |
 |---|---|---|
-| `qa-book-ingestor` | Processes raw documents into book format | No |
-| `qa-lesson-curator` | Reviews accumulated lessons for promotion | No |
-| `qa-dedup-agent` | Deduplicates defects and test cases across runs | Yes |
-| `qa-dashboard-server` | Serves the Vite+React dashboard on port 3030 | Yes |
-| `qa-event-relay` | Routes SSE events between agents and dashboard | Yes |
+| `qa-context-scanner` | Static source analysis → `target-profile.json#sourceInventory` | Yes |
+| `qa-web-explorer` | Observation-driven crawl, route/auth matrix (Discovery) | Yes |
+| `qa-event-bus` | Routes/serializes JSONL events between agents and dashboard | Yes |
+| `qa-metrics-collector` | Sole owner of `reports/metrics/*` (coverage, trend, cost) | Yes |
+| `qa-knowledge-librarian` | Resolves worker queries against the knowledge corpus | No |
+| `qa-curator` | Reviews accumulated lessons for promotion | No |
 
 ---
 
@@ -140,17 +149,19 @@ Five agents operate across the entire framework lifecycle:
 
 For `RUN-20260523-001` (full profile, Login/SSO feature), the following agents were active:
 
-1. `qa-director` — created run, dispatched plan task
-2. `qa-strategy-manager` + `qa-planner` — produced strategy and `TC-AUTH-031`
-3. `qa-spec-ui` — authored the test case
-4. `qa-spv-ui` — reviewed, returned with revision request (missing teardown)
-5. `qa-spec-ui` — revised and resubmitted; score 91/100
-6. `qa-executor` — ran `TC-AUTH-031` against testing environment
-7. `qa-defect-reporter` — created `DEF-AUTH-0017`
-8. `qa-spv-defect` — reviewed defect report; scored 93/100
-9. `qa-compliance-gdpr` — flagged that the SSO callback stores a session cookie; required GDPR tag `[GDPR-SESSION]`
-10. `qa-report-writer` — assembled final report
-11. `qa-lesson-curator` — at end-of-cycle, captured lesson from `qa-spec-ui` ("always include teardown step")
+1. `qa-orchestrator` — created run, dispatched phase tasks
+2. `qa-context-scanner` + `qa-web-explorer` — Discovery: source inventory + route/auth matrix
+3. `qa-test-planner` — produced strategy and the test case plan
+4. `qa-ui-specialist` — authored `TC-AUTH-031`
+5. `qa-ui-specialist-spv` — reviewed, returned with revision request (missing teardown)
+6. `qa-ui-specialist` — revised and resubmitted; score 91/100
+7. `qa-environment-engineer` — wrote `playwright.config.ts`, the user factory, and auth fixtures
+8. `qa-test-executor` — ran `TC-AUTH-031` against testing environment (after exploratory-first pass)
+9. `qa-defect-reporter` — created `DEF-001-AUTH-UI`
+10. `qa-defect-manager-spv` — reviewed defect report; scored 93/100
+11. `qa-compliance-gdpr` — flagged that the SSO callback stores a session cookie; required GDPR tag `[GDPR-SESSION]`
+12. `qa-closure-reporter` — assembled `closure.md` + `closure.json`; `qa-executive-reporter` rendered the PDFs
+13. `qa-curator` — at end-of-cycle, captured lesson from `qa-ui-specialist` ("always include teardown step")
 
 ---
 
@@ -159,22 +170,24 @@ For `RUN-20260523-001` (full profile, Login/SSO feature), the following agents w
 In Lite mode, the active agent set is:
 
 ```
-qa-director
-qa-strategy-manager (reduced)
-qa-planner
+qa-orchestrator
+qa-requirements-analyst
+qa-test-planner (reduced)
+qa-test-designer
+qa-test-executor
 qa-defect-manager
-qa-spec-unit, qa-spec-api, qa-spec-ui
-qa-executor
+qa-environment-engineer
+qa-unit-specialist, qa-api-specialist, qa-ui-specialist
 qa-defect-reporter
 qa-rtm-builder
-qa-data-builder
-qa-report-writer (summary only)
-qa-dedup-agent
-qa-dashboard-server
-qa-event-relay
+qa-closure-reporter (summary only)
+qa-context-scanner
+qa-web-explorer
+qa-event-bus
+qa-metrics-collector
 ```
 
-Total: 14 agents (vs 63 in full mode). Cost is approximately 80% lower; coverage is significantly reduced.
+In Lite mode the SPV review loop, compliance agents, DevOps tier, and curator are disabled. Cost is substantially lower; coverage is significantly reduced.
 
 ---
 

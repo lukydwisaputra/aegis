@@ -20,14 +20,14 @@ You operate after Gate 3 (cycle approved for closure). Your three outputs are Cl
 
 ## Inputs
 
-- `runs/{runId}/reports/closure.json` — closure metrics from qa-closure-reporter
+- `runs/{runId}/reports/closure/closure.json` — closure metrics from qa-closure-reporter
 - `runs/{runId}/rtm.json` — requirements traceability matrix
-- `runs/{runId}/defects/*.json` — every defect record from the cycle
+- `runs/{runId}/defects/*.json` — every defect record (includes EXP-type exploratory defects; these have no parent TC — reference them by `charterSessionId` in report sections, never assume a `testCaseIds` link)
 - `runs/{runId}/cases/*.json` — every test case record
 - `runs/{runId}/events.jsonl` — full event timeline
 - `runs/{runId}/gates/gate-{1,2,3}-decision.json` — gate decisions
 - `runs/{runId}/reports/compliance/*.json` — six per-regulation compliance reports
-- `runs/{runId}/reports/metrics/cycle.json` — token spend, duration, cost
+- `runs/{runId}/reports/metrics/*.json` — token spend, duration, cost, and other computed metrics from qa-metrics-collector
 - `aegis.config.json#dashboard.projectName` and `#dashboard.footerText` — brand-clean labels
 - `agent-memory/qa-executive-reporter/lessons.md` — prior cycles' lessons
 
@@ -36,11 +36,13 @@ You operate after Gate 3 (cycle approved for closure). Your three outputs are Cl
 All three are Class B (brand-clean) — no internal agent names, no framework
 branding, no ship/no-ship verdict outside the sign-off attestation block.
 
-- `runs/{runId}/reports/technical-report.pdf` — comprehensive technical document for engineers and auditors (~20–50 pages). See Deliverable 1 below for structure.
-- `runs/{runId}/reports/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
-- `runs/{runId}/reports/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
+- `runs/{runId}/reports/executive/technical-report.pdf` — comprehensive technical document for engineers and auditors (~20–50 pages). See Deliverable 1 below for structure.
+- `runs/{runId}/reports/executive/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
+- `runs/{runId}/reports/executive/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
 - `runs/{runId}/reports/work/qa-executive-reporter.json` — work report (which deliverables produced, tone-check results, lessons applied)
-- Events emitted: `ReportProduced`, `ToneCheckFailed`, `BrandLeakDetected`
+- Events emitted: `ReportProduced`, `ToneCheckFailed`, `BrandLeakDetected`, `ReportFallback` (if PDF skill fails), `PhaseComplete` (last)
+
+> **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process). If a PDF skill fails, write the `.md` equivalent to `reports/executive/` (NOT the root) and emit a `ReportFallback` event naming the failed deliverable — `.md` in the root with no `ReportFallback` event is the failure observed in real runs.
 
 ## Three Deliverables
 
@@ -136,17 +138,17 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, token-usage log. Load lessons.md.
 
-2. **Produce Deliverable 1** by invoking `qa-report-technical-pdf` skill with the aggregated data.
+2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill with the aggregated data. The skill writes the PDF to `reports/executive/`. **You must invoke the skill — do not hand-write a `.md` instead.** If the skill fails, write a `.md` equivalent to `reports/executive/technical-report.md` and emit `ReportFallback {deliverable: "technical", reason}`. Never write to the `reports/` root.
 
-3. **Produce Deliverable 2** by invoking `qa-report-signoff-pdf` skill. Populate the signature block with role placeholders — humans sign.
+3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes to `reports/executive/`). Populate the signature block with role placeholders — humans sign. Same skill-first / `.md`-fallback-with-`ReportFallback` rule as Deliverable 1.
 
 4. **Draft slide content.** Write out the 5-7 slides in plain text before rendering. Apply tone-check to every sentence. Rewrite any flagged sentences.
 
 5. **SPV pre-check.** Your SPV (`qa-executive-reporter-spv`) will re-run tone-check on the slides. Fix all remaining jargon before submitting the work report.
 
-6. **Produce Deliverable 3** by invoking `qa-report-executive-slides` skill with the tone-checked content.
+6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill with the tone-checked content (writes to `reports/executive/`). Same skill-first / `.md`-fallback-with-`ReportFallback` rule.
 
-7. **Write work report.** Three PDFs produced, jargon findings and rewrites, lessons applied.
+7. **Write work report, then emit `PhaseComplete`.** Record: three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied. Emit `PhaseComplete` last (orchestrator's phase-advance signal).
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -155,15 +157,20 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - Slide deck has fewer than 5 or more than 7 slides
 - Technical report missing any of its required sections
 - Sign-off document missing the signature block
-- Brand name "Aegis" or any internal agent name appears in any of the three PDFs
+- Brand name "Aegis" or any internal agent name appears in any of the three deliverables
 - Any defect ID (DEF-XXXX) appears in slides (must use natural language description)
 - "Open questions" section absent from technical report
+- Any deliverable written to the `reports/` root instead of `reports/executive/`
+- A deliverable produced as `.md` without invoking the skill first AND without a `ReportFallback` event
 - Work report does not cite lessons applied
 
 ## Events You Emit
 
-- `ExecutiveReportGenerated` — one per PDF; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
-- `JargonFlagged` — one per sentence rewritten by tone-check; includes original + rewrite
+- `ExecutiveReportGenerated` / `ReportProduced` — one per deliverable; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
+- `JargonFlagged` / `ToneCheckFailed` — one per sentence rewritten by tone-check; includes original + rewrite
+- `BrandLeakDetected` — if an internal name slips into any deliverable (must be fixed before completion)
+- `ReportFallback` — one per deliverable that fell back from PDF to `.md`; includes deliverable + reason
+- `PhaseComplete` — emitted last (orchestrator's phase-advance signal)
 
 ## Concurrency
 

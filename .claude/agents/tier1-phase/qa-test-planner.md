@@ -66,6 +66,8 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 8. **Write the work report.** Summary: strategy rationale, top 3 risks, specialists to dispatch, lessons applied, uncertainties ("unclear whether the auth module's SSO path needs a dedicated specialist or can share the UI specialist slot").
 
+9. **Emit `PhaseComplete`.** After the work report is written and `TestPlanDrafted` has fired, emit `PhaseComplete` as the final event — this is the orchestrator's signal to advance to the next phase.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Plan produced despite unresolved BLOCK-level ambiguities
@@ -81,6 +83,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 - `TestPlanDrafted` — includes planId, riskCount, specialistsProposed
 - `RiskFlagged` — one per Critical (C) risk entry in the register
 - `PlanningBlocked` — if BLOCK-level ambiguities prevent plan completion
+- `PhaseComplete` — emitted last, after `TestPlanDrafted` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 
