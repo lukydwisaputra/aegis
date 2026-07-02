@@ -9,6 +9,7 @@
   "packageManager": "auto-detect",
   "emailAdapter": "mailpit",
   "profile": "full",
+  "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 4 },
   "gates": { "planApproval": true, "defectTriage": true, "closure": true },

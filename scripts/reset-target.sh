@@ -34,7 +34,7 @@ PLATFORM="generic"
 ENTRY_POINTS="/,/login,/dashboard"
 ROLES="admin,user"
 TARGET_ROOT=".."
-TESTS_DIR="../tests"
+TESTS_DIR="../tests/qa"
 SOURCE_DIRS="../apps,../packages,../services,../src"
 DRY_RUN=0
 
@@ -200,6 +200,7 @@ echo "Next steps:"
 echo "  1. Update secrets/*.env.* and test-data/credentials/*.env.local for the new target."
 echo "  2. Run: pnpm qa-doctor   # interactive env check"
 echo "  3. Run: pnpm qa-health   # confirm clean state"
+echo "Reminder: targetProjectRoot must point at ONE app repo, not a parent folder of many."
 echo "  4. (Optional) git diff $CONFIG   # review the config update"
 echo
 echo "To revert config only: mv $BACKUP $CONFIG"
