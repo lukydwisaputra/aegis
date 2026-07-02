@@ -29,12 +29,13 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 4. **Backpressure test.** At least one test simulates a slow consumer to verify the system handles backpressure without data loss. Missing = passed-with-notes.
 5. **Race condition test.** At least one test sends concurrent messages and verifies no duplicates or losses. Missing = passed-with-notes.
 6. **No production targeting.** Work report confirms tests ran against `testing` or `staging` only.
+7. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate `SpecialistNoOp` run.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — missing backpressure or race condition test; emit CorrectiveInstruction
-- `requested-changes` — illegitimate NoOp, production targeted; block
+- `requested-changes` — illegitimate NoOp, production targeted, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
 
 ## Events You Emit
 

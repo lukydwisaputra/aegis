@@ -52,7 +52,9 @@ You are a read-write agent against the test database. You never touch the produc
 
 4. **Query performance.** Run `EXPLAIN ANALYZE` on any query that appears in the source code with N+1 patterns or missing index hints. Flag queries with sequential scan over >10K rows as performance issues.
 
-5. **Seed data integrity.** Run the test seed against the test database. Verify referential integrity, no duplicate primary keys, required fields populated.
+5. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/integration/db/{feature}.db.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+
+6. **Seed data integrity.** Run the test seed against the test database. Verify referential integrity, no duplicate primary keys, required fields populated.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -66,3 +68,4 @@ You are a read-write agent against the test database. You never touch the produc
 - `TestPassed` / `TestFailed` — per TC
 - `MigrationApplied` — one per migration file in the run
 - `RLSViolationDetected` — when a role can access data it should not
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

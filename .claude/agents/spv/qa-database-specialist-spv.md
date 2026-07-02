@@ -30,12 +30,13 @@ You review database test results from `qa-database-specialist`. You verify that 
 5. **EXPLAIN ANALYZE usage.** Slow-query candidates were tested with `EXPLAIN ANALYZE` and the plans are in the work report. Missing query performance verification = passed-with-notes.
 6. **No production DB.** Work report confirms the database URL used was NOT the production Supabase project (check `SUPABASE_PROJECT_REF` does not match the production project ref). Production DB access = requested-changes (Sev1).
 7. **Seed data cleanup.** Any rows inserted during migration testing were cleaned up. Work report confirms cleanup. Persistent test data in shared envs = passed-with-notes.
+8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — missing idempotency check, single-role RLS; emit CorrectiveInstruction
-- `requested-changes` — out-of-order migrations, service-role for RLS, production DB accessed; block
+- `requested-changes` — out-of-order migrations, service-role for RLS, production DB accessed, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
 
 ## Events You Emit
 

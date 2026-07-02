@@ -43,6 +43,10 @@ OR if agent crashes/forgets:
 
 When an agent is unsure how to solve a problem, it can scratch in `sandbox/` without contaminating real artifacts. Tests, prototypes, alternative implementations — all here. Pruning ensures the folder doesn't accumulate cruft.
 
+## Sandbox-first mandate (writing specialists)
+
+Exploration here is no longer optional for the writing specialists. Every Tier-2 specialist that commits a final spec under `tests/qa/**` (UI, API, database, accessibility, responsive, realtime, email, performance) must first prototype it in `sandbox/{date}-{slug}/` and emit a `SandboxExplored` event referencing the scratch artifact and the spec it produced, before the spec is written. The matching SPV rejects any committed spec with no matching `SandboxExplored` event or sandbox artifact. This does not force an artifact on a legitimate no-op run (e.g. `SpecialistNoOp`) — only on runs that actually commit a spec. Coordinate with the auto-prune rule above: an artifact backing a committed spec should not be marked complete/deleted until the SPV has had a chance to verify it against `targetSpecRef`.
+
 ## See also
 
 - `@qa/sandbox-manager` package

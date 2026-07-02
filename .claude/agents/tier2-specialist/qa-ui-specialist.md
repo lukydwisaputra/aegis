@@ -106,7 +106,9 @@ tests/
    - Name evidence: `{TC-ID}_{step}_{ISO8601-Z}.{ext}`
    - **Inspection screenshots** (taken mid-task via MCP or CLI to resolve an ambiguous selector) must be deleted immediately after the selector decision is made — they are never written to `runs/{runId}/evidence/`
 
-7. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
+7. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/specs/{url-path}/`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+
+8. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -124,3 +126,4 @@ tests/
 
 - `TestPassed` / `TestFailed` — per TC; TestFailed includes evidence paths
 - `TestIdProposalCreated` — per missing testid
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

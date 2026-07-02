@@ -33,19 +33,21 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `SpecialistNoOp`. Do not run null tests.
 
-2. **WebSocket testing.** Use Node `ws` client:
+2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/api/{feature}.realtime.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `SpecialistNoOp`.
+
+3. **WebSocket testing.** Use Node `ws` client:
    - Connection established within timeout
    - Graceful close (`closeCode 1000`)
    - Reconnect after server restart (within configured reconnect window)
    - Message ordering: send 100 sequential messages, verify ordered delivery
    - Backpressure: flood 10K messages/s, verify no silent drops
 
-3. **SSE testing.** Use Playwright `page.on('response')` + EventSource polyfill:
+4. **SSE testing.** Use Playwright `page.on('response')` + EventSource polyfill:
    - `Content-Type: text/event-stream` on SSE endpoint
    - Events delivered within 1s of server emit
    - Client receives all events after reconnect (no gaps in event IDs)
 
-4. **Race condition tests.** Two concurrent clients subscribe to the same channel; both receive the same event exactly once.
+5. **Race condition tests.** Two concurrent clients subscribe to the same channel; both receive the same event exactly once.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -57,3 +59,4 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 - `TestPassed` / `TestFailed` — per TC
 - `SpecialistNoOp` — when no real-time features detected
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

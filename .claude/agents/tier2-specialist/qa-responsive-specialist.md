@@ -51,17 +51,19 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
    - `"mobile"` → run on mobile only
    - `"tablet"` → run on tablet only
 
-2. **Configure Playwright viewport projects.** Use `playwright.config.ts` projects for the three viewport sizes. Run each TC spec under all applicable viewport projects.
+2. **Explore in the sandbox before writing any final spec.** If this TC requires a new or updated `responsive.spec.ts`, prototype the viewport assertions and breakpoint checks in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/specs/{url-path}/responsive.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
-3. **Detect breakpoint defects.** After each page render at each viewport:
+3. **Configure Playwright viewport projects.** Use `playwright.config.ts` projects for the three viewport sizes. Run each TC spec under all applicable viewport projects.
+
+4. **Detect breakpoint defects.** After each page render at each viewport:
    - Overflow: `document.body.scrollWidth > window.innerWidth` → defect
    - Hidden CTAs: primary action button not visible in viewport without scroll on mobile → defect
    - Nav breakdown: hamburger menu not functioning, or desktop nav overflowing → defect
    - Touch targets: interactive elements with `width < 44` or `height < 44` on mobile → a11y defect with `WCAG-2.2-2.5.5`
 
-4. **Auto-tag viewport on defects.** Any defect found only on mobile gets tag `viewport:mobile`. Found on all → `viewport:all`.
+5. **Auto-tag viewport on defects.** Any defect found only on mobile gets tag `viewport:mobile`. Found on all → `viewport:all`.
 
-5. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
+6. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -75,3 +77,4 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 - `TestPassed` / `TestFailed` — per TC per viewport
 - `BreakpointDefectFound` — includes viewport, element selector, defect type
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

@@ -44,17 +44,19 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 ## Process
 
-1. **Inject axe-core into each Playwright test.** Use `@axe-core/playwright`'s `checkA11y()` after page navigation. Pass `{ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } }` to scope to WCAG 2.2 AA.
+1. **Explore in the sandbox before writing any final spec.** If this run will produce a committed a11y spec, prototype selectors, ARIA role checks, and axe/Pa11y configuration in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/specs/{url-path}/a11y.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
-2. **Zero tolerance for critical and serious violations on new code.** Any `critical` or `serious` axe finding is a test failure. `moderate` findings get a 30-day fix SLA (per `thresholds.yaml`), not a block.
+2. **Inject axe-core into each Playwright test.** Use `@axe-core/playwright`'s `checkA11y()` after page navigation. Pass `{ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } }` to scope to WCAG 2.2 AA.
 
-3. **Test keyboard navigation.** For each interactive element on the page: verify `Tab` reaches it, `Enter`/`Space` activates it, `Escape` closes modals/dialogs, focus order is logical.
+3. **Zero tolerance for critical and serious violations on new code.** Any `critical` or `serious` axe finding is a test failure. `moderate` findings get a 30-day fix SLA (per `thresholds.yaml`), not a block.
 
-4. **Verify `getByRole` coverage.** If `getByRole` cannot find an element that should be interactive, that is an a11y defect (missing ARIA role) — file it.
+4. **Test keyboard navigation.** For each interactive element on the page: verify `Tab` reaches it, `Enter`/`Space` activates it, `Escape` closes modals/dialogs, focus order is logical.
 
-5. **Tag all findings.** `WCAG-2.2-{criterion}` per violation. Example: contrast failure → `WCAG-2.2-1.4.3`.
+5. **Verify `getByRole` coverage.** If `getByRole` cannot find an element that should be interactive, that is an a11y defect (missing ARIA role) — file it.
 
-6. **Evidence.** Write axe-results.json and pa11y-report.json for every TC (pass and fail) to `runs/{runId}/evidence/{TC-ID}/`. This overwrites the previous run's evidence for the same TC — only the latest result per TC is kept. Inspection screenshots taken mid-task to resolve ARIA ambiguity must be deleted immediately after use and never written to `runs/{runId}/evidence/`.
+6. **Tag all findings.** `WCAG-2.2-{criterion}` per violation. Example: contrast failure → `WCAG-2.2-1.4.3`.
+
+7. **Evidence.** Write axe-results.json and pa11y-report.json for every TC (pass and fail) to `runs/{runId}/evidence/{TC-ID}/`. This overwrites the previous run's evidence for the same TC — only the latest result per TC is kept. Inspection screenshots taken mid-task to resolve ARIA ambiguity must be deleted immediately after use and never written to `runs/{runId}/evidence/`.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -69,3 +71,4 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 - `TestPassed` / `TestFailed` — per TC; TestFailed includes violation count by impact level
 - `A11yViolationCritical` — for any critical axe finding
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

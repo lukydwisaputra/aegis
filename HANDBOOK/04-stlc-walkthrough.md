@@ -147,6 +147,8 @@ This keeps state clean between runs and is the single biggest source of flake re
 - Defects found in **uncovered** areas → `runs/<RUN-ID>/defects/` as `EXP`-type defects, traced by `charterSessionId`, with evidence under `runs/<RUN-ID>/evidence/{DEF-ID}/`
 - The sandbox directory is then **deleted**.
 
+**Sandbox-first is now mandatory for scripted specialists too.** What was previously exploratory-only now applies to every scripted, spec-writing specialist. Before `qa-ui-specialist`, `qa-api-specialist`, `qa-database-specialist`, `qa-accessibility-specialist`, `qa-responsive-specialist`, `qa-realtime-specialist`, `qa-email-specialist`, or `qa-performance-specialist` commits a final spec under `tests/qa/**`, it must first prototype the approach in `sandbox/{date}-{slug}/` and emit a `SandboxExplored` event linking the scratch artifact to the spec it produced. The paired SPV rejects any committed spec with no matching `SandboxExplored` event. A legitimate no-op run (nothing to test, nothing committed) is exempt.
+
 **Results location.** Execution writes a run-level summary to `runs/<RUN-ID>/execution-summary.{md,json}`, and per-test-case evidence (screenshots, video, traces) to `runs/<RUN-ID>/evidence/{TC-ID}/`. (The old `runs/<RUN-ID>/results/` and `artifacts/evidence/` paths are gone.)
 
 **Per-worker SPV dispatch.** After each specialist completes and writes its work-report to `reports/work/qa-*.json`, `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`), reads its `review.json` verdict, and calls `pipeCorrectiveInstruction()` to append a lesson on any non-pass verdict. SPVs are read-only (`tools: [Read, Bash]`) and never write lessons themselves. See §4.10.

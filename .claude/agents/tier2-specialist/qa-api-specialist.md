@@ -41,7 +41,9 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 4. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence.
 
-5. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
+5. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/api/{endpoint}.api.test.ts` (or `tests/contract/` for contract tests). Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+
+6. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -53,3 +55,4 @@ You write and run API tests covering REST endpoints, response schemas, error han
 ## Events You Emit
 
 - `TestPassed` / `TestFailed` — per TC; includes status code and first assertion failure if relevant
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

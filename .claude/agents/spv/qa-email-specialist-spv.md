@@ -30,12 +30,13 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 5. **Adapter matches config.** The adapter used (`mailpit` or `gmail`) matches `aegis.config.json.emailAdapter` for the current environment. Adapter mismatch = requested-changes.
 6. **Inbox purged before each test.** Each test calls `adapter.purgeAll()` in `beforeEach`. Tests that skip the purge may produce false passes from stale messages = requested-changes.
 7. **File naming.** Email tests match `*.email.spec.ts`. Incorrect extension = passed-with-notes.
+8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate no-spec run.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — incomplete triple assertion; emit CorrectiveInstruction
-- `requested-changes` — direct SMTP, real external recipients, production targeted; block
+- `requested-changes` — direct SMTP, real external recipients, production targeted, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
 
 ## Events You Emit
 

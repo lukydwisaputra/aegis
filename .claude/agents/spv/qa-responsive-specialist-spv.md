@@ -31,12 +31,13 @@ You review responsive/viewport test results from `qa-responsive-specialist`. You
 5. **Overflow detection.** At least one test per page verifies no horizontal overflow at tablet or mobile viewports (`document.documentElement.scrollWidth <= window.innerWidth`). Missing overflow check = passed-with-notes.
 6. **Hidden CTA detection.** Tests look for CTAs (buttons, links) that are rendered `display: none` or clipped at smaller viewports. Missing hidden-CTA check = passed-with-notes.
 7. **No production targeting.** Work report confirms tests ran against `testing` or `staging` only.
+8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate no-spec run.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — missing touch-target or overflow checks; emit CorrectiveInstruction
-- `requested-changes` — missing viewport for `all`-scope TC, no viewport tags on defects, production targeted; block
+- `requested-changes` — missing viewport for `all`-scope TC, no viewport tags on defects, production targeted, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
 
 ## Events You Emit
 
