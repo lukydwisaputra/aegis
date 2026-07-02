@@ -25,16 +25,18 @@ Kicks off a complete Software Testing Life Cycle run — requirements analysis, 
 | `--apps` | `all` | Comma-separated list of apps in the monorepo to include |
 
 ## Behaviour
-1. Validate flags and resolve the target environment config from `config/environments.yaml`.
-2. Allocate a new run ID: scan `runs/` for the highest existing NNN suffix and increment.
-3. Write `runs/RUN-{date}-NNN/run.json` with status `initializing` and emit `run.created`.
-4. Acquire `runs/RUN-{date}-NNN/.lock` to prevent duplicate orchestration.
-5. Dispatch **qa-orchestrator** as a sub-agent, passing resolved flags and run ID.
-6. Orchestrator sequences STLC phases; within execution phase it fans out to specialist agents capped at `--max-parallel`.
-7. Each phase emits completion events to `runs/RUN-{date}-NNN/events.jsonl`.
-8. After closure, release lock and emit `run.completed` with summary metrics.
+1. **Preflight (hard gate).** Before allocating a run: (a) resolve `targetProjectRoot`; abort with `PreflightFailed` if it resolves to a multi-project parent — heuristic: more than one nested `playwright.config.*` under it, OR no `package.json` at the resolved root. (b) If `aegis.config.json#preCycleHealthCheck` is true, run `/qa-health`; abort with `PreflightFailed` if it does not pass. Do not create a run directory when preflight fails.
+2. Validate flags and resolve the target environment config from `config/environments.yaml`.
+3. Allocate a new run ID: scan `runs/` for the highest existing NNN suffix and increment.
+4. Write `runs/RUN-{date}-NNN/run.json` with status `initializing` and emit `run.created`.
+5. Acquire `runs/RUN-{date}-NNN/.lock` to prevent duplicate orchestration.
+6. Dispatch **qa-orchestrator** as a sub-agent, passing resolved flags and run ID.
+7. Orchestrator sequences STLC phases; within execution phase it fans out to specialist agents capped at `--max-parallel`.
+8. Each phase emits completion events to `runs/RUN-{date}-NNN/events.jsonl`.
+9. After closure, release lock and emit `run.completed` with summary metrics.
 
 ## Events emitted
+- `PreflightFailed` — target resolves to a multi-project parent, or the pre-cycle health check failed; no run directory is created
 - `run.created` — new run directory initialized
 - `run.phase.started` / `run.phase.completed` — per STLC phase
 - `run.completed` — full cycle finished with pass/fail counts and cost

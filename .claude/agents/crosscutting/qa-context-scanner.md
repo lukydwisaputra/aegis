@@ -42,6 +42,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
     - `exportedFunctions[]` — notable exported functions from `lib/`, `utils/`, domain modules (name + file)
     - `existingTestFiles[]` — already-present test files (path + type)
     Names and paths only — never file contents. This is the source-of-truth that `qa-requirements-analyst` and `qa-test-designer` cross-reference to flag requirements with no matching implementation.
+17. **Single-target detection.** Count nested `playwright.config.*` files under `targetProjectRoot` and check for a `package.json` at the resolved root. If more than one nested `playwright.config.*` is found, OR no `package.json` exists at the root, the target is a multi-project parent, not a single app repo. Record the result as `targetIsSingleProject: boolean`. This is consumed by the orchestrator's preflight assertion (Process step 1) before any phase is dispatched.
 
 ## Outputs
 
@@ -50,6 +51,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 ```jsonc
 {
   "scannedAt": "ISO-8601",
+  "targetIsSingleProject": true,
   "packageManager": "pnpm",
   "framework": { "name": "vite-react", "version": "5.x", "appRouter": null },
   "language": { "typescript": true, "tsxFiles": 142, "jsxFiles": 38, "hasMixedJsxTsx": true },
@@ -105,3 +107,4 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 - `target.profiled` — always, includes `scannedAt`, `platform`, `appCount`
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
 - `DiscoveryStepComplete` — `{ step: "scan", artifact: "target-profile.json" }`; the orchestrator collects this as one half of the Discovery two-event barrier (the other half is `qa-web-explorer`'s `{ step: "explore" }`)
+- `PreflightFailed` — emitted (in addition to `target.profiled`) when `targetIsSingleProject` resolves to `false`; the orchestrator halts before dispatching any phase
