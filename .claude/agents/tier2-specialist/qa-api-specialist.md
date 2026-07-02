@@ -33,15 +33,15 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 ## Process
 
-1. **Use Playwright APIRequestContext for REST.** Create request context per test with `request.newContext()`. Set auth header from the secrets ref — never hardcode credentials.
+1. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/api/{endpoint}.api.test.ts` (or `tests/contract/` for contract tests). Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
-2. **Test all response dimensions:** status code, headers (Content-Type, Cache-Control), response body schema (JSON Schema or Zod assertion), error messages for 4xx/5xx.
+2. **Use Playwright APIRequestContext for REST.** Create request context per test with `request.newContext()`. Set auth header from the secrets ref — never hardcode credentials.
 
-3. **Apply EP to API inputs.** For each endpoint parameter: valid inputs, boundary values, invalid types, missing required fields, extra unknown fields.
+3. **Test all response dimensions:** status code, headers (Content-Type, Cache-Control), response body schema (JSON Schema or Zod assertion), error messages for 4xx/5xx.
 
-4. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence.
+4. **Apply EP to API inputs.** For each endpoint parameter: valid inputs, boundary values, invalid types, missing required fields, extra unknown fields.
 
-5. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/api/{endpoint}.api.test.ts` (or `tests/contract/` for contract tests). Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+5. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence.
 
 6. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
 

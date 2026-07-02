@@ -51,7 +51,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 6. **Preserve baseline.** Preserve baseline results in `runs/{runId}/evidence/{TC-ID}/baseline/` (one copy per run, never overwritten) so the SPV can run a baseline delta comparison. The overwrite-on-rerun rule applies only to the latest results dir, not the baseline.
 
-7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()`.
+7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()` once the spec is committed. This cleanup is safe because the durable proof of exploration is the `SandboxExplored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
 
 ## Quality Standards (SPV rejects if violated)
 
