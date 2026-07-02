@@ -11,7 +11,7 @@ const config = {
       tsconfig: {
         module: 'CommonJS',
         moduleResolution: 'node',
-        ignoreDeprecations: '6.0',
+        ignoreDeprecations: '5.0',
         baseUrl: '.',
         paths: { '@qa/*': ['../packages/@qa/*/src/index'] },
         types: ['jest', 'node'],
