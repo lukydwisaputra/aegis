@@ -8,12 +8,14 @@ describe('@qa/path-guard — tests/qa developer-territory boundary', () => {
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-pg-boundary-test-'));
-    // Write a minimal aegis.config.json with testsDir pointing to tests/qa
+    // Write a minimal aegis.config.json with testsDir pointing to the
+    // nested target's tests/qa directory (testsDir resolves relative to
+    // aegisRoot, i.e. `root`).
     fs.writeFileSync(
       path.join(root, 'aegis.config.json'),
       JSON.stringify({
-        targetProjectRoot: '..',
-        testsDir: '../target/tests/qa',
+        targetProjectRoot: './target',
+        testsDir: './target/tests/qa',
         environments: {
           development: {},
           testing: {},
@@ -22,36 +24,31 @@ describe('@qa/path-guard — tests/qa developer-territory boundary', () => {
         },
       })
     );
-    // Create the QA namespace directory
-    fs.mkdirSync(path.join(root, '..', 'target', 'tests', 'qa', 'specs', 'auth'), { recursive: true });
-    // Create developer tests outside the QA namespace
-    fs.mkdirSync(path.join(root, '..', 'target', 'tests', 'unit'), { recursive: true });
-    fs.mkdirSync(path.join(root, '..', 'target', 'tests', 'e2e'), { recursive: true });
+    // Create the QA namespace directory, nested inside the unique root
+    fs.mkdirSync(path.join(root, 'target', 'tests', 'qa', 'specs', 'auth'), { recursive: true });
+    // Create developer tests outside the QA namespace, also nested inside root
+    fs.mkdirSync(path.join(root, 'target', 'tests', 'unit'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'target', 'tests', 'e2e'), { recursive: true });
   });
 
   afterEach(() => {
-    // Clean up the temp root and its parent directory
-    try {
-      const parent = path.dirname(root);
-      fs.rmSync(parent, { recursive: true, force: true });
-    } catch (e) {
-      // Silently ignore cleanup failures to avoid masking test failures
-    }
+    // Clean up only the unique temp root — never its parent (os.tmpdir()).
+    fs.rmSync(root, { recursive: true, force: true });
   });
 
-  describe('when testsDir is ../target/tests/qa', () => {
+  describe('when testsDir is ./target/tests/qa', () => {
     it('allows writes to files inside tests/qa namespace', () => {
-      const qaPath = path.join(root, '..', 'target', 'tests', 'qa', 'specs', 'auth', 'login.spec.ts');
+      const qaPath = path.join(root, 'target', 'tests', 'qa', 'specs', 'auth', 'login.spec.ts');
       expect(isWritable(qaPath, root)).toBe(true);
     });
 
     it('blocks writes to files in tests/unit (outside tests/qa)', () => {
-      const unitPath = path.join(root, '..', 'target', 'tests', 'unit', 'button.test.ts');
+      const unitPath = path.join(root, 'target', 'tests', 'unit', 'button.test.ts');
       expect(isWritable(unitPath, root)).toBe(false);
     });
 
     it('throws PathGuardError when attempting to write to tests/e2e (outside tests/qa)', () => {
-      const e2ePath = path.join(root, '..', 'target', 'tests', 'e2e', 'legacy.spec.ts');
+      const e2ePath = path.join(root, 'target', 'tests', 'e2e', 'legacy.spec.ts');
       expect(() => assertWritable(e2ePath, root)).toThrow(PathGuardError);
     });
   });
