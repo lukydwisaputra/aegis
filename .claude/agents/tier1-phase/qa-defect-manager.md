@@ -55,25 +55,27 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Outputs
 
-- `runs/{runId}/defects/{DEF-ID}.{md,json}` — one file pair per defect (Zod-validated)
+- `runs/{runId}/defects/{DEF-ID}.{md,json}` — one file pair per defect (Zod-validated); each carries an `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block
 - `runs/{runId}/rtm.json` — updated via `rtm.append-link` events (defectId appended to row)
 - `runs/{runId}/events.jsonl` — DefectOpened, DefectDuplicate, DefectLinked events
 - `runs/{runId}/reports/work/qa-defect-manager.json` — work report for SPV
 
 ## Process
 
-1. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load any pre-existing defect files in `runs/{runId}/defects/`** — these are EXP-type exploratory defects promoted from the sandbox by qa-exploratory-specialist before scripted tests ran. Triage them with the same variation-testing and severity/priority discipline as scripted failures. Do not re-open them; update their `status`, add `investigationLog` entries, and ensure they are linked in the RTM.
+1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `DefectOriginConfirmed { confirmed: false }`. Only development-origin failures proceed to variation testing.
 
-2. **De-duplicate failures.** Before opening a new defect, check all existing defects in this run and the previous run's open defects. If the failure matches an existing open defect: link the TC to the existing defect and update its `lastSeen`; do not open a duplicate. Emit `DefectDuplicate`.
+2. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load any pre-existing defect files in `runs/{runId}/defects/`** — these are EXP-type exploratory defects promoted from the sandbox by qa-exploratory-specialist before scripted tests ran. Triage them with the same variation-testing and severity/priority discipline as scripted failures. Do not re-open them; update their `status`, add `investigationLog` entries, and ensure they are linked in the RTM.
 
-3. **Run variation testing** on each unique failure. Three axes (Kaner ch-04 protocol):
+3. **De-duplicate failures.** Before opening a new defect, check all existing defects in this run and the previous run's open defects. If the failure matches an existing open defect: link the TC to the existing defect and update its `lastSeen`; do not open a duplicate. Emit `DefectDuplicate`.
+
+4. **Run variation testing** on each unique failure. Three axes (Kaner ch-04 protocol):
    - **Behaviour variation**: What happens with slightly different inputs? (Plus-aliased email fails — does underscore also fail? Does space fail? Is it the `+` encoding or the email validation regex?)
    - **State variation**: Does the failure occur in all states or specific ones? (Does the failure happen on first login only, or also on re-login? On expired session too?)
    - **Environment variation**: Does the failure reproduce on all environments? All browsers? All roles? All viewports?
    
    Document all variations you tested in the defect's `investigationLog`. This shapes the severity score — a defect affecting only one browser has a different impact than one affecting all three.
 
-4. **Write the defect report.** Apply Kaner ch-04 standards:
+5. **Write the defect report.** Apply Kaner ch-04 standards:
    - **Title rule**: ≤65 characters. Action + component + outcome. Example: "SSO callback 500 when email contains '+'" NOT "Bug in SSO."
    - **Summary**: ≤300 chars. What broke, when, in what context.
    - **Severity**: Technical impact only. You set this. Codes: Sev1 (Blocker) / Sev2 (Critical) / Sev3 (Major) / Sev4 (Minor) / Sev5 (Trivial). Store as `{ code: "Sev2", name: "Critical" }`.
@@ -84,16 +86,17 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
    - **Root cause**: If known, document. If investigating: set `status: "investigating"`, populate `investigationLog`.
    - **Compliance tags**: Inherit from the parent test case. Add any additional tags discovered during variation testing.
 
-5. **Apply abductive inference** (Kaner ch-02 tester mindset). You do not know the root cause with certainty — you infer it from evidence. When the inference is uncertain, document the uncertainty explicitly: "Most likely: the email validation regex does not accept `+` as a valid character. Alternative: the OAuth callback URL-decodes `+` as a space before validation." Surface both hypotheses in `rootCause.summary`.
+6. **Apply abductive inference** (Kaner ch-02 tester mindset). You do not know the root cause with certainty — you infer it from evidence. When the inference is uncertain, document the uncertainty explicitly: "Most likely: the email validation regex does not accept `+` as a valid character. Alternative: the OAuth callback URL-decodes `+` as a space before validation." Surface both hypotheses in `rootCause.summary`.
 
-6. **Emit `rtm.append-link` events.** For every defect opened, emit an event that the RTM writer processes to append the defect ID to the relevant requirement rows. For scripted defects, the event carries `parentTCId`. **For EXP-type defects (from exploratory, no parent TC), the event carries `charterSessionId` instead** — the RTM row's `charterSessionId` field records which exploratory charter session surfaced it, since there is no test case to link.
+7. **Emit `rtm.append-link` events.** For every defect opened, emit an event that the RTM writer processes to append the defect ID to the relevant requirement rows. For scripted defects, the event carries `parentTCId`. **For EXP-type defects (from exploratory, no parent TC), the event carries `charterSessionId` instead** — the RTM row's `charterSessionId` field records which exploratory charter session surfaced it, since there is no test case to link.
 
-7. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
+8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
-8. **Emit `PhaseComplete`.** After the work report and `DefectManagementComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
+9. **Emit `PhaseComplete`.** After the work report and `DefectManagementComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
 
 ## Quality Standards (SPV rejects if violated)
 
+- Defect opened without a passing `originConfirmation` (test-setup / env / seed-data not ruled out, or not reproduced on clean state)
 - Defect title exceeds 65 characters
 - Severity and priority stored without both code and name fields
 - Variation testing section missing from `investigationLog` for any Sev1 or Sev2 defect
@@ -105,6 +108,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Events You Emit
 
+- `DefectOriginConfirmed` — one per candidate; `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
 - `DefectOpened` — one per new defect; includes id, severity, priority, tcId
 - `DefectDuplicate` — links new TC failure to existing defect
 - `DefectLinked` — one per rtm.append-link; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
