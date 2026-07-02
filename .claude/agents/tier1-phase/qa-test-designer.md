@@ -31,6 +31,7 @@ You translate approved requirements and the test plan into concrete, executable 
 ## Outputs
 
 - `runs/{runId}/cases/{TC-ID}.{md,json}` — one file pair per test case (Zod-validated)
+- `runs/{runId}/scenarios/{SCN-ID}.{md,json}` — one file per scenario, grouping its TCs (`scenarioId`, `storyId`, `title`, `sharedSeed{}`, `testCaseIds[]`, ordered)
 - `runs/{runId}/rtm.{md,json}` — Requirement Traceability Matrix
 - `runs/{runId}/events.jsonl` — TestCaseDrafted, ManualFlagRaised events
 - `runs/{runId}/reports/work/qa-test-designer.json` — work report for SPV
@@ -81,7 +82,13 @@ You translate approved requirements and the test plan into concrete, executable 
    Only set `requiresManual: true` if NONE of these apply AND the test has material value. The goal is that every test case is executable by automation.
 
 5. **Write each test case** using the canonical schema:
-   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], traceability{}, compliance[], author, createdAt
+   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], traceability{}, compliance[], author, createdAt, scenarioId, gherkin{given[], when[], then[]} (conditional — see below)
+
+   - Add `scenarioId` to the canonical schema; every TC belongs to exactly one scenario, every scenario to exactly one `storyId` (User Story → Scenario → Test Case).
+   - **Gherkin for flows:** when `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`, the TC MUST carry a `gherkin` block (`given[]`, `when[]`, `then[]`). Technique-derived cases (BVA/EP/decision-table) keep the `steps[]` format — do NOT force Gherkin on them.
+   - **Scenario-owned seed:** declare shared seed once at `scenario.sharedSeed{}` (e.g. `{ factory: "user", role: "admin", reuseAcross: ["TC-…","TC-…"] }`); member TCs reference it instead of each re-declaring `testData`.
+   - **Coverage per scenario:** each scenario enumerates acceptance cases, rejection (negative) cases, and edge cases where applicable.
+   - **Order:** each TC carries `order`; the scenario file lists TCs in a runnable sequence so seed data can be reused across flows.
 
    **testType vs testTechnique:**
    - `testType` — required; determines which primary specialist the executor routes this TC to (e.g. `Security`, `Functional`, `Database`)
@@ -91,7 +98,7 @@ You translate approved requirements and the test plan into concrete, executable 
 
    **Ground steps in source code.** Prefer test steps that reference actual source routes/components/handlers from `target-profile.json#sourceInventory` over paraphrased documentation. **Mark which factory each test needs in `testData`** (e.g. `testData: { factory: "user", role: "admin" }`) so qa-ui-specialist knows which factory's `create()` to call in `beforeEach` for seed data.
 
-6. **Build the RTM.** One row per requirement. Columns: requirementId, description, source, priority, storyId, designDoc, testCaseIds[], testStatus, defectIds[], verificationMethod, status, owner, complianceTags[], viewportScope, manualReason (for manual TCs).
+6. **Build the RTM.** One row per requirement. Columns: requirementId, description, source, priority, storyId, scenarioId, designDoc, testCaseIds[], testStatus, defectIds[], verificationMethod, status, owner, complianceTags[], viewportScope, manualReason (for manual TCs).
 
 7. **Write the work report.** Technique-per-requirement summary, manual-flag count + justifications (with the automation alternatives evaluated), locator-proposal count, lessons applied.
 
@@ -107,6 +114,10 @@ You translate approved requirements and the test plan into concrete, executable 
 - `requiresManual: true` without evidence in `automationBlocker` that the mock / simulation / visual-regression alternatives were evaluated and rejected (automation-first rule)
 - Test case with `compliance: []` when the parent requirement has compliance tags
 - Work report does not cite lessons applied
+- A TC without a `scenarioId`, or a scenario without a `storyId` (hierarchy incomplete)
+- A flow TC (`testType` Functional/E2E + `testTechnique` Flow) missing its `gherkin` block
+- A scenario missing acceptance, rejection, or edge cases where the requirement admits them
+- A `scenario.sharedSeed` referenced by a TC that redefines conflicting `testData` (seed integrity)
 
 ## Events You Emit
 
