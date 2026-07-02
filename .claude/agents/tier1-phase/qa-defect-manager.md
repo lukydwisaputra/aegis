@@ -62,7 +62,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Process
 
-1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `DefectOriginConfirmed { confirmed: false }`. Only development-origin failures proceed to variation testing.
+1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `DefectOriginConfirmed { confirmed: false }`. Only development-origin failures proceed to variation testing. **EXP-type defects promoted from exploratory sessions are EXEMPT from the fresh-seed/fresh-auth clean-state reproduction requirement** — their live-session promotion already implies reproduction — but you must still rule out obvious test-side causes (e.g. the observation wasn't caused by the explorer's own setup) and record that reasoning in `originConfirmation`, with `reproducedOnClean` set appropriately (e.g. a note that clean-state repro is N/A for session-based exploratory findings).
 
 2. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load any pre-existing defect files in `runs/{runId}/defects/`** — these are EXP-type exploratory defects promoted from the sandbox by qa-exploratory-specialist before scripted tests ran. Triage them with the same variation-testing and severity/priority discipline as scripted failures. Do not re-open them; update their `status`, add `investigationLog` entries, and ensure they are linked in the RTM.
 
@@ -96,7 +96,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Quality Standards (SPV rejects if violated)
 
-- Defect opened without a passing `originConfirmation` (test-setup / env / seed-data not ruled out, or not reproduced on clean state)
+- Defect opened without a passing `originConfirmation` (test-setup/env/seed-data not ruled out; for scripted defects, also not reproduced on clean state)
 - Defect title exceeds 65 characters
 - Severity and priority stored without both code and name fields
 - Variation testing section missing from `investigationLog` for any Sev1 or Sev2 defect

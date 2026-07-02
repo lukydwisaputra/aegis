@@ -34,13 +34,13 @@ You review defect reports produced by `qa-defect-manager`. You apply the Kaner c
 8. **Security defect tags.** Defects with `defectType: Logic` covering auth/input-handling/crypto also carry `CWE-*` and `WSTG-v42-*` tags in the `compliance` array.
 9. **Evidence attached.** Every defect references at least one evidence file in `evidence[]`. Defect with no evidence = requested-changes. Evidence paths must point to the permanent per-defect dir `runs/{runId}/evidence/{DEF-ID}/` — paths pointing to a per-TC dir (`runs/{runId}/evidence/{TC-ID}/`) mean the defect manager did not copy the evidence to its permanent location (it would be overwritten on the next run) = requested-changes.
 10. **Exploratory (EXP-type) defects triaged.** Pre-existing EXP-type defects (promoted from the sandbox by qa-exploratory-specialist before scripted tests) must have been triaged — given severity/priority, variation testing, and an RTM link via `charterSessionId`. An EXP-type defect left in its raw promoted state (no severity, no triage) = requested-changes.
-11. **Development-origin confirmed.** Every defect carries a passing `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` — test-setup/script error, environment issue, and seed/test-data error must all be ruled out, and the failure must be reproduced on a clean state (fresh seed + fresh auth) before the defect was opened. A defect opened without a passing `originConfirmation` (test-setup / env / seed-data not ruled out, or not reproduced on clean state) = requested-changes.
+11. **Development-origin confirmed.** Every defect carries a passing `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` — test-setup/script error, environment issue, and seed/test-data error must all be ruled out, and the failure must be reproduced on a clean state (fresh seed + fresh auth) before the defect was opened. **EXP-type defects are EXEMPT from the clean-state reproduction part** — their live-session promotion already implies reproduction — but `ruledOut` must still show obvious test-side causes were excluded (e.g. the observation wasn't caused by the explorer's own setup). A defect opened without a passing `originConfirmation` (test-setup/env/seed-data not ruled out; for scripted defects, also not reproduced on clean state) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — thin abductive inference or missing variation axes; emit CorrectiveInstruction
-- `requested-changes` — title >65 chars, missing evidence, no RTM append-link, single-field severity, missing or failing `originConfirmation`; block
+- `requested-changes` — title >65 chars, missing evidence, no RTM append-link, single-field severity, missing or failing `originConfirmation` (for EXP-type, failing means test-side causes not ruled out — clean-state reproduction is not required); block
 
 ## Events You Emit
 
