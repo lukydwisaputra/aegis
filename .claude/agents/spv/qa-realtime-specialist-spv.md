@@ -30,12 +30,13 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 5. **Race condition test.** At least one test sends concurrent messages and verifies no duplicates or losses. Missing = passed-with-notes.
 6. **No production targeting.** Work report confirms tests ran against `testing` or `staging` only.
 7. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate `SpecialistNoOp` run.
+8. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — missing backpressure or race condition test; emit CorrectiveInstruction
-- `requested-changes` — illegitimate NoOp, production targeted, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
+- `requested-changes` — illegitimate NoOp, production targeted, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
 
 ## Events You Emit
 

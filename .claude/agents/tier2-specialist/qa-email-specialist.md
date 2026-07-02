@@ -60,6 +60,7 @@ You are forbidden against the production environment.
 - Test run against production env
 - Email content not asserted (delivery-only tests are insufficient)
 - `adapter.purgeAll()` not called before each test (stale messages cause false passes)
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 

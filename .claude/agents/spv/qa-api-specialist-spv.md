@@ -31,12 +31,13 @@ You review API test files and work reports from `qa-api-specialist`. You verify 
 5. **Sanitised evidence.** HAR files in `evidence/` do not contain `Authorization` or `Cookie` headers. Work report confirms sanitisation.
 6. **File naming.** API test files match `*.api.test.ts` pattern. Incorrect extension = passed-with-notes.
 7. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes.
+8. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — missing contract tests, only happy-path; emit CorrectiveInstruction
-- `requested-changes` — hardcoded credentials, no assertion on status/schema, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
+- `requested-changes` — hardcoded credentials, no assertion on status/schema, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
 
 ## Events You Emit
 

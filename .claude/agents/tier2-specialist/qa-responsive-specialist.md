@@ -72,6 +72,8 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 - Screenshots not captured at each tested viewport
 - Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/{viewport}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
 - Inspection screenshot not deleted after the assertion is written — must be removed immediately; never written to `runs/{runId}/evidence/`
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
+- Spec uses `waitForTimeout` / hard sleeps, or non-web-first assertions (use Playwright web-first assertions — `expect(locator).toBeVisible()` etc. — which auto-wait)
 
 ## Events You Emit
 

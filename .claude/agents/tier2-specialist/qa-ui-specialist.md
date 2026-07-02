@@ -121,6 +121,8 @@ tests/
 - File or directory created with no real content (stub bytes, zero-byte files, placeholder folders) — only create a file or folder when it has meaningful content to write into it
 - Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
 - Inspection screenshot not deleted after use — must be removed immediately once the selector decision is made; never written to `runs/{runId}/evidence/`
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
+- Spec uses `waitForTimeout` / hard sleeps, or non-web-first assertions (use Playwright web-first assertions — `expect(locator).toBeVisible()` etc. — which auto-wait)
 
 ## Events You Emit
 

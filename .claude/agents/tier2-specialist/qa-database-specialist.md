@@ -62,6 +62,7 @@ You are a read-write agent against the test database. You never touch the produc
 - Migration applied without verifying rollback idempotency
 - RLS test uses service role key instead of forged role JWT (service role bypasses RLS)
 - DATABASE_URL or credentials appear in any test log or result file
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 

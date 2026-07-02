@@ -51,6 +51,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 - Response body not asserted (status code alone is insufficient)
 - HAR with unsanitised headers in evidence
 - Contract test asserts behaviour rather than schema
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 

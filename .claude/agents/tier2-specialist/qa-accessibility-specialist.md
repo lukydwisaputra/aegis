@@ -66,6 +66,7 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 - Finding lacks `WCAG-2.2-{criterion}` tag
 - Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
 - Inspection screenshot taken to resolve an ARIA ambiguity not deleted after use — must be removed immediately; never written to `runs/{runId}/evidence/`
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 

@@ -59,6 +59,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 - Thresholds not loaded from `thresholds.yaml` (hardcoded thresholds not allowed)
 - p95 measured but p99 not measured when TC scope includes both
 - Lighthouse run skipped for any E2E-facing TC
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 

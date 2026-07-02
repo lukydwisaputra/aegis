@@ -39,12 +39,14 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 13. **Spec suffix matches test type.** File suffix must match the TC's declared `testType`: multi-page E2E journeys → `*.e2e.ts`; single-page/component UI → `ui.spec.ts`; accessibility → `a11y.spec.ts`; responsive → `responsive.spec.ts`. A file whose suffix does not match its test type (e.g. a unit-style test named `*.e2e.ts`, or a functional UI test in a bare `.e2e.ts`) = requested-changes.
 14. **Seed data via `beforeEach`.** For any TC with non-empty `preconditions` or `testData`, the spec must implement a `test.beforeEach` that calls the relevant factory's `create()`, and a `test.afterEach` calling `cleanup()`. Missing `beforeEach` factory call when preconditions/testData exist = requested-changes (test relies on pre-existing DB state).
 15. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes.
+16. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
+17. **Flaky discipline.** Spec does not use `waitForTimeout` or hard sleeps. Assertions are Playwright web-first assertions (`expect(locator).toBeVisible()` etc., which auto-wait) rather than non-web-first assertions. Any `waitForTimeout` / hard sleep, or non-web-first assertion = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — CSS selector without explanation, missing HAR confirmation; emit CorrectiveInstruction
-- `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `runs/{runId}/evidence/`, inspection screenshots not deleted after use, missing `afterEach` artifact capture, spec suffix mismatched to test type, missing `beforeEach` factory seed when preconditions/testData exist, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule); block
+- `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `runs/{runId}/evidence/`, inspection screenshots not deleted after use, missing `afterEach` artifact capture, spec suffix mismatched to test type, missing `beforeEach` factory seed when preconditions/testData exist, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used; block
 
 ## Events You Emit
 

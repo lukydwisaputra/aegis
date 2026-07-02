@@ -54,6 +54,7 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 - Real-time tests skipped without emitting `SpecialistNoOp` when feature is absent
 - Message ordering not asserted (delivery alone is insufficient)
 - Tests run against production environment
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 
