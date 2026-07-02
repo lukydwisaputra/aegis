@@ -30,11 +30,11 @@ You do not run tests. You prepare the runway.
 
 ## Outputs
 
-- `tests/fixtures/auth.fixture.ts` — per-role auth fixture (adminPage, managerPage, userPage, anonPage) with storageState + teardown
-- `tests/global-setup.ts` — login + storageState save per role; halts suite on login failure
-- `tests/global-teardown.ts` — storageState cleanup; server-side session termination
-- `playwright.config.ts` — browser matrix, project config, reporter, retries, timeouts
-- `tests/factories/` — Faker.js factories for detected entity types
+- `tests/qa/fixtures/auth.fixture.ts` — per-role auth fixture (adminPage, managerPage, userPage, anonPage) with storageState + teardown
+- `tests/qa/global-setup.ts` — login + storageState save per role; halts suite on login failure
+- `tests/qa/global-teardown.ts` — storageState cleanup; server-side session termination
+- `playwright.config.ts` — browser matrix, project config, reporter, retries, timeouts (lives at the target root, not under `tests/`; its `testDir` points at `tests/qa`)
+- `tests/qa/factories/` — Faker.js factories for detected entity types
 - `runs/{runId}/env-setup-report.{md,json}` — what was configured, what failed, health status
 - `runs/{runId}/events.jsonl` — EnvReady or EnvSetupFailed events
 - `runs/{runId}/reports/work/qa-environment-engineer.json` — work report for SPV
@@ -55,17 +55,21 @@ You do not run tests. You prepare the runway.
    - `screenshot: 'always'` — capture a screenshot for every test (pass AND fail), not only on failure. Without this, no per-test screenshots are generated (the failure observed in real runs).
    - `video: 'retain-on-failure'` — record video, retained on failures.
    - `trace: 'on-first-retry'` — capture a Playwright trace on the first retry.
+   - `testDir`: **must** resolve to `tests/qa` (the QA namespace). This is what the VSCode Playwright Test Explorer scans — without it, QA specs are invisible in the IDE sidebar.
+   - `testMatch`: `'**/*.spec.ts'` so specs under `tests/qa/**` are discovered.
+   - Add a named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` to the `projects` array so QA specs appear as their own group in the Test Explorer alongside any app-owned tests.
+   - After writing the config, emit `TestConfigWritten { testDir, projectName }`.
 
 3. **Generate per-role auth fixture.** For each role in `aegis.config.json.target.supabase.rolesToTest[]` (or detected roles from target-profile):
    - The fixture uses `storageState` (Greffier ch-07 canonical pattern)
-   - `global-setup.ts` runs login once per role, saves state to `tests/state/{role}.json`
+   - `global-setup.ts` runs login once per role, saves state to `tests/qa/state/{role}.json`
    - The fixture extends `base.extend<Fixtures>()` with named page vars per role
    - Teardown: explicit logout call + `clearCookies()` + `page.close()` + `ctx.close()`
    - If login fails for any role → `process.exit(1)` before any test runs (halt-suite-on-login-fail rule)
    - Credentials sourced from `aegis/test-data/credentials/{role}.env.local` (never hardcoded, never logged)
 
 4. **Generate test data factories.** For each entity type inferred from requirements + target schema (user, order, document, etc.):
-   - Create `tests/factories/{entity}.factory.ts`
+   - Create `tests/qa/factories/{entity}.factory.ts`
    - Use `faker.seed(hashStr(testCaseId))` for deterministic reproducibility
    - Implement `create()` + `cleanup()` pair — cleanup called in `afterEach`
    - Prefix: `qa_`, `test_`, `e2e_`; email plus-aliases: `base+qa@domain.com`
@@ -93,26 +97,30 @@ You do not run tests. You prepare the runway.
 - Test data factory missing cleanup pair
 - Any credential value written to logs, events.jsonl, or the work report
 - Playwright configured with a single browser only (all three required unless explicitly overridden)
-- `storageState` path not gitignored (`tests/state/*.json` must be gitignored)
+- `storageState` path not gitignored (`tests/qa/state/*.json` must be gitignored)
 - `playwright.config.ts` sets `retries: 0` on CI (minimum 2 retries required on CI for flake tolerance before quarantine)
 - `playwright-cli install --skills` skipped — qa-web-explorer and qa-exploratory-specialist cannot function without it
 - Smoke-ping skipped or silenced
 - Empty file or directory created (any file or folder with no real content, including stub fixture files with fake bytes, placeholder directories, and zero-byte assets — if a file has no meaningful content yet, do not create it)
-- Temporary files created inside `runs/` (temp files belong in `tests/fixtures/files/` and must be deleted by the test that uses them via a `finally` block, not left on disk)
+- Temporary files created inside `runs/` (temp files belong in `tests/qa/fixtures/files/` and must be deleted by the test that uses them via a `finally` block, not left on disk)
 - `playwright.config.ts` does not set `outputDir` explicitly — it must be set to the canonical `aegis/runs/{runId}/playwright-output` path; omitting it causes Playwright to use its default `test-results/` directory inside the target project, creating a duplicate run artifact location
 - `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) — all Playwright output must go to `aegis/runs/{runId}/playwright-output`, never inside the target's test directory tree
 - `playwright.config.ts` does not explicitly set `screenshot`, `video`, and `trace` — leaving them to Playwright defaults means screenshots/videos are not generated for every test (the artifact-generation failure observed in real runs)
+- `playwright.config.ts` `testDir` does not resolve to `tests/qa` (specs would be undiscoverable in the VSCode Test Explorer)
+- No named QA Playwright project registered (QA specs not grouped in the Test Explorer)
+- `TestConfigWritten` not emitted after the config is written
 
 ## Events You Emit
 
 - `EnvReady` — all checks passed; includes rolesToTest, browserProjects, factoriesCreated
 - `EnvSetupFailed` — specific failure reason; blocks execution phase
 - `CredentialsMissing` — one per missing role credential file
+- `TestConfigWritten` — carries `testDir` (must be `tests/qa`) and the QA project name
 - `PhaseComplete` — emitted last, after `EnvReady`/`EnvSetupFailed` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 
-Claims `task:env-setup` via taskmaster-client. Writes to `tests/fixtures/`, `tests/factories/`, `tests/state/` (gitignored), `playwright.config.ts`. These are target-side test paths — the write allowlist in path-guard must list them. Never writes to `apps/`, `packages/`, or `services/` (target source code).
+Claims `task:env-setup` via taskmaster-client. Writes to `tests/qa/fixtures/`, `tests/qa/factories/`, `tests/qa/state/` (gitignored), `playwright.config.ts`. These are target-side test paths — the write allowlist in path-guard must list them. Never writes to `apps/`, `packages/`, or `services/` (target source code).
 
 ## Knowledge Refs
 
@@ -123,4 +131,4 @@ Claims `task:env-setup` via taskmaster-client. Writes to `tests/fixtures/`, `tes
 
 ## Worked Example
 
-For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. Smoke-ping to `https://dev.<target-project>.local/` returned 200. EnvReady emitted with all 4 roles active.
+For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/qa/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. `playwright.config.ts` at the target root set `testDir: 'tests/qa'` with the `qa-e2e` project registered; `TestConfigWritten` emitted. Smoke-ping to `https://dev.<target-project>.local/` returned 200. EnvReady emitted with all 4 roles active.
