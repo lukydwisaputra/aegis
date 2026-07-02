@@ -45,7 +45,7 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 
 - `passed` — all checks pass
 - `passed-with-notes` — browser matrix incomplete, minor teardown order issue; emit CorrectiveInstruction
-- `requested-changes` — auth fixture uses raw credentials, missing factory cleanup, no halt-on-fail, missing or incorrect `outputDir`, missing `screenshot`/`video`/`trace` config, `testDir` not resolving to `tests/qa`, missing `qa-e2e` project, missing `TestConfigWritten`, or any output written outside `tests/qa/`; block
+- `requested-changes` — auth fixture uses raw credentials, missing factory cleanup, no halt-on-fail, missing or incorrect `outputDir`, missing `screenshot`/`video`/`trace` config, `testDir` not resolving to `tests/qa`, missing `qa-e2e` project, missing `TestConfigWritten`, or any fixture/factory/state output written outside `tests/qa/`; block
 
 ## Events You Emit
 

@@ -55,9 +55,8 @@ You do not run tests. You prepare the runway.
    - `screenshot: 'always'` — capture a screenshot for every test (pass AND fail), not only on failure. Without this, no per-test screenshots are generated (the failure observed in real runs).
    - `video: 'retain-on-failure'` — record video, retained on failures.
    - `trace: 'on-first-retry'` — capture a Playwright trace on the first retry.
-   - `testDir`: **must** resolve to `tests/qa` (the QA namespace). This is what the VSCode Playwright Test Explorer scans — without it, QA specs are invisible in the IDE sidebar.
    - `testMatch`: `'**/*.spec.ts'` so specs under `tests/qa/**` are discovered.
-   - Add a named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` to the `projects` array so QA specs appear as their own group in the Test Explorer alongside any app-owned tests.
+   - Do not set a top-level `testDir`. Instead, express the browser matrix as a single named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` (or one entry per browser, each carrying `testDir: 'tests/qa'`, if the matrix is split into per-browser projects) so `tests/qa` is declared exactly once, at the project level. This is what the VSCode Playwright Test Explorer scans — QA specs become discoverable and appear as their own named group in the sidebar.
    - After writing the config, emit `TestConfigWritten { testDir, projectName }`.
 
 3. **Generate per-role auth fixture.** For each role in `aegis.config.json.target.supabase.rolesToTest[]` (or detected roles from target-profile):
@@ -106,7 +105,8 @@ You do not run tests. You prepare the runway.
 - `playwright.config.ts` does not set `outputDir` explicitly — it must be set to the canonical `aegis/runs/{runId}/playwright-output` path; omitting it causes Playwright to use its default `test-results/` directory inside the target project, creating a duplicate run artifact location
 - `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) — all Playwright output must go to `aegis/runs/{runId}/playwright-output`, never inside the target's test directory tree
 - `playwright.config.ts` does not explicitly set `screenshot`, `video`, and `trace` — leaving them to Playwright defaults means screenshots/videos are not generated for every test (the artifact-generation failure observed in real runs)
-- `playwright.config.ts` `testDir` does not resolve to `tests/qa` (specs would be undiscoverable in the VSCode Test Explorer)
+- The `qa-e2e` project's (or the per-browser projects') `testDir` does not resolve to `tests/qa` (specs would be undiscoverable in the VSCode Test Explorer)
+- A top-level `testDir` is set in addition to the project-level `testDir` (redundant double-declaration of the QA scope)
 - No named QA Playwright project registered (QA specs not grouped in the Test Explorer)
 - `TestConfigWritten` not emitted after the config is written
 
@@ -131,4 +131,4 @@ Claims `task:env-setup` via taskmaster-client. Writes to `tests/qa/fixtures/`, `
 
 ## Worked Example
 
-For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/qa/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. `playwright.config.ts` at the target root set `testDir: 'tests/qa'` with the `qa-e2e` project registered; `TestConfigWritten` emitted. Smoke-ping to `https://dev.<target-project>.local/` returned 200. EnvReady emitted with all 4 roles active.
+For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/qa/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. `playwright.config.ts` at the target root registered the `qa-e2e` project with `testDir: 'tests/qa'` (no top-level `testDir`); `TestConfigWritten` emitted. Smoke-ping to `https://dev.<target-project>.local/` returned 200. EnvReady emitted with all 4 roles active.
