@@ -82,7 +82,7 @@ You translate approved requirements and the test plan into concrete, executable 
    Only set `requiresManual: true` if NONE of these apply AND the test has material value. The goal is that every test case is executable by automation.
 
 5. **Write each test case** using the canonical schema:
-   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], traceability{}, compliance[], author, createdAt, scenarioId, gherkin{given[], when[], then[]} (conditional — see below)
+   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], order, traceability{}, compliance[], author, createdAt, scenarioId, gherkin{given[], when[], then[]} (conditional — see below)
 
    - Add `scenarioId` to the canonical schema; every TC belongs to exactly one scenario, every scenario to exactly one `storyId` (User Story → Scenario → Test Case).
    - **Gherkin for flows:** when `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`, the TC MUST carry a `gherkin` block (`given[]`, `when[]`, `then[]`). Technique-derived cases (BVA/EP/decision-table) keep the `steps[]` format — do NOT force Gherkin on them.

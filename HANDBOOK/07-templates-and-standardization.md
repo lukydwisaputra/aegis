@@ -181,6 +181,7 @@ The Requirements Traceability Matrix is maintained at `runs/<RUN-ID>/rtm.json` a
 |---|---|
 | `reqId` | `REQ-AUTH-04` |
 | `storyId` | `STORY-AUTH-204` |
+| `scenarioId` | `SCN-AUTH-012` |
 | `description` | Requirement text |
 | `testCaseIds` | `["TC-AUTH-031", "TC-AUTH-032"]` |
 | `status` | `covered / partial / not-covered` |
