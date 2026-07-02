@@ -5,6 +5,7 @@ import {
   TestCaseIdSchema,
   DefectIdSchema,
   StoryIdSchema,
+  ScenarioIdSchema,
   RequirementIdSchema,
   RiskIdSchema,
   RunIdSchema,
@@ -135,6 +136,11 @@ export const DefectSchema = z.object({
     evidence: z.array(z.string()).default([]),
     fiveWhys: z.array(z.object({ why: z.string(), answer: z.string() })).default([]),
   }),
+  originConfirmation: z.object({
+    ruledOut: z.array(z.string()).default([]),
+    reproducedOnClean: z.boolean().nullable(),
+    evidenceRef: z.string().optional(),
+  }).optional(),
   investigationLog: z.array(z.object({
     at: IsoTimestampSchema,
     agent: z.string(),
@@ -188,6 +194,7 @@ export const RtmRowSchema = z.object({
   source: z.string(),
   priority: PrioritySchema,
   storyId: StoryIdSchema.optional(),
+  scenarioId: ScenarioIdSchema.optional(),
   testCaseIds: z.array(TestCaseIdSchema).default([]),
   // Charter session that surfaced an exploratory (EXP-type) defect with no parent test case.
   // EXP-type defect rows populate this; scripted rows leave it undefined and use testCaseIds.

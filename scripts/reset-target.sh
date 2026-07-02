@@ -17,7 +17,7 @@
 #     [--entry-points /,/login,/dashboard] \
 #     [--roles admin,user] \
 #     [--target-root ..] \
-#     [--tests-dir ../tests] \
+#     [--tests-dir ../tests/qa] \
 #     [--source-dirs ../apps,../packages,../services,../src] \
 #     [--dry-run]
 #
@@ -34,7 +34,7 @@ PLATFORM="generic"
 ENTRY_POINTS="/,/login,/dashboard"
 ROLES="admin,user"
 TARGET_ROOT=".."
-TESTS_DIR="../tests"
+TESTS_DIR="../tests/qa"
 SOURCE_DIRS="../apps,../packages,../services,../src"
 DRY_RUN=0
 
@@ -195,6 +195,8 @@ echo
 
 # ─── 4. Summary + next steps ─────────────────────────────────────────────────
 echo "[4/4] Done."
+echo
+echo "Reminder: targetProjectRoot must point at ONE app repo, not a parent folder of many."
 echo
 echo "Next steps:"
 echo "  1. Update secrets/*.env.* and test-data/credentials/*.env.local for the new target."

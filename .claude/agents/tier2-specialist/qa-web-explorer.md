@@ -28,7 +28,7 @@ Discovery is always **deciding as you go** — you don't know the page structure
 
 **Never use `@playwright/test` Node API for discovery** — that is for executing known scripts, not for observation-driven crawling.
 
-**Never write `inspect-*.spec.ts`, `env-probe.spec.ts`, or any other one-shot probe scripts to `tests/specs/`.** If you need to verify a selector or page structure during discovery, use MCP snapshots or `playwright-cli snapshot` in-place — not a spec file. Probe scripts written to `tests/specs/` or any subfolder are a quality standards violation.
+**Never write `inspect-*.spec.ts`, `env-probe.spec.ts`, or any other one-shot probe scripts to `tests/qa/specs/`.** If you need to verify a selector or page structure during discovery, use MCP snapshots or `playwright-cli snapshot` in-place — not a spec file. Probe scripts written to `tests/qa/specs/` or any subfolder are a quality standards violation.
 
 **MCP commands** (when available):
 ```
@@ -52,23 +52,23 @@ In both cases: read the accessibility snapshot after each navigation to extract 
 
 - `runs/{runId}/target-profile.json` — detected framework, auth method, app list, route inventory; read this to know the app's URL structure before crawling
 - `aegis/aegis.config.json` — `discovery.entryPoints`, `discovery.maxDepth`, `discovery.maxPagesPerRun`, `discovery.rolesToExplore`, `discovery.skipPatterns`
-- `tests/fixtures/auth.fixture.ts` — per-role auth fixtures
+- `tests/qa/fixtures/auth.fixture.ts` — per-role auth fixtures
 - `runs/{runId}/intake/requirements/` — requirement docs (read to understand what areas to prioritise)
 - `agent-memory/qa-web-explorer/lessons.md`
 
 ## Outputs
 
 - `runs/{runId}/discovery-report.{md,json}` — URL map, page inventory, data-testid inventory, console errors, inferred user journeys
-- `tests/pages/{url-path}/{route-slug}.page.ts` — POM skeletons organised by URL path hierarchy (only if not already present)
+- `tests/qa/pages/{url-path}/{route-slug}.page.ts` — POM skeletons organised by URL path hierarchy (only if not already present)
 - `runs/{runId}/evidence/discovery/` — screenshot baselines per page per role
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — UI defects discovered (console errors, broken images, layout overflow, contrast)
 
 ### Folder convention
 
-POM skeletons **must** mirror the app's URL path structure under `tests/pages/`. Derive the path by taking the URL segments of each discovered page (dropping query strings and dynamic ID segments). Never write POMs directly under `tests/pages/` — always at least one subfolder deep.
+POM skeletons **must** mirror the app's URL path structure under `tests/qa/pages/`. Derive the path by taking the URL segments of each discovered page (dropping query strings and dynamic ID segments). Never write POMs directly under `tests/qa/pages/` — always at least one subfolder deep.
 
 ```
-tests/
+tests/qa/
   pages/
     auth/
       login.page.ts
@@ -80,13 +80,13 @@ tests/
       billing.page.ts
 ```
 
-Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/users/[id]` → `tests/pages/users/[id].page.ts`).
+Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/users/[id]` → `tests/qa/pages/users/[id].page.ts`).
 
 ## Process
 
 1. **Read target profile.** Read `target-profile.json` to get `discovery.entryPoints`, detected framework, auth method, and app list before crawling.
 
-2. **Load configuration.** Read `discovery` config from `aegis.config.json`. Respect `skipPatterns` (regex patterns to skip), `maxDepth`, and `maxPagesPerRun` hard caps. Any one-shot probe/inspection scripts go to a sandbox scratch dir (`sandbox/{YYYY-MM-DD}-{slug}/`), NEVER to `tests/specs/` — and are cleaned up via `completeSandbox()` at task end.
+2. **Load configuration.** Read `discovery` config from `aegis.config.json`. Respect `skipPatterns` (regex patterns to skip), `maxDepth`, and `maxPagesPerRun` hard caps. Any one-shot probe/inspection scripts go to a sandbox scratch dir (`sandbox/{YYYY-MM-DD}-{slug}/`), NEVER to `tests/qa/specs/` — and are cleaned up via `completeSandbox()` at task end.
 
 3. **Authenticate per role.** Use the per-role auth fixture. Crawl each role's authenticated view separately — different roles see different UI.
 
@@ -107,7 +107,7 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
    - Layout overflow: any element with `overflow: hidden` cutting visible text → file as Sev4
    - Axe-core quick pass: run `checkA11y` with `critical` and `serious` only → file as Sev3
 
-7. **Generate POM skeletons.** For each discovered page, derive the output path from the page's URL: take each path segment, collapse dynamic ID segments to `[id]`, and write to `tests/pages/{url-path}/{route-slug}.page.ts` (e.g. `/auth/callback` → `tests/pages/auth/callback.page.ts`, `/users/42/profile` → `tests/pages/users/[id]/profile.page.ts`). Create the file only if it does not already exist. Include: `goto()`, locators for all data-testid elements found, and a `// TODO: add actions` comment. Never overwrite existing POM files.
+7. **Generate POM skeletons.** For each discovered page, derive the output path from the page's URL: take each path segment, collapse dynamic ID segments to `[id]`, and write to `tests/qa/pages/{url-path}/{route-slug}.page.ts` (e.g. `/auth/callback` → `tests/qa/pages/auth/callback.page.ts`, `/users/42/profile` → `tests/qa/pages/users/[id]/profile.page.ts`). Create the file only if it does not already exist. Include: `goto()`, locators for all data-testid elements found, and a `// TODO: add actions` comment. Never overwrite existing POM files.
 
 8. **Infer user journeys.** From link graphs and form sequences, infer the likely user flows (e.g., "Login → Dashboard → Create Appointment → Confirm"). Document in discovery report for qa-test-designer.
 
@@ -116,8 +116,8 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 - Form submitted during discovery crawl
 - Destructive action clicked (delete/remove/approve/confirm patterns)
 - Existing POM file overwritten
-- POM written directly under `tests/pages/` with no URL-path subfolder
-- Probe script written to `tests/specs/` (any `inspect-*.spec.ts`, `env-probe.spec.ts`, or equivalent one-shot file)
+- POM written directly under `tests/qa/pages/` with no URL-path subfolder
+- Probe script written to `tests/qa/specs/` (any `inspect-*.spec.ts`, `env-probe.spec.ts`, or equivalent one-shot file)
 - Screenshot not captured for any crawled page
 - POM skeleton generated with locators that use CSS class or XPath
 - `@playwright/test` Node API used for browser interactions during discovery (wrong tool — MCP or `playwright-cli` CLI required for decision-as-you-go crawl work)

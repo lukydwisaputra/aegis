@@ -23,6 +23,7 @@ This handbook is the complete guide to the Aegis QA framework. Read it cover-to-
 | 14 | [Extending the System](HANDBOOK/14-extending.md) | Add agents, regulations, commands, reports, and stay consistent. |
 | 15 | [FAQ & Troubleshooting](HANDBOOK/15-faq-and-troubleshooting.md) | Common issues with diagnostic flows. First stop when something goes wrong. |
 | 16 | [Glossary](HANDBOOK/16-glossary.md) | Plain-English definitions for QA terms, STLC phases, compliance acronyms, framework-specific terms, and key metrics. |
+| 17 | [Operating Ruleset](HANDBOOK/17-operating-ruleset.md) | The four-phase binding standard every cycle runs under: single-target preflight, sandbox-first exploration, the User Story → Scenario → Test Case hierarchy, and execution/defect-handling discipline — with the real agent + SPV enforcement point for each rule. |
 
 <!-- TOC END -->
 

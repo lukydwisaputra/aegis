@@ -27,7 +27,7 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 1. **SpecialistNoOp legitimacy.** If `SpecialistNoOp` was emitted, `target-profile.json` must confirm no feature flag system (GrowthBook, LaunchDarkly, Unleash, Statsig) was detected. NoOp without evidence = requested-changes.
 2. **Full on/off matrix per flag.** For each detected flag, the work report shows test results for both `on` and `off` states. Flags tested in only one state = requested-changes.
 3. **Override API usage.** Flags were toggled using the flag system's test override API — not by modifying source code or environment variables mid-test. Code modification for flag toggle = requested-changes.
-3b. **Output path.** Flag spec files live under `tests/specs/{url-path}/flags.spec.ts` (the canonical url-path structure) — NOT the legacy `tests/e2e/` root. Any flag spec written to `tests/e2e/` = requested-changes.
+3b. **Output path.** Flag spec files live under `tests/qa/specs/{url-path}/flags.spec.ts` (the canonical url-path structure) — NOT the legacy `tests/qa/e2e/` root. Any flag spec written to `tests/qa/e2e/` = requested-changes.
 4. **Flag-conditional defect tagging.** Any defect found only when flag X is enabled/disabled has `flagName` and `flagState` fields in the defect record. Untagged flag-specific defects = passed-with-notes.
 5. **Default-state tested.** The default state (what the flag is set to in production) was the first test case for each flag. Missing default-state test = passed-with-notes.
 6. **Flag interaction test.** If multiple flags are active, at least one test covers interaction between flags (both on, both off, mixed). Missing interaction test when >1 flag exists = passed-with-notes.

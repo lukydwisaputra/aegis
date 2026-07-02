@@ -159,7 +159,7 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
   const config = {
     $schema: "./aegis.schema.json",
     targetProjectRoot: "..",
-    testsDir: opts.testsDir ?? "../tests",
+    testsDir: opts.testsDir ?? "../tests/qa",
     unitTestStyle: "auto",
     sourceDirs: ["../apps", "../packages", "../services", "../src"],
     shareKnowledge: false,

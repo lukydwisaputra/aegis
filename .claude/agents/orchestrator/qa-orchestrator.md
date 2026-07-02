@@ -39,6 +39,8 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 1. **Read context and start metrics.** Load the Taskmaster tree, events.jsonl tail, model policy, active profile, and your own `lessons.md`. If lessons.md flags a known failure mode, surface it in the work report's "lessons applied" field before continuing. **Immediately after emitting `RunStarted`, dispatch `qa-metrics-collector` as a background continuous agent — this is mandatory, not optional. Do not wait for it to complete; it tails events.jsonl for the full run and writes intermediate rollups to `runs/{runId}/reports/metrics/` on every `PhaseComplete`/`DiscoveryStepComplete`. If you skip this dispatch, no metric files are produced (the failure mode observed in real runs).
 
+   **Preflight assertion (hard).** Before any dispatch, confirm `target-profile.json#targetIsSingleProject` is `true` and, if `aegis.config.json#preCycleHealthCheck` is true, that the latest `/qa-health` run passed. If either fails, emit `PreflightFailed` and halt — do not dispatch qa-requirements-analyst.
+
 2. **Establish mission ranking.** From the cycle's intake artefacts, rank mission goals (find important problems fast / comprehensive assessment / certify to standard / minimise cost / advise on testability). Record the ranking in the work report — "test everything" is not a mission.
 
 3. **Select the next phase.** Canonical order: Requirements → Discovery → Planning → Design → Environment → Execution → Triage → Closure → Executive Report. Only the next pending phase that satisfies its dependencies is eligible. If multiple phases are eligible, choose the one whose work most directly serves the top-ranked mission goal.
@@ -110,6 +112,7 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 - A Tier-1 phase advanced without dispatching its paired SPV (Process step 6)
 - An SPV returned `passed-with-notes`/`requested-changes` but no `pipeCorrectiveInstruction()` lesson was appended by the orchestrator
 - Discovery phase advanced with only one of the two `DiscoveryStepComplete` events present
+- A phase was dispatched while `target-profile.json#targetIsSingleProject` is false or absent, or with `preCycleHealthCheck` enabled and no passing health check (Preflight gate bypassed)
 
 ## Events You Emit
 
@@ -119,6 +122,7 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 - `BudgetWarning` — at 90% projected
 - `RunBlocked` — on phase failure, budget breach, or unmet dependency
 - `RunComplete` — only after Gate 3 approved and executive reporter complete
+- `PreflightFailed` — target is a multi-project parent, or the pre-cycle health check failed; halts the run before any dispatch
 
 ## Events You Subscribe To
 

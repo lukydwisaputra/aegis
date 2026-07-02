@@ -17,7 +17,7 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-email-specialist.json` — work report
-- Email test files at `tests/email/`
+- Email test files at `tests/qa/email/`
 - `aegis/aegis.config.json` — for `emailAdapter` setting
 - `agent-memory/qa-email-specialist/lessons.md`
 
@@ -30,12 +30,14 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 5. **Adapter matches config.** The adapter used (`mailpit` or `gmail`) matches `aegis.config.json.emailAdapter` for the current environment. Adapter mismatch = requested-changes.
 6. **Inbox purged before each test.** Each test calls `adapter.purgeAll()` in `beforeEach`. Tests that skip the purge may produce false passes from stale messages = requested-changes.
 7. **File naming.** Email tests match `*.email.spec.ts`. Incorrect extension = passed-with-notes.
+8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate no-spec run.
+9. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — incomplete triple assertion; emit CorrectiveInstruction
-- `requested-changes` — direct SMTP, real external recipients, production targeted; block
+- `requested-changes` — direct SMTP, real external recipients, production targeted, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
 
 ## Events You Emit
 

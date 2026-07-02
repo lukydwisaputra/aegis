@@ -28,7 +28,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 ## Outputs
 
-- `tests/perf/{scenario}.perf.ts` — k6 test scripts
+- `tests/qa/perf/{scenario}.perf.ts` — k6 test scripts
 - `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric
 - `runs/{runId}/evidence/{TC-ID}/k6-results.json` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/lighthouse-report.html`
@@ -38,18 +38,20 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 1. **Verify env is non-production.** If `environments[env].readOnly === true` or env name is `production`: emit `ExecutionBlocked` immediately. Do not run load tests against production.
 
-2. **Write k6 scenarios.** For each performance TC:
+2. **Explore in the sandbox before writing the final spec.** Prototype VU ramp shape, thresholds, and Lighthouse config in `sandbox/{date}-{slug}/` first (this is the same sandbox dir used for scratch tuning in Step 7, not a separate location). Verify the approach works there, then port the validated version to `tests/qa/perf/{scenario}.perf.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+
+3. **Write k6 scenarios.** For each performance TC:
    - Define VU ramp (load test: gradual ramp to target load, hold, ramp down)
    - Set `thresholds` block in k6 config from `thresholds.yaml.gates.{env}.performance` values
    - Add checks: HTTP status 200, response time p95 < threshold, error rate < threshold
 
-3. **Run Lighthouse-CI** for frontend Core Web Vitals. Assert LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (Good tier per web.dev).
+4. **Run Lighthouse-CI** for frontend Core Web Vitals. Assert LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (Good tier per web.dev).
 
-4. **Compare results against thresholds.** Mark TC passed or failed per metric. Report both measured value and threshold in result JSON.
+5. **Compare results against thresholds.** Mark TC passed or failed per metric. Report both measured value and threshold in result JSON.
 
-5. **Preserve baseline.** Preserve baseline results in `runs/{runId}/evidence/{TC-ID}/baseline/` (one copy per run, never overwritten) so the SPV can run a baseline delta comparison. The overwrite-on-rerun rule applies only to the latest results dir, not the baseline.
+6. **Preserve baseline.** Preserve baseline results in `runs/{runId}/evidence/{TC-ID}/baseline/` (one copy per run, never overwritten) so the SPV can run a baseline delta comparison. The overwrite-on-rerun rule applies only to the latest results dir, not the baseline.
 
-6. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()`.
+7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()` once the spec is committed. This cleanup is safe because the durable proof of exploration is the `SandboxExplored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -57,8 +59,10 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 - Thresholds not loaded from `thresholds.yaml` (hardcoded thresholds not allowed)
 - p95 measured but p99 not measured when TC scope includes both
 - Lighthouse run skipped for any E2E-facing TC
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 
 - `TestPassed` / `TestFailed` — per TC; TestFailed includes which metrics violated which thresholds
 - `PerformanceRegressionDetected` — when p95 > previous run's p95 + 10% regression allowance
+- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

@@ -58,7 +58,7 @@ In both cases: after each action, read the returned snapshot to decide the next 
 - `runs/{runId}/risk-register.json` — high-risk areas to explore
 - `runs/{runId}/plan.json` — what scripted tests cover (to find what they don't)
 - `runs/{runId}/discovery-report.json` — URLs, user journeys inferred by qa-web-explorer
-- `tests/fixtures/auth.fixture.ts` — per-role auth
+- `tests/qa/fixtures/auth.fixture.ts` — per-role auth
 - `agent-memory/qa-exploratory-specialist/lessons.md`
 
 ## Outputs

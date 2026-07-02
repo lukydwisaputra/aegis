@@ -96,7 +96,28 @@ All fields except `notes` and `screenshots` are required. The `spvScore` is popu
 
 ---
 
-### 7.5 Test Case Fields
+### 7.5 Scenario Fields
+
+Full field reference for files at `runs/<RUN-ID>/scenarios/<SCN-ID>.json`. A Scenario is the middle tier of the hierarchy: **User Story → Scenario → Test Case**. Every test case belongs to exactly one scenario; every scenario belongs to exactly one `storyId`.
+
+```jsonc
+{
+  "scenarioId":   "SCN-AUTH-012",
+  "storyId":      "STORY-AUTH-204",
+  "title":        "SSO login via Google — success and failure paths",
+  "sharedSeed": {
+    "factory":     "user",
+    "role":        "admin",
+    "reuseAcross": ["TC-AUTH-031", "TC-AUTH-032", "TC-AUTH-033"]
+  },
+  "testCaseIds":  ["TC-AUTH-031", "TC-AUTH-032", "TC-AUTH-033"],  // ordered — runnable sequence
+  "order":        1
+}
+```
+
+`sharedSeed{}` is declared once at the scenario level; member test cases reference it instead of each re-declaring `testData`. Each scenario should enumerate acceptance cases, rejection (negative) cases, and edge cases where the requirement admits them.
+
+### 7.6 Test Case Fields
 
 Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
 
@@ -105,11 +126,13 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
   "id":           "TC-AUTH-031",
   "title":        "Verify redirect after successful SSO login",
   "story":        "STORY-AUTH-204",
+  "scenarioId":   "SCN-AUTH-012",  // required — every TC belongs to exactly one scenario
   "requirement":  "REQ-AUTH-04",
   "testType":     "UI",           // Functional | UI | Integration | API | Security | Database | Performance | Compatibility | Usability
   "testTechnique": ["Accessibility", "Regression"],  // optional — technique metadata + secondary specialist dispatch
   "priority":     "P1",
   "automationStatus": "auto",     // auto | manual | blocked
+  "order":        1,              // position within the scenario's runnable sequence
   "preconditions": [
     "Valid Google account linked to app",
     "App running on testing environment"
@@ -120,6 +143,11 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
     "Complete Google OAuth flow in popup",
     "Observe redirect destination"
   ],
+  "gherkin": {                    // optional — required only when testType is Functional|E2E AND testTechnique includes Flow
+    "given": ["A user with a linked Google account is on the login page"],
+    "when":  ["The user clicks 'Sign in with Google' and completes the OAuth flow"],
+    "then":  ["The browser URL is /dashboard and a session cookie is set"]
+  },
   "expected":     "Browser URL = /dashboard; user session cookie set",
   "teardown":     ["Log out via /auth/signout", "Clear session storage"],
   "tags":         ["smoke", "auth", "sso"],
@@ -132,6 +160,8 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
 
 The `teardown` field is required for all UI and API tests. Its absence is a common SPV finding.
 
+Technique-derived cases (BVA, EP, decision-table) keep the `steps[]` format — `gherkin` is never forced on them. Only flow cases (`testType: Functional | E2E` AND `testTechnique` includes `Flow`) require the `gherkin` block.
+
 **`testType` vs `testTechnique`**
 
 | Field | Role | Drives routing? | Example values |
@@ -143,7 +173,7 @@ Example: a functional login flow that must also pass accessibility checks would 
 
 ---
 
-### 7.6 RTM Columns
+### 7.7 RTM Columns
 
 The Requirements Traceability Matrix is maintained at `runs/<RUN-ID>/rtm.json` and exported to CSV for human review.
 
@@ -151,6 +181,7 @@ The Requirements Traceability Matrix is maintained at `runs/<RUN-ID>/rtm.json` a
 |---|---|
 | `reqId` | `REQ-AUTH-04` |
 | `storyId` | `STORY-AUTH-204` |
+| `scenarioId` | `SCN-AUTH-012` |
 | `description` | Requirement text |
 | `testCaseIds` | `["TC-AUTH-031", "TC-AUTH-032"]` |
 | `status` | `covered / partial / not-covered` |
@@ -164,12 +195,12 @@ A requirement is `covered` if it has at least one test case with `automationStat
 
 ---
 
-### 7.7 Naming Conventions
+### 7.8 Naming Conventions
 
 | Artefact | Convention | Example |
 |---|---|---|
 | Run directories | `RUN-YYYYMMDD-NNN` | `RUN-20260523-001` |
-| Test spec files | see §7.7.1 suffix-by-type | `tests/specs/login/login.e2e.ts` |
+| Test spec files | see §7.8.1 suffix-by-type | `tests/specs/login/login.e2e.ts` |
 | Defect evidence | `evidence/<DEF-ID>/<NN>.png` | `evidence/DEF-001-AUTH-UI/01.png` |
 | Agent memory files | `<agent-name>/lessons.json` | `qa-ui-specialist/lessons.json` |
 | Closure files | `reports/closure/closure.{md,json}` | fixed names per run |
@@ -180,7 +211,7 @@ Module names in file paths must use **kebab-case** (`auth-sso`, `user-profile`).
 
 ---
 
-### 7.7.1 Test File Layout — one subdirectory per URL path
+### 7.8.1 Test File Layout — one subdirectory per URL path
 
 All specs live under `tests/specs/{url-path}/`, with **one subdirectory per URL path** mirroring the app's route structure. The file **suffix encodes the test type**:
 
@@ -212,7 +243,7 @@ tests/
 
 ---
 
-### 7.7.2 The `reports/` Sub-Folder Structure
+### 7.8.2 The `reports/` Sub-Folder Structure
 
 Each run's reporting output is partitioned by owner:
 
@@ -233,7 +264,7 @@ runs/{runId}/reports/
 
 ---
 
-### 7.7.3 Seed-Data Test Pattern
+### 7.8.3 Seed-Data Test Pattern
 
 Specs **seed their own data** and clean up after themselves — never assume pre-existing rows. Import a factory, create in `beforeEach`, and cleanup in `afterEach`:
 
@@ -262,7 +293,7 @@ The `playwright.config.ts` written by `qa-environment-engineer` sets `screenshot
 
 ---
 
-### 7.7.4 Automation-First Decision Tree
+### 7.8.4 Automation-First Decision Tree
 
 Marking a test `requiresManual` is a **last resort**. Before doing so, exhaust the automatable paths in order:
 
@@ -279,7 +310,7 @@ Only when mock, simulate, and visual-regression are all genuinely infeasible sho
 
 ---
 
-### 7.8 Test Data Conventions
+### 7.9 Test Data Conventions
 
 Test data lives in `aegis/test-data/`. The framework never uses production data.
 

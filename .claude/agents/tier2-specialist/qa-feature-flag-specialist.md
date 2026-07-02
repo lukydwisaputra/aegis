@@ -26,7 +26,7 @@ If no flag system is detected, emit `SpecialistNoOp` and exit gracefully.
 
 ## Outputs
 
-- `tests/specs/{url-path}/flags.spec.ts` — matrix test specs organised by URL path
+- `tests/qa/specs/{url-path}/flags.spec.ts` — matrix test specs organised by URL path
 - `runs/{runId}/cases/{TC-ID}-result.json` — results per flag state
 
 ## Process

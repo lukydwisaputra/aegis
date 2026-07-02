@@ -17,7 +17,7 @@ You review accessibility test files and reports from `qa-accessibility-specialis
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-accessibility-specialist.json` — work report
-- A11y test files at `tests/a11y/`
+- A11y test files at `tests/qa/a11y/`
 - axe-core results (from work report or evidence)
 - `runs/{runId}/defects/*.json` — a11y defects
 - `agent-memory/qa-accessibility-specialist/lessons.md`
@@ -31,12 +31,14 @@ You review accessibility test files and reports from `qa-accessibility-specialis
 5. **Focus management.** Modal/dialog components were tested for focus trap (focus stays within modal) and focus return (focus returns to trigger on close). Missing focus management tests on modal-like components = passed-with-notes.
 6. **WCAG level scope.** Report confirms WCAG 2.2 AA conformance was the target (not A or AAA). AA is the required standard.
 7. **File naming.** A11y tests match `*.a11y.spec.ts`. Incorrect extension = passed-with-notes.
+8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate no-spec run.
+9. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — incomplete WCAG tag format, missing focus management tests; emit CorrectiveInstruction
-- `requested-changes` — unreported critical violations, no keyboard navigation tests; block
+- `requested-changes` — unreported critical violations, no keyboard navigation tests, a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
 
 ## Events You Emit
 
