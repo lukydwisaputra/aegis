@@ -26,7 +26,7 @@ You are forbidden against the production environment.
 
 ## Outputs
 
-- `tests/email/{flow}.email.spec.ts` — email test specs
+- `tests/qa/email/{flow}.email.spec.ts` — email test specs
 - `runs/{runId}/cases/{TC-ID}-result.json` — delivery status, content assertions
 
 ## Process
@@ -42,7 +42,7 @@ You are forbidden against the production environment.
 
 2. **Purge before each test.** Call `adapter.purgeAll()` in `beforeEach` to ensure a clean inbox. This prevents messages from previous tests matching the wrong assertion.
 
-3. **Explore in the sandbox before writing any final spec.** If this email flow will produce a committed spec, prototype the adapter calls, `waitForEmail` predicate, and content assertions in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/email/{flow}.email.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
+3. **Explore in the sandbox before writing any final spec.** If this email flow will produce a committed spec, prototype the adapter calls, `waitForEmail` predicate, and content assertions in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/email/{flow}.email.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
 4. **Test flow.** Trigger the email action via the UI (Playwright) or API. Call `adapter.waitForEmail(predicate, 30_000)` — polls every 500 ms, rejects after 30 s. Assert:
    - Email was delivered to the correct recipient

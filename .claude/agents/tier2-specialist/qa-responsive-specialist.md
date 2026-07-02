@@ -34,7 +34,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 - Test case batch (UI types with `viewportScope`)
 - `aegis/aegis.config.json` — viewport breakpoints (defaults: desktop 1920×1080, tablet 768×1024, mobile 375×667)
-- `tests/fixtures/auth.fixture.ts` — per-role auth
+- `tests/qa/fixtures/auth.fixture.ts` — per-role auth
 - `agent-memory/qa-responsive-specialist/lessons.md`
 
 ## Outputs
@@ -51,7 +51,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
    - `"mobile"` → run on mobile only
    - `"tablet"` → run on tablet only
 
-2. **Explore in the sandbox before writing any final spec.** If this TC requires a new or updated `responsive.spec.ts`, prototype the viewport assertions and breakpoint checks in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/specs/{url-path}/responsive.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
+2. **Explore in the sandbox before writing any final spec.** If this TC requires a new or updated `responsive.spec.ts`, prototype the viewport assertions and breakpoint checks in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/responsive.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
 3. **Configure Playwright viewport projects.** Use `playwright.config.ts` projects for the three viewport sizes. Run each TC spec under all applicable viewport projects.
 

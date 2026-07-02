@@ -3,7 +3,7 @@ type Plugin = { rules?: Record<string, Rule.RuleModule>; [key: string]: unknown 
 
 // ---------------------------------------------------------------------------
 // Rule 1: no-raw-page-in-e2e
-// E2E test files (*.spec.ts under tests/e2e/) must import `test` from the
+// QA spec files (*.spec.ts under tests/qa/**) must import `test` from the
 // auth fixture, not from @playwright/test directly.
 // ---------------------------------------------------------------------------
 const noRawPageInE2e: Rule.RuleModule = {
@@ -19,15 +19,17 @@ const noRawPageInE2e: Rule.RuleModule = {
       noRawImport:
         'Do not import `test` from "@playwright/test" directly in spec files. Use the auth fixture instead.',
       suggestFix:
-        'Replace with: import { test } from \'tests/fixtures/auth.fixture\'',
+        'Replace with: import { test } from \'tests/qa/fixtures/auth.fixture\'',
     },
     schema: [],
   },
   create(context) {
     const filename = context.getFilename();
-    const isSpecFile = filename.endsWith('.spec.ts');
+    const normalized = filename.replace(/\\/g, '/');
+    const isQaSpecFile =
+      normalized.endsWith('.spec.ts') && normalized.includes('tests/qa/');
 
-    if (!isSpecFile) {
+    if (!isQaSpecFile) {
       return {};
     }
 
@@ -54,7 +56,7 @@ const noRawPageInE2e: Rule.RuleModule = {
                 // Replace just the source string
                 return fixer.replaceText(
                   node.source,
-                  "'tests/fixtures/auth.fixture'",
+                  "'tests/qa/fixtures/auth.fixture'",
                 );
               },
             },

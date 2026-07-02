@@ -29,7 +29,7 @@ You are a read-write agent against the test database. You never touch the produc
 
 ## Outputs
 
-- `tests/integration/db/{feature}.db.test.ts` — database test files
+- `tests/qa/integration/db/{feature}.db.test.ts` — database test files
 - `runs/{runId}/cases/{TC-ID}-result.json` — migration outcomes, RLS test results, query performance
 - `runs/{runId}/evidence/{TC-ID}/migration-log.txt` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/query-explain.json`
@@ -38,7 +38,7 @@ You are a read-write agent against the test database. You never touch the produc
 
 1. **Verify non-production env.** Check `environments[env].readOnly`. If true: emit `ExecutionBlocked`.
 
-2. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/integration/db/{feature}.db.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+2. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/integration/db/{feature}.db.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
 3. **Migration testing.** For each detected migration file:
    - Apply migrations in correct numeric order (09→28 for <target-project>)

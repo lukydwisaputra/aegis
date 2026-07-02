@@ -1,6 +1,6 @@
 {
   "targetProjectRoot": "..",
-  "testsDir": "../tests",
+  "testsDir": "../tests/qa",
   "unitTestStyle": "auto",
   "sourceDirs": ["../apps", "../packages", "../services", "../src"],
   "shareKnowledge": false,

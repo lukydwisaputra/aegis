@@ -17,15 +17,15 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-ui-specialist.json` — work report
-- Test files written to `tests/specs/{url-path}/` (read target project)
-- `tests/pages/{url-path}/` — POM files (read target project)
+- Test files written to `tests/qa/specs/{url-path}/` (read target project)
+- `tests/qa/pages/{url-path}/` — POM files (read target project)
 - Evidence files under `runs/{runId}/evidence/` (spot-check)
 - `agent-memory/qa-ui-specialist/lessons.md`
 
 ## Review Checklist
 
-1. **Auth fixture import.** Every `*.spec.ts` file under `tests/specs/` imports `{ test, expect }` from `tests/fixtures/auth.fixture` — not from `@playwright/test`. Direct `@playwright/test` import = requested-changes.
-2. **Folder structure.** Spec files must be under `tests/specs/{url-path}/` and POM files under `tests/pages/{url-path}/`, mirroring the app's URL structure (e.g. `/auth/login` → `tests/specs/auth/login/`). Any spec written directly under `tests/specs/` with no URL-path subfolder, or any POM directly under `tests/pages/` = requested-changes.
+1. **Auth fixture import.** Every `*.spec.ts` file under `tests/qa/specs/` imports `{ test, expect }` from `tests/qa/fixtures/auth.fixture` — not from `@playwright/test`. Direct `@playwright/test` import = requested-changes.
+2. **Folder structure.** Spec files must be under `tests/qa/specs/{url-path}/` and POM files under `tests/qa/pages/{url-path}/`, mirroring the app's URL structure (e.g. `/auth/login` → `tests/qa/specs/auth/login/`). Any spec written directly under `tests/qa/specs/` with no URL-path subfolder, or any POM directly under `tests/qa/pages/` = requested-changes.
 3. **POM mandatory.** Test code uses Page Object classes (e.g., `new ReferralFormPage(page)`). Direct `page.locator()` / `page.fill()` / `page.click()` calls in the spec file without going through a POM = requested-changes.
 4. **Semantic locator hierarchy.** Test code uses `getByRole`, `getByLabel`, `getByPlaceholder`, `getByText` before falling back to `getByTestId`. CSS selector usage without explaining why semantic selectors were unavailable = passed-with-notes. XPath usage = requested-changes.
 5. **No direct app code edits.** The specialist must not have edited any file outside `tests/` or `aegis/`. If testids are missing from the app, they are in `runs/{runId}/proposed-changes/` as proposals. Direct edits to app source = requested-changes.

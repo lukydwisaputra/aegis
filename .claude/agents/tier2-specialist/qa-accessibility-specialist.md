@@ -32,19 +32,19 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 - Test case batch (a11y types)
 - `target-profile.json` — app URLs, framework
-- `tests/fixtures/auth.fixture.ts` — per-role auth (a11y tests run as authenticated users too)
+- `tests/qa/fixtures/auth.fixture.ts` — per-role auth (a11y tests run as authenticated users too)
 - `agent-memory/qa-accessibility-specialist/lessons.md`
 
 ## Outputs
 
-- `tests/specs/{url-path}/a11y.spec.ts` — axe-core Playwright specs organised by URL path
+- `tests/qa/specs/{url-path}/a11y.spec.ts` — axe-core Playwright specs organised by URL path
 - `runs/{runId}/cases/{TC-ID}-result.json` — axe violations list
 - `runs/{runId}/evidence/{TC-ID}/axe-results.json` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/pa11y-report.json` — overwrites previous run's evidence for the same TC
 
 ## Process
 
-1. **Explore in the sandbox before writing any final spec.** If this run will produce a committed a11y spec, prototype selectors, ARIA role checks, and axe/Pa11y configuration in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/specs/{url-path}/a11y.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
+1. **Explore in the sandbox before writing any final spec.** If this run will produce a committed a11y spec, prototype selectors, ARIA role checks, and axe/Pa11y configuration in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/a11y.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
 2. **Inject axe-core into each Playwright test.** Use `@axe-core/playwright`'s `checkA11y()` after page navigation. Pass `{ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } }` to scope to WCAG 2.2 AA.
 
