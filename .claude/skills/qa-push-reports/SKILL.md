@@ -8,6 +8,8 @@ description: Discover new QA runs across sibling projects and push them to the t
 ## Purpose
 Discovers every sibling project under `/Users/lukydwisaputra/Desktop/QA/` that has QA runs, diffs each project's runs against what's already recorded in the `testing-reports` collector's `manifest.json`, and pushes anything new via `scripts/export-run.sh`. One command handles both a project's first-ever export and incremental updates — no per-project path config to maintain.
 
+**First-run note:** if new sibling projects were added since the collector was last updated, the first invocation can surface a backlog spanning multiple projects at once, not just the newest run — every uncollected `RUN-*` folder counts as "new" and gets its own live commit + push to the collector's GitHub remote. This is correct, intended behavior, not a bug — just be aware a "routine" call can dispatch more exports than expected.
+
 ## Usage
 ```
 /qa-push-reports [--project=<name>] [--force]
@@ -21,7 +23,7 @@ Discovers every sibling project under `/Users/lukydwisaputra/Desktop/QA/` that h
 
 ## Behaviour
 1. Read `aegis.config.json#collector.path` to locate the collector repo (default `/Users/lukydwisaputra/Desktop/QA/testing-reports`).
-2. **Discover projects.** List directories directly under `/Users/lukydwisaputra/Desktop/QA/` (the parent of this `aegis/` checkout). For each, check whether `<dir>/aegis/runs/` exists and contains at least one `RUN-*` folder. Exclude the `aegis` directory itself and the collector directory (`testing-reports`, or whatever `collector.path`'s basename is). If `--project=<name>` was given, skip this scan and use only `<name>` — error with a clear message if `/Users/lukydwisaputra/Desktop/QA/<name>/aegis/runs` doesn't exist, and stop (no partial dispatch).
+2. **Discover projects.** Glob `/Users/lukydwisaputra/Desktop/QA/*/aegis/runs` directly (do not enumerate every entry under `/Users/lukydwisaputra/Desktop/QA/` and filter afterward — most entries there aren't QA projects at all, e.g. loose files, archives, or unrelated folders, and globbing for the exact `*/aegis/runs` shape skips them for free). Keep only matches that contain at least one `RUN-*` folder. This glob structurally cannot match the `aegis` checkout itself (no `aegis/aegis/runs` nesting) or the collector directory (`testing-reports` has no `aegis/` subfolder), so no separate exclusion step is needed. If `--project=<name>` was given, skip this scan and use only `<name>` — error with a clear message if `/Users/lukydwisaputra/Desktop/QA/<name>/aegis/runs` doesn't exist, and stop (no partial dispatch).
 3. **Read collector state.** Read `<collector.path>/manifest.json`. If it doesn't exist or fails to parse, treat it as `{ projects: [] }` (every discovered run counts as new) — do not error out.
 4. **Diff per project.** For each discovered project, list its `RUN-*` folder names under `<project>/aegis/runs/`. Look up that project's entry in the manifest by matching `manifest.projects[].name` to the project directory name, and collect its known `runId`s.
    - Without `--force`: a run is "new" only if its folder name is not in that project's known `runId` list.

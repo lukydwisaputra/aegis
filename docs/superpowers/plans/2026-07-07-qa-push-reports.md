@@ -112,34 +112,30 @@ Expected: `6` (Purpose, Usage, Key flags, Behaviour, Events emitted, Example).
 
 - [ ] **Step 3: Dry-run the described behaviour manually against real state**
 
-There is no test harness for skill files — validate the *logic* the skill describes by hand-running the equivalent steps against the actual three-project collector state, confirming the plan's Global Constraints hold.
+There is no test harness for skill files — validate the *logic* the skill describes by hand-running the equivalent steps against the real collector and sibling-project state, confirming the plan's Global Constraints hold. **Run these commands fresh at implementation time** — the sibling project list changes as new projects are cloned, so treat any cached "expected output" below as illustrative of the check's *shape*, not a literal value to assert against.
 
 ```bash
-# Step 3a: confirm current manifest has all 3 known runs (nothing should be "new" without --force)
+# Step 3a: list every project name + runId currently recorded in the collector manifest
 jq -r '.projects[] | .name as $p | .runs[].runId as $r | "\($p) \($r)"' \
   /Users/lukydwisaputra/Desktop/QA/testing-reports/manifest.json
 ```
-Expected output (order may vary):
-```
-mws-irms RUN-20260630-001
-onecare-schedule RUN-20260628-001
-scs-finance-v2 RUN-20260704-001
-```
+Record the actual output — this is the "already collected" baseline the diff logic compares against.
 
 ```bash
-# Step 3b: confirm each sibling's actual RUN-* folders match what's in the manifest (no new runs exist right now)
-for p in onecare-schedule scs-finance-v2 mws-irms; do
-  echo "== $p =="
-  find "/Users/lukydwisaputra/Desktop/QA/$p/aegis/runs" -maxdepth 1 -type d -name 'RUN-*' -exec basename {} \;
+# Step 3b: list every sibling project that actually has runs on disk right now
+for d in /Users/lukydwisaputra/Desktop/QA/*/aegis/runs; do
+  p=$(basename "$(dirname "$(dirname "$d")")")
+  n=$(find "$d" -maxdepth 1 -type d -name 'RUN-*' | wc -l | tr -d ' ')
+  [ "$n" -gt 0 ] && echo "$p: $n run(s)"
 done
 ```
-Expected: each project prints exactly the one `RUN-*` folder already listed in the manifest above — confirming that, per the skill's diff logic, a `/qa-push-reports` run right now would find nothing new and report "Nothing to push."
+Compare this list against Step 3a's output by hand: any project name that appears here but NOT in the manifest (or any `runId` under a project here that isn't in the manifest's list for that project) is a real, currently-uncollected run. **Do not assume this list matches the manifest** — sibling projects get added independently of collector exports, so a real gap here is expected, not an error. If gaps exist, note them plainly (e.g. "`<project>` has 1 uncollected run: `RUN-...`") rather than asserting "nothing to push" — a first real `/qa-push-reports` invocation with real gaps present will genuinely export and push them, which is correct behavior, not a bug.
 
 ```bash
-# Step 3c: confirm exclusion logic — testing-reports and aegis itself must not be treated as target projects
+# Step 3c: confirm exclusion logic — collector repo and this aegis/ checkout itself must not be treated as target projects
 ls -d /Users/lukydwisaputra/Desktop/QA/*/aegis/runs 2>/dev/null
 ```
-Expected: lists `onecare-schedule/aegis/runs`, `scs-finance-v2/aegis/runs`, `mws-irms/aegis/runs` only — `aegis/aegis/runs` and `testing-reports/aegis/runs` do not exist, so the exclusion rule in step 2 of the skill is redundant-but-safe against this real layout (there's no `aegis/runs` glob match to accidentally include since `aegis` has no nested `aegis/aegis/`). Confirms the glob itself already can't pick up the collector or this checkout — document this as verified, no code to fix.
+Expected: this glob can structurally never match `aegis` itself (no `aegis/aegis/runs` nesting exists) or the collector directory (`testing-reports` has no `aegis/` subfolder) — confirm neither appears in the output. Any other directory that appears here IS a legitimate discoverable project by design, including ones not previously seen (this is the auto-discovery feature working as intended, not a sign of stale expectations).
 
 - [ ] **Step 4: Commit**
 
