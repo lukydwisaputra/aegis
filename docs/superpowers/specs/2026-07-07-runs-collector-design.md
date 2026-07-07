@@ -156,13 +156,11 @@ Per-run row fields (all from `run.json` + `closure.json`):
 ```json
 "collector": {
   "path": "/Users/lukydwisaputra/Desktop/QA/testing-reports",
-  "remote": "git@github.com:<org>/testing-reports.git"
+  "remote": "https://github.com/WerkDone-Pte-Ltd/testing-reports.git"
 }
 ```
 
-Both overridable by CLI flags. `remote` used only on first-time `git init`; the
-`<org>` in the URL is supplied by the user when the GitHub repo is created (not a
-spec gap).
+Both overridable by CLI flags. `remote` used only on first-time `git init`.
 
 ## Data flow
 
