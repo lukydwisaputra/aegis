@@ -113,17 +113,17 @@ Behavior:
    - If `projects/<name>/runs/<runId>/` already exists → print
      `WARN: overwriting <runId>` and remove it first.
    - Copy verbatim (`rsync -a --delete` or `cp -R`).
-4. Run `node scripts/gen-index.mjs --target=<dir>` to regenerate all indexes +
-   manifest.
+4. Run `npx --no-install tsx scripts/gen-index.ts --target=<dir>` to regenerate
+   all indexes + manifest.
 5. `git add -A`, commit (`chore(collector): export <project>/<runId>` or
    `... backfill <project> (<n> runs)`), and `git push` unless `--no-push`.
 
 Exit non-zero on: unknown flag, missing required flag, no runs matched,
 unwritable target.
 
-### `scripts/gen-index.mjs`
+### `scripts/gen-index.ts`
 
-Node ESM, **unit-tested**. Pure: scans the collector's `projects/*/runs/*/`,
+TypeScript (tsx), **unit-tested**. Pure: scans the collector's `projects/*/runs/*/`,
 reads each run's `run.json` + `reports/closure.json`, writes:
 
 - root `README.md` — table across all projects
@@ -169,7 +169,7 @@ Both overridable by CLI flags. `remote` used only on first-time `git init`.
         │  export-run.sh copies verbatim
         ▼
 testing-reports/projects/<name>/runs/RUN-*
-        │  gen-index.mjs scans run.json + closure.json
+        │  gen-index.ts scans run.json + closure.json
         ▼
 root README.md + per-project README.md + manifest.json
         │  git add / commit / push
@@ -187,7 +187,7 @@ GitHub  →  developer clones, opens closure.md
 
 ## Testing
 
-`gen-index.mjs` unit tests (jest, under `aegis-internal-tests` or `scripts/__tests__`):
+`gen-index.ts` unit tests (jest, under `__internal-tests__/`):
 
 - Full `run.json` + `closure.json` → correct row values + link.
 - Missing `closure.json` → row emitted, unknown columns `—`, no throw.

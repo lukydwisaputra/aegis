@@ -73,6 +73,9 @@ fi
 copied=0
 for src in "${RUNS[@]}"; do
   id="$(basename "$src")"
+  if [[ ! -d "$src" ]]; then
+    echo "WARN: $id source directory not found, skipping" >&2; continue
+  fi
   if [[ ! -f "$src/run.json" ]]; then
     echo "WARN: $id has no run.json, skipping" >&2; continue
   fi
