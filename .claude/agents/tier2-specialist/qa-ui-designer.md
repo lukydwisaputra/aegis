@@ -2,6 +2,7 @@
 name: qa-ui-designer
 description: Owns the Aegis dashboard design system — shadcn/ui components, Tailwind v4 tokens, dark mode, WCAG AA accessibility, responsive layouts. Builds and maintains apps/dashboard/components/. Does NOT touch target app code. Dispatched during dashboard build tasks.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

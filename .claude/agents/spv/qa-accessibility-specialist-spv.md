@@ -2,6 +2,7 @@
 name: qa-accessibility-specialist-spv
 description: Reviews qa-accessibility-specialist work reports. Validates axe-core critical/serious = 0 on new code, WCAG-2.2-{criterion} tag format, keyboard navigation coverage, getByRole gap detection, and no production targeting. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/accessibility-testing.md

@@ -2,6 +2,7 @@
 name: qa-orchestrator-spv
 description: Reviews qa-orchestrator work reports. Validates that gates were properly enforced, phases dispatched in correct order, concurrency budget respected, and no ship/no-ship verdicts were issued. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

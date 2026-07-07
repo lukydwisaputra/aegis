@@ -15,8 +15,8 @@ export const MODEL_RATES: Record<
   string,
   { input: number; output: number; cacheRead: number }
 > = {
-  "claude-opus-4-7": { input: 15, output: 75, cacheRead: 1.5 },
-  "claude-sonnet-4-6": { input: 3, output: 15, cacheRead: 0.3 },
+  "claude-opus-4-8": { input: 15, output: 75, cacheRead: 1.5 },
+  "claude-sonnet-5": { input: 3, output: 15, cacheRead: 0.3 },
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4, cacheRead: 0.08 },
 };
 
@@ -30,7 +30,7 @@ export function estimateCost(
   const rates = MODEL_RATES[model];
   if (!rates) {
     // Fall back to Sonnet rates if model unknown
-    const fallback = MODEL_RATES["claude-sonnet-4-6"]!;
+    const fallback = MODEL_RATES["claude-sonnet-5"]!;
     return (
       (inputTokens / 1_000_000) * fallback.input +
       (outputTokens / 1_000_000) * fallback.output +

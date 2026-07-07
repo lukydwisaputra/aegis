@@ -2,6 +2,7 @@
 name: qa-test-planner-spv
 description: Reviews qa-test-planner work reports. Validates IEEE 829 plan completeness, risk register dual-format (numeric+ordinal+rationale), SFDIPOT iterative coverage, schedule realism, and that the plan does not issue a ship/no-ship verdict. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

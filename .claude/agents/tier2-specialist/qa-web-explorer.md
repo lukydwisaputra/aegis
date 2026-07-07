@@ -2,6 +2,7 @@
 name: qa-web-explorer
 description: Runs the Discovery sub-phase before test design. BFS-crawls the authenticated app (no form submits), generates Page Object Model skeletons, inventories data-testid attributes, captures screenshot baselines, and detects UI defects (console errors, broken images, layout issues). Dispatched by qa-orchestrator during Discovery phase.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

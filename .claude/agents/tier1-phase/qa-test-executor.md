@@ -2,6 +2,7 @@
 name: qa-test-executor
 description: Runs all automated test cases by dispatching Tier-2 specialists in parallel (max 4 concurrent). Aggregates results, captures evidence, and feeds results to qa-defect-manager. Runs after environment setup. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash, Agent]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

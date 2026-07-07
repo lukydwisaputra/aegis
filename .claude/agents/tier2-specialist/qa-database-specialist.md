@@ -2,6 +2,7 @@
 name: qa-database-specialist
 description: Tests database schema integrity, migration correctness (up/down idempotency), RLS policies per role, query performance, and seed data consistency. Supabase-aware — uses JWT forging for role-scoped tests and ordered migration runner (09→28). Dispatched by qa-test-executor for database/migration test cases.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/data-testing.md

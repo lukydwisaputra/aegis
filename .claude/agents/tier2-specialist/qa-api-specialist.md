@@ -2,6 +2,7 @@
 name: qa-api-specialist
 description: Writes and runs API tests using Playwright APIRequestContext and Newman/Postman. Covers REST endpoints, contract tests, and Playwright API mocking. Dispatched by qa-test-executor for API and contract test cases.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/api-testing.md

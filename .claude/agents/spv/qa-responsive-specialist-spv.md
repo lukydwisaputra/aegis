@@ -2,6 +2,7 @@
 name: qa-responsive-specialist-spv
 description: Reviews qa-responsive-specialist work reports. Validates all 3 viewports tested, viewportScope respected per TC, viewport tags on defects, touch-target checks on mobile, and no production targeting. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

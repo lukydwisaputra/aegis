@@ -2,6 +2,7 @@
 name: qa-cicd-spv
 description: Reviews work from qa-cicd-planner and qa-cicd-implementer. Validates workflow YAML correctness (actionlint, yamllint), no secret leakage, idempotent steps, branch protection compatibility, and threshold coverage. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

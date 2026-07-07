@@ -2,6 +2,7 @@
 name: qa-executive-reporter
 description: Produces three PDF artefacts after Gate 3 — a comprehensive technical report, an IEEE 829 + ISTQB sign-off document, and a 5-7 slide Minto Pyramid executive deck. All three are brand-clean (Class B). Business language only on slides — tone-check enforced. Dispatched by qa-orchestrator after Gate 3.
 modelTier: planning
+model: claude-opus-4-8
 tools: [Read, Write, Edit, Bash, Skill]
 knowledge_refs:
   - knowledge/synthesis/test-management.md

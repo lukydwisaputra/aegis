@@ -2,6 +2,7 @@
 name: qa-metrics-collector
 description: Read-only telemetry aggregator. Tails events.jsonl to collect token usage, cycle time, coverage, defect density, and agent reliability metrics. Writes per-run metric rollup files. Never modifies artefacts or source data — only writes to runs/{runId}/reports/metrics/.
 modelTier: read-only
+model: claude-haiku-4-5-20251001
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md

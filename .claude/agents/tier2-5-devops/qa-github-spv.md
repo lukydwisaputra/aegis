@@ -2,6 +2,7 @@
 name: qa-github-spv
 description: Reviews work from qa-github-planner and qa-github-implementer. Validates Conventional Commit/Branch format, PR description completeness, CI status, and brand-clean rules. Read-only on GitHub. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

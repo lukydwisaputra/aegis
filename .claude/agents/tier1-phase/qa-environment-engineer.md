@@ -2,6 +2,7 @@
 name: qa-environment-engineer
 description: Sets up the test environment — configures Playwright, installs test fixtures, wires auth fixtures per role, creates test data factories, and verifies the target environment is reachable. Runs after test design and before execution. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/fixtures-and-pom.md

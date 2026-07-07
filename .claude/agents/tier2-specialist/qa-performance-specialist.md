@@ -2,6 +2,7 @@
 name: qa-performance-specialist
 description: Designs and runs performance tests using k6 (load/stress/spike/soak) and Lighthouse-CI (Core Web Vitals). Compares results against thresholds.yaml. Dispatched by qa-test-executor for performance test cases. Forbidden against production env.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/performance-testing.md

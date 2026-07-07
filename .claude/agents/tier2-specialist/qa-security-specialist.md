@@ -2,6 +2,7 @@
 name: qa-security-specialist
 description: Runs application security tests — OWASP ZAP (DAST), Semgrep (SAST), npm audit / Trivy (dependency/container CVEs), and Gitleaks (secrets). Tags findings with CWE and WSTG references. Dispatched by qa-test-executor for security test cases.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/security-testing.md

@@ -2,6 +2,7 @@
 name: qa-database-specialist-spv
 description: Reviews qa-database-specialist work reports. Validates migration order enforcement (09→28), RLS testing via forged JWT (not service role), EXPLAIN ANALYZE query tests, no production DB access, and up/down idempotency verification. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

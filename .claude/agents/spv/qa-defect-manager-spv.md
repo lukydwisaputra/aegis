@@ -2,6 +2,7 @@
 name: qa-defect-manager-spv
 description: Reviews qa-defect-manager work reports. Validates 65-char title rule, dual-format severity+priority, variation testing on 3 axes, abductive inference quality, RTM append-link events, and IEEE 1044 defect type classification. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/defect-management.md

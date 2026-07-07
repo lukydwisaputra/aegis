@@ -2,6 +2,7 @@
 name: qa-email-specialist-spv
 description: Reviews qa-email-specialist work reports. Validates adapter usage (never direct SMTP), no real external recipients, delivery + content + link assertions, production prohibition, and file naming. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

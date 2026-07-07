@@ -2,6 +2,7 @@
 name: qa-web-explorer-spv
 description: Reviews qa-web-explorer work reports. Validates BFS read-only discipline (no form submits, no destructive actions), per-role authentication, POM skeleton structure, discovery-report completeness, and screenshot baseline capture. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/exploratory-testing.md

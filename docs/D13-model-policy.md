@@ -10,9 +10,9 @@ All model assignments are centralized in `aegis/.claude/model-policy.yaml`. Agen
 
 | Tier | Model | When to use |
 |------|-------|-------------|
-| `planning` | `claude-opus-4-7` | Deep synthesis, strategy, cross-artifact reasoning. Few invocations, high stakes. |
-| `implementation` | `claude-sonnet-4-6` | High-volume writing and coding. Strong reasoning at much lower cost. |
-| `validation` | `claude-opus-4-7` | SPV review. High leverage — a missed defect by an SPV propagates downstream. |
+| `planning` | `claude-opus-4-8` | Deep synthesis, strategy, cross-artifact reasoning. Few invocations, high stakes. |
+| `implementation` | `claude-sonnet-5` | High-volume writing and coding. Strong reasoning at much lower cost. |
+| `validation` | `claude-opus-4-8` | SPV review. High leverage — a missed defect by an SPV propagates downstream. |
 | `read-only` | `claude-haiku-4-5-20251001` | Pure extraction, classification, aggregation. No novel synthesis needed. |
 
 ## Assignment rationale
@@ -62,7 +62,7 @@ The token-usage report (`runs/{runId}/reports/token-usage.jsonl`) breaks down sp
 ```yaml
 # aegis/.claude/model-policy.yaml
 tiers:
-  validation: claude-sonnet-4-6   # downgrade from claude-opus-4-7
+  validation: claude-sonnet-5   # downgrade from claude-opus-4-8
 ```
 
 Then run `pnpm aegis build-agents` to apply.

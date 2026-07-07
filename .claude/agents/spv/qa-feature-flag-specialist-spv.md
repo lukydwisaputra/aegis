@@ -2,6 +2,7 @@
 name: qa-feature-flag-specialist-spv
 description: Reviews qa-feature-flag-specialist work reports. Validates on/off matrix completeness per flag, override-API usage (not code modification), SpecialistNoOp legitimacy, and flag-conditional defect tagging. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

@@ -2,6 +2,7 @@
 name: qa-test-planner
 description: Writes the test plan (IEEE 829 + ISTQB closure sections) for the current cycle. Sets strategy (what to test and why), logistics (who, when, how), and produces the risk register and work-products list. Runs after qa-requirements-analyst and before Gate 1. Dispatched by qa-orchestrator.
 modelTier: planning
+model: claude-opus-4-8
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-strategy.md

@@ -2,6 +2,7 @@
 name: qa-exploratory-specialist-spv
 description: Reviews qa-exploratory-specialist work reports. Validates charter structure (scope+technique+goal), session notes completeness, COTE discipline, no scripted assertions during exploration, and that defects raised from exploration have adequate evidence. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/exploratory-testing.md

@@ -2,6 +2,7 @@
 name: qa-compliance-gdpr
 description: Reviews test artefacts against GDPR (EU General Data Protection Regulation) Articles 5, 25, 32, 35. Identifies whether personal data handling in the application is tested for lawfulness, security, data minimisation, and rights of the data subject. Produces GDPR-Art{N} tagged gap report.
 modelTier: planning
+model: claude-opus-4-8
 tools: [Read, Write]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

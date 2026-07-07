@@ -2,6 +2,7 @@
 name: qa-performance-specialist-spv
 description: Reviews qa-performance-specialist work reports. Validates Core Web Vitals thresholds, k6 threshold config matching thresholds.yaml, Lighthouse-CI integration, production env prohibition, and trend comparison when a baseline exists. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/performance-testing.md

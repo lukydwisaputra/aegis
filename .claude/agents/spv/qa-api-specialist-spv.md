@@ -2,6 +2,7 @@
 name: qa-api-specialist-spv
 description: Reviews qa-api-specialist work reports. Validates status + schema + header assertions on every request, contract test presence for shared APIs, sanitised evidence, and no real credentials in test scripts. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/api-testing.md

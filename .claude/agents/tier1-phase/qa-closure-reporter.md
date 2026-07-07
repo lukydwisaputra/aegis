@@ -2,6 +2,7 @@
 name: qa-closure-reporter
 description: Writes the test closure report (ISTQB structure) and all operational rollup metrics. Computes coverage, defect density, DRE, escape rate, and cycle-time metrics. Runs after Gate 2 and before Gate 3. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-management.md

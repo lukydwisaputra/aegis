@@ -42,7 +42,7 @@ If the same bad pattern keeps being proposed: add a note to the curator's `agent
 
 1. Run `/qa-status --json | jq .tokenUsage` to see per-agent costs
 2. Sort by `costUsd DESC` — which agents are expensive?
-3. Check if SPVs are the dominant cost: if yes, consider the SPV fast-path (Sonnet first, Opus only on escalation). Edit `aegis/.claude/model-policy.yaml` to switch validation tier to `claude-sonnet-4-6`.
+3. Check if SPVs are the dominant cost: if yes, consider the SPV fast-path (Sonnet first, Opus only on escalation). Edit `aegis/.claude/model-policy.yaml` to switch validation tier to `claude-sonnet-5`.
 4. Check `cached%` column in token-usage report. Low `cached%` means prompt caching isn't working — check that knowledge files are not being regenerated between calls.
 5. Use `/qa-dry-run` before the next cycle to estimate costs before committing.
 

@@ -2,6 +2,7 @@
 name: qa-defect-manager
 description: Manages the defect lifecycle from open through verified-fixed. Applies Kaner ch-04 bug advocacy (65-char title, variation testing, selling model). Sets severity (technical impact) and priority (business urgency) independently. Runs after execution and before Gate 2. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/defect-management.md

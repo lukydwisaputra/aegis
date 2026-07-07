@@ -2,6 +2,7 @@
 name: qa-closure-reporter-spv
 description: Reviews qa-closure-reporter work reports. Validates ISTQB structure, presence of open questions section, 10 computed metrics, residual risk summary, no ship/no-ship verdict, brand-clean output, and metrics arithmetic accuracy. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md

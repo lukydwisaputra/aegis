@@ -2,6 +2,7 @@
 name: qa-curator
 description: End-of-cycle self-improvement agent. Reads events.jsonl, SPV reviews, defect outcomes, and gate decisions to identify recurring patterns worth promoting. Proposes: new skills from repeated manual sequences, memory updates, stale-lesson pruning, and lesson conflict resolution. Writes proposals to runs/{runId}/pending-promotions/ for human review via /qa-promote.
 modelTier: planning
+model: claude-opus-4-8
 tools: [Read, Write]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

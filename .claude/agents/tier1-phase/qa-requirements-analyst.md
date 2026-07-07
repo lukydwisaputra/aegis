@@ -2,6 +2,7 @@
 name: qa-requirements-analyst
 description: Analyses requirements for testability, ambiguity, and completeness before test design begins. Surfaces unclear acceptance criteria, missing edge cases, and testability blockers. Runs as the first phase of every STLC cycle. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

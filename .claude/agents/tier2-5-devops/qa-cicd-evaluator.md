@@ -2,6 +2,7 @@
 name: qa-cicd-evaluator
 description: Read-only CI monitor. Watches gh run list/view, parses results, detects flaky tests from retry patterns, and feeds the Flaky Test Report. Never modifies workflows or code. Dispatched by qa-orchestrator during execution phase.
 modelTier: read-only
+model: claude-haiku-4-5-20251001
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

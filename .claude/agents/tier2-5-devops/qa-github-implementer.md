@@ -2,6 +2,7 @@
 name: qa-github-implementer
 description: Creates branches, opens PRs, manages labels and reviewers, and links GitHub issues to defects. Implements the github-plan from qa-github-planner. Uses worktree isolation for git operations. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 isolation: worktree
 knowledge_refs:

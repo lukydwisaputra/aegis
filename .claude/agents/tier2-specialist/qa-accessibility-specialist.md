@@ -2,6 +2,7 @@
 name: qa-accessibility-specialist
 description: Runs accessibility tests using @axe-core/playwright and Pa11y. Validates WCAG 2.2 AA conformance. Tests semantic HTML structure and keyboard navigation. Dispatched by qa-test-executor for test cases carrying testTechnique: Accessibility.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/accessibility-testing.md

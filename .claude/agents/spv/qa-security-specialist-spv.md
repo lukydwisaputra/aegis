@@ -2,6 +2,7 @@
 name: qa-security-specialist-spv
 description: Reviews qa-security-specialist work reports. Validates all 4 tool categories ran (ZAP/Semgrep/npm-audit+Trivy/Gitleaks), --redact flag on Gitleaks, CWE+WSTG tags on security defects, SecretLeakDetected = Sev1, and no unredacted secrets in evidence. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/security-testing.md

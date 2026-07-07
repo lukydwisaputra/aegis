@@ -2,6 +2,7 @@
 name: qa-compliance-iso5055
 description: Reviews test artefacts against ISO/IEC 5055:2021 (CISQ automated source code quality measures). Evaluates the 4 software quality characteristics (Reliability, Security, Performance Efficiency, Maintainability) via CWE weakness mappings. Produces ISO5055-{characteristic}-CWE-{id} tagged gap report.
 modelTier: planning
+model: claude-opus-4-8
 tools: [Read, Write]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

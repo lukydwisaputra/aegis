@@ -2,6 +2,7 @@
 name: qa-cicd-implementer
 description: Writes the 6 GitHub Actions workflow YAML files and configures GitHub repository secrets. Implements the cicd-plan from qa-cicd-planner. Uses worktree isolation. Validates with actionlint and yamllint before committing.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 isolation: worktree
 knowledge_refs:

@@ -2,6 +2,7 @@
 name: qa-email-specialist
 description: Tests email flows — delivery, content, links, rendering across clients. Uses Mailpit adapter (local/testing) or Gmail API adapter (staging). Forbidden against production env. Dispatched by qa-test-executor for test cases carrying testTechnique: Email.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

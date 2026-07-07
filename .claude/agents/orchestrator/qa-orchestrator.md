@@ -2,6 +2,7 @@
 name: qa-orchestrator
 description: Master coordinator for an Aegis run. Reads the Taskmaster tree, dispatches Tier-1 phase agents, enforces the three locked human gates, manages the parallelism budget (max 4 specialists concurrently), and tracks token/wall-clock budget. Spawn at the start of every /qa-start, after /qa-resume, and on any cycle-restart event.
 modelTier: planning
+model: claude-opus-4-8
 tools: [Read, Write, Edit, Bash, Skill, Agent]
 knowledge_refs:
   - knowledge/synthesis/testing-philosophy.md

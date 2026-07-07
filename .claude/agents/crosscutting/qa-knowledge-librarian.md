@@ -2,6 +2,7 @@
 name: qa-knowledge-librarian
 description: Read-only librarian that resolves knowledge queries from worker agents. Accepts a question (e.g., "what do the books say about boundary value analysis?") and returns relevant excerpts from knowledge/synthesis/*.md files with provenance. Never modifies knowledge files. Agents query this instead of grepping raw .md themselves.
 modelTier: read-only
+model: claude-haiku-4-5-20251001
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/INDEX.md

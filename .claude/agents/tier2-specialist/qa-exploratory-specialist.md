@@ -2,6 +2,7 @@
 name: qa-exploratory-specialist
 description: Runs session-based exploratory testing using charters derived from the risk register and SFDIPOT analysis. Uses Playwright in human-mimicking mode (no scripted assertions). Captures observations and files unscripted defects. Dispatched by qa-test-executor.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/exploratory-testing.md

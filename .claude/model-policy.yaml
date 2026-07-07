@@ -7,9 +7,9 @@ version: "1.0"
 
 # Tier definitions
 tiers:
-  planning:        claude-opus-4-7       # deep reasoning, synthesis, strategy
-  implementation:  claude-sonnet-4-6     # high-volume writing/coding workhorse
-  validation:      claude-opus-4-7       # SPVs — upgraded for high-leverage review
+  planning:        claude-opus-4-8       # deep reasoning, synthesis, strategy
+  implementation:  claude-sonnet-5       # high-volume writing/coding workhorse
+  validation:      claude-opus-4-8       # SPVs — upgraded for high-leverage review
   read-only:       claude-haiku-4-5-20251001  # cheap classification & scanning
 
 # Agent → tier assignments
@@ -109,9 +109,9 @@ assignments:
 ingestion:
   metadata:        claude-haiku-4-5-20251001   # ToC + page boundaries (~$0.01/book)
   skipFilter:      claude-haiku-4-5-20251001   # Identify chapters to skip (~$0.02/book)
-  chunkingPrimary: claude-sonnet-4-6           # Per-chapter extraction, cached (~$0.20/book)
-  synthesis:       claude-opus-4-7             # Cross-book topic consolidation (rare, ~$0.30/topic)
-  audit:           claude-opus-4-7             # Optional quality spot-check (~$0.10/book)
+  chunkingPrimary: claude-sonnet-5             # Per-chapter extraction, cached (~$0.20/book)
+  synthesis:       claude-opus-4-8             # Cross-book topic consolidation (rare, ~$0.30/topic)
+  audit:           claude-opus-4-8             # Optional quality spot-check (~$0.10/book)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SPV fast-path (Winteringham-inspired escalation policy):
@@ -126,8 +126,8 @@ ingestion:
 # ─────────────────────────────────────────────────────────────────────────────
 spvFastPath:
   enabled: true
-  firstPassModel: claude-sonnet-4-6
-  escalateToModel: claude-opus-4-7
+  firstPassModel: claude-sonnet-5
+  escalateToModel: claude-opus-4-8
   escalationTriggers:
     - requested-changes
     - passed-with-notes
@@ -139,12 +139,12 @@ spvFastPath:
 # Updated when Anthropic changes pricing. Source: Anthropic pricing page.
 # ─────────────────────────────────────────────────────────────────────────────
 tokenRates:
-  claude-opus-4-7:
+  claude-opus-4-8:
     inputPerMillion:  15.00
     outputPerMillion: 75.00
     cacheWritePerMillion: 18.75
     cacheReadPerMillion:  1.50
-  claude-sonnet-4-6:
+  claude-sonnet-5:
     inputPerMillion:  3.00
     outputPerMillion: 15.00
     cacheWritePerMillion: 3.75

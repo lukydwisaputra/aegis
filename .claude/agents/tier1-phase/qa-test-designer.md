@@ -2,6 +2,7 @@
 name: qa-test-designer
 description: Designs test cases and builds the RTM. Applies boundary value analysis, equivalence partitioning, decision tables, state transition, and all-pairs. Checks each test for automation suitability using Kaner's 13 do-not-automate criteria. Runs after Gate 1. Dispatched by qa-orchestrator.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-design-techniques.md

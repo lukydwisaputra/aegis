@@ -2,6 +2,7 @@
 name: qa-realtime-specialist-spv
 description: Reviews qa-realtime-specialist work reports. Validates connection lifecycle coverage, message ordering tests, SpecialistNoOp legitimacy when no real-time features exist, and no production targeting. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

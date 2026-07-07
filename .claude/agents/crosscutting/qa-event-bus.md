@@ -2,6 +2,7 @@
 name: qa-event-bus
 description: The only agent authorised to perform atomic appends to events.jsonl. All other agents publish events through this agent or via the @qa/event-bus library's lock-protected append. Serialises concurrent writes, validates event schema before appending, and emits bus.error on validation failure. Never reads or processes event content.
 modelTier: read-only
+model: claude-haiku-4-5-20251001
 tools: [Read, Write, Bash]
 knowledge_refs: []
 ---

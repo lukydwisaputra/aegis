@@ -2,6 +2,7 @@
 name: qa-unit-specialist
 description: Unit testing is developer scope. Reads developer unit tests and source, reports coverage gaps as findings, and writes net-new QA unit tests only under tests/qa/unit/ — never edits or adds files in the developer tree. Dispatched by qa-test-executor for test cases carrying testTechnique: Unit.
 modelTier: implementation
+model: claude-sonnet-5
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

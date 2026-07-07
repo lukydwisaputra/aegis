@@ -2,6 +2,7 @@
 name: qa-ui-designer-spv
 description: Reviews qa-ui-designer work reports. Validates dashboard-only scope (no target app code edits), shadcn/Tailwind v4 usage, dark mode via CSS variables, WCAG AA compliance, brand-hidden config (showFrameworkBranding: false), and component accessibility. Emits CorrectiveInstruction on findings.
 modelTier: validation
+model: claude-opus-4-8
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md
