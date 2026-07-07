@@ -37,8 +37,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$PROJECT" ]] || { echo "export-run: --project <name> required" >&2; exit 1; }
+[[ "$PROJECT" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "export-run: --project must be a simple name (no / or ..)" >&2; exit 1; }
 if [[ "$ALL" -eq 1 && -n "$RUN" ]] || [[ "$ALL" -eq 0 && -z "$RUN" ]]; then
   echo "export-run: provide exactly one of --run or --all" >&2; exit 1
+fi
+if [[ -n "$RUN" ]]; then
+  [[ "$RUN" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "export-run: --run must be a simple name (no / or ..)" >&2; exit 1; }
 fi
 
 SOURCE="${SOURCE:-$AEGIS_ROOT/runs}"
