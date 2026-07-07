@@ -63,6 +63,27 @@ describe('summarizeRun', () => {
     expect(s.runId).toBe('RUN-Z');
     expect(s.module).toBe('—');
   });
+
+  it('reads closure.json from a nested reports/closure/ directory', () => {
+    const dir = join(tmp, 'RUN-NESTED');
+    mkdirSync(join(dir, 'reports', 'closure'), { recursive: true });
+    writeFileSync(join(dir, 'run.json'), JSON.stringify({ runId: 'RUN-NESTED', createdAt: '2026-06-30' }));
+    writeFileSync(join(dir, 'reports', 'closure', 'closure.json'),
+      JSON.stringify({ shipRecommendation: 'ship', metrics: { passed: 8, failed: 0, blocked: 0, passRate: 100 } }));
+    const s = summarizeRun(dir);
+    expect(s.shipRec).toBe('ship');
+    expect(s.passed).toBe('8');
+    expect(s.reportLink).toBe('runs/RUN-NESTED/reports/closure/closure.md');
+  });
+
+  it('falls back to run.env and run.projectName when environment/module are absent', () => {
+    const dir = makeRun(tmp, 'RUN-ALT',
+      { runId: 'RUN-ALT', createdAt: '2026-06-30', env: 'testing', projectName: 'mws-irms' },
+      { shipRecommendation: 'ship', metrics: { passed: 5, failed: 0, blocked: 0, passRate: 100 } });
+    const s = summarizeRun(dir);
+    expect(s.environment).toBe('testing');
+    expect(s.module).toBe('mws-irms');
+  });
 });
 
 function makeCollector(root: string) {
@@ -99,11 +120,11 @@ describe('index rendering', () => {
     rmSync(empty, { recursive: true, force: true });
   });
 
-  it('root readme lists every project and run', () => {
+  it('root readme is a project index only, linking into each project', () => {
     const md = renderRootReadme(scanCollector(tmp));
-    expect(md).toContain('proj-a');
-    expect(md).toContain('proj-b');
-    expect(md).toContain('RUN-20260102-001');
+    expect(md).toContain('[proj-a](projects/proj-a/README.md)');
+    expect(md).toContain('[proj-b](projects/proj-b/README.md)');
+    expect(md).not.toContain('RUN-20260102-001'); // run detail lives only in per-project README
   });
 
   it('manifest is valid shape', () => {

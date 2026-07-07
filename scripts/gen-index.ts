@@ -17,9 +17,19 @@ function str(v: unknown): string {
   return v === undefined || v === null ? DASH : String(v);
 }
 
+const CLOSURE_CANDIDATES = ['reports/closure.json', 'reports/closure/closure.json'];
+
+function readClosure(runDir: string): { closure: any; reportLink: string } {
+  for (const rel of CLOSURE_CANDIDATES) {
+    const closure = readJson(join(runDir, rel));
+    if (closure !== undefined) return { closure, reportLink: `runs/${basename(runDir)}/${rel.replace(/\.json$/, '.md')}` };
+  }
+  return { closure: {}, reportLink: `runs/${basename(runDir)}/reports/closure.md` };
+}
+
 export function summarizeRun(runDir: string): RunSummary {
   const run = readJson(join(runDir, 'run.json')) ?? {};
-  const closure = readJson(join(runDir, 'reports', 'closure.json')) ?? {};
+  const { closure, reportLink } = readClosure(runDir);
   const metrics = closure.metrics ?? {};
   const runId = str(run.runId) === DASH ? basename(runDir) : String(run.runId);
 
@@ -36,15 +46,15 @@ export function summarizeRun(runDir: string): RunSummary {
   return {
     runId,
     date: str(run.createdAt ?? closure.cycleDate),
-    module: str(run.module ?? closure.module),
-    environment: str(run.environment ?? closure.environment),
+    module: str(run.module ?? run.projectName ?? run.targetProjectName ?? closure.module),
+    environment: str(run.environment ?? run.env ?? closure.environment ?? closure.env),
     shipRec: informOnly ? 'inform-only' : str(closure.shipRecommendation),
     passed: str(metrics.passed),
     failed: str(metrics.failed),
     blocked: str(metrics.blocked),
     passRate: str(metrics.passRate),
     defects,
-    reportLink: `runs/${runId}/reports/closure.md`,
+    reportLink,
   };
 }
 
@@ -75,12 +85,16 @@ function row(r: RunSummary, linkPrefix: string): string {
 const HEADER = '| Run | Date | Module | Env | Ship rec | P/F/B | Pass % | Defects | Report |\n|---|---|---|---|---|---|---|---|---|';
 
 export function renderRootReadme(projects: ProjectData[]): string {
-  const lines = ['# QA Testing Reports', '', 'Collected QA cycle runs across projects. Generated — do not edit by hand.', ''];
+  const lines = [
+    '# QA Testing Reports', '',
+    'Collected QA cycle runs across projects. Generated — do not edit by hand.', '',
+    '| Project | Runs |',
+    '|---|---|',
+  ];
   for (const p of projects) {
-    lines.push(`## ${p.name}`, '', HEADER);
-    for (const r of p.runs) lines.push(row(r, `projects/${p.name}/`));
-    lines.push('', `See [projects/${p.name}/README.md](projects/${p.name}/README.md).`, '');
+    lines.push(`| [${p.name}](projects/${p.name}/README.md) | ${p.runs.length} |`);
   }
+  lines.push('');
   if (!projects.length) lines.push('_No runs collected yet._', '');
   return lines.join('\n') + '\n';
 }
