@@ -17,6 +17,10 @@
     "platform": "generic",
     "apps": []
   },
+  "collector": {
+    "path": "/Users/lukydwisaputra/Desktop/QA/testing-reports",
+    "remote": "https://github.com/WerkDone-Pte-Ltd/testing-reports.git"
+  },
   "environments": {
     "development": {
       "url": "http://localhost:5173",
