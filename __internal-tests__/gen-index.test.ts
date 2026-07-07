@@ -140,16 +140,18 @@ describe('index rendering', () => {
     expect(run).toHaveProperty('shipRec');
     expect(run).toHaveProperty('passed');
     expect(run).toHaveProperty('passRate');
+    expect(run).toHaveProperty('defects');
   });
 
-  it('per-project README table omits Env/Ship rec/P-F-B/Pass % columns', () => {
+  it('per-project README table omits Env/Ship rec/P-F-B/Pass %/Defects columns', () => {
     const project = scanCollector(tmp).find((p) => p.name === 'proj-b')!;
     const md = renderProjectReadme(project);
-    expect(md).toContain('| Run | Date | Module | Defects | Report |');
+    expect(md).toContain('| Run | Date | Module | Report |');
     expect(md).not.toContain('Env');
     expect(md).not.toContain('Ship rec');
     expect(md).not.toContain('P/F/B');
     expect(md).not.toContain('Pass %');
+    expect(md).not.toContain('Defects');
   });
 
   it('regenerate writes files and is idempotent', () => {
