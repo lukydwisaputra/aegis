@@ -82,7 +82,7 @@ done
 [[ "$copied" -gt 0 ]] || { echo "export-run: nothing copied" >&2; exit 1; }
 
 # Regenerate index.
-( cd "$AEGIS_ROOT" && tsx scripts/gen-index.ts --target="$TARGET" )
+( cd "$AEGIS_ROOT" && npx --no-install tsx scripts/gen-index.ts --target="$TARGET" )
 
 # Commit + push.
 git -C "$TARGET" add -A
