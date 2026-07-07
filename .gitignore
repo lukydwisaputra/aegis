@@ -97,3 +97,6 @@ coverage/
 
 # ─── Locks ────────────────────────────────────────────────────────────────────
 runs/*/locks/*.lock
+
+# ─── Subagent-driven-development scratch state ───────────────────────────────
+**/.superpowers/
