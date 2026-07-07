@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { summarizeRun, scanCollector, renderRootReadme, buildManifest, regenerate } from '../scripts/gen-index';
+import { summarizeRun, scanCollector, renderRootReadme, renderProjectReadme, buildManifest, regenerate } from '../scripts/gen-index';
 import { readFileSync as rf } from 'node:fs';
 
 function makeRun(root: string, id: string, run: unknown, closure: unknown, defectIds: string[] = []): string {
@@ -131,6 +131,25 @@ describe('index rendering', () => {
     const m = buildManifest(scanCollector(tmp), '2026-07-07') as any;
     expect(m.generatedAt).toBe('2026-07-07');
     expect(m.projects.length).toBe(2);
+  });
+
+  it('manifest keeps full run fields even though README tables trim columns', () => {
+    const m = buildManifest(scanCollector(tmp), '2026-07-07') as any;
+    const run = m.projects.find((p: any) => p.name === 'proj-b').runs[0];
+    expect(run).toHaveProperty('environment');
+    expect(run).toHaveProperty('shipRec');
+    expect(run).toHaveProperty('passed');
+    expect(run).toHaveProperty('passRate');
+  });
+
+  it('per-project README table omits Env/Ship rec/P-F-B/Pass % columns', () => {
+    const project = scanCollector(tmp).find((p) => p.name === 'proj-b')!;
+    const md = renderProjectReadme(project);
+    expect(md).toContain('| Run | Date | Module | Defects | Report |');
+    expect(md).not.toContain('Env');
+    expect(md).not.toContain('Ship rec');
+    expect(md).not.toContain('P/F/B');
+    expect(md).not.toContain('Pass %');
   });
 
   it('regenerate writes files and is idempotent', () => {

@@ -79,10 +79,10 @@ export function scanCollector(targetDir: string): ProjectData[] {
 }
 
 function row(r: RunSummary, linkPrefix: string): string {
-  return `| ${r.runId} | ${r.date} | ${r.module} | ${r.environment} | ${r.shipRec} | ${r.passed}/${r.failed}/${r.blocked} | ${r.passRate} | ${r.defects} | [report](${linkPrefix}${r.reportLink}) |`;
+  return `| ${r.runId} | ${r.date} | ${r.module} | ${r.defects} | [report](${linkPrefix}${r.reportLink}) |`;
 }
 
-const HEADER = '| Run | Date | Module | Env | Ship rec | P/F/B | Pass % | Defects | Report |\n|---|---|---|---|---|---|---|---|---|';
+const HEADER = '| Run | Date | Module | Defects | Report |\n|---|---|---|---|---|';
 
 export function renderRootReadme(projects: ProjectData[]): string {
   const lines = [
