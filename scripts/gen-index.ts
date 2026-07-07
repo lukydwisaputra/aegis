@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
 export type RunSummary = {
@@ -46,4 +46,78 @@ export function summarizeRun(runDir: string): RunSummary {
     defects,
     reportLink: `runs/${runId}/reports/closure.md`,
   };
+}
+
+export type ProjectData = { name: string; runs: RunSummary[] };
+
+function dirs(path: string): string[] {
+  if (!existsSync(path)) return [];
+  return readdirSync(path).filter((n) => {
+    try { return statSync(join(path, n)).isDirectory(); } catch { return false; }
+  });
+}
+
+export function scanCollector(targetDir: string): ProjectData[] {
+  const projectsDir = join(targetDir, 'projects');
+  return dirs(projectsDir).map((name) => {
+    const runsDir = join(projectsDir, name, 'runs');
+    const runs = dirs(runsDir)
+      .map((r) => summarizeRun(join(runsDir, r)))
+      .sort((a, b) => (a.runId < b.runId ? 1 : a.runId > b.runId ? -1 : 0));
+    return { name, runs };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function row(r: RunSummary, linkPrefix: string): string {
+  return `| ${r.runId} | ${r.date} | ${r.module} | ${r.environment} | ${r.shipRec} | ${r.passed}/${r.failed}/${r.blocked} | ${r.passRate} | ${r.defects} | [report](${linkPrefix}${r.reportLink}) |`;
+}
+
+const HEADER = '| Run | Date | Module | Env | Ship rec | P/F/B | Pass % | Defects | Report |\n|---|---|---|---|---|---|---|---|---|';
+
+export function renderRootReadme(projects: ProjectData[]): string {
+  const lines = ['# QA Testing Reports', '', 'Collected QA cycle runs across projects. Generated — do not edit by hand.', ''];
+  for (const p of projects) {
+    lines.push(`## ${p.name}`, '', HEADER);
+    for (const r of p.runs) lines.push(row(r, `projects/${p.name}/`));
+    lines.push('', `See [projects/${p.name}/README.md](projects/${p.name}/README.md).`, '');
+  }
+  if (!projects.length) lines.push('_No runs collected yet._', '');
+  return lines.join('\n') + '\n';
+}
+
+export function renderProjectReadme(project: ProjectData): string {
+  const lines = [`# ${project.name} — QA Runs`, '', 'Generated — do not edit by hand.', '', HEADER];
+  for (const r of project.runs) lines.push(row(r, ''));
+  lines.push('');
+  return lines.join('\n') + '\n';
+}
+
+export function buildManifest(projects: ProjectData[], generatedAt: string): object {
+  return { generatedAt, projects: projects.map((p) => ({ name: p.name, runs: p.runs })) };
+}
+
+export function regenerate(targetDir: string, generatedAt: string): void {
+  const projects = scanCollector(targetDir);
+  writeFileSync(join(targetDir, 'README.md'), renderRootReadme(projects));
+  writeFileSync(join(targetDir, 'manifest.json'), JSON.stringify(buildManifest(projects, generatedAt), null, 2) + '\n');
+  for (const p of projects) {
+    const pdir = join(targetDir, 'projects', p.name);
+    mkdirSync(pdir, { recursive: true });
+    writeFileSync(join(pdir, 'README.md'), renderProjectReadme(p));
+  }
+}
+
+// CLI: tsx scripts/gen-index.ts --target=<dir> [--generated-at=<iso>]
+function argVal(flag: string): string | undefined {
+  const hit = process.argv.find((a) => a.startsWith(`${flag}=`));
+  return hit ? hit.slice(flag.length + 1) : undefined;
+}
+
+// Run only when invoked directly, not when imported by jest.
+if (process.argv[1] && process.argv[1].endsWith('gen-index.ts')) {
+  const target = argVal('--target');
+  if (!target) { console.error('gen-index: --target=<dir> required'); process.exit(1); }
+  const generatedAt = argVal('--generated-at') ?? new Date().toISOString().slice(0, 10);
+  regenerate(target, generatedAt);
+  console.log(`gen-index: regenerated index for ${target}`);
 }
