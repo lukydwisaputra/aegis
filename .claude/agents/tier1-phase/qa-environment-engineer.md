@@ -48,6 +48,7 @@ You do not run tests. You prepare the runway.
    - `projects`: Chromium + Firefox + WebKit (all three enabled by default per plan; override via `aegis.config.json.browsers`)
    - `globalSetup` and `globalTeardown` paths
    - `use.baseURL` from the target environment's URL
+   - `use.headless`: `false` if `aegis.config.json.playwright.headed` is `true` (default `true`/headless otherwise)
    - `reporter`: HTML + JUnit XML (JUnit for CI PR checks)
    - `retries`: 2 on CI, 0 local (per Greffier ch-09 flake quarantine discipline)
    - `fullyParallel`: true per worker

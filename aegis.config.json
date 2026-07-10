@@ -11,7 +11,7 @@
   "profile": "full",
   "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
-  "parallelism": { "maxSpecialists": 4 },
+  "parallelism": { "maxSpecialists": 2 },
   "gates": { "planApproval": true, "defectTriage": true, "closure": true },
   "target": {
     "platform": "generic",
@@ -122,5 +122,6 @@
       "auditRowCountCap": 80
     }
   },
-  "browsers": ["chromium", "firefox", "webkit"]
+  "browsers": ["chromium", "firefox", "webkit"],
+  "playwright": { "headed": true }
 }
