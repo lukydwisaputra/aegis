@@ -2,10 +2,15 @@
 # Reset Aegis to point at a new target project.
 #
 # - Archives agent-memory/qa-*/lessons.json under archive/{old-project}-{timestamp}/
+#   (via `git mv` when run inside a git repo, so the rename is staged rather than
+#   left as an untracked delete+add).
 # - Clears .aegis generated state (.counters.json, phase-*.md). Keeps pdf-text-cache.
 # - Keeps knowledge/ and books/ (target-agnostic).
 # - Updates aegis.config.json fields via jq.
 # - Does NOT touch .claude/, .mcp.json, package.json, tsconfig.*, or framework code.
+# - If run inside a git repo (and not --dry-run), commits exactly what it touched
+#   (agent-memory/, the config backup, aegis.config.json) — scoped, never `-A`, so
+#   any other in-progress changes in the tree are left untouched and uncommitted.
 #
 # Usage:
 #   scripts/reset-target.sh \
@@ -79,6 +84,12 @@ fi
 
 command -v jq >/dev/null 2>&1 || { echo "Error: jq is required" >&2; exit 1; }
 
+# Detect whether ROOT is (in) a git work tree. Steps 1 and 3 use this to decide
+# between `git mv`/`git add` (visible to git immediately, as a rename/change
+# rather than a delete+add) and plain mv/cp (outside a repo, or --dry-run).
+IN_GIT_REPO=0
+git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 && IN_GIT_REPO=1
+
 # Resolve old project name from current config for archive label
 OLD_PROJECT=$(jq -r '.dashboard.projectName // "unknown"' "$CONFIG" | tr ' /' '__')
 TIMESTAMP=$(date +%Y%m%dT%H%M%S)
@@ -99,6 +110,19 @@ run() {
     echo "[dry-run] $*"
   else
     eval "$@"
+  fi
+}
+
+# Move a tracked file. Inside a git repo this stages the move as a rename
+# (`git mv`) instead of leaving a plain filesystem `mv` for git to notice later
+# as an unstaged delete+add — the gap that let a prior reset run go uncommitted
+# for days with 39 files showing as deleted.
+move() {
+  local src="$1" dest="$2"
+  if [[ $IN_GIT_REPO -eq 1 ]]; then
+    run "git -C \"$ROOT\" mv \"$src\" \"$dest\""
+  else
+    run "mv \"$src\" \"$dest\""
   fi
 }
 
@@ -130,7 +154,7 @@ if [[ -n "$LESSON_FILES" ]]; then
     rel="${f#agent-memory/}"
     dest_dir="$ARCHIVE_DIR/$(dirname "$rel")"
     run "mkdir -p \"$dest_dir\""
-    run "mv \"$f\" \"$dest_dir/\""
+    move "$f" "$dest_dir/"
   done <<< "$LESSON_FILES"
   echo "  archived $(echo "$LESSON_FILES" | wc -l | tr -d ' ') lesson file(s)"
 else
@@ -193,15 +217,47 @@ else
 fi
 echo
 
-# ─── 4. Summary + next steps ─────────────────────────────────────────────────
-echo "[4/4] Done."
+# ─── 4. Commit the reset ──────────────────────────────────────────────────────
+echo "[4/4] Committing the reset …"
+if [[ $DRY_RUN -eq 1 ]]; then
+  echo "  [dry-run] would stage and commit: agent-memory/, $BACKUP, $CONFIG"
+elif [[ $IN_GIT_REPO -eq 0 ]]; then
+  echo "  not a git repo — skipping commit"
+else
+  # Scoped add: only what this script touches. Never -A — a user mid-edit on
+  # something else must not have unrelated work swept into this commit.
+  run "git -C \"$ROOT\" add agent-memory/ \"$BACKUP\" \"$CONFIG\""
+  if git -C "$ROOT" diff --cached --quiet -- agent-memory/ "$BACKUP" "$CONFIG" 2>/dev/null; then
+    echo "  nothing to commit (already clean)"
+  else
+    COMMIT_MSG="chore(reset-target): archive $OLD_PROJECT -> $PROJECT_NAME"
+    # Don't let a commit failure (no configured git identity, a rejecting hook)
+    # abort the script via set -e — the archive and config rewrite already
+    # happened on disk either way, and the user needs the summary + next steps
+    # printed regardless. The change is left staged for them to commit by hand.
+    if git -C "$ROOT" commit -q -m "$COMMIT_MSG" 2>/tmp/reset-target-commit-err.$$; then
+      echo "  committed: $COMMIT_MSG"
+    else
+      echo "  WARNING: commit failed — changes are staged but not committed:" >&2
+      sed 's/^/    /' /tmp/reset-target-commit-err.$$ >&2
+      echo "  run 'git commit -m \"$COMMIT_MSG\"' by hand once resolved" >&2
+    fi
+    rm -f /tmp/reset-target-commit-err.$$
+  fi
+  UNSTAGED_COUNT=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$UNSTAGED_COUNT" -gt 0 ]]; then
+    echo "  note: $UNSTAGED_COUNT other change(s) remain in the working tree, left untouched"
+  fi
+fi
 echo
+
+# ─── Summary + next steps ─────────────────────────────────────────────────────
 echo "Reminder: targetProjectRoot must point at ONE app repo, not a parent folder of many."
 echo
 echo "Next steps:"
 echo "  1. Update secrets/*.env.* and test-data/credentials/*.env.local for the new target."
 echo "  2. Run: pnpm qa-doctor   # interactive env check"
 echo "  3. Run: pnpm qa-health   # confirm clean state"
-echo "  4. (Optional) git diff $CONFIG   # review the config update"
+[[ $IN_GIT_REPO -eq 1 && $DRY_RUN -eq 0 ]] && echo "  4. Run: git log -1 --stat   # review what was just committed"
 echo
 echo "To revert config only: mv $BACKUP $CONFIG"
