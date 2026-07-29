@@ -44,6 +44,31 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 
 > You no longer write the metric JSON files (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). Those are owned by `qa-metrics-collector` and live under `reports/metrics/`. You READ them (see Inputs) to populate your ISTQB sections.
 
+### closure.json keys the collector index reads
+
+`scripts/gen-index.ts` builds the collector repo's `manifest.json` and README tables from `closure.json`. It reads a **fixed set of keys**. Write these exact keys, whatever else the document carries:
+
+```jsonc
+{
+  "cycleDate": "2026-07-27",           // or run.json#createdAt; the index shows "—" without one
+  "metrics": {
+    "passed": 886, "failed": 0, "blocked": 0,
+    "passRate": 100.0                   // headline rate as a plain number
+  },
+  "defectMetrics": {
+    "totalLogged": 16,
+    "confirmedOpen": 14                 // the index publishes OPEN, not logged
+  }
+}
+```
+
+Two rules that matter more than they look:
+
+- **`metrics` values must be flat scalars.** A run that reports several honest readings of the same figure (e.g. an unconditional pass rate plus a blocked-inclusive one) writes the headline as `passRate` and any variant under a distinct key such as `passRateInclBlockedDimension` — never a nested object under `passRate`. Nesting there once caused the index to publish the wrong branch.
+- **State `defectMetrics.confirmedOpen`.** The index reports outstanding defects, not the historical total. Without this key it falls back to scanning `defects/*.json` for a non-resolved status, and a run whose records carry no status at all publishes the logged count under an "open" label.
+
+Do not invent new shapes for these figures. `gen-index.ts` carries compatibility resolvers for several historical layouts (`metrics.items[]` matched by prose `name`, `resultsSummary.overallTally`, `passRatePct` objects, `reports/test-status-inventory.json`). Those exist to read runs that are already closed — they are not a menu. A shape no resolver recognizes renders as `—`, and `export-run.sh` then refuses to publish the index rather than overwrite good values with dashes.
+
 ## Process
 
 1. **Read context.** Load all input files and your lessons.md. Check that all compliance reports exist if compliance was in scope — if a compliance report is missing, flag it as a closure gap, not a pass.
@@ -75,6 +100,8 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 - Metrics section missing any of the 10 required metrics (read from `reports/metrics/`)
 - `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `ClosureReportDrafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
 - Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
+- `closure.json` omits `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, or `defectMetrics.confirmedOpen` — see "closure.json keys the collector index reads". A run missing these still closes, but publishes em dashes in the collector index and blocks the next export
+- A `metrics` value is a nested object where the index expects a scalar (e.g. `passRate: { unconditional, inclBlockedDimension }`) — write the headline figure flat and put variants under distinct keys
 - Work report does not cite lessons applied
 
 ## Events You Emit

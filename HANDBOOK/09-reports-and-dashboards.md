@@ -46,6 +46,8 @@ The closure artefact (`closure.md` + `closure.json`) is the developer-facing sum
 
 `qa-metrics-collector` is the **sole owner** of `reports/metrics/` — no other agent writes there.
 
+`closure.json` is also the input to the collector repo's index (`scripts/gen-index.ts` → `manifest.json` + README tables). The index reads a fixed set of keys — `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, and `defectMetrics.confirmedOpen` — and publishes **open** defects rather than the logged total. A run that stores those figures in some other shape still closes normally, but its row renders as em dashes and `export-run.sh` blocks the next export rather than overwrite good values. The authoritative contract, including why nested `metrics` values break the index, is in `.claude/agents/tier1-phase/qa-closure-reporter.md` under "closure.json keys the collector index reads".
+
 ---
 
 ### 9.3 The Executive PDFs

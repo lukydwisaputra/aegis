@@ -88,8 +88,34 @@ for src in "${RUNS[@]}"; do
 done
 [[ "$copied" -gt 0 ]] || { echo "export-run: nothing copied" >&2; exit 1; }
 
+# Snapshot the manifest before regenerating so we can prove the regenerated one
+# does not drop data. gen-index renders an unresolvable metric as an em dash
+# instead of failing, so without this check a closure-shape mismatch would quietly
+# replace real numbers with dashes and still push. See check-manifest-regression.ts.
+SNAPSHOT=""
+if [[ -f "$TARGET/manifest.json" ]]; then
+  SNAPSHOT="$(mktemp -t export-run-manifest)"
+  cp "$TARGET/manifest.json" "$SNAPSHOT"
+  trap 'rm -f "$SNAPSHOT"' EXIT
+fi
+
 # Regenerate index.
 ( cd "$AEGIS_ROOT" && npx --no-install tsx scripts/gen-index.ts --target="$TARGET" )
+
+# Refuse to commit an index that loses previously-published values. The copied run
+# files are left in place so a re-run after fixing a resolver is cheap.
+if [[ -n "$SNAPSHOT" ]]; then
+  if ! ( cd "$AEGIS_ROOT" && npx --no-install tsx scripts/check-manifest-regression.ts \
+           --before="$SNAPSHOT" --after="$TARGET/manifest.json" ); then
+    # Put the known-good manifest back. Otherwise the regenerated one stays on
+    # disk, and the next run would snapshot the already-degraded file, see no
+    # change, and publish the very regression this check just blocked.
+    cp "$SNAPSHOT" "$TARGET/manifest.json"
+    echo "export-run: aborted before commit — regenerated index would lose data" >&2
+    echo "export-run: restored the previous manifest.json; run files remain copied" >&2
+    exit 1
+  fi
+fi
 
 # Commit + push.
 git -C "$TARGET" add -A
