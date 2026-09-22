@@ -43,4 +43,4 @@ You review the work of qa-cicd-planner and qa-cicd-implementer. You validate wor
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

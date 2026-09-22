@@ -30,7 +30,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 - `runs/{runId}/rtm.json` — requirement-to-test traceability
 - `runs/{runId}/risk-register.json` — residual risk after testing
 - `runs/{runId}/plan.json` — original test plan (to compute variances)
-- `runs/{runId}/reports/metrics/*.json` — **computed metrics from qa-metrics-collector** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. They already exist on disk by the time Closure runs (metrics-collector writes intermediate rollups on every phase completion). If a required metric file is missing, emit `BlockingDependency` and wait — do not recompute it yourself.
+- `runs/{runId}/reports/metrics/*.json` — **computed metrics from qa-metrics-collector** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. They already exist on disk by the time Closure runs (metrics-collector writes intermediate rollups on every phase completion). If a required metric file is missing, emit `blocking.dependency` and wait — do not recompute it yourself.
 - `runs/{runId}/reports/compliance/*.json` — per-regulation compliance findings (if compliance phase ran)
 - `runs/{runId}/events.jsonl` — full event log
 - `agent-memory/qa-closure-reporter/lessons.md`
@@ -73,7 +73,7 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 1. **Read context.** Load all input files and your lessons.md. Check that all compliance reports exist if compliance was in scope — if a compliance report is missing, flag it as a closure gap, not a pass.
 
-2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If any required metric file is missing, emit `BlockingDependency` (with the missing filename) and wait — never silently recompute or fabricate a metric.
+2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If any required metric file is missing, emit `blocking.dependency` (with the missing filename) and wait — never silently recompute or fabricate a metric.
 
 3. **Write ISTQB closure sections.** All required sections:
    - **Summary**: 2-3 sentences on scope, duration, overall outcome. No verdict.
@@ -98,7 +98,7 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 - A Sev1 or Sev2 open defect is not explicitly called out in the defect metrics section
 - Compliance reports missing and not flagged as a gap
 - Metrics section missing any of the 10 required metrics (read from `reports/metrics/`)
-- `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `ClosureReportDrafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
+- `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `closure.report-drafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
 - Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
 - `closure.json` omits `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, or `defectMetrics.confirmedOpen` — see "closure.json keys the collector index reads". A run missing these still closes, but publishes em dashes in the collector index and blocks the next export
 - A `metrics` value is a nested object where the index expects a scalar (e.g. `passRate: { unconditional, inclBlockedDimension }`) — write the headline figure flat and put variants under distinct keys
@@ -106,9 +106,9 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 ## Events You Emit
 
-- `ClosureReportDrafted` — includes runId, coveragePercent, openDefectCount (by severity)
-- `BlockingDependency` — if a required `reports/metrics/*.json` file is missing when you start
-- `PhaseComplete` — emitted last, after both closure files are written and `ClosureReportDrafted` fired (orchestrator's phase-advance signal)
+- `closure.report-drafted` — includes runId, coveragePercent, openDefectCount (by severity)
+- `blocking.dependency` — if a required `reports/metrics/*.json` file is missing when you start
+- `run.phase.completed` — emitted last, after both closure files are written and `closure.report-drafted` fired (orchestrator's phase-advance signal)
 
 ## Concurrency
 

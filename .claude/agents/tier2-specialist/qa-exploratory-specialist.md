@@ -119,7 +119,7 @@ At session end (durable):
 
 ## Events You Emit
 
-- `ExploratorySessionStarted` / `ExploratorySessionComplete` — with charter scope and duration; `ExploratorySessionComplete` is the signal qa-test-executor waits for
+- `exploratory.session-started` / `exploratory.session-complete` — with charter scope and duration; `exploratory.session-complete` is the signal qa-test-executor waits for
 - `sandbox.experiment-completed` — emitted by `completeSandbox()` when the session sandbox is torn down
-- `TestPassed` / `TestFailed` — per charter outcome
-- `DefectOpened` — for any unscripted defect discovered
+- `test.passed` / `test.failed` — per charter outcome
+- `defect.opened` — for any unscripted defect discovered

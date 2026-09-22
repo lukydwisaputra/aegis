@@ -44,14 +44,14 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 
 9. **Brand-clean.** None of the 3 documents contain "Aegis", agent names, internal paths, or "events.jsonl". Run: `grep -i 'aegis\|qa-orchestrator\|qa-test-' <rendered-text>`. Match = requested-changes.
 10. **Evidence of tone-check run.** Work report must state that the `_qa-report-executive-slides` skill ran the tone-check pass. If absent = requested-changes.
-11. **Output location + format.** All three deliverables live under `runs/{runId}/reports/executive/` — never the `reports/` root. PDFs are expected; a `.md` deliverable is acceptable ONLY if the work report records a `ReportFallback` event for that deliverable (skill failure). A `.md` deliverable with no `ReportFallback` event, or any deliverable in the `reports/` root, = requested-changes.
+11. **Output location + format.** All three deliverables live under `runs/{runId}/reports/executive/` — never the `reports/` root. PDFs are expected; a `.md` deliverable is acceptable ONLY if the work report records a `report.fallback` event for that deliverable (skill failure). A `.md` deliverable with no `report.fallback` event, or any deliverable in the `reports/` root, = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — thin What/So-What/Now-What, pre-filled verdict, vague rewrite; emit CorrectiveInstruction
-- `requested-changes` — jargon without rewrite, brand leak, no signature block, slide 1 not punchline, deliverable in `reports/` root, `.md` fallback without a `ReportFallback` event; block
+- `requested-changes` — jargon without rewrite, brand leak, no signature block, slide 1 not punchline, deliverable in `reports/` root, `.md` fallback without a `report.fallback` event; block
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

@@ -85,4 +85,4 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 
 ## Events You Emit
 
-- `ComplianceReviewComplete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount

@@ -25,7 +25,7 @@ Kicks off a complete Software Testing Life Cycle run — requirements analysis, 
 | `--apps` | `all` | Comma-separated list of apps in the monorepo to include |
 
 ## Behaviour
-1. **Preflight (hard gate).** Before allocating a run: (a) resolve `targetProjectRoot`; abort with `PreflightFailed` if it resolves to a multi-project parent — heuristic: more than one nested `playwright.config.*` under it, OR no `package.json` at the resolved root. (b) If `aegis.config.json#preCycleHealthCheck` is true, run `/qa-health`; abort with `PreflightFailed` if it does not pass. Do not create a run directory when preflight fails.
+1. **Preflight (hard gate).** Before allocating a run: (a) resolve `targetProjectRoot`; abort with `preflight.failed` if it resolves to a multi-project parent — heuristic: more than one nested `playwright.config.*` under it, OR no `package.json` at the resolved root. (b) If `aegis.config.json#preCycleHealthCheck` is true, run `/qa-health`; abort with `preflight.failed` if it does not pass. Do not create a run directory when preflight fails.
 2. Validate flags and resolve the target environment config from `config/environments.yaml`.
 3. Allocate a new run ID: scan `runs/` for the highest existing NNN suffix and increment.
 4. Write `runs/RUN-{date}-NNN/run.json` with status `initializing` and emit `run.created`.
@@ -36,7 +36,7 @@ Kicks off a complete Software Testing Life Cycle run — requirements analysis, 
 9. After closure, release lock and emit `run.completed` with summary metrics.
 
 ## Events emitted
-- `PreflightFailed` — target resolves to a multi-project parent, or the pre-cycle health check failed; no run directory is created
+- `preflight.failed` — target resolves to a multi-project parent, or the pre-cycle health check failed; no run directory is created
 - `run.created` — new run directory initialized
 - `run.phase.started` / `run.phase.completed` — per STLC phase
 - `run.completed` — full cycle finished with pass/fail counts and cost

@@ -27,12 +27,12 @@ Formalises environment promotion by first running a quality gate check and, on p
 4. Write `runs/{run}/promotions/{to-stage}.json` with timestamp, gate result, and promoting user.
 5. Tag the run in `run.json` under `promotedTo` with the stage and timestamp.
 6. If a CI trigger URL is configured in `config/integrations.yaml` for the target stage, fire the webhook.
-7. Emit `run.promoted` event.
+7. Emit `stage.promoted` event.
 8. Print a confirmation with the promotion record path and any CI trigger response.
 
 ## Events emitted
 - `run.gate.check.triggered` — gate evaluation initiated
-- `run.promoted` — stage, run ID, timestamp
+- `stage.promoted` — stage, run ID, timestamp
 - `run.promotion.failed` — gate failure details
 
 ## Example

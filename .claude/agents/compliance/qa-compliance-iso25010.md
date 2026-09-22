@@ -59,4 +59,4 @@ Evaluate coverage for each:
 
 ## Events You Emit
 
-- `ComplianceReviewComplete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount

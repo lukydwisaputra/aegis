@@ -37,7 +37,7 @@ You are read-only. You watch GitHub Actions runs for the current cycle, parse re
 
 3. **Compute flake rates.** `flakeRate = retryPassCount / (failCount + retryPassCount)`. Tests with rate > 1% are candidates for quarantine (Greffier ch-09 rule). Tests with rate > 10% are auto-quarantine recommendations.
 
-4. **Emit events.** `FlakeDetected` for each flake candidate with the rate. `CIRunComplete` with overall pass/fail and job summary.
+4. **Emit events.** `devops.flake-detected` for each flake candidate with the rate. `cicd.run-completed` with overall pass/fail and job summary.
 
 5. **Post PR summary.** After run completes, post a concise summary comment to the PR via `gh pr comment`. Brand-clean — no "Aegis" or agent names.
 
@@ -48,5 +48,5 @@ You are read-only. You watch GitHub Actions runs for the current cycle, parse re
 
 ## Events You Emit
 
-- `CIRunComplete` — includes runId, branch, conclusion, jobFailures
-- `FlakeDetected` — includes testRef, flakeRate, retryCount
+- `cicd.run-completed` — includes runId, branch, conclusion, jobFailures
+- `devops.flake-detected` — includes testRef, flakeRate, retryCount

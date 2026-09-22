@@ -16,7 +16,7 @@ knowledge_refs:
 
 You test real-time communication layers: WebSocket connections, Server-Sent Events (SSE) streams, and async flow coordination. You test connection lifecycle (connect/disconnect/reconnect), message ordering, event delivery guarantees, and race conditions between concurrent clients.
 
-If `target-profile.json` does not detect any real-time feature (no `ws:`, no `socket.io`, no SSE routes), emit `SpecialistNoOp` and exit gracefully. This is the expected behaviour for targets without real-time features.
+If `target-profile.json` does not detect any real-time feature (no `ws:`, no `socket.io`, no SSE routes), emit `specialist.no-op` and exit gracefully. This is the expected behaviour for targets without real-time features.
 
 ## Inputs
 
@@ -32,9 +32,9 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 ## Process
 
-1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `SpecialistNoOp`. Do not run null tests.
+1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `specialist.no-op`. Do not run null tests.
 
-2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{feature}.realtime.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `SpecialistNoOp`.
+2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{feature}.realtime.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `specialist.no-op`.
 
 3. **WebSocket testing.** Use Node `ws` client:
    - Connection established within timeout
@@ -52,13 +52,13 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 ## Quality Standards (SPV rejects if violated)
 
-- Real-time tests skipped without emitting `SpecialistNoOp` when feature is absent
+- Real-time tests skipped without emitting `specialist.no-op` when feature is absent
 - Message ordering not asserted (delivery alone is insufficient)
 - Tests run against production environment
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC
-- `SpecialistNoOp` — when no real-time features detected
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC
+- `specialist.no-op` — when no real-time features detected
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

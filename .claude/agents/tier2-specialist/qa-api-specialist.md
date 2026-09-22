@@ -56,5 +56,5 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; includes status code and first assertion failure if relevant
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; includes status code and first assertion failure if relevant
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

@@ -84,7 +84,7 @@ gitleaks detect --redact --source=. --report-format=json
 
 `--redact` replaces secret values with `REDACTED` in the output — raw values never appear in the Gitleaks report or events.jsonl.
 
-Any `SecretLeakDetected` finding is automatically filed as a **Severity 1** defect regardless of where it appears (test files, config, logs).
+Any `secret.leak-detected` finding is automatically filed as a **Severity 1** defect regardless of where it appears (test files, config, logs).
 
 ---
 

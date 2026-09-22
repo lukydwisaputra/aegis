@@ -70,4 +70,4 @@ You evaluate the QA cycle against ISO/IEC 5055:2021, which defines automated sou
 
 ## Events You Emit
 
-- `ComplianceReviewComplete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount

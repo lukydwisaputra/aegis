@@ -27,11 +27,11 @@ Bridges manual testing with the automated QA pipeline's artifact store. When a t
 3. If `--evidence` path is provided, verify the file exists and copy it to `runs/{run}/evidence/{TC-ID}/`.
 4. Look up the current active run; if none is active, create a `manual-{date}/` run context.
 5. Write a result record to `runs/{run}/execution/results.json` under the TC-ID entry with: result, executedAt (now), executedBy (from env), notes, evidence path.
-6. Emit `tc.manual.recorded` event.
+6. Emit `manual.test.recorded` event.
 7. Print confirmation with the recorded result and the run it was attributed to.
 
 ## Events emitted
-- `tc.manual.recorded` — TC-ID, result, run ID, evidence path (if any)
+- `manual.test.recorded` — TC-ID, result, run ID, evidence path (if any)
 
 ## Example
 ```

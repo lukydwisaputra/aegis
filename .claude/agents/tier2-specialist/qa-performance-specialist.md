@@ -37,7 +37,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 ## Process
 
-1. **Verify env is non-production.** If `environments[env].readOnly === true` or env name is `production`: emit `ExecutionBlocked` immediately. Do not run load tests against production.
+1. **Verify env is non-production.** If `environments[env].readOnly === true` or env name is `production`: emit `execution.blocked` immediately. Do not run load tests against production.
 
 2. **Explore in the sandbox before writing the final spec.** Prototype VU ramp shape, thresholds, and Lighthouse config in `sandbox/{date}-{slug}/` first (this is the same sandbox dir used for scratch tuning in Step 7, not a separate location). Verify the approach works there, then port the validated version to `tests/qa/perf/{scenario}.perf.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
@@ -52,7 +52,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 6. **Preserve baseline.** Preserve baseline results in `runs/{runId}/evidence/{TC-ID}/baseline/` (one copy per run, never overwritten) so the SPV can run a baseline delta comparison. The overwrite-on-rerun rule applies only to the latest results dir, not the baseline.
 
-7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()` once the spec is committed. This cleanup is safe because the durable proof of exploration is the `SandboxExplored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
+7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()` once the spec is committed. This cleanup is safe because the durable proof of exploration is the `sandbox.explored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -64,6 +64,6 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; TestFailed includes which metrics violated which thresholds
-- `PerformanceRegressionDetected` — when p95 > previous run's p95 + 10% regression allowance
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; TestFailed includes which metrics violated which thresholds
+- `performance.regression-detected` — when p95 > previous run's p95 + 10% regression allowance
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

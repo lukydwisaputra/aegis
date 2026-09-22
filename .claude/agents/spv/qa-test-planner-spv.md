@@ -43,4 +43,4 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

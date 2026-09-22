@@ -59,5 +59,5 @@ You write the GitHub Actions workflow YAML files and configure secrets. You impl
 
 ## Events You Emit
 
-- `WorkflowCreated` — one per YAML file; includes filename, stages covered
-- `SecretsConfigured` — count of secrets set
+- `devops.workflow-edited` — one per YAML file; includes filename, stages covered
+- `secrets.configured` — count of secrets set

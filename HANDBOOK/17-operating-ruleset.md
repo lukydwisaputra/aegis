@@ -21,11 +21,11 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **Rule: A pre-cycle health check gates the run when configured.** If `aegis.config.json#preCycleHealthCheck` is `true`, `/qa-health` must have passed before any phase is dispatched.
 
-- Enforced by: `.claude/skills/qa-start/SKILL.md` preflight step 1 (hard gate, runs before a run directory is even created) + `qa-orchestrator.md` Process step 1 / Quality Standards (`PreflightFailed` if the health check did not pass).
+- Enforced by: `.claude/skills/qa-start/SKILL.md` preflight step 1 (hard gate, runs before a run directory is even created) + `qa-orchestrator.md` Process step 1 / Quality Standards (`preflight.failed` if the health check did not pass).
 
 **Rule: Preflight failure halts before any run artefacts exist.** No run directory, no dispatch, no partial state.
 
-- Enforced by: `qa-start/SKILL.md` preflight ("Do not create a run directory when preflight fails") + `qa-orchestrator.md` Quality Standards line — "A phase was dispatched while `target-profile.json#targetIsSingleProject` is false or absent, or with `preCycleHealthCheck` enabled and no passing health check (Preflight gate bypassed)" is a listed SPV-reject condition, and `PreflightFailed` is the emitted event in both cases.
+- Enforced by: `qa-start/SKILL.md` preflight ("Do not create a run directory when preflight fails") + `qa-orchestrator.md` Quality Standards line — "A phase was dispatched while `target-profile.json#targetIsSingleProject` is false or absent, or with `preCycleHealthCheck` enabled and no passing health check (Preflight gate bypassed)" is a listed SPV-reject condition, and `preflight.failed` is the emitted event in both cases.
 
 ---
 
@@ -35,7 +35,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 - Applies to all eight writing specialists that commit test artefacts: `qa-ui-specialist`, `qa-api-specialist`, `qa-accessibility-specialist`, `qa-database-specialist`, `qa-email-specialist`, `qa-performance-specialist`, `qa-realtime-specialist`, `qa-responsive-specialist`.
 - Durable proof is the `SandboxExplored { specialist, artifactPath, targetSpecRef }` event appended to `events.jsonl` — not the sandbox directory itself, since `sandbox/*` is gitignored except `README.md`.
-- Enforced by: each specialist's own Process step 1 (e.g. `qa-ui-specialist.md` step 1, "Explore in the sandbox before writing the final spec") + the matching `<specialist>-spv.md` Review Checklist item ("Sandbox-first compliance" — a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact is a `requested-changes` finding). See e.g. `qa-ui-specialist.md` / `qa-ui-specialist-spv.md`.
+- Enforced by: each specialist's own Process step 1 (e.g. `qa-ui-specialist.md` step 1, "Explore in the sandbox before writing the final spec") + the matching `<specialist>-spv.md` Review Checklist item ("Sandbox-first compliance" — a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact is a `requested-changes` finding). See e.g. `qa-ui-specialist.md` / `qa-ui-specialist-spv.md`.
 
 ---
 
@@ -75,7 +75,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **(b) The Playwright config is VSCode-discoverable via a named `qa-e2e` project, not a duplicate top-level `testDir`.** `tests/qa` must be declared exactly once, at the project level, so the VSCode Playwright Test Explorer scans and groups QA specs separately.
 
-- Enforced by: `qa-environment-engineer.md` Process step 2 ("Configure Playwright" — named project `{ name: 'qa-e2e', testDir: 'tests/qa' }`, no top-level `testDir`, emits `TestConfigWritten { testDir, projectName }`) + `qa-environment-engineer-spv.md` Review Checklist items 11–14 ("VSCode-discoverable project-level `testDir`", "No duplicate top-level `testDir`", "Named QA project", "`TestConfigWritten` emitted").
+- Enforced by: `qa-environment-engineer.md` Process step 2 ("Configure Playwright" — named project `{ name: 'qa-e2e', testDir: 'tests/qa' }`, no top-level `testDir`, emits `TestConfigWritten { testDir, projectName }`) + `qa-environment-engineer-spv.md` Review Checklist items 11–14 ("VSCode-discoverable project-level `testDir`", "No duplicate top-level `testDir`", "Named QA project", "`test.config-written` emitted").
 
 **(c) Unit testing is developer scope; `qa-unit-specialist` is read-only on developer units.** It reads developer unit tests/source to assess coverage and reports gaps as findings — it never edits the developer tree. Any net-new QA-owned unit test goes only under `tests/qa/unit/`.
 
@@ -95,7 +95,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 1. **Assuming a rule is "soft guidance"** — every rule in this chapter has a concrete SPV block/requested-changes condition. There is no advisory-only tier here; a violation stops the work report from passing review.
 
-2. **Treating `SandboxExplored` as optional when the sandbox directory is gitignored** — the sandbox artifact itself is not the proof; the `SandboxExplored` event in `events.jsonl` is the durable record the SPV checks for.
+2. **Treating `sandbox.explored` as optional when the sandbox directory is gitignored** — the sandbox artifact itself is not the proof; the `sandbox.explored` event in `events.jsonl` is the durable record the SPV checks for.
 
 3. **Forcing Gherkin onto technique-derived test cases** — BVA/EP/decision-table cases keep `steps[]`. Only flow cases (`testType` Functional/E2E + `testTechnique` Flow) require `gherkin`.
 

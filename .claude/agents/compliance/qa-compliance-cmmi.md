@@ -63,4 +63,4 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 
 ## Events You Emit
 
-- `ComplianceReviewComplete` — includes regulation, practicesCovered, gaps[], maturityIndicator
+- `compliance.review-complete` — includes regulation, practicesCovered, gaps[], maturityIndicator

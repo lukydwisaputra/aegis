@@ -78,6 +78,6 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC per viewport
-- `BreakpointDefectFound` — includes viewport, element selector, defect type
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC per viewport
+- `breakpoint.defect-found` — includes viewport, element selector, defect type
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

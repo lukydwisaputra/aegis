@@ -127,6 +127,6 @@ tests/qa/
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; TestFailed includes evidence paths
-- `TestIdProposalCreated` — per missing testid
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; TestFailed includes evidence paths
+- `test.id-proposal-created` — per missing testid
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

@@ -40,15 +40,15 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 11. **VSCode-discoverable project-level `testDir`.** The `qa-e2e` project's (or the per-browser projects') `testDir` must resolve to `tests/qa` (the QA namespace the VSCode Playwright Test Explorer scans). `testDir` pointing anywhere else = requested-changes.
 12. **No duplicate top-level `testDir`.** A top-level `testDir` must not be set in addition to the project-level `testDir` — `tests/qa` must be declared exactly once, at the project level. A top-level `testDir` set alongside the project-level `testDir` = requested-changes.
 13. **Named QA project.** The `projects` array must include a named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` so QA specs are grouped separately in the Test Explorer. Missing QA project = requested-changes.
-14. **`TestConfigWritten` emitted.** `events.jsonl` must contain a `TestConfigWritten { testDir, projectName }` event after the config is written. Missing event = requested-changes.
+14. **`test.config-written` emitted.** `events.jsonl` must contain a `TestConfigWritten { testDir, projectName }` event after the config is written. Missing event = requested-changes.
 15. **Outputs confined to `tests/qa/`.** All fixture, factory, global-setup/teardown, and state outputs live under `tests/qa/` (only `playwright.config.ts` itself sits at the target root). Any output written outside `tests/qa/` = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — browser matrix incomplete, minor teardown order issue; emit CorrectiveInstruction
-- `requested-changes` — auth fixture uses raw credentials, missing factory cleanup, no halt-on-fail, missing or incorrect `outputDir`, missing `screenshot`/`video`/`trace` config, project-level `testDir` not resolving to `tests/qa`, a top-level `testDir` set in addition to the project-level `testDir`, missing `qa-e2e` project, missing `TestConfigWritten`, or any fixture/factory/state output written outside `tests/qa/`; block
+- `requested-changes` — auth fixture uses raw credentials, missing factory cleanup, no halt-on-fail, missing or incorrect `outputDir`, missing `screenshot`/`video`/`trace` config, project-level `testDir` not resolving to `tests/qa`, a top-level `testDir` set in addition to the project-level `testDir`, missing `qa-e2e` project, missing `test.config-written`, or any fixture/factory/state output written outside `tests/qa/`; block
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

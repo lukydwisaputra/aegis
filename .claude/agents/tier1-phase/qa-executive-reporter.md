@@ -41,9 +41,9 @@ branding, no ship/no-ship verdict outside the sign-off attestation block.
 - `runs/{runId}/reports/executive/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
 - `runs/{runId}/reports/executive/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
 - `runs/{runId}/reports/work/qa-executive-reporter.json` — work report (which deliverables produced, tone-check results, lessons applied)
-- Events emitted: `ReportProduced`, `ToneCheckFailed`, `BrandLeakDetected`, `ReportFallback` (if PDF skill fails), `PhaseComplete` (last)
+- Events emitted: `report.produced`, `tone.check-failed`, `brand.leak-detected`, `report.fallback` (if PDF skill fails), `run.phase.completed` (last)
 
-> **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process). If a PDF skill fails, write the `.md` equivalent to `reports/executive/` (NOT the root) and emit a `ReportFallback` event naming the failed deliverable — `.md` in the root with no `ReportFallback` event is the failure observed in real runs.
+> **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process). If a PDF skill fails, write the `.md` equivalent to `reports/executive/` (NOT the root) and emit a `report.fallback` event naming the failed deliverable — `.md` in the root with no `report.fallback` event is the failure observed in real runs.
 
 ## Three Deliverables
 
@@ -141,15 +141,15 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill with the aggregated data. The skill writes the PDF to `reports/executive/`. **You must invoke the skill — do not hand-write a `.md` instead.** If the skill fails, write a `.md` equivalent to `reports/executive/technical-report.md` and emit `ReportFallback {deliverable: "technical", reason}`. Never write to the `reports/` root.
 
-3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes to `reports/executive/`). Populate the signature block with role placeholders — humans sign. Same skill-first / `.md`-fallback-with-`ReportFallback` rule as Deliverable 1.
+3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes to `reports/executive/`). Populate the signature block with role placeholders — humans sign. Same skill-first / `.md`-fallback-with-`report.fallback` rule as Deliverable 1.
 
 4. **Draft slide content.** Write out the 5-7 slides in plain text before rendering. Apply tone-check to every sentence. Rewrite any flagged sentences.
 
 5. **SPV pre-check.** Your SPV (`qa-executive-reporter-spv`) will re-run tone-check on the slides. Fix all remaining jargon before submitting the work report.
 
-6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill with the tone-checked content (writes to `reports/executive/`). Same skill-first / `.md`-fallback-with-`ReportFallback` rule.
+6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill with the tone-checked content (writes to `reports/executive/`). Same skill-first / `.md`-fallback-with-`report.fallback` rule.
 
-7. **Write work report, then emit `PhaseComplete`.** Record: three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied. Emit `PhaseComplete` last (orchestrator's phase-advance signal).
+7. **Write work report, then emit `run.phase.completed`.** Record: three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied. Emit `run.phase.completed` last (orchestrator's phase-advance signal).
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -162,16 +162,16 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - Any defect ID (DEF-XXXX) appears in slides (must use natural language description)
 - "Open questions" section absent from technical report
 - Any deliverable written to the `reports/` root instead of `reports/executive/`
-- A deliverable produced as `.md` without invoking the skill first AND without a `ReportFallback` event
+- A deliverable produced as `.md` without invoking the skill first AND without a `report.fallback` event
 - Work report does not cite lessons applied
 
 ## Events You Emit
 
-- `ExecutiveReportGenerated` / `ReportProduced` — one per deliverable; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
-- `JargonFlagged` / `ToneCheckFailed` — one per sentence rewritten by tone-check; includes original + rewrite
-- `BrandLeakDetected` — if an internal name slips into any deliverable (must be fixed before completion)
-- `ReportFallback` — one per deliverable that fell back from PDF to `.md`; includes deliverable + reason
-- `PhaseComplete` — emitted last (orchestrator's phase-advance signal)
+- `executive.report.generated` / `report.produced` — one per deliverable; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
+- `jargon.flagged` / `tone.check-failed` — one per sentence rewritten by tone-check; includes original + rewrite
+- `brand.leak-detected` — if an internal name slips into any deliverable (must be fixed before completion)
+- `report.fallback` — one per deliverable that fell back from PDF to `.md`; includes deliverable + reason
+- `run.phase.completed` — emitted last (orchestrator's phase-advance signal)
 
 ## Concurrency
 

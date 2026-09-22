@@ -37,7 +37,7 @@ You are a read-write agent against the test database. You never touch the produc
 
 ## Process
 
-1. **Verify non-production env.** Check `environments[env].readOnly`. If true: emit `ExecutionBlocked`.
+1. **Verify non-production env.** Check `environments[env].readOnly`. If true: emit `execution.blocked`.
 
 2. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/integration/db/{feature}.db.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
@@ -67,7 +67,7 @@ You are a read-write agent against the test database. You never touch the produc
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC
-- `MigrationApplied` — one per migration file in the run
-- `RLSViolationDetected` — when a role can access data it should not
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC
+- `migration.applied` — one per migration file in the run
+- `rls.violation-detected` — when a role can access data it should not
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

@@ -103,7 +103,7 @@ You translate approved requirements and the test plan into concrete, executable 
 
 7. **Write the work report.** Technique-per-requirement summary, manual-flag count + justifications (with the automation alternatives evaluated), locator-proposal count, lessons applied.
 
-8. **Emit `PhaseComplete`.** After the work report and `TestDesignComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
+8. **Emit `run.phase.completed`.** After the work report and `test.design-complete` are written, emit `run.phase.completed` as the final event — the orchestrator's signal to advance.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -122,11 +122,11 @@ You translate approved requirements and the test plan into concrete, executable 
 
 ## Events You Emit
 
-- `TestCaseDrafted` — one per TC; includes id, automationStatus, technique used
-- `ManualFlagRaised` — one per `requiresManual: true` TC; includes automationBlocker
-- `TestIdProposalCreated` — when UI requires missing data-testid attributes
-- `TestDesignComplete` — single event at end; includes total TCs, automated count, manual count
-- `PhaseComplete` — emitted last, after `TestDesignComplete` and the work report (orchestrator's phase-advance signal)
+- `test.case-drafted` — one per TC; includes id, automationStatus, technique used
+- `manual.flag-raised` — one per `requiresManual: true` TC; includes automationBlocker
+- `test.id-proposal-created` — when UI requires missing data-testid attributes
+- `test.design-complete` — single event at end; includes total TCs, automated count, manual count
+- `run.phase.completed` — emitted last, after `test.design-complete` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

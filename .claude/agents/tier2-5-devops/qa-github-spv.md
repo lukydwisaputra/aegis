@@ -39,4 +39,4 @@ You review the work of qa-github-planner and qa-github-implementer. You validate
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

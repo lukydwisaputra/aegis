@@ -65,7 +65,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 8. **Write the work report.** Summarise: total requirements analysed, counts per score category, top 3 highest-risk ambiguities, source-grounding gaps found, lessons applied.
 
-9. **Emit `PhaseComplete`.** After the work report and `RequirementsAnalysisComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
+9. **Emit `run.phase.completed`.** After the work report and `requirements.analysis-complete` are written, emit `run.phase.completed` as the final event — the orchestrator's signal to advance.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -78,10 +78,10 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 ## Events You Emit
 
-- `AmbigiutyFlagged` — one per FLAG/BLOCK finding; includes requirementId, heuristicFailed, severity
-- `ComplianceGapFlagged` — one per missing compliance tag
-- `RequirementsAnalysisComplete` — single event at end; includes block count, flag count, passCount
-- `PhaseComplete` — emitted last, after `RequirementsAnalysisComplete` and the work report (orchestrator's phase-advance signal)
+- `ambiguity.flagged` — one per FLAG/BLOCK finding; includes requirementId, heuristicFailed, severity
+- `compliance.gap-flagged` — one per missing compliance tag
+- `requirements.analysis-complete` — single event at end; includes block count, flag count, passCount
+- `run.phase.completed` — emitted last, after `requirements.analysis-complete` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

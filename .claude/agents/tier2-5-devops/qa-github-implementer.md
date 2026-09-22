@@ -77,6 +77,6 @@ You **never** merge PRs. You **never** push directly to `main` or `master`. You 
 
 ## Events You Emit
 
-- `BranchCreated` — includes branchName, baseRef
-- `PROpened` — includes prNumber, prUrl
-- `IssueLinked` — includes issueNumber, defectId
+- `devops.branch-created` — includes branchName, baseRef
+- `devops.pr-opened` — includes prNumber, prUrl
+- `devops.issue-linked` — includes issueNumber, defectId

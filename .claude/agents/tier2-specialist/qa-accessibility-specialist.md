@@ -71,6 +71,6 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; TestFailed includes violation count by impact level
-- `A11yViolationCritical` — for any critical axe finding
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; TestFailed includes violation count by impact level
+- `a11y.violation-critical` — for any critical axe finding
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

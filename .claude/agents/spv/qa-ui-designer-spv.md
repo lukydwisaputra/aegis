@@ -44,4 +44,4 @@ You review dashboard design work from `qa-ui-designer`. You verify the designer 
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

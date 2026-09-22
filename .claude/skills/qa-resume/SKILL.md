@@ -29,7 +29,7 @@ Recovers a run that was interrupted mid-cycle (e.g. agent crash, network loss, m
 8. Orchestrator continues from the identified checkpoint; events append to existing `events.jsonl`.
 
 ## Events emitted
-- `run.resuming` — includes the resume checkpoint (phase + task)
+- `run.resumed` — includes the resume checkpoint (phase + task)
 - `run.lock.stale.cleared` — if an orphan lock was removed
 - `run.completed` — on successful finish (same as a normal run)
 

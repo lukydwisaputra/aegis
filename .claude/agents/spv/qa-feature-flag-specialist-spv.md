@@ -25,7 +25,7 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 
 ## Review Checklist
 
-1. **SpecialistNoOp legitimacy.** If `SpecialistNoOp` was emitted, `target-profile.json` must confirm no feature flag system (GrowthBook, LaunchDarkly, Unleash, Statsig) was detected. NoOp without evidence = requested-changes.
+1. **SpecialistNoOp legitimacy.** If `specialist.no-op` was emitted, `target-profile.json` must confirm no feature flag system (GrowthBook, LaunchDarkly, Unleash, Statsig) was detected. NoOp without evidence = requested-changes.
 2. **Full on/off matrix per flag.** For each detected flag, the work report shows test results for both `on` and `off` states. Flags tested in only one state = requested-changes.
 3. **Override API usage.** Flags were toggled using the flag system's test override API — not by modifying source code or environment variables mid-test. Code modification for flag toggle = requested-changes.
 3b. **Output path.** Flag spec files live under `tests/qa/specs/{url-path}/flags.spec.ts` (the canonical url-path structure) — NOT the legacy `tests/qa/e2e/` root. Any flag spec written to `tests/qa/e2e/` = requested-changes.
@@ -41,4 +41,4 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

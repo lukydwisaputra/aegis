@@ -73,4 +73,4 @@ You evaluate whether the test cycle adequately covers GDPR obligations for the a
 
 ## Events You Emit
 
-- `ComplianceReviewComplete` — includes regulation, articlesCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — includes regulation, articlesCovered, gaps[], highSeverityGapCount

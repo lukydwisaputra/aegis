@@ -45,4 +45,4 @@ You review defect reports produced by `qa-defect-manager`. You apply the Kaner c
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

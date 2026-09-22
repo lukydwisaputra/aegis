@@ -65,5 +65,5 @@ You are forbidden against the production environment.
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; TestFailed includes which assertion failed
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; TestFailed includes which assertion failed
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
