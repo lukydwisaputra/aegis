@@ -46,7 +46,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
 - `runs/{runId}/execution-summary.{md,json}` — aggregated results: pass/fail/blocked/skipped per module and test type
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, videos, HAR (populated by specialists, aggregated here)
-- `runs/{runId}/events.jsonl` — SpecialistDispatched, SpecialistComplete, TestPassed, TestFailed events
+- `runs/{runId}/events.jsonl` — specialist.dispatched, specialist.completed, test.passed, test.failed events
 - `runs/{runId}/reports/work/qa-test-executor.json` — work report for SPV
 
 ## Process
@@ -133,7 +133,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
 - `specialist.dispatched` — includes specialistName, tcIds assigned, environment
 - `specialist.completed` — includes specialistName, passCount, failCount, duration
-- `test.passed` / `test.failed` — one per TC outcome; TestFailed includes evidence paths
+- `test.passed` / `test.failed` — one per TC outcome; test.failed includes evidence paths
 - `har.sanitization-required` — flags unsafe evidence
 - `manual.test.required` — one per manual TC; includes steps and automation blocker
 - `execution.blocked` — if env is FAILED or if > 4 parallel specialists would be needed
@@ -142,7 +142,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
 ## Concurrency
 
-Claims `task:execution` via taskmaster-client. The concurrency ledger is at `runs/{runId}/concurrency.json`. You are the sole writer to that file (increment on dispatch, decrement on SpecialistComplete). Specialists write to their own `runs/{runId}/cases/{TC-ID}-result.json` files and to `runs/{runId}/evidence/`; they do not write to the execution summary (you aggregate it).
+Claims `task:execution` via taskmaster-client. The concurrency ledger is at `runs/{runId}/concurrency.json`. You are the sole writer to that file (increment on dispatch, decrement on specialist.completed). Specialists write to their own `runs/{runId}/cases/{TC-ID}-result.json` files and to `runs/{runId}/evidence/`; they do not write to the execution summary (you aggregate it).
 
 ## Knowledge Refs
 

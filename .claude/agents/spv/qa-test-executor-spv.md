@@ -19,7 +19,7 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 
 - `runs/{runId}/reports/work/qa-test-executor.json` — work report
 - `runs/{runId}/execution-summary.{md,json}`
-- `runs/{runId}/events.jsonl` — to check SpecialistDispatched events
+- `runs/{runId}/events.jsonl` — to check specialist.dispatched events
 - Sample evidence files under `runs/{runId}/evidence/` (spot-check)
 - `agent-memory/qa-test-executor/lessons.md`
 

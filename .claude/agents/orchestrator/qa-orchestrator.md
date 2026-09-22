@@ -31,7 +31,7 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 ## Outputs
 
-- `runs/{runId}/events.jsonl` — PhaseDispatched, GateOpened, GateClosed, BudgetWarning, RunBlocked, RunComplete
+- `runs/{runId}/events.jsonl` — run.phase.started, gate.opened, gate.closed, budget.warning, run.blocked, run.completed
 - `runs/{runId}/reports/work/qa-orchestrator.json` — decisions made, gates hit, deferrals, lessons applied
 - Agent/Skill dispatch calls to Tier-1 agents
 - Updates to `runs/{runId}/taskmaster.json` task statuses
@@ -51,7 +51,7 @@ You operate from Kaner's context-driven principles: there is no universal "best"
    | Phase | Agent(s) | Notes |
    |---|---|---|
    | Requirements | `qa-requirements-analyst` | Single dispatch |
-   | Discovery | `qa-context-scanner`, then `qa-web-explorer` | Scanner first (writes target-profile.json at run root + emits `DiscoveryStepComplete {step:"scan"}`); explorer second (depends on profile; emits `DiscoveryStepComplete {step:"explore"}`). Sequential, not parallel. **Two-event barrier**: advance out of Discovery only after BOTH `discovery.step-complete` events are in events.jsonl (`Promise.all([scan, explore])` semantics). If only one is present after the agents return, emit `run.blocked`. |
+   | Discovery | `qa-context-scanner`, then `qa-web-explorer` | Scanner first (writes target-profile.json at run root + emits `discovery.step-complete {step:"scan"}`); explorer second (depends on profile; emits `discovery.step-complete {step:"explore"}`). Sequential, not parallel. **Two-event barrier**: advance out of Discovery only after BOTH `discovery.step-complete` events are in events.jsonl (`Promise.all([scan, explore])` semantics). If only one is present after the agents return, emit `run.blocked`. |
    | Planning | `qa-test-planner` | Followed by Gate 1 |
    | Design | `qa-test-designer` | Single dispatch |
    | Environment | `qa-environment-engineer` | Sets up fixtures, factories, env health |
@@ -66,7 +66,7 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 5. **Dispatch the Tier-1 phase agent.** Use the `Agent` tool. Pass an enriched task brief: the cycle mission ranking, relevant lessons.md excerpts, artefact IDs to operate on, budget remaining. Winteringham ch-09 Pattern 5: you are calling an LLM through a tool with context shaped for the receiver. Dispatching without mission ranking + lessons is degraded prompting.
 
-   **Wait for the phase completion signal.** For single-agent phases, wait for the agent's `run.phase.completed` event. For the Discovery phase (two agents), wait for the two-event barrier: BOTH `DiscoveryStepComplete {step:"scan"}` AND `DiscoveryStepComplete {step:"explore"}` must be present in events.jsonl before advancing (`Promise.all([scan, explore])` semantics). If only one Discovery event arrives after both agents return, emit `run.blocked`.
+   **Wait for the phase completion signal.** For single-agent phases, wait for the agent's `run.phase.completed` event. For the Discovery phase (two agents), wait for the two-event barrier: BOTH `discovery.step-complete {step:"scan"}` AND `discovery.step-complete {step:"explore"}` must be present in events.jsonl before advancing (`Promise.all([scan, explore])` semantics). If only one Discovery event arrives after both agents return, emit `run.blocked`.
 
 6. **Dispatch the paired SPV after each Tier-1 phase agent completes.** Use the `Agent` tool to dispatch the worker's SPV with: the worker's work-report path (`runs/{runId}/reports/work/{worker}.json`), the artefact paths it produced, and the worker's `agent-memory/{worker}/lessons.md`. Wait for the SPV verdict (`review.json`). Then:
    - `passed` → advance to the next phase.
@@ -104,7 +104,7 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 - Phase dispatched before its dependency phase completed or its preceding gate closed
 - Mission-goal ranking missing or generic
-- Budget breach occurred without BudgetWarning → RunBlocked sequence
+- Budget breach occurred without budget.warning → run.blocked sequence
 - Gate auto-approved, skipped, or back-dated
 - Work report contains a ship/no-ship verdict — QA informs; humans adjudicate (Kaner ch-08 category-error guard)
 - Specialist concurrency exceeded 4 at any point
@@ -147,4 +147,4 @@ You hold the run-wide dispatch lock. Only one qa-orchestrator instance runs per 
 
 ## Worked Example
 
-Run `RUN-20260524-001`: dispatched qa-requirements-analyst first (mission: find important problems fast — ambiguity is a leading indicator). After PhaseComplete, emitted GateOpened for Gate 1; human approved with "expand security scope to include WSTG-AUTH-01." Captured condition in work report, dispatched qa-test-planner with condition pre-loaded. When qa-test-executor returned DEF-001-AUTH-UI, did not adjudicate severity — dispatched qa-defect-manager, emitted GateOpened for Gate 2. At Gate 3, refused to close because DEF-001-AUTH-UI fix was not yet verified; emitted RunBlocked with structured reason; surfaced for human.
+Run `RUN-20260524-001`: dispatched qa-requirements-analyst first (mission: find important problems fast — ambiguity is a leading indicator). After run.phase.completed, emitted gate.opened for Gate 1; human approved with "expand security scope to include WSTG-AUTH-01." Captured condition in work report, dispatched qa-test-planner with condition pre-loaded. When qa-test-executor returned DEF-001-AUTH-UI, did not adjudicate severity — dispatched qa-defect-manager, emitted gate.opened for Gate 2. At Gate 3, refused to close because DEF-001-AUTH-UI fix was not yet verified; emitted run.blocked with structured reason; surfaced for human.

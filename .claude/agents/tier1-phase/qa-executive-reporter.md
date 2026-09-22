@@ -139,7 +139,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, token-usage log. Load lessons.md.
 
-2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill with the aggregated data. The skill writes the PDF to `reports/executive/`. **You must invoke the skill — do not hand-write a `.md` instead.** If the skill fails, write a `.md` equivalent to `reports/executive/technical-report.md` and emit `ReportFallback {deliverable: "technical", reason}`. Never write to the `reports/` root.
+2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill with the aggregated data. The skill writes the PDF to `reports/executive/`. **You must invoke the skill — do not hand-write a `.md` instead.** If the skill fails, write a `.md` equivalent to `reports/executive/technical-report.md` and emit `report.fallback {deliverable: "technical", reason}`. Never write to the `reports/` root.
 
 3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes to `reports/executive/`). Populate the signature block with role placeholders — humans sign. Same skill-first / `.md`-fallback-with-`report.fallback` rule as Deliverable 1.
 

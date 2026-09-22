@@ -1,6 +1,6 @@
 ---
 name: qa-realtime-specialist-spv
-description: Reviews qa-realtime-specialist work reports. Validates connection lifecycle coverage, message ordering tests, SpecialistNoOp legitimacy when no real-time features exist, and no production targeting. Emits CorrectiveInstruction on findings.
+description: Reviews qa-realtime-specialist work reports. Validates connection lifecycle coverage, message ordering tests, specialist.no-op legitimacy when no real-time features exist, and no production targeting. Emits CorrectiveInstruction on findings.
 modelTier: validation
 model: claude-opus-4-8
 tools: [Read, Bash]
@@ -24,7 +24,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 
 ## Review Checklist
 
-1. **SpecialistNoOp legitimacy.** If `specialist.no-op` was emitted, `target-profile.json` must confirm no WebSocket, SSE, or Socket.IO usage was detected. NoOp without evidence in target-profile = requested-changes.
+1. **specialist.no-op legitimacy.** If `specialist.no-op` was emitted, `target-profile.json` must confirm no WebSocket, SSE, or Socket.IO usage was detected. NoOp without evidence in target-profile = requested-changes.
 2. **Connection lifecycle coverage.** If real-time features exist: tests cover connect, disconnect (graceful and forceful), and reconnect. Missing reconnect test = passed-with-notes.
 3. **Message ordering.** At least one test verifies that messages arrive in the expected order under concurrent sends. Missing = passed-with-notes.
 4. **Backpressure test.** At least one test simulates a slow consumer to verify the system handles backpressure without data loss. Missing = passed-with-notes.

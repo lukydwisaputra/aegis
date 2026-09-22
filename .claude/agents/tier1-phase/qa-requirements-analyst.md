@@ -32,7 +32,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 - `runs/{runId}/requirements/ambiguity-report.{md,json}` — per-requirement findings
 - `runs/{runId}/requirements/testability-scores.json` — O/C/D/U scores per requirement
-- `runs/{runId}/events.jsonl` — AmbigiutyFlagged, RequirementsAnalysisComplete events
+- `runs/{runId}/events.jsonl` — ambiguity.flagged, requirements.analysis-complete events
 - `runs/{runId}/reports/work/qa-requirements-analyst.json` — work report for SPV
 
 ## Process

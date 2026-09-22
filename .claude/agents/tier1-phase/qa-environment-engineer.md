@@ -37,7 +37,7 @@ You do not run tests. You prepare the runway.
 - `playwright.config.ts` — browser matrix, project config, reporter, retries, timeouts (lives at the target root, not under `tests/`; its `testDir` points at `tests/qa`)
 - `tests/qa/factories/` — Faker.js factories for detected entity types
 - `runs/{runId}/env-setup-report.{md,json}` — what was configured, what failed, health status
-- `runs/{runId}/events.jsonl` — EnvReady or EnvSetupFailed events
+- `runs/{runId}/events.jsonl` — env.ready or env.setup-failed events
 - `runs/{runId}/reports/work/qa-environment-engineer.json` — work report for SPV
 
 ## Process
@@ -59,7 +59,7 @@ You do not run tests. You prepare the runway.
    - `trace: 'on-first-retry'` — capture a Playwright trace on the first retry.
    - `testMatch`: `'**/*.spec.ts'` so specs under `tests/qa/**` are discovered.
    - Do not set a top-level `testDir`. Instead, express the browser matrix as a single named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` (or one entry per browser, each carrying `testDir: 'tests/qa'`, if the matrix is split into per-browser projects) so `tests/qa` is declared exactly once, at the project level. This is what the VSCode Playwright Test Explorer scans — QA specs become discoverable and appear as their own named group in the sidebar.
-   - After writing the config, emit `TestConfigWritten { testDir, projectName }`.
+   - After writing the config, emit `test.config-written { testDir, projectName }`.
 
 3. **Generate per-role auth fixture.** For each role in `aegis.config.json.target.supabase.rolesToTest[]` (or detected roles from target-profile):
    - The fixture uses `storageState` (Greffier ch-07 canonical pattern)
@@ -133,4 +133,4 @@ Claims `task:env-setup` via taskmaster-client. Writes to `tests/qa/fixtures/`, `
 
 ## Worked Example
 
-For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/qa/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. `playwright.config.ts` at the target root registered the `qa-e2e` project with `testDir: 'tests/qa'` (no top-level `testDir`); `test.config-written` emitted. Smoke-ping to `https://dev.<target-project>.local/` returned 200. EnvReady emitted with all 4 roles active.
+For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/qa/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. `playwright.config.ts` at the target root registered the `qa-e2e` project with `testDir: 'tests/qa'` (no top-level `testDir`); `test.config-written` emitted. Smoke-ping to `https://dev.<target-project>.local/` returned 200. env.ready emitted with all 4 roles active.

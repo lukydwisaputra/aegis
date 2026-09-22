@@ -39,7 +39,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 - `runs/{runId}/plan.{md,json}` — test plan (IEEE 829 + ISTQB sections)
 - `runs/{runId}/risk-register.{md,json}` — ISO 31000 risk register (numeric + ordinal)
-- `runs/{runId}/events.jsonl` — TestPlanDrafted, RiskFlagged events
+- `runs/{runId}/events.jsonl` — test.plan-drafted, risk.flagged events
 - `runs/{runId}/reports/work/qa-test-planner.json` — work report for SPV
 
 ## Process

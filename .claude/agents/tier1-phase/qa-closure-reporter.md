@@ -39,7 +39,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 
 - `runs/{runId}/reports/closure/closure.md` — ISTQB closure narrative (readable)
 - `runs/{runId}/reports/closure/closure.json` — ISTQB closure data (Zod-validated). **Both files are mandatory** — see Quality Standards.
-- `runs/{runId}/events.jsonl` — ClosureReportDrafted, then PhaseComplete
+- `runs/{runId}/events.jsonl` — closure.report-drafted, then run.phase.completed
 - `runs/{runId}/reports/work/qa-closure-reporter.json` — work report for SPV
 
 > You no longer write the metric JSON files (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). Those are owned by `qa-metrics-collector` and live under `reports/metrics/`. You READ them (see Inputs) to populate your ISTQB sections.

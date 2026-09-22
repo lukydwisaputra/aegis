@@ -104,10 +104,10 @@ flowchart TD
     %% Discovery (two-event barrier)
     Orchestrator -->|1. Discovery| Scanner
     Scanner -->|writes| TargetProfile
-    Scanner -.->|DiscoveryStepComplete scan| Orchestrator
+    Scanner -.->|discovery.step-complete scan| Orchestrator
     TargetProfile -->|reads| WebExplorer
     WebExplorer -->|writes| DiscoveryReport
-    WebExplorer -.->|DiscoveryStepComplete explore| Orchestrator
+    WebExplorer -.->|discovery.step-complete explore| Orchestrator
 
     %% Requirements
     Orchestrator -->|2. Requirements| RA
@@ -129,13 +129,13 @@ flowchart TD
     EnvEng -->|writes| PlaywrightCfg
 
     %% Execution: exploratory FIRST
-    PlaywrightCfg -->|EnvReady| Executor
+    PlaywrightCfg -->|env.ready| Executor
     Executor -->|1st, blocking| Exploratory
     Exploratory -->|scratch| Sandbox
     Sandbox -->|covered obs| SessionNotes
     Sandbox -->|uncovered defect| Defects
     Sandbox -->|uncovered defect evidence| EvidenceDEF
-    Exploratory -.->|ExploratorySessionComplete| Executor
+    Exploratory -.->|exploratory.session-complete| Executor
 
     %% Execution: scripted specialists
     Executor -->|2nd, after exploratory| UI
@@ -198,7 +198,7 @@ flowchart TD
 
 ## Key flows explained
 
-1. **Discovery** (two-event barrier): `qa-context-scanner` writes `target-profile.json` (incl. `sourceInventory`) and emits `DiscoveryStepComplete {scan}`; `qa-web-explorer` then writes `discovery-report.json` and emits `DiscoveryStepComplete {explore}`. The orchestrator advances only when **both** events are present (`Promise.all([scan, explore])`).
+1. **Discovery** (two-event barrier): `qa-context-scanner` writes `target-profile.json` (incl. `sourceInventory`) and emits `discovery.step-complete {scan}`; `qa-web-explorer` then writes `discovery-report.json` and emits `discovery.step-complete {explore}`. The orchestrator advances only when **both** events are present (`Promise.all([scan, explore])`).
 2. **Planning chain**: `qa-requirements-analyst` (source-grounded against `sourceInventory`) → `qa-test-planner` → **Gate 1** → `qa-test-designer` → `qa-environment-engineer` (writes `playwright.config.ts` with `screenshot:'always'` / `video` / `trace`).
 3. **Execution order**: `qa-test-executor` runs `qa-exploratory-specialist` FIRST (Playwright MCP, blocking) → then scripted specialists (Playwright CLI, ≤4 parallel). Exploratory findings feed the scripted briefs.
 4. **Sandbox flow**: exploratory scratch → `sandbox/{date}-{slug}/`. At session end: covered observations → `reports/exploratory/`; uncovered defects → `runs/{runId}/defects/` + `runs/{runId}/evidence/{DEF-ID}/`; then `completeSandbox()` deletes the sandbox.

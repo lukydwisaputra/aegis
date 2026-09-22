@@ -46,10 +46,10 @@ For the login feature, `REQ-AUTH-04` was extracted from the product brief — "O
 
 Discovery builds the factual substrate every later phase relies on. It runs **two scanners in parallel** behind a two-event barrier:
 
-- `qa-context-scanner` performs static analysis of the target source and writes `target-profile.json#sourceInventory` (routes, components, handlers, functions). It emits `DiscoveryStepComplete{ step: "scan" }`.
-- `qa-web-explorer` performs observation-driven crawling of the running app and writes the route/auth matrix. It emits `DiscoveryStepComplete{ step: "explore" }`.
+- `qa-context-scanner` performs static analysis of the target source and writes `target-profile.json#sourceInventory` (routes, components, handlers, functions). It emits `discovery.step-complete{ step: "scan" }`.
+- `qa-web-explorer` performs observation-driven crawling of the running app and writes the route/auth matrix. It emits `discovery.step-complete{ step: "explore" }`.
 
-**Two-event barrier:** the orchestrator advances to Planning only when **both** `DiscoveryStepComplete{scan}` and `DiscoveryStepComplete{explore}` are present in `events.jsonl` — `Promise.all` semantics. Either one alone does not unblock the phase.
+**Two-event barrier:** the orchestrator advances to Planning only when **both** `discovery.step-complete{scan}` and `discovery.step-complete{explore}` are present in `events.jsonl` — `Promise.all` semantics. Either one alone does not unblock the phase.
 
 `qa-web-explorer` runs in **read-only mode** — it never submits forms or triggers destructive actions. It:
 

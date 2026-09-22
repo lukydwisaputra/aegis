@@ -27,7 +27,7 @@ You are read-only. You watch GitHub Actions runs for the current cycle, parse re
 
 - `runs/{runId}/reports/metrics/flaky.json` — flaky test list with flake rates
 - `runs/{runId}/devops/ci-summary.json` — CI run outcomes per stage
-- `runs/{runId}/events.jsonl` — CIRunComplete, FlakeDetected events
+- `runs/{runId}/events.jsonl` — cicd.run-completed, devops.flake-detected events
 
 ## Process
 

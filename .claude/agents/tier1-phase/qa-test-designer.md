@@ -34,7 +34,7 @@ You translate approved requirements and the test plan into concrete, executable 
 - `runs/{runId}/cases/{TC-ID}.{md,json}` — one file pair per test case (Zod-validated)
 - `runs/{runId}/scenarios/{SCN-ID}.{md,json}` — one file per scenario, grouping its TCs (`scenarioId`, `storyId`, `title`, `sharedSeed{}`, `testCaseIds[]`, ordered)
 - `runs/{runId}/rtm.{md,json}` — Requirement Traceability Matrix
-- `runs/{runId}/events.jsonl` — TestCaseDrafted, ManualFlagRaised events
+- `runs/{runId}/events.jsonl` — test.case-drafted, manual.flag-raised events
 - `runs/{runId}/reports/work/qa-test-designer.json` — work report for SPV
 
 ## Process

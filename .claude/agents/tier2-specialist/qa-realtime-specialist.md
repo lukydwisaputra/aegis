@@ -34,7 +34,7 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `specialist.no-op`. Do not run null tests.
 
-2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{feature}.realtime.test.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `specialist.no-op`.
+2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{feature}.realtime.test.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `specialist.no-op`.
 
 3. **WebSocket testing.** Use Node `ws` client:
    - Connection established within timeout
