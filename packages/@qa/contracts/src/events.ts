@@ -1455,6 +1455,51 @@ export const LessonSchemaRejectedEventSchema = EventBase.extend({
   error: z.string(),
 });
 
+// ─── Escalation, worktree & command telemetry ─────────────────────────────────
+
+export const TaskEscalatedEventSchema = EventBase.extend({
+  type: z.literal("task.escalated"),
+  taskId: z.string(),
+  agent: z.string(),
+  rejectionCount: z.number().int().positive(),
+});
+
+export const WorktreeOrphanRemovedEventSchema = EventBase.extend({
+  type: z.literal("worktree.orphan.removed"),
+  path: z.string(),
+  ageMs: z.number().int().nonnegative().optional(),
+});
+
+export const SpecialistSkippedReadonlyEventSchema = EventBase.extend({
+  type: z.literal("specialist.skipped.readonly"),
+  specialist: z.string(),
+  env: z.string(),
+});
+
+export const CommandInvokedEventSchema = EventBase.extend({
+  type: z.literal("command.invoked"),
+  command: z.string(),
+  args: z.array(z.string()).default([]),
+});
+
+export const SandboxTtlPruneEventSchema = EventBase.extend({
+  type: z.literal("sandbox.ttl-prune"),
+  path: z.string(),
+  ageDays: z.number().nonnegative().optional(),
+});
+
+export const DefectClosedAsInvalidEventSchema = EventBase.extend({
+  type: z.literal("defect.closed-as-invalid"),
+  defectId: DefectIdSchema,
+  surfacedBy: z.string().optional(),
+});
+
+export const ScanWarningEventSchema = EventBase.extend({
+  type: z.literal("scan.warning"),
+  path: z.string(),
+  reason: z.string(),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 export const AegisEventSchema = z.discriminatedUnion("type", [
@@ -1661,6 +1706,13 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   TaskBlockedEventSchema,
   DefectUpdatedEventSchema,
   LessonSchemaRejectedEventSchema,
+  TaskEscalatedEventSchema,
+  WorktreeOrphanRemovedEventSchema,
+  SpecialistSkippedReadonlyEventSchema,
+  CommandInvokedEventSchema,
+  SandboxTtlPruneEventSchema,
+  DefectClosedAsInvalidEventSchema,
+  ScanWarningEventSchema,
 ]);
 
 export type AegisEvent = z.infer<typeof AegisEventSchema>;

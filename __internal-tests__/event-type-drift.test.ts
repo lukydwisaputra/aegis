@@ -28,7 +28,37 @@ const NOT_EVENT_NAMES = new Set([
   'CorrectiveInstruction', // a work-report schema object, not an event
 ]);
 
-const FILE_SUFFIXES = ['.md', '.json', '.jsonl', '.ts', '.tsx', '.js', '.yaml', '.yml'];
+// File and artefact names look like dotted event types but are not.
+const FILE_SUFFIXES = [
+  '.md', '.json', '.jsonl', '.ts', '.tsx', '.js', '.mjs', '.yaml', '.yml',
+  '.sh', '.pdf', '.png', '.har', '.csv', '.txt', '.html', '.xml', '.zip',
+  '.env', '.lock', '.lockb', '.log', '.spec', '.config',
+];
+
+// Dotted tokens that are config keys, JSON field paths, library APIs or
+// standards identifiers — not events. Matched as prefixes so that e.g.
+// `discovery.` covers every config key under it, while a genuine event such
+// as `discovery.step-complete` stays declared and is checked normally.
+const NON_EVENT_PREFIXES = [
+  // config keys, addressed bare or fully qualified
+  'aegis.config.json.', 'target-profile.json.',
+  'dashboard.', 'discovery.', 'github.', 'target.', 'env.forbiddenSpecialists',
+  'env.readOnly', 'ports.', 'engines.', 'url.', 'secretsRef.', 'reports.',
+  'metrics.costSavings', 'scenario.sharedSeed',
+  // JSON field paths inside artefacts
+  'defectMetrics.', 'resultsSummary.', 'rootCause.', 'work-report.',
+  'SignoffSpec.', 'response.usage.',
+  // library and framework APIs
+  'Promise.', 'console.', 'page.', 'test.afterEach', 'test.beforeEach',
+  'socket.io', 'use.', 'path-guard.',
+  // standards identifiers and placeholders
+  'WCAG-', 'RUN-',
+];
+
+function isNonEvent(name: string): boolean {
+  if (FILE_SUFFIXES.some((sfx) => name.endsWith(sfx))) return true;
+  return NON_EVENT_PREFIXES.some((p) => name === p || name.startsWith(p));
+}
 
 function declaredTypes(): Set<string> {
   const options = (AegisEventSchema as unknown as { options: Array<{ shape: { type: { value: string } } }> }).options;
@@ -70,19 +100,22 @@ function extractMentions(file: string): Mention[] {
     const names: string[] = [];
 
     // Bullet entries inside an events section: "- `foo.bar` — description".
-    // A bullet may describe a non-event artefact (e.g. "SPV `review.json`
-    // verdicts"); those are filtered by the suffix check below.
     if (inEventsSection && line.trim().startsWith('-')) {
       const beforeDash = line.split('—')[0] ?? '';
       names.push(...matchAll(beforeDash, /`([A-Za-z][A-Za-z0-9._-]+)`/g));
     }
 
-    // Inline instructions anywhere: "emit `foo.bar`", "Emits an `foo.bar`"
-    names.push(...matchAll(line, /[Ee]mit(?:s|ted)?\s+(?:an?\s+)?`([A-Za-z][A-Za-z0-9._-]+)`/g));
+    // Every backticked dotted token elsewhere. Earlier versions of this test
+    // matched only "emit `x`", which missed the passive and indirect
+    // phrasings the documentation actually uses — "a `task.escalated` event
+    // is emitted", "logs a `worktree.orphan.removed` event", "→ emit
+    // `sandbox.ttl-prune`" inside a diagram. Scanning every dotted token and
+    // filtering known non-events via isNonEvent() catches those.
+    names.push(...matchAll(line, /`([A-Za-z][A-Za-z0-9._-]*\.[A-Za-z0-9._-]+)`/g));
 
     for (const name of names) {
       if (NOT_EVENT_NAMES.has(name)) continue;
-      if (FILE_SUFFIXES.some((s) => name.endsWith(s))) continue;
+      if (isNonEvent(name)) continue;
       found.push({ name, location: `${rel}:${idx + 1}` });
     }
   });
