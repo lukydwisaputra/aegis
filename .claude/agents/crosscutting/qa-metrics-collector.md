@@ -30,7 +30,7 @@ Per event: `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts
 Rollup: totals per agent, per model tier, per phase.
 Output: `runs/{runId}/reports/metrics/token-usage.jsonl` (append-mode, one row per event).
 
-### Cycle Time (from `PhaseDispatched`, `PhaseCompleted` events)
+### Cycle Time (from `run.phase.started`, `PhaseCompleted` events)
 Per phase: `{ phase, startedAt, completedAt, durationMs, agentName }`
 Rollup: total wall-clock, bottleneck phase (longest duration).
 Output: `runs/{runId}/reports/metrics/cycle-time.json`.
@@ -65,8 +65,8 @@ Output: `runs/{runId}/reports/metrics/flaky.json`.
 ## Process
 
 1. **On start:** open `events.jsonl` tail and begin accumulating events.
-2. **On each `PhaseComplete` / `DiscoveryStepComplete` / `ExecutionComplete` event:** write the intermediate rollup for that phase's metrics to `runs/{runId}/reports/metrics/`. By the time the Closure phase runs, all execution-phase metric files already exist on disk — `qa-closure-reporter` reads them directly. There is **no `MetricsFinalized` event** and no re-trigger; closure-reporter does not wait on a finalize signal.
-3. **On `RunComplete` event:** write the final rollups for all metric files (this happens after Closure — it is for the curator and dashboard, not for closure-reporter).
+2. **On each `run.phase.completed` / `discovery.step-complete` / `execution.complete` event:** write the intermediate rollup for that phase's metrics to `runs/{runId}/reports/metrics/`. By the time the Closure phase runs, all execution-phase metric files already exist on disk — `qa-closure-reporter` reads them directly. There is **no `MetricsFinalized` event** and no re-trigger; closure-reporter does not wait on a finalize signal.
+3. **On `run.completed` event:** write the final rollups for all metric files (this happens after Closure — it is for the curator and dashboard, not for closure-reporter).
 4. **On-demand query:** if dispatched mid-run, read from the beginning of `events.jsonl` and return current state.
 
 ## Quality Standards

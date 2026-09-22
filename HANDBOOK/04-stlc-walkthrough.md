@@ -46,10 +46,10 @@ For the login feature, `REQ-AUTH-04` was extracted from the product brief — "O
 
 Discovery builds the factual substrate every later phase relies on. It runs **two scanners in parallel** behind a two-event barrier:
 
-- `qa-context-scanner` performs static analysis of the target source and writes `target-profile.json#sourceInventory` (routes, components, handlers, functions). It emits `DiscoveryStepComplete{ step: "scan" }`.
-- `qa-web-explorer` performs observation-driven crawling of the running app and writes the route/auth matrix. It emits `DiscoveryStepComplete{ step: "explore" }`.
+- `qa-context-scanner` performs static analysis of the target source and writes `target-profile.json#sourceInventory` (routes, components, handlers, functions). It emits `discovery.step-complete{ step: "scan" }`.
+- `qa-web-explorer` performs observation-driven crawling of the running app and writes the route/auth matrix. It emits `discovery.step-complete{ step: "explore" }`.
 
-**Two-event barrier:** the orchestrator advances to Planning only when **both** `DiscoveryStepComplete{scan}` and `DiscoveryStepComplete{explore}` are present in `events.jsonl` — `Promise.all` semantics. Either one alone does not unblock the phase.
+**Two-event barrier:** the orchestrator advances to Planning only when **both** `discovery.step-complete{scan}` and `discovery.step-complete{explore}` are present in `events.jsonl` — `Promise.all` semantics. Either one alone does not unblock the phase.
 
 `qa-web-explorer` runs in **read-only mode** — it never submits forms or triggers destructive actions. It:
 
@@ -147,7 +147,7 @@ This keeps state clean between runs and is the single biggest source of flake re
 - Defects found in **uncovered** areas → `runs/<RUN-ID>/defects/` as `EXP`-type defects, traced by `charterSessionId`, with evidence under `runs/<RUN-ID>/evidence/{DEF-ID}/`
 - The sandbox directory is then **deleted**.
 
-**Sandbox-first is now mandatory for scripted specialists too.** What was previously exploratory-only now applies to every scripted, spec-writing specialist. Before `qa-ui-specialist`, `qa-api-specialist`, `qa-database-specialist`, `qa-accessibility-specialist`, `qa-responsive-specialist`, `qa-realtime-specialist`, `qa-email-specialist`, or `qa-performance-specialist` commits a final spec under `tests/qa/**`, it must first prototype the approach in `sandbox/{date}-{slug}/` and emit a `SandboxExplored` event linking the scratch artifact to the spec it produced. The paired SPV rejects any committed spec with no matching `SandboxExplored` event. A legitimate no-op run (nothing to test, nothing committed) is exempt.
+**Sandbox-first is now mandatory for scripted specialists too.** What was previously exploratory-only now applies to every scripted, spec-writing specialist. Before `qa-ui-specialist`, `qa-api-specialist`, `qa-database-specialist`, `qa-accessibility-specialist`, `qa-responsive-specialist`, `qa-realtime-specialist`, `qa-email-specialist`, or `qa-performance-specialist` commits a final spec under `tests/qa/**`, it must first prototype the approach in `sandbox/{date}-{slug}/` and emit a `sandbox.explored` event linking the scratch artifact to the spec it produced. The paired SPV rejects any committed spec with no matching `sandbox.explored` event. A legitimate no-op run (nothing to test, nothing committed) is exempt.
 
 **Results location.** Execution writes a run-level summary to `runs/<RUN-ID>/execution-summary.{md,json}`, and per-test-case evidence (screenshots, video, traces) to `runs/<RUN-ID>/evidence/{TC-ID}/`. (The old `runs/<RUN-ID>/results/` and `artifacts/evidence/` paths are gone.)
 

@@ -60,6 +60,6 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC
-- `SecurityFindingCritical` — for any Critical severity finding; immediate escalation
-- `SecretLeakDetected` — for any Gitleaks hit; immediate Sev1
+- `test.passed` / `test.failed` — per TC
+- `security.finding-critical` — for any Critical severity finding; immediate escalation
+- `secret.leak-detected` — for any Gitleaks hit; immediate Sev1

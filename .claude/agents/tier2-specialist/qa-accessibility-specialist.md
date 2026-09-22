@@ -45,7 +45,7 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 ## Process
 
-1. **Explore in the sandbox before writing any final spec.** If this run will produce a committed a11y spec, prototype selectors, ARIA role checks, and axe/Pa11y configuration in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/a11y.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
+1. **Explore in the sandbox before writing any final spec.** If this run will produce a committed a11y spec, prototype selectors, ARIA role checks, and axe/Pa11y configuration in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/a11y.spec.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
 2. **Inject axe-core into each Playwright test.** Use `@axe-core/playwright`'s `checkA11y()` after page navigation. Pass `{ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } }` to scope to WCAG 2.2 AA.
 
@@ -71,6 +71,6 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; TestFailed includes violation count by impact level
-- `A11yViolationCritical` — for any critical axe finding
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; test.failed includes violation count by impact level
+- `a11y.violation-critical` — for any critical axe finding
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

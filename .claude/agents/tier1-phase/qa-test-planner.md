@@ -39,12 +39,12 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 - `runs/{runId}/plan.{md,json}` — test plan (IEEE 829 + ISTQB sections)
 - `runs/{runId}/risk-register.{md,json}` — ISO 31000 risk register (numeric + ordinal)
-- `runs/{runId}/events.jsonl` — TestPlanDrafted, RiskFlagged events
+- `runs/{runId}/events.jsonl` — test.plan-drafted, risk.flagged events
 - `runs/{runId}/reports/work/qa-test-planner.json` — work report for SPV
 
 ## Process
 
-1. **Read context.** Load ambiguity report, testability scores, intake artefacts, target profile, lessons.md. If any BLOCK-level ambiguity exists in the ambiguity report, do not produce a plan — emit `PlanningBlocked` with the list of BLOCKs. A plan built on unresolved BLOCKs is a plan built on false assumptions (Kaner ch-11 revision trigger #1).
+1. **Read context.** Load ambiguity report, testability scores, intake artefacts, target profile, lessons.md. If any BLOCK-level ambiguity exists in the ambiguity report, do not produce a plan — emit `planning.blocked` with the list of BLOCKs. A plan built on unresolved BLOCKs is a plan built on false assumptions (Kaner ch-11 revision trigger #1).
 
 2. **Establish test strategy.** Answer the three strategy questions:
    - *What matters most?* (Map mission goals to test types: if the mission is "find important bugs fast" → risk-based prioritisation with high-risk areas first)
@@ -67,7 +67,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 8. **Write the work report.** Summary: strategy rationale, top 3 risks, specialists to dispatch, lessons applied, uncertainties ("unclear whether the auth module's SSO path needs a dedicated specialist or can share the UI specialist slot").
 
-9. **Emit `PhaseComplete`.** After the work report is written and `TestPlanDrafted` has fired, emit `PhaseComplete` as the final event — this is the orchestrator's signal to advance to the next phase.
+9. **Emit `run.phase.completed`.** After the work report is written and `test.plan-drafted` has fired, emit `run.phase.completed` as the final event — this is the orchestrator's signal to advance to the next phase.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -81,10 +81,10 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 ## Events You Emit
 
-- `TestPlanDrafted` — includes planId, riskCount, specialistsProposed
-- `RiskFlagged` — one per Critical (C) risk entry in the register
-- `PlanningBlocked` — if BLOCK-level ambiguities prevent plan completion
-- `PhaseComplete` — emitted last, after `TestPlanDrafted` and the work report (orchestrator's phase-advance signal)
+- `test.plan-drafted` — includes planId, riskCount, specialistsProposed
+- `risk.flagged` — one per Critical (C) risk entry in the register
+- `planning.blocked` — if BLOCK-level ambiguities prevent plan completion
+- `run.phase.completed` — emitted last, after `test.plan-drafted` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

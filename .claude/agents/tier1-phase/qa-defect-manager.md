@@ -58,16 +58,16 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — one file pair per defect (Zod-validated); each carries an `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block
 - `runs/{runId}/rtm.json` — updated via `rtm.append-link` events (defectId appended to row)
-- `runs/{runId}/events.jsonl` — DefectOpened, DefectDuplicate, DefectLinked events
+- `runs/{runId}/events.jsonl` — defect.opened, defect.duplicate, defect.linked events
 - `runs/{runId}/reports/work/qa-defect-manager.json` — work report for SPV
 
 ## Process
 
-1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `DefectOriginConfirmed { confirmed: false }`. Only development-origin failures proceed to variation testing. **EXP-type defects promoted from exploratory sessions are EXEMPT from the fresh-seed/fresh-auth clean-state reproduction requirement** — their live-session promotion already implies reproduction — but you must still rule out obvious test-side causes (e.g. the observation wasn't caused by the explorer's own setup) and record that reasoning in `originConfirmation`, with `reproducedOnClean` set appropriately (e.g. a note that clean-state repro is N/A for session-based exploratory findings).
+1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `defect.origin-confirmed { confirmed: false }`. Only development-origin failures proceed to variation testing. **EXP-type defects promoted from exploratory sessions are EXEMPT from the fresh-seed/fresh-auth clean-state reproduction requirement** — their live-session promotion already implies reproduction — but you must still rule out obvious test-side causes (e.g. the observation wasn't caused by the explorer's own setup) and record that reasoning in `originConfirmation`, with `reproducedOnClean` set appropriately (e.g. a note that clean-state repro is N/A for session-based exploratory findings).
 
 2. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load any pre-existing defect files in `runs/{runId}/defects/`** — these are EXP-type exploratory defects promoted from the sandbox by qa-exploratory-specialist before scripted tests ran. Triage them with the same variation-testing and severity/priority discipline as scripted failures. Do not re-open them; update their `status`, add `investigationLog` entries, and ensure they are linked in the RTM.
 
-3. **De-duplicate failures.** Before opening a new defect, check all existing defects in this run and the previous run's open defects. If the failure matches an existing open defect: link the TC to the existing defect and update its `lastSeen`; do not open a duplicate. Emit `DefectDuplicate`.
+3. **De-duplicate failures.** Before opening a new defect, check all existing defects in this run and the previous run's open defects. If the failure matches an existing open defect: link the TC to the existing defect and update its `lastSeen`; do not open a duplicate. Emit `defect.duplicate`.
 
 4. **Run variation testing** on each unique failure. Three axes (Kaner ch-04 protocol):
    - **Behaviour variation**: What happens with slightly different inputs? (Plus-aliased email fails — does underscore also fail? Does space fail? Is it the `+` encoding or the email validation regex?)
@@ -93,7 +93,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
-9. **Emit `PhaseComplete`.** After the work report and `DefectManagementComplete` are written, emit `PhaseComplete` as the final event — the orchestrator's signal to advance.
+9. **Emit `run.phase.completed`.** After the work report and `defect.management-complete` are written, emit `run.phase.completed` as the final event — the orchestrator's signal to advance.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -109,12 +109,12 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Events You Emit
 
-- `DefectOriginConfirmed` — one per candidate; `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
-- `DefectOpened` — one per new defect; includes id, severity, priority, tcId
-- `DefectDuplicate` — links new TC failure to existing defect
-- `DefectLinked` — one per rtm.append-link; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
-- `DefectManagementComplete` — single event at end; includes total opened, duplicates, severity breakdown
-- `PhaseComplete` — emitted last, after `DefectManagementComplete` and the work report (orchestrator's phase-advance signal)
+- `defect.origin-confirmed` — one per candidate; `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
+- `defect.opened` — one per new defect; includes id, severity, priority, tcId
+- `defect.duplicate` — links new TC failure to existing defect
+- `defect.linked` — one per rtm.append-link; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
+- `defect.management-complete` — single event at end; includes total opened, duplicates, severity breakdown
+- `run.phase.completed` — emitted last, after `defect.management-complete` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 

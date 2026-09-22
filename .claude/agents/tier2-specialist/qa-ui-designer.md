@@ -56,4 +56,4 @@ You apply WCAG 2.2 AA to every component you build — not as an afterthought, b
 
 ## Events You Emit
 
-- `ComponentBuilt` — one per new component; includes name, accessible role
+- `component.built` — one per new component; includes name, accessible role

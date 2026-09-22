@@ -40,4 +40,4 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

@@ -125,8 +125,8 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 
 ## Events You Emit
 
-- `PageDiscovered` — one per unique URL
-- `POMGenerated` — one per new POM skeleton file
-- `UIDefectFound` — one per surface-level UI defect
-- `DiscoveryComplete` — single event; includes pageCount, pomCount, defectCount
-- `DiscoveryStepComplete` — `{ step: "explore", artifact: "discovery-report.json" }`; the orchestrator collects this as the second half of the Discovery two-event barrier (qa-context-scanner emits the `{ step: "scan" }` half)
+- `page.discovered` — one per unique URL
+- `pom.generated` — one per new POM skeleton file
+- `ui.defect-found` — one per surface-level UI defect
+- `discovery.completed` — single event; includes pageCount, pomCount, defectCount
+- `discovery.step-complete` — `{ step: "explore", artifact: "discovery-report.json" }`; the orchestrator collects this as the second half of the Discovery two-event barrier (qa-context-scanner emits the `{ step: "scan" }` half)

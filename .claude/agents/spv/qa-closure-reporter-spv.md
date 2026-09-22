@@ -45,4 +45,4 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

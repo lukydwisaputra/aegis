@@ -21,11 +21,11 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **Rule: A pre-cycle health check gates the run when configured.** If `aegis.config.json#preCycleHealthCheck` is `true`, `/qa-health` must have passed before any phase is dispatched.
 
-- Enforced by: `.claude/skills/qa-start/SKILL.md` preflight step 1 (hard gate, runs before a run directory is even created) + `qa-orchestrator.md` Process step 1 / Quality Standards (`PreflightFailed` if the health check did not pass).
+- Enforced by: `.claude/skills/qa-start/SKILL.md` preflight step 1 (hard gate, runs before a run directory is even created) + `qa-orchestrator.md` Process step 1 / Quality Standards (`preflight.failed` if the health check did not pass).
 
 **Rule: Preflight failure halts before any run artefacts exist.** No run directory, no dispatch, no partial state.
 
-- Enforced by: `qa-start/SKILL.md` preflight ("Do not create a run directory when preflight fails") + `qa-orchestrator.md` Quality Standards line — "A phase was dispatched while `target-profile.json#targetIsSingleProject` is false or absent, or with `preCycleHealthCheck` enabled and no passing health check (Preflight gate bypassed)" is a listed SPV-reject condition, and `PreflightFailed` is the emitted event in both cases.
+- Enforced by: `qa-start/SKILL.md` preflight ("Do not create a run directory when preflight fails") + `qa-orchestrator.md` Quality Standards line — "A phase was dispatched while `target-profile.json#targetIsSingleProject` is false or absent, or with `preCycleHealthCheck` enabled and no passing health check (Preflight gate bypassed)" is a listed SPV-reject condition, and `preflight.failed` is the emitted event in both cases.
 
 ---
 
@@ -34,8 +34,8 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 **Rule: Every writing specialist prototypes in the sandbox before committing a spec.** Before a final test artefact lands under `tests/qa/**`, the specialist must first explore in `sandbox/{date}-{slug}/` — prototype selectors, timing, and flow there, verify it works, then port the validated version to the real spec path.
 
 - Applies to all eight writing specialists that commit test artefacts: `qa-ui-specialist`, `qa-api-specialist`, `qa-accessibility-specialist`, `qa-database-specialist`, `qa-email-specialist`, `qa-performance-specialist`, `qa-realtime-specialist`, `qa-responsive-specialist`.
-- Durable proof is the `SandboxExplored { specialist, artifactPath, targetSpecRef }` event appended to `events.jsonl` — not the sandbox directory itself, since `sandbox/*` is gitignored except `README.md`.
-- Enforced by: each specialist's own Process step 1 (e.g. `qa-ui-specialist.md` step 1, "Explore in the sandbox before writing the final spec") + the matching `<specialist>-spv.md` Review Checklist item ("Sandbox-first compliance" — a final spec under `tests/qa/**` with no matching `SandboxExplored` event / sandbox artifact is a `requested-changes` finding). See e.g. `qa-ui-specialist.md` / `qa-ui-specialist-spv.md`.
+- Durable proof is the `sandbox.explored { specialist, artifactPath, targetSpecRef }` event appended to `events.jsonl` — not the sandbox directory itself, since `sandbox/*` is gitignored except `README.md`.
+- Enforced by: each specialist's own Process step 1 (e.g. `qa-ui-specialist.md` step 1, "Explore in the sandbox before writing the final spec") + the matching `<specialist>-spv.md` Review Checklist item ("Sandbox-first compliance" — a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact is a `requested-changes` finding). See e.g. `qa-ui-specialist.md` / `qa-ui-specialist-spv.md`.
 
 ---
 
@@ -75,7 +75,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **(b) The Playwright config is VSCode-discoverable via a named `qa-e2e` project, not a duplicate top-level `testDir`.** `tests/qa` must be declared exactly once, at the project level, so the VSCode Playwright Test Explorer scans and groups QA specs separately.
 
-- Enforced by: `qa-environment-engineer.md` Process step 2 ("Configure Playwright" — named project `{ name: 'qa-e2e', testDir: 'tests/qa' }`, no top-level `testDir`, emits `TestConfigWritten { testDir, projectName }`) + `qa-environment-engineer-spv.md` Review Checklist items 11–14 ("VSCode-discoverable project-level `testDir`", "No duplicate top-level `testDir`", "Named QA project", "`TestConfigWritten` emitted").
+- Enforced by: `qa-environment-engineer.md` Process step 2 ("Configure Playwright" — named project `{ name: 'qa-e2e', testDir: 'tests/qa' }`, no top-level `testDir`, emits `test.config-written { testDir, projectName }`) + `qa-environment-engineer-spv.md` Review Checklist items 11–14 ("VSCode-discoverable project-level `testDir`", "No duplicate top-level `testDir`", "Named QA project", "`test.config-written` emitted").
 
 **(c) Unit testing is developer scope; `qa-unit-specialist` is read-only on developer units.** It reads developer unit tests/source to assess coverage and reports gaps as findings — it never edits the developer tree. Any net-new QA-owned unit test goes only under `tests/qa/unit/`.
 
@@ -83,7 +83,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **(d) A defect is not logged until its development origin is confirmed.** Before opening any defect, test-setup/script error, environment issue, and seed/test-data error must be ruled out, and the failure reproduced on a clean state (fresh seed + fresh auth). The result is recorded in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block. **EXP-type defects promoted from exploratory sessions are exempt from the clean-state reproduction requirement** (their live-session promotion already implies reproduction) but must still document that obvious test-side causes were ruled out.
 
-- Enforced by: `qa-defect-manager.md` Process step 1 ("Confirm the defect originates from development (before anything else)") emitting `DefectOriginConfirmed { confirmed }` + `qa-defect-manager-spv.md` Review Checklist item 11 ("Development-origin confirmed" — a defect opened without a passing `originConfirmation`, or an EXP-type defect whose `ruledOut` doesn't exclude test-side causes, is `requested-changes`).
+- Enforced by: `qa-defect-manager.md` Process step 1 ("Confirm the defect originates from development (before anything else)") emitting `defect.origin-confirmed { confirmed }` + `qa-defect-manager-spv.md` Review Checklist item 11 ("Development-origin confirmed" — a defect opened without a passing `originConfirmation`, or an EXP-type defect whose `ruledOut` doesn't exclude test-side causes, is `requested-changes`).
 
 **(e) Stand-behind: no assertion-free specs, no flaky-test shortcuts.** A committed spec must not have zero assertions, must not use `waitForTimeout`/hard sleeps, and must use web-first (auto-retrying) assertions instead of manual polling — across every writing specialist, not just one.
 
@@ -95,7 +95,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 1. **Assuming a rule is "soft guidance"** — every rule in this chapter has a concrete SPV block/requested-changes condition. There is no advisory-only tier here; a violation stops the work report from passing review.
 
-2. **Treating `SandboxExplored` as optional when the sandbox directory is gitignored** — the sandbox artifact itself is not the proof; the `SandboxExplored` event in `events.jsonl` is the durable record the SPV checks for.
+2. **Treating `sandbox.explored` as optional when the sandbox directory is gitignored** — the sandbox artifact itself is not the proof; the `sandbox.explored` event in `events.jsonl` is the durable record the SPV checks for.
 
 3. **Forcing Gherkin onto technique-derived test cases** — BVA/EP/decision-table cases keep `steps[]`. Only flow cases (`testType` Functional/E2E + `testTechnique` Flow) require `gherkin`.
 

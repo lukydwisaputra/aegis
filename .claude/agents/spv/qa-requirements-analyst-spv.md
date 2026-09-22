@@ -43,4 +43,4 @@ You review the ambiguity reports and testability scores produced by `qa-requirem
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

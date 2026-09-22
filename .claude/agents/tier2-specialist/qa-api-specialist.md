@@ -34,7 +34,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 ## Process
 
-1. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{endpoint}.api.test.ts` (or `tests/qa/contract/` for contract tests). Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+1. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{endpoint}.api.test.ts` (or `tests/qa/contract/` for contract tests). Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
 2. **Use Playwright APIRequestContext for REST.** Create request context per test with `request.newContext()`. Set auth header from the secrets ref — never hardcode credentials.
 
@@ -56,5 +56,5 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; includes status code and first assertion failure if relevant
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; includes status code and first assertion failure if relevant
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

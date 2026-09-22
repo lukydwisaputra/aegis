@@ -50,4 +50,4 @@ You plan the branching strategy and PR structure for the current QA cycle. You a
 
 ## Events You Emit
 
-- `GitHubPlanComplete` — includes branchName, prCount
+- `devops.github-plan-completed` — includes branchName, prCount

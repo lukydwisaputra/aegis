@@ -33,7 +33,7 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 4. **Strategy / logistics / work-products separation.** Plan clearly separates what-to-test (strategy), how-to-organise (logistics), and what-will-be-produced (work-products). Conflated sections = passed-with-notes.
 5. **Schedule realism.** Phase budgets (e.g., execution ~30-60 min) are within the CI/CD stage map limits from `aegis/thresholds.yaml`. If schedule is wildly over budget, flag with specific excess.
 6. **No ship/no-ship.** Plan conclusion section does not use language like "ready to ship", "recommend release", or "do not release". Findings + open questions are fine; verdicts are not.
-7. **BLOCK items acknowledged.** If the ambiguity report had BLOCK-level items, the plan has a "PlanningBlocked" note or documents the assumption used to proceed.
+7. **BLOCK items acknowledged.** If the ambiguity report had BLOCK-level items, the plan has a "planning.blocked" note or documents the assumption used to proceed.
 
 ## Verdict
 
@@ -43,4 +43,4 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

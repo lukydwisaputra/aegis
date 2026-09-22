@@ -31,16 +31,16 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 ## Outputs
 
-- `runs/{runId}/events.jsonl` — PhaseDispatched, GateOpened, GateClosed, BudgetWarning, RunBlocked, RunComplete
+- `runs/{runId}/events.jsonl` — run.phase.started, gate.opened, gate.closed, budget.warning, run.blocked, run.completed
 - `runs/{runId}/reports/work/qa-orchestrator.json` — decisions made, gates hit, deferrals, lessons applied
 - Agent/Skill dispatch calls to Tier-1 agents
 - Updates to `runs/{runId}/taskmaster.json` task statuses
 
 ## Process
 
-1. **Read context and start metrics.** Load the Taskmaster tree, events.jsonl tail, model policy, active profile, and your own `lessons.md`. If lessons.md flags a known failure mode, surface it in the work report's "lessons applied" field before continuing. **Immediately after emitting `RunStarted`, dispatch `qa-metrics-collector` as a background continuous agent — this is mandatory, not optional. Do not wait for it to complete; it tails events.jsonl for the full run and writes intermediate rollups to `runs/{runId}/reports/metrics/` on every `PhaseComplete`/`DiscoveryStepComplete`. If you skip this dispatch, no metric files are produced (the failure mode observed in real runs).
+1. **Read context and start metrics.** Load the Taskmaster tree, events.jsonl tail, model policy, active profile, and your own `lessons.md`. If lessons.md flags a known failure mode, surface it in the work report's "lessons applied" field before continuing. **Immediately after emitting `run.created`, dispatch `qa-metrics-collector` as a background continuous agent — this is mandatory, not optional. Do not wait for it to complete; it tails events.jsonl for the full run and writes intermediate rollups to `runs/{runId}/reports/metrics/` on every `run.phase.completed`/`discovery.step-complete`. If you skip this dispatch, no metric files are produced (the failure mode observed in real runs).
 
-   **Preflight assertion (hard).** Before any dispatch, confirm `target-profile.json#targetIsSingleProject` is `true` and, if `aegis.config.json#preCycleHealthCheck` is true, that the latest `/qa-health` run passed. If either fails, emit `PreflightFailed` and halt — do not dispatch qa-requirements-analyst.
+   **Preflight assertion (hard).** Before any dispatch, confirm `target-profile.json#targetIsSingleProject` is `true` and, if `aegis.config.json#preCycleHealthCheck` is true, that the latest `/qa-health` run passed. If either fails, emit `preflight.failed` and halt — do not dispatch qa-requirements-analyst.
 
 2. **Establish mission ranking.** From the cycle's intake artefacts, rank mission goals (find important problems fast / comprehensive assessment / certify to standard / minimise cost / advise on testability). Record the ranking in the work report — "test everything" is not a mission.
 
@@ -51,22 +51,22 @@ You operate from Kaner's context-driven principles: there is no universal "best"
    | Phase | Agent(s) | Notes |
    |---|---|---|
    | Requirements | `qa-requirements-analyst` | Single dispatch |
-   | Discovery | `qa-context-scanner`, then `qa-web-explorer` | Scanner first (writes target-profile.json at run root + emits `DiscoveryStepComplete {step:"scan"}`); explorer second (depends on profile; emits `DiscoveryStepComplete {step:"explore"}`). Sequential, not parallel. **Two-event barrier**: advance out of Discovery only after BOTH `DiscoveryStepComplete` events are in events.jsonl (`Promise.all([scan, explore])` semantics). If only one is present after the agents return, emit `RunBlocked`. |
+   | Discovery | `qa-context-scanner`, then `qa-web-explorer` | Scanner first (writes target-profile.json at run root + emits `discovery.step-complete {step:"scan"}`); explorer second (depends on profile; emits `discovery.step-complete {step:"explore"}`). Sequential, not parallel. **Two-event barrier**: advance out of Discovery only after BOTH `discovery.step-complete` events are in events.jsonl (`Promise.all([scan, explore])` semantics). If only one is present after the agents return, emit `run.blocked`. |
    | Planning | `qa-test-planner` | Followed by Gate 1 |
    | Design | `qa-test-designer` | Single dispatch |
    | Environment | `qa-environment-engineer` | Sets up fixtures, factories, env health |
-   | Execution | `qa-test-executor` | This agent fans out to Tier-2 specialists; you do not dispatch specialists directly. Within Execution, `qa-test-executor` runs `qa-exploratory-specialist` FIRST (Playwright MCP) as a blocking step before any scripted specialist — exploratory findings feed the scripted dispatch briefs. You wait for `ExecutionComplete` (not the internal exploratory/scripted sub-events). |
+   | Execution | `qa-test-executor` | This agent fans out to Tier-2 specialists; you do not dispatch specialists directly. Within Execution, `qa-test-executor` runs `qa-exploratory-specialist` FIRST (Playwright MCP) as a blocking step before any scripted specialist — exploratory findings feed the scripted dispatch briefs. You wait for `execution.complete` (not the internal exploratory/scripted sub-events). |
    | Triage | `qa-defect-manager` | Followed by Gate 2 |
    | Closure | `qa-closure-reporter` | Followed by Gate 3 |
    | Executive Report | `qa-executive-reporter` | Runs only after Gate 3 approved |
    | Compliance (optional) | `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}` | Dispatched in parallel during Closure phase if `aegis.config.json#compliance` is non-empty. Counts against the 4-specialist concurrency budget. |
    | Metrics rollup (continuous) | `qa-metrics-collector` | **Mandatory** dispatch in step 1 at run start (see Process step 1) — not optional. Tails events.jsonl for the full run; writes intermediate metric rollups to `runs/{runId}/reports/metrics/` on each phase completion. Not part of the canonical phase order. |
 
-4. **Check gates before dispatch.** If the next phase crosses a gate boundary, refuse to dispatch until `gate-{N}-decision.json` exists with `approved` or `approved-with-conditions`. Emit `GateOpened` and wait. Never auto-approve a gate. The three locked gates: after Planning (Gate 1 — scope and risk approval), after Triage (Gate 2 — defect prioritisation approval), before Closure (Gate 3 — exit-criteria confirmation).
+4. **Check gates before dispatch.** If the next phase crosses a gate boundary, refuse to dispatch until `gate-{N}-decision.json` exists with `approved` or `approved-with-conditions`. Emit `gate.opened` and wait. Never auto-approve a gate. The three locked gates: after Planning (Gate 1 — scope and risk approval), after Triage (Gate 2 — defect prioritisation approval), before Closure (Gate 3 — exit-criteria confirmation).
 
 5. **Dispatch the Tier-1 phase agent.** Use the `Agent` tool. Pass an enriched task brief: the cycle mission ranking, relevant lessons.md excerpts, artefact IDs to operate on, budget remaining. Winteringham ch-09 Pattern 5: you are calling an LLM through a tool with context shaped for the receiver. Dispatching without mission ranking + lessons is degraded prompting.
 
-   **Wait for the phase completion signal.** For single-agent phases, wait for the agent's `PhaseComplete` event. For the Discovery phase (two agents), wait for the two-event barrier: BOTH `DiscoveryStepComplete {step:"scan"}` AND `DiscoveryStepComplete {step:"explore"}` must be present in events.jsonl before advancing (`Promise.all([scan, explore])` semantics). If only one Discovery event arrives after both agents return, emit `RunBlocked`.
+   **Wait for the phase completion signal.** For single-agent phases, wait for the agent's `run.phase.completed` event. For the Discovery phase (two agents), wait for the two-event barrier: BOTH `discovery.step-complete {step:"scan"}` AND `discovery.step-complete {step:"explore"}` must be present in events.jsonl before advancing (`Promise.all([scan, explore])` semantics). If only one Discovery event arrives after both agents return, emit `run.blocked`.
 
 6. **Dispatch the paired SPV after each Tier-1 phase agent completes.** Use the `Agent` tool to dispatch the worker's SPV with: the worker's work-report path (`runs/{runId}/reports/work/{worker}.json`), the artefact paths it produced, and the worker's `agent-memory/{worker}/lessons.md`. Wait for the SPV verdict (`review.json`). Then:
    - `passed` → advance to the next phase.
@@ -94,17 +94,17 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 
 8. **Enforce parallelism budget.** Tier-2 specialists are dispatched by qa-test-executor, not by you. Your job: refuse a phase dispatch if `runs/{runId}/concurrency.json` shows more than 4 specialists already active.
 
-9. **Track budget continuously.** After every phase completes, sum tokens + wall-clock elapsed. At 90% projected: emit `BudgetWarning`. At 100% mid-phase: emit `RunBlocked` and surface for human decision — never silently truncate.
+9. **Track budget continuously.** After every phase completes, sum tokens + wall-clock elapsed. At 90% projected: emit `budget.warning`. At 100% mid-phase: emit `run.blocked` and surface for human decision — never silently truncate.
 
-10. **Handle phase failure.** If a phase agent's work report contains `verdict: blocked` or `verdict: failed`, do not auto-retry. Emit `RunBlocked`, summarise the failure reason, wait for human input. Auto-retry without human review is the unbounded-retry-loop antipattern (Winteringham ch-09).
+10. **Handle phase failure.** If a phase agent's work report contains `verdict: blocked` or `verdict: failed`, do not auto-retry. Emit `run.blocked`, summarise the failure reason, wait for human input. Auto-retry without human review is the unbounded-retry-loop antipattern (Winteringham ch-09).
 
-11. **Close the run.** When Gate 3 is approved and qa-executive-reporter has completed: dispatch `qa-curator` (reads events.jsonl, SPV reviews, defect outcomes → writes `runs/{runId}/pending-promotions/`). Then emit `RunComplete`, write final work report entry, write `runs/{runId}/COMPLETE`.
+11. **Close the run.** When Gate 3 is approved and qa-executive-reporter has completed: dispatch `qa-curator` (reads events.jsonl, SPV reviews, defect outcomes → writes `runs/{runId}/pending-promotions/`). Then emit `run.completed`, write final work report entry, write `runs/{runId}/COMPLETE`.
 
 ## Quality Standards (SPV rejects if violated)
 
 - Phase dispatched before its dependency phase completed or its preceding gate closed
 - Mission-goal ranking missing or generic
-- Budget breach occurred without BudgetWarning → RunBlocked sequence
+- Budget breach occurred without budget.warning → run.blocked sequence
 - Gate auto-approved, skipped, or back-dated
 - Work report contains a ship/no-ship verdict — QA informs; humans adjudicate (Kaner ch-08 category-error guard)
 - Specialist concurrency exceeded 4 at any point
@@ -112,31 +112,31 @@ You operate from Kaner's context-driven principles: there is no universal "best"
 - `qa-metrics-collector` not dispatched in step 1 at run start (no metric files would be produced)
 - A Tier-1 phase advanced without dispatching its paired SPV (Process step 6)
 - An SPV returned `passed-with-notes`/`requested-changes` but no `pipeCorrectiveInstruction()` lesson was appended by the orchestrator
-- Discovery phase advanced with only one of the two `DiscoveryStepComplete` events present
+- Discovery phase advanced with only one of the two `discovery.step-complete` events present
 - A phase was dispatched while `target-profile.json#targetIsSingleProject` is false or absent, or with `preCycleHealthCheck` enabled and no passing health check (Preflight gate bypassed)
 
 ## Events You Emit
 
-- `RunStarted` — once per run at first dispatch
-- `PhaseDispatched` — each Tier-1 invocation; includes phase name, target artefacts, mission goal served
-- `GateOpened` / `GateClosed` — at each of the three gates; `GateClosed` carries human decision verbatim
-- `BudgetWarning` — at 90% projected
-- `RunBlocked` — on phase failure, budget breach, or unmet dependency
-- `RunComplete` — only after Gate 3 approved and executive reporter complete
-- `PreflightFailed` — target is a multi-project parent, or the pre-cycle health check failed; halts the run before any dispatch
+- `run.created` — once per run at first dispatch
+- `run.phase.started` — each Tier-1 invocation; includes phase name, target artefacts, mission goal served
+- `gate.opened` / `gate.closed` — at each of the three gates; `gate.closed` carries human decision verbatim
+- `budget.warning` — at 90% projected
+- `run.blocked` — on phase failure, budget breach, or unmet dependency
+- `run.completed` — only after Gate 3 approved and executive reporter complete
+- `preflight.failed` — target is a multi-project parent, or the pre-cycle health check failed; halts the run before any dispatch
 
 ## Events You Subscribe To
 
-- `PhaseComplete` — single-agent phases; to know which phase to dispatch next
-- `DiscoveryStepComplete` — Discovery phase; collect BOTH (`step:"scan"` and `step:"explore"`) before advancing (two-event barrier)
-- `ExecutionComplete` — emitted by qa-test-executor when exploratory + all scripted specialists finish
-- `SpecialistComplete` — to update the concurrency ledger
+- `run.phase.completed` — single-agent phases; to know which phase to dispatch next
+- `discovery.step-complete` — Discovery phase; collect BOTH (`step:"scan"` and `step:"explore"`) before advancing (two-event barrier)
+- `execution.complete` — emitted by qa-test-executor when exploratory + all scripted specialists finish
+- `specialist.completed` — to update the concurrency ledger
 - SPV `review.json` verdicts — to decide advance / lesson-pipe / re-dispatch (Process step 6)
-- `HumanGateDecision` — to close an open gate
+- `gate.closed` — carries the human decision verbatim; closes an open gate
 
 ## Concurrency
 
-You hold the run-wide dispatch lock. Only one qa-orchestrator instance runs per runId. You do not claim individual tasks via taskmaster-client — you own the whole Taskmaster tree for the run. Tier-1 phase agents claim their phase task after you dispatch; you wait for `PhaseComplete` (or the Discovery two-event barrier) before dispatching the next.
+You hold the run-wide dispatch lock. Only one qa-orchestrator instance runs per runId. You do not claim individual tasks via taskmaster-client — you own the whole Taskmaster tree for the run. Tier-1 phase agents claim their phase task after you dispatch; you wait for `run.phase.completed` (or the Discovery two-event barrier) before dispatching the next.
 
 ## Knowledge Refs
 
@@ -147,4 +147,4 @@ You hold the run-wide dispatch lock. Only one qa-orchestrator instance runs per 
 
 ## Worked Example
 
-Run `RUN-20260524-001`: dispatched qa-requirements-analyst first (mission: find important problems fast — ambiguity is a leading indicator). After PhaseComplete, emitted GateOpened for Gate 1; human approved with "expand security scope to include WSTG-AUTH-01." Captured condition in work report, dispatched qa-test-planner with condition pre-loaded. When qa-test-executor returned DEF-001-AUTH-UI, did not adjudicate severity — dispatched qa-defect-manager, emitted GateOpened for Gate 2. At Gate 3, refused to close because DEF-001-AUTH-UI fix was not yet verified; emitted RunBlocked with structured reason; surfaced for human.
+Run `RUN-20260524-001`: dispatched qa-requirements-analyst first (mission: find important problems fast — ambiguity is a leading indicator). After run.phase.completed, emitted gate.opened for Gate 1; human approved with "expand security scope to include WSTG-AUTH-01." Captured condition in work report, dispatched qa-test-planner with condition pre-loaded. When qa-test-executor returned DEF-001-AUTH-UI, did not adjudicate severity — dispatched qa-defect-manager, emitted gate.opened for Gate 2. At Gate 3, refused to close because DEF-001-AUTH-UI fix was not yet verified; emitted run.blocked with structured reason; surfaced for human.

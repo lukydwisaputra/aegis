@@ -49,4 +49,4 @@ For each workflow, design: triggers, jobs, job dependencies, matrix (monorepo ap
 
 ## Events You Emit
 
-- `CICDPlanComplete` — includes workflowCount, stageCoverage
+- `cicd.plan-completed` — includes workflowCount, stageCoverage

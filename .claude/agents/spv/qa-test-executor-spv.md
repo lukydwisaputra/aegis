@@ -19,7 +19,7 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 
 - `runs/{runId}/reports/work/qa-test-executor.json` — work report
 - `runs/{runId}/execution-summary.{md,json}`
-- `runs/{runId}/events.jsonl` — to check SpecialistDispatched events
+- `runs/{runId}/events.jsonl` — to check specialist.dispatched events
 - Sample evidence files under `runs/{runId}/evidence/` (spot-check)
 - `agent-memory/qa-test-executor/lessons.md`
 
@@ -29,8 +29,8 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 2. **HAR sanitisation.** At least one spot-check of an HAR file confirms it does NOT contain `Authorization`, `Cookie`, or `Set-Cookie` headers. If the work report does not confirm sanitisation occurred = requested-changes.
 3. **Evidence naming.** Spot-check that evidence filenames match the pattern `{TC-ID}_{step}_{ISO8601-Z}.{ext}`. Incorrectly named evidence = passed-with-notes.
 4. **Specialist routing correctness.** Primary routing by `testType`: `API`/`Integration` → qa-api-specialist; `UI`/`Functional` → qa-ui-specialist; `Security` → qa-security-specialist; `Database` → qa-database-specialist; `Performance` → qa-performance-specialist; `Compatibility` → qa-responsive-specialist; `Usability` → qa-exploratory-specialist. Secondary routing by `testTechnique`: `Unit` → qa-unit-specialist; `Accessibility` → qa-accessibility-specialist; `Email` → qa-email-specialist; `Realtime` → qa-realtime-specialist; `FeatureFlag` → qa-feature-flag-specialist. TCs with a `testTechnique` must dispatch both the primary and the technique specialist. Misrouted TCs = requested-changes.
-5. **Enriched dispatch briefs.** Each `SpecialistDispatched` event includes a `brief` with: mission goal, TC list, relevant lessons from the specialist's `lessons.md`, and any known environment quirks. Bare dispatches = passed-with-notes.
-6. **Manual TC handling.** TCs with `requiresManual: true` emitted `ManualTestRequired` events with TC-ID + steps + justification. Manual TCs executed without this event = requested-changes.
+5. **Enriched dispatch briefs.** Each `specialist.dispatched` event includes a `brief` with: mission goal, TC list, relevant lessons from the specialist's `lessons.md`, and any known environment quirks. Bare dispatches = passed-with-notes.
+6. **Manual TC handling.** TCs with `requiresManual: true` emitted `manual.test.required` events with TC-ID + steps + justification. Manual TCs executed without this event = requested-changes.
 7. **Concurrency cap.** At most 4 specialists were dispatched concurrently. Evidence: no more than 4 concurrent `task.claimed` events without intervening `task.released`.
 
 ## Verdict
@@ -41,4 +41,4 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

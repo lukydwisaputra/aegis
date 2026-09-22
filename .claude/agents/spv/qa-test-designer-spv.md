@@ -46,4 +46,4 @@ You review test cases and RTM produced by `qa-test-designer`. You verify that te
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

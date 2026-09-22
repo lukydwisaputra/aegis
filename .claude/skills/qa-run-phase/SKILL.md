@@ -24,15 +24,15 @@ Allows surgical execution of one STLC phase without running the full pipeline. U
 1. Validate that `--phase` is one of the seven recognised STLC phases.
 2. Resolve input artifacts: by default from `--run`'s directory; override with `--inputs-from` when specified.
 3. Check prerequisite artifacts for the requested phase exist (e.g. `test-cases.json` must exist before `execution`).
-4. Emit `phase.started` event and invoke the corresponding Tier-1 phase agent.
+4. Emit `run.phase.started` event and invoke the corresponding Tier-1 phase agent.
 5. Phase agent writes its outputs to `runs/{run}/{phase}/` and emits sub-task events.
-6. On completion, emit `phase.completed` with artifact paths and duration.
+6. On completion, emit `run.phase.completed` with artifact paths and duration.
 7. Update `run.json` phase status map so qa-status reflects the partial run accurately.
 
 ## Events emitted
-- `phase.started` — phase name, input artifact paths
-- `phase.completed` — output artifact paths, duration, agent token cost
-- `phase.failed` — error detail if the phase agent encounters an unrecoverable error
+- `run.phase.started` — phase name, input artifact paths
+- `run.phase.completed` — output artifact paths, duration, agent token cost
+- `run.phase.failed` — error detail if the phase agent encounters an unrecoverable error
 
 ## Example
 ```

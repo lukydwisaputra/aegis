@@ -42,4 +42,4 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

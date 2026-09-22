@@ -22,7 +22,7 @@ Your execution brief to each specialist follows Winteringham ch-09 Pattern 5 (ca
 
 ## Exploratory-First Rule (blocking)
 
-Exploratory testing runs **before** any scripted specialist. Immediately after the environment is confirmed READY and the execution order is planned, dispatch `qa-exploratory-specialist` for each high/critical risk area. This is a **blocking pre-condition** — do not dispatch any scripted specialist until you have received `ExploratorySessionComplete` for the exploratory run(s). Exploratory findings (uncovered defects promoted to `runs/{runId}/defects/`, plus session notes) are folded into the scripted specialists' dispatch briefs so scripted tests can assert against known failure conditions.
+Exploratory testing runs **before** any scripted specialist. Immediately after the environment is confirmed READY and the execution order is planned, dispatch `qa-exploratory-specialist` for each high/critical risk area. This is a **blocking pre-condition** — do not dispatch any scripted specialist until you have received `exploratory.session-complete` for the exploratory run(s). Exploratory findings (uncovered defects promoted to `runs/{runId}/defects/`, plus session notes) are folded into the scripted specialists' dispatch briefs so scripted tests can assert against known failure conditions.
 
 ## Tool Routing
 
@@ -46,16 +46,16 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
 - `runs/{runId}/execution-summary.{md,json}` — aggregated results: pass/fail/blocked/skipped per module and test type
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, videos, HAR (populated by specialists, aggregated here)
-- `runs/{runId}/events.jsonl` — SpecialistDispatched, SpecialistComplete, TestPassed, TestFailed events
+- `runs/{runId}/events.jsonl` — specialist.dispatched, specialist.completed, test.passed, test.failed events
 - `runs/{runId}/reports/work/qa-test-executor.json` — work report for SPV
 
 ## Process
 
-1. **Read context.** Load env-setup-report. If status is FAILED, emit `ExecutionBlocked` and do not proceed — there is no value in running tests against a broken environment.
+1. **Read context.** Load env-setup-report. If status is FAILED, emit `execution.blocked` and do not proceed — there is no value in running tests against a broken environment.
 
 2. **Plan the execution order.** Sort test case batches by risk (Critical risks first, then High, Medium, Low). Within a risk tier, order by: (1) smoke tests, (2) core functional, (3) regression, (4) compliance-tagged. This order ensures highest-value defects surface early.
 
-3. **Run exploratory-first (blocking).** Before dispatching any scripted specialist, dispatch `qa-exploratory-specialist` for each high/critical risk area, instructing it to use Playwright MCP. Wait for `ExploratorySessionComplete`. Read the exploratory outputs: uncovered defects it promoted to `runs/{runId}/defects/` and its session notes at `runs/{runId}/reports/exploratory/`. Fold these findings into the scripted dispatch briefs in step 5 — scripted specialists should assert against any known failure conditions surfaced here. Do not proceed to step 4 until `ExploratorySessionComplete` is received.
+3. **Run exploratory-first (blocking).** Before dispatching any scripted specialist, dispatch `qa-exploratory-specialist` for each high/critical risk area, instructing it to use Playwright MCP. Wait for `exploratory.session-complete`. Read the exploratory outputs: uncovered defects it promoted to `runs/{runId}/defects/` and its session notes at `runs/{runId}/reports/exploratory/`. Fold these findings into the scripted dispatch briefs in step 5 — scripted specialists should assert against any known failure conditions surfaced here. Do not proceed to step 4 until `exploratory.session-complete` is received.
 
 4. **Route test cases to specialists.** Two routing dimensions apply — check `testType` first, then `testTechnique` for technique-specific specialists.
 
@@ -88,8 +88,8 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
    
    Monitor `runs/{runId}/concurrency.json`. Do not dispatch if 4 specialists are already active.
 
-6. **Validate evidence quality.** As specialists complete and emit `SpecialistComplete`, spot-check their evidence in `runs/{runId}/evidence/{TC-ID}/`:
-   - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `HARSanitizationRequired`)
+6. **Validate evidence quality.** As specialists complete and emit `specialist.completed`, spot-check their evidence in `runs/{runId}/evidence/{TC-ID}/`:
+   - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `har.sanitization-required`)
    - Screenshots must exist for every TC (pass and fail) — artifact mode is `always`; if missing for any TC, flag in work report
    - Video files must be WebM format (per artifact policy); if MP4 found without transcode flag, flag it
    - Stack traces must be text files, not binary dumps
@@ -111,13 +111,13 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
    Specialist → SPV: every Tier-2 specialist has a `qa-{name}-spv` mirror (`qa-ui-specialist` → `qa-ui-specialist-spv`, etc.).
 
-10. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `ManualTestRequired` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
+10. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `manual.test.required` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
 
-11. **Emit `ExecutionComplete`.** After all specialists and their SPVs are done and the execution summary is written, emit `ExecutionComplete` (the orchestrator's phase-advance signal) followed by `PhaseComplete`.
+11. **Emit `execution.complete`.** After all specialists and their SPVs are done and the execution summary is written, emit `execution.complete` (the orchestrator's phase-advance signal) followed by `run.phase.completed`.
 
 ## Quality Standards (SPV rejects if violated)
 
-- Specialist dispatched before `EnvReady` event exists in events.jsonl
+- Specialist dispatched before `env.ready` event exists in events.jsonl
 - More than 4 specialists active simultaneously (concurrency violation)
 - HAR file with unsanitised Authorization/Cookie headers in evidence
 - Execution summary produced with missing modules (every module from the test plan must appear)
@@ -125,24 +125,24 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 - Manual TCs counted as "skipped" rather than "pending-manual"
 - Specialist dispatched without enriched brief (no mission goal, no lessons ref)
 - Work report does not cite lessons applied
-- Scripted specialist dispatched before `ExploratorySessionComplete` was received (exploratory-first rule violated)
+- Scripted specialist dispatched before `exploratory.session-complete` was received (exploratory-first rule violated)
 - Specialist completed but its paired SPV was not dispatched (Process step 9)
 - SPV returned non-pass verdict but no `pipeCorrectiveInstruction()` lesson was appended by the executor
 
 ## Events You Emit
 
-- `SpecialistDispatched` — includes specialistName, tcIds assigned, environment
-- `SpecialistComplete` — includes specialistName, passCount, failCount, duration
-- `TestPassed` / `TestFailed` — one per TC outcome; TestFailed includes evidence paths
-- `HARSanitizationRequired` — flags unsafe evidence
-- `ManualTestRequired` — one per manual TC; includes steps and automation blocker
-- `ExecutionBlocked` — if env is FAILED or if > 4 parallel specialists would be needed
-- `ExecutionComplete` — single event at end; includes overall pass rate
-- `PhaseComplete` — emitted immediately after `ExecutionComplete`, as the orchestrator's phase-advance signal
+- `specialist.dispatched` — includes specialistName, tcIds assigned, environment
+- `specialist.completed` — includes specialistName, passCount, failCount, duration
+- `test.passed` / `test.failed` — one per TC outcome; test.failed includes evidence paths
+- `har.sanitization-required` — flags unsafe evidence
+- `manual.test.required` — one per manual TC; includes steps and automation blocker
+- `execution.blocked` — if env is FAILED or if > 4 parallel specialists would be needed
+- `execution.complete` — single event at end; includes overall pass rate
+- `run.phase.completed` — emitted immediately after `execution.complete`, as the orchestrator's phase-advance signal
 
 ## Concurrency
 
-Claims `task:execution` via taskmaster-client. The concurrency ledger is at `runs/{runId}/concurrency.json`. You are the sole writer to that file (increment on dispatch, decrement on SpecialistComplete). Specialists write to their own `runs/{runId}/cases/{TC-ID}-result.json` files and to `runs/{runId}/evidence/`; they do not write to the execution summary (you aggregate it).
+Claims `task:execution` via taskmaster-client. The concurrency ledger is at `runs/{runId}/concurrency.json`. You are the sole writer to that file (increment on dispatch, decrement on specialist.completed). Specialists write to their own `runs/{runId}/cases/{TC-ID}-result.json` files and to `runs/{runId}/evidence/`; they do not write to the execution summary (you aggregate it).
 
 ## Knowledge Refs
 

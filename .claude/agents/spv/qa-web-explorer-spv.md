@@ -46,4 +46,4 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 
 ## Events You Emit
 
-- `ReviewPassed` / `ReviewRequestedChanges`
+- `review.passed` / `review.requested-changes`

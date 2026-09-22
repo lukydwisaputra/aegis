@@ -52,7 +52,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
    - `"mobile"` → run on mobile only
    - `"tablet"` → run on tablet only
 
-2. **Explore in the sandbox before writing any final spec.** If this TC requires a new or updated `responsive.spec.ts`, prototype the viewport assertions and breakpoint checks in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/responsive.spec.ts`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
+2. **Explore in the sandbox before writing any final spec.** If this TC requires a new or updated `responsive.spec.ts`, prototype the viewport assertions and breakpoint checks in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/responsive.spec.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required if no spec is committed.
 
 3. **Configure Playwright viewport projects.** Use `playwright.config.ts` projects for the three viewport sizes. Run each TC spec under all applicable viewport projects.
 
@@ -78,6 +78,6 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC per viewport
-- `BreakpointDefectFound` — includes viewport, element selector, defect type
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC per viewport
+- `breakpoint.defect-found` — includes viewport, element selector, defect type
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

@@ -58,5 +58,5 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC
-- `CoverageUpdated` — after Jest run; includes new coverage delta
+- `test.passed` / `test.failed` — per TC
+- `coverage.updated` — after Jest run; includes new coverage delta

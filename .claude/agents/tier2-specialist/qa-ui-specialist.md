@@ -83,7 +83,7 @@ tests/qa/
 
 ## Process
 
-1. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/`. Emit `SandboxExplored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
+1. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/specs/{url-path}/`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
 2. **Load auth fixture.** Import `test` from `tests/qa/fixtures/auth.fixture` — never from `@playwright/test` directly. Use the named page fixture for the role under test (`adminPage`, `userPage`, etc.).
 
@@ -127,6 +127,6 @@ tests/qa/
 
 ## Events You Emit
 
-- `TestPassed` / `TestFailed` — per TC; TestFailed includes evidence paths
-- `TestIdProposalCreated` — per missing testid
-- `SandboxExplored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` / `test.failed` — per TC; test.failed includes evidence paths
+- `test.id-proposal-created` — per missing testid
+- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)

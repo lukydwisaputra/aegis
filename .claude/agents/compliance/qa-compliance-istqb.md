@@ -54,4 +54,4 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 
 ## Events You Emit
 
-- `ComplianceReviewComplete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
