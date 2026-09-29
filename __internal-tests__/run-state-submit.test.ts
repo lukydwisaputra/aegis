@@ -226,3 +226,48 @@ describe('submission robustness', () => {
     await expect(submitWorkReport(t.root, runId, writeJson('wr2.json', workReport()), WORKER)).rejects.toMatchObject({ code: 'not-claimed' });
   });
 });
+
+describe('escalation re-drive and id validation', () => {
+  it('a failed escalation is re-driven by resubmitting the same review', async () => {
+    const runJson = path.join(runDir(t.root, runId), 'run.json');
+    let res;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (attempt > 1) await claimTask(t.root, runId, 'T-1', WORKER);
+      await submitWorkReport(t.root, runId, writeJson(`wr${attempt}.json`, workReport()), WORKER);
+      await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+      const file = writeJson(`r${attempt}.json`, review('requested-changes'));
+      if (attempt < 3) {
+        await submitReview(t.root, runId, file, SPV);
+        continue;
+      }
+      const good = fs.readFileSync(runJson, 'utf8');
+      fs.writeFileSync(runJson, '{not json');
+      await expect(submitReview(t.root, runId, file, SPV)).rejects.toThrow();
+      expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(0);
+      fs.writeFileSync(runJson, good);
+      res = await submitReview(t.root, runId, file, SPV);
+    }
+    expect(res).toMatchObject({ attempt: 3, rejections: 3, escalated: true, reopened: false, lessons: [] });
+    expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(1);
+    expect(events().filter((e) => e.type === 'review.requested-changes')).toHaveLength(3);
+    expect(readRun(t.root, runId).status).toBe('blocked');
+    // a further resubmission of the same review does not re-escalate
+    await expect(submitReview(t.root, runId, path.join(t.root, 'r3.json'), SPV)).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(1);
+  });
+
+  const walk = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => [d.name, ...(d.isDirectory() ? walk(path.join(dir, d.name)) : [])]);
+
+  it('rejects path-traversal ids without touching disk', async () => {
+    await expect(submitWorkReport(t.root, runId, writeJson('e1.json', workReport({ taskId: '../evil' })), WORKER)).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(
+      submitReview(t.root, runId, writeJson('e2.json', review('passed', { target: { agent: WORKER, taskId: '../evil' } })), SPV)
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(
+      submitReview(t.root, runId, writeJson('e3.json', review('passed', { target: { agent: '../evil', taskId: 'T-1' } })), SPV)
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(walk(t.root).filter((n) => n.includes('evil') && !/^e\d\.json$/.test(n))).toEqual([]);
+    expect(fs.existsSync(path.join(path.dirname(t.root), 'evil'))).toBe(false);
+  });
+});

@@ -9,6 +9,7 @@ import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, ESCALATION_REASON_PREFIX } from "./run.js";
+import { TASK_ID } from "./tasks.js";
 import { formatIssues, iso, loadJson } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
@@ -36,6 +37,13 @@ const reviewDir = (root: string, runId: string): string => join(runDir(root, run
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
 const ALLOC_TRIES = 5;
+const AGENT_ID = /^qa-[a-z0-9-]+$/;
+
+/** Ids become path segments (lock, marker, report files): validate before any fs call. */
+function assertSafeIds(agent: string, taskId: string): void {
+  if (!AGENT_ID.test(agent)) throw new RunStateError("invalid-input", `agent "${agent}" must match ${AGENT_ID.source}`);
+  if (!TASK_ID.test(taskId)) throw new RunStateError("invalid-input", `task id "${taskId}" must match ${TASK_ID.source}`);
+}
 
 /**
  * Serialises every submission for one agent/task. Lock order (outermost first):
@@ -83,6 +91,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
 
+  assertSafeIds(report.agent, report.taskId);
   return withSubmitLock(root, runId, caller, report.taskId, async () => {
     const task = await createTaskmasterClient(taskmasterDir(root, runId)).get(report.taskId);
     if (task === null || task.status !== "in-progress" || task.claimedBy !== caller) {
@@ -134,6 +143,43 @@ function rejectionsSoFar(dir: string, agent: string, taskId: string): number {
   }).length;
 }
 
+/** Exactly-once: only the creator of the marker blocks the run and emits task.escalated. */
+async function escalateOnce(
+  root: string,
+  runId: string,
+  agent: string,
+  taskId: string,
+  rejections: number,
+  caller: string,
+  now?: Date
+): Promise<boolean> {
+  const marker = join(reviewDir(root, runId), `${agent}.${taskId}.escalated`);
+  try {
+    fs.writeFileSync(marker, `${iso(now)}\n`, { encoding: "utf-8", flag: "wx" });
+  } catch (e) {
+    if (isExists(e)) return false;
+    throw e;
+  }
+  try {
+    await blockRun(
+      root,
+      runId,
+      `${ESCALATION_REASON_PREFIX}: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`,
+      caller,
+      now
+    );
+    await appendChained(
+      { type: "task.escalated", ts: iso(now), taskId, agent, rejectionCount: rejections },
+      busPath(root, runId),
+      { emittedBy: caller, runId }
+    );
+    return true;
+  } catch (e) {
+    fs.rmSync(marker, { force: true });
+    throw e;
+  }
+}
+
 export async function submitReview(root: string, runId: string, file: string, caller: string, now?: Date): Promise<ReviewResult> {
   assertCallerAllowed(caller, "review.submit");
   if (!caller.endsWith("-spv")) {
@@ -147,6 +193,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
   }
 
   const { agent, taskId } = review.target;
+  assertSafeIds(agent, taskId);
   return withSubmitLock(root, runId, agent, taskId, async () => {
     const worked = attemptsIn(workDir(root, runId), agent, taskId);
     if (worked.length === 0) {
@@ -161,8 +208,30 @@ export async function submitReview(root: string, runId: string, file: string, ca
     try {
       publishJson(out, review);
     } catch (e) {
-      if (isExists(e)) throw new RunStateError("invalid-input", `attempt ${attempt} of ${agent}/${taskId} is already reviewed`);
-      throw e;
+      if (!isExists(e)) throw e;
+      const already = new RunStateError("invalid-input", `attempt ${attempt} of ${agent}/${taskId} is already reviewed`);
+      // Re-drive an escalation whose block/event failed after the review was recorded.
+      let existing;
+      try {
+        existing = ReviewSchema.safeParse(loadJson(out));
+      } catch {
+        throw already;
+      }
+      const marker = join(dir, `${agent}.${taskId}.escalated`);
+      if (!existing.success || existing.data.verdict !== "requested-changes" || fs.existsSync(marker)) throw already;
+      const total = rejectionsSoFar(dir, agent, taskId);
+      if (total < MAX_ATTEMPTS) throw already;
+      const escalated = await escalateOnce(root, runId, agent, taskId, total, caller, now);
+      if (!escalated) throw already;
+      return {
+        path: relative(runDir(root, runId), out),
+        attempt,
+        verdict: existing.data.verdict,
+        rejections: total,
+        escalated: true,
+        reopened: false,
+        lessons: [],
+      };
     }
 
     const rel = relative(runDir(root, runId), out);
@@ -190,31 +259,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
     let escalated = false;
     let reopened = false;
     if (rejected && rejections >= MAX_ATTEMPTS) {
-      // Exactly-once: only the creator of the marker escalates.
-      const marker = join(dir, `${agent}.${taskId}.escalated`);
-      let created = false;
-      try {
-        fs.writeFileSync(marker, `${ts}\n`, { encoding: "utf-8", flag: "wx" });
-        created = true;
-      } catch (e) {
-        if (!isExists(e)) throw e;
-      }
-      if (created) {
-        try {
-          await blockRun(
-            root,
-            runId,
-            `${ESCALATION_REASON_PREFIX}: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`,
-            caller,
-            now
-          );
-          await appendChained({ type: "task.escalated", ts, taskId, agent, rejectionCount: rejections }, bus, ctx);
-          escalated = true;
-        } catch (e) {
-          fs.rmSync(marker, { force: true });
-          throw e;
-        }
-      }
+      escalated = await escalateOnce(root, runId, agent, taskId, rejections, caller, now);
     } else if (rejected) {
       const client = createTaskmasterClient(taskmasterDir(root, runId));
       const current = await client.get(taskId);

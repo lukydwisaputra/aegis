@@ -11,7 +11,7 @@ import { busPath, taskmasterDir } from "./paths.js";
 import { readRun, withRunLock } from "./run.js";
 import { iso } from "./util.js";
 
-const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function client(root: string, runId: string) {
   return createTaskmasterClient(taskmasterDir(root, runId));
