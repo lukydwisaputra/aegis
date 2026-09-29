@@ -44,6 +44,18 @@ importers:
 
   apps/cli:
     dependencies:
+      '@qa/contracts':
+        specifier: workspace:*
+        version: link:../../packages/@qa/contracts
+      '@qa/event-bus':
+        specifier: workspace:*
+        version: link:../../packages/@qa/event-bus
+      '@qa/ids':
+        specifier: workspace:*
+        version: link:../../packages/@qa/ids
+      '@qa/run-state':
+        specifier: workspace:*
+        version: link:../../packages/@qa/run-state
       commander:
         specifier: ^12.0.0
         version: 12.1.0
