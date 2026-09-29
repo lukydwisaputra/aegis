@@ -155,4 +155,17 @@ describe('appendChained hardening', () => {
     await expect(appendChained({ ...blocked('b'), ...extra }, bus, ctx)).rejects.toThrow(/set by the bus/);
     expect(fs.readFileSync(bus, 'utf8')).toBe(before);
   });
+
+  it('ignores a non-integer seq when computing the next seq', async () => {
+    await appendChained(blocked('a'), bus, ctx);
+    await appendChained(blocked('b'), bus, ctx);
+    const lines = readLines(bus);
+    lines[1] = lines[1]!.replace('"seq":2', '"seq":1.5');
+    fs.writeFileSync(bus, lines.join('\n') + '\n');
+    const rec = await appendChained(blocked('c'), bus, ctx);
+    expect(rec['seq']).toBe(2);
+    const errs = verifyChain(bus).errors;
+    expect(errs.length).toBeGreaterThan(0);
+    expect(errs.every((e) => e.startsWith('line 2:'))).toBe(true);
+  });
 });

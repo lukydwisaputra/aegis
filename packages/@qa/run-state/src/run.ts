@@ -144,6 +144,7 @@ export async function requestStop(root: string, runId: string, reason: string, c
 export async function blockRun(root: string, runId: string, reason: string, caller: string, now?: Date): Promise<RunState> {
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
+    if (state.status === "completed") throw new RunStateError("run-not-active", `run ${runId} is completed`);
     const ts = iso(now);
     const current = state.blockedReason ?? "";
     const keepIntegrity = current.startsWith(INTEGRITY_REASON_PREFIX) && !reason.startsWith(INTEGRITY_REASON_PREFIX);

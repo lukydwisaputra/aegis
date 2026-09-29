@@ -34,7 +34,7 @@ function seqOf(line: string): number {
     const parsed: unknown = JSON.parse(line);
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return 0;
     const seq = (parsed as { seq?: unknown }).seq;
-    return typeof seq === "number" ? seq : 0;
+    return typeof seq === "number" && Number.isInteger(seq) && seq > 0 ? seq : 0;
   } catch {
     return 0;
   }

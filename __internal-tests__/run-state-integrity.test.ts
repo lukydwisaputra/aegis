@@ -82,7 +82,12 @@ it('still catches tampering that happens after an acknowledgement', async () => 
   lines[lines.length - 1] = lines[lines.length - 1]!.replace('"reason":"later"', '"reason":"edited"');
   lines.push(lines[lines.length - 1]!); // duplicate the tampered line
   fs.writeFileSync(busPath(t.root, runId), lines.join('\n') + '\n');
-  expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(false);
+  const report = await verifyRunIntegrity(t.root, runId, 'owner');
+  const through = readRun(t.root, runId).integrityAcknowledgedThroughLine ?? 0;
+  expect(report.ok).toBe(false);
+  expect(report.errors.join('\n')).not.toMatch(/line 2:/);
+  for (const e of report.errors) expect(Number(/^line (\d+):/.exec(e)?.[1])).toBeGreaterThan(through);
+  expect(readRun(t.root, runId).status).toBe('blocked');
 });
 
 it('reports an invalid run.json without throwing', async () => {
@@ -90,4 +95,31 @@ it('reports an invalid run.json without throwing', async () => {
   const report = await verifyRunIntegrity(t.root, runId, 'owner');
   expect(report).toMatchObject({ ok: false, runJsonValid: false });
   expect(report.errors.join('\n')).toMatch(/run.json/);
+});
+
+it('stays total when the log has a torn tail on top of tampering', async () => {
+  tamperFirstLine();
+  fs.appendFileSync(busPath(t.root, runId), '{"seq":');
+  const report = await verifyRunIntegrity(t.root, runId, 'owner');
+  expect(report.ok).toBe(false);
+  expect(report.errors.join('\n')).toMatch(/cannot record integrity.violation/);
+  expect(readRun(t.root, runId).status).toBe('blocked');
+});
+
+it('reports on a completed run but never blocks or reopens it', async () => {
+  const state = readRun(t.root, runId);
+  fs.writeFileSync(runJsonPath(t.root, runId), JSON.stringify({ ...state, status: 'completed' }, null, 2));
+  tamperFirstLine();
+  const report = await verifyRunIntegrity(t.root, runId, 'owner');
+  expect(report.ok).toBe(false);
+  expect(readRun(t.root, runId).status).toBe('completed');
+  expect(count('integrity.violation')).toBe(0);
+});
+
+it('reports a missing run without throwing or creating lock files', async () => {
+  const missing = 'RUN-20260929-099';
+  const report = await verifyRunIntegrity(t.root, missing, 'owner');
+  expect(report).toMatchObject({ ok: false, runJsonValid: false });
+  expect(report.errors.join('\n')).toMatch(/not found/);
+  expect(fs.existsSync(runJsonPath(t.root, missing).replace('run.json', 'integrity.lock'))).toBe(false);
 });
