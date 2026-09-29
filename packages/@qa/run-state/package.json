@@ -1,0 +1,27 @@
+{
+  "name": "@qa/run-state",
+  "version": "1.0.0",
+  "description": "Run lifecycle, task claims, submissions and integrity checks behind the aegis CLI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@qa/agent-memory": "workspace:*",
+    "@qa/contracts": "workspace:*",
+    "@qa/event-bus": "workspace:*",
+    "@qa/ids": "workspace:*",
+    "@qa/taskmaster-client": "workspace:*",
+    "proper-lockfile": "^4.1.2"
+  },
+  "devDependencies": {}
+}
