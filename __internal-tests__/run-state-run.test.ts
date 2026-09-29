@@ -118,6 +118,21 @@ describe('integrity block', () => {
   });
 });
 
+describe('block stacking', () => {
+  it('keeps the integrity block when a later non-integrity block is recorded', async () => {
+    const { runId } = await create();
+    await blockRun(t.root, runId, 'integrity violation: test', 'qa-orchestrator');
+    await blockRun(t.root, runId, 'escalation: task T-1', 'qa-ui-specialist-spv');
+    const reason = readRun(t.root, runId).blockedReason ?? '';
+    expect(reason.startsWith('integrity violation')).toBe(true);
+    expect(reason).toContain('escalation: task T-1');
+    expect(last(events(runId))).toMatchObject({ type: 'run.blocked', reason: 'escalation: task T-1' });
+    await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+    const resumed = await resumeRun(t.root, runId, 'owner', { acknowledgeIntegrity: { reason: 'reviewed' } });
+    expect(resumed.status).toBe('running');
+  });
+});
+
 describe('concurrency and missing runs', () => {
   it('concurrent block and stop keep both updates', async () => {
     const { runId } = await create();

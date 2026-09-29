@@ -142,7 +142,10 @@ export async function blockRun(root: string, runId: string, reason: string, call
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     const ts = iso(now);
-    const next: RunState = { ...state, status: "blocked", blockedReason: reason, updatedAt: ts };
+    const current = state.blockedReason ?? "";
+    const keepIntegrity = current.startsWith(INTEGRITY_REASON_PREFIX) && !reason.startsWith(INTEGRITY_REASON_PREFIX);
+    const stored = keepIntegrity ? `${current}; also blocked: ${reason}` : reason;
+    const next: RunState = { ...state, status: "blocked", blockedReason: stored, updatedAt: ts };
     writeRun(root, next);
     await appendChained(
       { type: "run.blocked", ts, runId, reason, ...(state.currentPhase !== null ? { phase: state.currentPhase } : {}) },
