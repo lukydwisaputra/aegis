@@ -1500,6 +1500,21 @@ export const ScanWarningEventSchema = EventBase.extend({
   reason: z.string(),
 });
 
+// ─── Integrity ────────────────────────────────────────────────────────────────
+
+export const IntegrityViolationEventSchema = EventBase.extend({
+  type: z.literal("integrity.violation"),
+  runId: RunIdSchema,
+  errors: z.array(z.string()).min(1),
+});
+
+export const IntegrityAcknowledgedEventSchema = EventBase.extend({
+  type: z.literal("integrity.acknowledged"),
+  runId: RunIdSchema,
+  throughLine: z.number().int().nonnegative(),
+  reason: z.string().min(1),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 export const AegisEventSchema = z.discriminatedUnion("type", [
@@ -1713,6 +1728,8 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   SandboxTtlPruneEventSchema,
   DefectClosedAsInvalidEventSchema,
   ScanWarningEventSchema,
+  IntegrityViolationEventSchema,
+  IntegrityAcknowledgedEventSchema,
 ]);
 
 export type AegisEvent = z.infer<typeof AegisEventSchema>;
