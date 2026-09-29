@@ -115,15 +115,34 @@ export async function appendChained(
   }
 }
 
-/** Recompute the chain and validate every chained line. Pure read; never writes. */
-export function verifyChain(busPath: string, opts: { ignoreThroughLine?: number } = {}): ChainVerifyResult {
+export interface CommittedLines {
+  /** Newline-terminated lines only, in file order (empty lines dropped). */
+  lines: string[];
+  /** True when the file ends with an unterminated segment, which is excluded from `lines`. */
+  pendingTail: boolean;
+}
+
+/** One read of the log, split the way verification sees it. Pure read; never writes. */
+export function readCommittedLines(busPath: string): CommittedLines {
   let raw = existsSync(busPath) ? readFileSync(busPath, "utf-8") : "";
   let pendingTail = false;
   if (raw.length > 0 && !raw.endsWith("\n")) {
     pendingTail = true;
     raw = raw.slice(0, raw.lastIndexOf("\n") + 1);
   }
-  const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
+  return { lines: raw.split(/\r?\n/).filter((l) => l.length > 0), pendingTail };
+}
+
+/** Recompute the chain and validate every chained line. Pure read; never writes. */
+export function verifyChain(busPath: string, opts: { ignoreThroughLine?: number } = {}): ChainVerifyResult {
+  return verifyCommittedLines(readCommittedLines(busPath), opts);
+}
+
+/** verifyChain over an already-read snapshot, so callers can verify and hash the same bytes. */
+export function verifyCommittedLines(
+  { lines, pendingTail }: CommittedLines,
+  opts: { ignoreThroughLine?: number } = {}
+): ChainVerifyResult {
   const errors: Array<{ line: number; message: string }> = [];
   let legacyLines = 0;
   let chainedLines = 0;

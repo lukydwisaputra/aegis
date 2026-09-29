@@ -106,7 +106,7 @@ describe('integrity block', () => {
     const before = readLines(busPath(t.root, runId)).length;
     const resumed = await resumeRun(t.root, runId, 'owner', { acknowledgeIntegrity: { reason: 'reviewed log' }, now: NOW });
     expect(resumed.status).toBe('running');
-    expect(resumed.integrityAcknowledgedThroughLine).toBe(before);
+    expect(resumed.integrityAcknowledged).toMatchObject({ throughLine: before, errors: [] });
     expect(events(runId).find((e) => e.type === 'integrity.acknowledged')).toMatchObject({ throughLine: before, reason: 'reviewed log' });
   });
 

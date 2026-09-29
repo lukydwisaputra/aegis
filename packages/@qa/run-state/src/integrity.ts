@@ -1,11 +1,17 @@
-import { closeSync, existsSync, openSync } from "node:fs";
-import { join } from "node:path";
-import lockfile from "proper-lockfile";
+import { existsSync } from "node:fs";
 import { RunIdSchema, type RunState } from "@qa/contracts";
-import { appendChained, verifyChain, type ChainVerifyResult } from "@qa/event-bus";
+import { appendChained, readCommittedLines, verifyCommittedLines, type ChainVerifyResult } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
-import { busPath, runDir, runJsonPath } from "./paths.js";
-import { blockRun, INTEGRITY_REASON_PREFIX, readRun } from "./run.js";
+import { applyAcknowledgement, checkpointOf, logErrors } from "./log-check.js";
+import { busPath, runJsonPath } from "./paths.js";
+import {
+  blockRun,
+  INTEGRITY_REASON_PREFIX,
+  isIntegrityBlocked,
+  readRun,
+  recordIntegrityCheckpoint,
+  withIntegrityLock,
+} from "./run.js";
 import { iso } from "./util.js";
 
 export interface IntegrityReport extends ChainVerifyResult {
@@ -17,6 +23,7 @@ export interface IntegrityReport extends ChainVerifyResult {
  * Lock order: integrity.lock -> run.lock -> event-bus lock. The read-decide-append-block
  * sequence runs under integrity.lock so concurrent verifies record one violation.
  * A pending (unterminated) tail is never an error and never blocks the run.
+ * An ok verify records a checkpoint (last chained line) so later truncation or rewrite is caught.
  * Never throws for a broken log; a completed run is reported on but never blocked.
  */
 export async function verifyRunIntegrity(root: string, runId: string, caller: string, now?: Date): Promise<IntegrityReport> {
@@ -28,10 +35,7 @@ export async function verifyRunIntegrity(root: string, runId: string, caller: st
     return { ok: false, legacyLines: 0, chainedLines: 0, pendingTail: false, errors: [message], runId, runJsonValid: false };
   }
 
-  const lockPath = join(runDir(root, runId), "integrity.lock");
-  if (!existsSync(lockPath)) closeSync(openSync(lockPath, "a"));
-  const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
-  try {
+  return withIntegrityLock(root, runId, async () => {
     let state: RunState | null = null;
     const extra: string[] = [];
     try {
@@ -40,13 +44,20 @@ export async function verifyRunIntegrity(root: string, runId: string, caller: st
       extra.push(`run.json invalid: ${(e as Error).message}`);
     }
 
-    const chain = verifyChain(busPath(root, runId), { ignoreThroughLine: state?.integrityAcknowledgedThroughLine ?? 0 });
-    const errors = [...chain.errors, ...extra];
-    const ok = errors.length === 0;
+    const snap = readCommittedLines(busPath(root, runId));
+    let chain: ChainVerifyResult;
+    let errors: string[];
+    if (state === null) {
+      chain = verifyCommittedLines(snap);
+      errors = [...chain.errors, ...extra];
+    } else {
+      const found = logErrors(snap, state.integrityCheckpoint);
+      chain = found.chain;
+      errors = applyAcknowledgement(snap, found.errors, state.integrityAcknowledged);
+    }
+    let ok = errors.length === 0;
 
-    const alreadyBlocked =
-      state !== null && state.status === "blocked" && (state.blockedReason ?? "").startsWith(INTEGRITY_REASON_PREFIX);
-    if (!ok && state !== null && state.status !== "completed" && !alreadyBlocked) {
+    if (!ok && state !== null && state.status !== "completed" && !isIntegrityBlocked(state)) {
       const violationErrors = [...errors];
       try {
         await appendChained({ type: "integrity.violation", ts: iso(now), runId, errors: violationErrors }, busPath(root, runId), { emittedBy: caller, runId });
@@ -60,8 +71,19 @@ export async function verifyRunIntegrity(root: string, runId: string, caller: st
       }
     }
 
+    if (ok && state !== null) {
+      const checkpoint = checkpointOf(snap);
+      const stored = state.integrityCheckpoint;
+      if (checkpoint !== undefined && (stored?.seq !== checkpoint.seq || stored.lineHash !== checkpoint.lineHash)) {
+        try {
+          await recordIntegrityCheckpoint(root, runId, checkpoint);
+        } catch (e) {
+          errors.push(`cannot record integrity checkpoint: ${(e as Error).message}`);
+          ok = false;
+        }
+      }
+    }
+
     return { ...chain, ok, errors, runId, runJsonValid: state !== null };
-  } finally {
-    await release();
-  }
+  });
 }

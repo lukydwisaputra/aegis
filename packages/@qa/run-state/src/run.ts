@@ -3,11 +3,12 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, r
 import { join } from "node:path";
 import lockfile from "proper-lockfile";
 import { RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
-import { appendChained, readLines } from "@qa/event-bus";
+import { appendChained, readCommittedLines } from "@qa/event-bus";
 import { nextId } from "@qa/ids";
 import { assertCallerAllowed } from "./caller.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
+import { acknowledgementOf, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
 import { busPath, runDir, runJsonPath, taskmasterDir, writeActiveRun } from "./paths.js";
 import { formatIssues, iso } from "./util.js";
 
@@ -26,6 +27,11 @@ export interface CreateRunInput {
 export interface ResumeOptions {
   acknowledgeIntegrity?: { reason: string };
   now?: Date;
+}
+
+/** The one rule for "blocked by integrity": the reason prefix, whatever the status (a stop keeps it). */
+export function isIntegrityBlocked(state: RunState): boolean {
+  return (state.blockedReason ?? "").startsWith(INTEGRITY_REASON_PREFIX);
 }
 
 export function readRun(root: string, runId: string): RunState {
@@ -60,7 +66,7 @@ function writeRun(root: string, state: RunState): void {
 /**
  * Serialises run.json read-modify-write per run.
  * Lock order (never invert; never take run.lock while holding the bus lock):
- *   integrity.lock -> run.lock -> event-bus lock;
+ *   integrity.lock -> run.lock -> event-bus lock (verify; resume with an acknowledgement);
  *   claims.lock -> run.lock -> (task-file lock) -> event-bus lock.
  *   Nothing may take claims.lock while holding run.lock.
  *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).
@@ -68,6 +74,18 @@ function writeRun(root: string, state: RunState): void {
 export async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
   const lockPath = join(runDir(root, runId), "run.lock");
   if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
+  if (!existsSync(lockPath)) closeSync(openSync(lockPath, "a"));
+  const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
+  try {
+    return await fn();
+  } finally {
+    await release();
+  }
+}
+
+/** Serialises integrity decisions per run (verify, acknowledge). Taken before run.lock, never inside it. */
+export async function withIntegrityLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
+  const lockPath = join(runDir(root, runId), "integrity.lock");
   if (!existsSync(lockPath)) closeSync(openSync(lockPath, "a"));
   const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
   try {
@@ -107,7 +125,6 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
     status: "created",
     currentPhase: null,
     stopRequested: false,
-    integrityAcknowledgedThroughLine: 0,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -140,6 +157,14 @@ export async function requestStop(root: string, runId: string, reason: string, c
   });
 }
 
+/** Rule-driven: record the last line an ok verify saw. Called under integrity.lock; takes run.lock. */
+export async function recordIntegrityCheckpoint(root: string, runId: string, checkpoint: IntegrityCheckpoint): Promise<void> {
+  await withRunLock(root, runId, async () => {
+    const state = readRun(root, runId);
+    writeRun(root, { ...state, integrityCheckpoint: checkpoint });
+  });
+}
+
 /** Rule-driven block (escalation, integrity). Not a CLI command, so no caller check. */
 export async function blockRun(root: string, runId: string, reason: string, caller: string, now?: Date): Promise<RunState> {
   return withRunLock(root, runId, async () => {
@@ -162,12 +187,21 @@ export async function blockRun(root: string, runId: string, reason: string, call
 
 export async function resumeRun(root: string, runId: string, caller: string, opts: ResumeOptions = {}): Promise<RunState> {
   assertCallerAllowed(caller, "run.resume");
+  // An acknowledgement is an integrity decision: serialise it with verify (integrity.lock -> run.lock).
+  if (opts.acknowledgeIntegrity !== undefined) {
+    if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
+    return withIntegrityLock(root, runId, () => resumeLocked(root, runId, caller, opts));
+  }
+  return resumeLocked(root, runId, caller, opts);
+}
+
+function resumeLocked(root: string, runId: string, caller: string, opts: ResumeOptions): Promise<RunState> {
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     if (state.status !== "stopped" && state.status !== "blocked") {
       throw new RunStateError("run-not-active", `run ${runId} is "${state.status}"; only stopped or blocked runs can be resumed`);
     }
-    const integrityBlocked = (state.blockedReason ?? "").startsWith(INTEGRITY_REASON_PREFIX);
+    const integrityBlocked = isIntegrityBlocked(state);
     if (integrityBlocked && opts.acknowledgeIntegrity === undefined) {
       throw new RunStateError(
         "invalid-input",
@@ -177,16 +211,24 @@ export async function resumeRun(root: string, runId: string, caller: string, opt
 
     const ts = iso(opts.now);
     const bus = busPath(root, runId);
-    let acknowledged = state.integrityAcknowledgedThroughLine;
+    let acknowledged: IntegrityAcknowledgement | undefined;
     if (opts.acknowledgeIntegrity !== undefined) {
       const reason = opts.acknowledgeIntegrity.reason.trim();
       if (reason === "") throw new RunStateError("invalid-input", "an acknowledgement reason is required");
-      acknowledged = readLines(bus).length;
-      await appendChained({ type: "integrity.acknowledged", ts, runId, throughLine: acknowledged, reason }, bus, { emittedBy: caller, runId });
+      // Pin exactly what the owner reviewed: the current log prefix and its unfiltered errors.
+      const snap = readCommittedLines(bus);
+      acknowledged = acknowledgementOf(snap, logErrors(snap, state.integrityCheckpoint).errors);
+      await appendChained({ type: "integrity.acknowledged", ts, runId, ...acknowledged, reason }, bus, { emittedBy: caller, runId });
     }
 
     const { blockedReason: _dropped, ...rest } = state;
-    const next: RunState = { ...rest, status: "running", stopRequested: false, integrityAcknowledgedThroughLine: acknowledged, updatedAt: ts };
+    const next: RunState = {
+      ...rest,
+      status: "running",
+      stopRequested: false,
+      ...(acknowledged !== undefined ? { integrityAcknowledged: acknowledged } : {}),
+      updatedAt: ts,
+    };
     writeRun(root, next);
     writeActiveRun(root, runId);
     await appendChained({ type: "run.resumed", ts, runId, phase: state.currentPhase ?? "intake" }, bus, { emittedBy: caller, runId });

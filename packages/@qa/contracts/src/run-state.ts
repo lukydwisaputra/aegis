@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RunIdSchema } from "./ids.js";
+import { Sha256HexSchema } from "./chain.js";
 
 export const RunStatusSchema = z.enum([
   "created", "running", "awaiting-gate", "blocked", "stopped", "completed",
@@ -17,8 +18,17 @@ export const RunStateSchema = z.object({
   currentPhase: z.string().nullable().default(null),
   stopRequested: z.boolean().default(false),
   blockedReason: z.string().optional(),
-  // Integrity errors on lines at or before this line number were acknowledged by the owner.
-  integrityAcknowledgedThroughLine: z.number().int().nonnegative().default(0),
+  // Last owner acknowledgement: the log prefix it covered (pinned by hash) and the exact errors it accepted.
+  integrityAcknowledged: z
+    .object({
+      throughLine: z.number().int().nonnegative(),
+      lineHash: Sha256HexSchema,
+      prefixHash: Sha256HexSchema,
+      errors: z.array(z.string()),
+    })
+    .optional(),
+  // Last chained line seen by an ok verify; a later log without this exact line was truncated or rewritten.
+  integrityCheckpoint: z.object({ seq: z.number().int().positive(), lineHash: Sha256HexSchema }).optional(),
   createdAt: z.string().datetime({ offset: false }),
   updatedAt: z.string().datetime({ offset: false }),
 });

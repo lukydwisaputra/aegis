@@ -42,7 +42,8 @@ describe('@qa/contracts — RunStateSchema', () => {
     expect(parsed.modules).toEqual([]);
     expect(parsed.stopRequested).toBe(false);
     expect(parsed.currentPhase).toBeNull();
-    expect(parsed.integrityAcknowledgedThroughLine).toBe(0);
+    expect(parsed.integrityAcknowledged).toBeUndefined();
+    expect(parsed.integrityCheckpoint).toBeUndefined();
   });
 
   it('rejects a status that does not exist (e.g. deferred)', () => {
@@ -76,7 +77,8 @@ describe('@qa/contracts — integrity events', () => {
   });
 
   it('accepts integrity.acknowledged with a reason', () => {
-    const ev = { type: 'integrity.acknowledged', ts: TS, runId: 'RUN-20260929-001', throughLine: 12, reason: 'reviewed incident' };
+    const ev = { type: 'integrity.acknowledged', ts: TS, runId: 'RUN-20260929-001', throughLine: 12, lineHash: 'a'.repeat(64), prefixHash: 'b'.repeat(64), errors: ['line 3: prevHash mismatch'], reason: 'reviewed incident' };
+    expect(AegisEventSchema.safeParse({ ...ev, lineHash: undefined }).success).toBe(false);
     expect(AegisEventSchema.safeParse(ev).success).toBe(true);
     expect(AegisEventSchema.safeParse({ ...ev, reason: '' }).success).toBe(false);
   });

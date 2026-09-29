@@ -4,6 +4,8 @@ import { RunIdSchema } from "./ids.js";
 // prevHash of the first line in a log.
 export const GENESIS_HASH = "0".repeat(64);
 
+export const Sha256HexSchema = z.string().regex(/^[0-9a-f]{64}$/, "must be a sha256 hex digest");
+
 // Fields the event bus adds to every chained line. `emittedBy` is the verified
 // caller; it is deliberately not called `agent`, because many events already use
 // `agent` for their subject (e.g. task.escalated.agent is the worker).
