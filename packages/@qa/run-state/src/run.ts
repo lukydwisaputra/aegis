@@ -1,0 +1,147 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
+import { appendChained, readLines } from "@qa/event-bus";
+import { nextId } from "@qa/ids";
+import { assertCallerAllowed } from "./caller.js";
+import { readSettings } from "./config.js";
+import { RunStateError } from "./errors.js";
+import { busPath, runDir, runJsonPath, taskmasterDir, writeActiveRun } from "./paths.js";
+import { formatIssues, iso } from "./util.js";
+
+export const INTEGRITY_REASON_PREFIX = "integrity violation";
+export const ESCALATION_REASON_PREFIX = "escalation";
+
+const MODULE_CODE = /^[A-Z]{2,8}$/;
+
+export interface CreateRunInput {
+  environment: string;
+  modules: string[];
+  cycleType: CycleType;
+  now?: Date;
+}
+
+export interface ResumeOptions {
+  acknowledgeIntegrity?: { reason: string };
+  now?: Date;
+}
+
+export function readRun(root: string, runId: string): RunState {
+  const raw: unknown = JSON.parse(readFileSync(runJsonPath(root, runId), "utf-8"));
+  const parsed = RunStateSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new RunStateError("invalid-input", `run.json for ${runId} is invalid: ${formatIssues(parsed.error.issues)}`);
+  }
+  return parsed.data;
+}
+
+function writeRun(root: string, state: RunState): void {
+  const valid = RunStateSchema.parse(state);
+  writeFileSync(runJsonPath(root, valid.runId), JSON.stringify(valid, null, 2) + "\n", "utf-8");
+}
+
+export async function createRun(root: string, input: CreateRunInput, caller: string): Promise<RunState> {
+  assertCallerAllowed(caller, "run.create");
+  const settings = readSettings(root);
+  if (!settings.environments.includes(input.environment)) {
+    throw new RunStateError(
+      "invalid-input",
+      `unknown environment "${input.environment}"; configured: ${settings.environments.join(", ")}`
+    );
+  }
+  const bad = input.modules.filter((m) => !MODULE_CODE.test(m));
+  if (input.modules.length === 0 || bad.length > 0) {
+    throw new RunStateError("invalid-input", `invalid module code(s): ${bad.join(", ") || "(none given)"} — expected 2-8 uppercase letters`);
+  }
+
+  const ts = iso(input.now);
+  const runId = await nextId("RUN", ts.slice(0, 10).replace(/-/g, ""));
+  if (existsSync(runDir(root, runId))) {
+    throw new RunStateError("invalid-input", `run directory for ${runId} already exists; check .aegis counters`);
+  }
+  mkdirSync(taskmasterDir(root, runId), { recursive: true });
+
+  const state: RunState = {
+    runId,
+    cycleType: input.cycleType,
+    profile: settings.profile,
+    environment: input.environment,
+    modules: input.modules,
+    status: "created",
+    currentPhase: null,
+    stopRequested: false,
+    integrityAcknowledgedThroughLine: 0,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+  writeRun(root, state);
+  writeActiveRun(root, runId);
+  await appendChained(
+    { type: "run.created", ts, runId, profile: settings.profile, environment: input.environment, modules: input.modules },
+    busPath(root, runId),
+    { emittedBy: caller, runId }
+  );
+  return state;
+}
+
+export function runStatus(root: string, runId: string, caller: string): RunState {
+  assertCallerAllowed(caller, "run.status");
+  return readRun(root, runId);
+}
+
+export async function requestStop(root: string, runId: string, reason: string, caller: string, now?: Date): Promise<RunState> {
+  assertCallerAllowed(caller, "run.stop");
+  if (reason.trim() === "") throw new RunStateError("invalid-input", "a stop reason is required");
+  const state = readRun(root, runId);
+  if (state.status === "completed") throw new RunStateError("run-not-active", `run ${runId} is already completed`);
+  const ts = iso(now);
+  const next: RunState = { ...state, status: "stopped", stopRequested: true, updatedAt: ts };
+  writeRun(root, next);
+  await appendChained({ type: "run.stop.requested", ts, runId, reason }, busPath(root, runId), { emittedBy: caller, runId });
+  return next;
+}
+
+/** Rule-driven block (escalation, integrity). Not a CLI command, so no caller check. */
+export async function blockRun(root: string, runId: string, reason: string, caller: string, now?: Date): Promise<RunState> {
+  const state = readRun(root, runId);
+  const ts = iso(now);
+  const next: RunState = { ...state, status: "blocked", blockedReason: reason, updatedAt: ts };
+  writeRun(root, next);
+  await appendChained(
+    { type: "run.blocked", ts, runId, reason, ...(state.currentPhase !== null ? { phase: state.currentPhase } : {}) },
+    busPath(root, runId),
+    { emittedBy: caller, runId }
+  );
+  return next;
+}
+
+export async function resumeRun(root: string, runId: string, caller: string, opts: ResumeOptions = {}): Promise<RunState> {
+  assertCallerAllowed(caller, "run.resume");
+  const state = readRun(root, runId);
+  if (state.status !== "stopped" && state.status !== "blocked") {
+    throw new RunStateError("run-not-active", `run ${runId} is "${state.status}"; only stopped or blocked runs can be resumed`);
+  }
+  const integrityBlocked = state.status === "blocked" && (state.blockedReason ?? "").startsWith(INTEGRITY_REASON_PREFIX);
+  if (integrityBlocked && opts.acknowledgeIntegrity === undefined) {
+    throw new RunStateError(
+      "invalid-input",
+      'run is blocked by an integrity violation; resume with --acknowledge-integrity --reason "<what was reviewed>"'
+    );
+  }
+
+  const ts = iso(opts.now);
+  const bus = busPath(root, runId);
+  let acknowledged = state.integrityAcknowledgedThroughLine;
+  if (opts.acknowledgeIntegrity !== undefined) {
+    const reason = opts.acknowledgeIntegrity.reason.trim();
+    if (reason === "") throw new RunStateError("invalid-input", "an acknowledgement reason is required");
+    acknowledged = readLines(bus).length;
+    await appendChained({ type: "integrity.acknowledged", ts, runId, throughLine: acknowledged, reason }, bus, { emittedBy: caller, runId });
+  }
+
+  const { blockedReason: _dropped, ...rest } = state;
+  const next: RunState = { ...rest, status: "running", stopRequested: false, integrityAcknowledgedThroughLine: acknowledged, updatedAt: ts };
+  writeRun(root, next);
+  writeActiveRun(root, runId);
+  await appendChained({ type: "run.resumed", ts, runId, phase: state.currentPhase ?? "intake" }, bus, { emittedBy: caller, runId });
+  return next;
+}

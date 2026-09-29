@@ -57,6 +57,23 @@ describe('paths', () => {
   });
 });
 
+describe('active pointer races', () => {
+  it('leaves no temp files behind after writeActiveRun', () => {
+    writeActiveRun(t.root, 'RUN-20260929-001');
+    writeActiveRun(t.root, 'RUN-20260929-002');
+    const leftovers = fs.readdirSync(path.join(t.root, 'runs')).filter((f) => f.endsWith('.tmp'));
+    expect(leftovers).toEqual([]);
+    expect(fs.readFileSync(path.join(t.root, 'runs', '.active'), 'utf8').trim()).toBe('RUN-20260929-002');
+  });
+
+  it('readActiveRun returns null when the pointer vanishes', () => {
+    writeActiveRun(t.root, 'RUN-20260929-001');
+    fs.rmSync(path.join(t.root, 'runs', '.active'));
+    expect(() => readActiveRun(t.root)).not.toThrow();
+    expect(readActiveRun(t.root)).toBeNull();
+  });
+});
+
 describe('caller', () => {
   it('requires AEGIS_AGENT', () => {
     expect(thrownCode(() => resolveCaller({}))).toBe('caller-unknown');

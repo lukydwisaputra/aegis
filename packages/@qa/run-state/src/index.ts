@@ -3,3 +3,4 @@ export * from "./util.js";
 export * from "./paths.js";
 export * from "./config.js";
 export * from "./caller.js";
+export * from "./run.js";

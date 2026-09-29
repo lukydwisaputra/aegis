@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, parse } from "node:path";
 import { RunIdSchema } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
@@ -25,7 +26,13 @@ const activePointer = (root: string): string => join(runsDir(root), ".active");
 export function readActiveRun(root: string): string | null {
   const pointer = activePointer(root);
   if (!existsSync(pointer)) return null;
-  const id = readFileSync(pointer, "utf-8").trim();
+  let id: string;
+  try {
+    id = readFileSync(pointer, "utf-8").trim();
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
   if (!RunIdSchema.safeParse(id).success) return null;
   if (!existsSync(runJsonPath(root, id))) return null;
   return id;
@@ -33,7 +40,14 @@ export function readActiveRun(root: string): string | null {
 
 export function writeActiveRun(root: string, runId: string): void {
   mkdirSync(runsDir(root), { recursive: true });
-  writeFileSync(activePointer(root), runId + "\n", "utf-8");
+  const tmp = join(runsDir(root), `.active.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+  try {
+    writeFileSync(tmp, runId + "\n", "utf-8");
+    renameSync(tmp, activePointer(root));
+  } catch (e) {
+    rmSync(tmp, { force: true });
+    throw e;
+  }
 }
 
 export function clearActiveRun(root: string): void {
