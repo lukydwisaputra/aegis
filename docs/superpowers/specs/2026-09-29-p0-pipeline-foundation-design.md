@@ -301,11 +301,19 @@ Paths are resolved from `aegis.config.json#targetProjectRoot`/`testsDir`, and ru
   `emittedBy` (required; the verified caller) and `runId` (required). The emitter field is named
   `emittedBy`, not `agent`, because many existing events already use `agent` for the *subject*
   (e.g. `task.escalated.agent` is the worker, emitted by its SPV).
-- Lines written before the chain existed are **legacy**: tolerated only before the first chained
-  line, counted and reported by verification.
-- A broken chain blocks the run; the owner can resume with
-  `aegis run resume --acknowledge-integrity --reason "…"`, which records `integrity.acknowledged`
-  and makes verification ignore errors up to the acknowledged line (the incident stays in the log).
+- A run created by `aegis run create` starts with a chained `run.created` at seq 1. Unchained
+  ("legacy") lines, an empty log, or a log that does not start with `run.created` are integrity
+  errors for such a run (they indicate an overwrite, AUD-022). `verifyChain` itself still reports
+  legacy lines neutrally for pre-chain files.
+- After every successful verify, `run.json#integrityCheckpoint` pins `{ seq, lineHash }` of the last
+  chained line; a later verify fails if that line is missing or changed (truncation / rewrite).
+- An unterminated final segment is reported as `pendingTail` (possibly an in-flight write), not as an
+  error; a torn tail is refused by the next append.
+- A broken chain blocks the run. Only the **owner**, and only when an integrity violation is
+  recorded, can resume with `aegis run resume --acknowledge-integrity --reason "…"`. The ack records
+  `integrity.acknowledged` with `throughLine`, `lineHash`, `prefixHash` (lines 1..throughLine) and the
+  exact error set; later verifies ignore only those exact errors and fail with "acknowledged prefix
+  altered" if the pinned prefix changes (the incident stays in the log).
 - `@qa/event-bus.append` computes `seq`/`prevHash` under the existing lock and **writes the raw
   validated object with passthrough**, no longer silently stripping undeclared fields — unknown
   fields fail validation instead (AUD-039 partial; declaring the fields is P1).
