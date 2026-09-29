@@ -173,3 +173,27 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | CO-09 | Full-log read per append (tail read); reopen emits no event; review events lack attempt/path; state written before event; uncapped violation `errors` array | P0c |
 | CO-11 | Finish AUD-017/018/040: remove hardcoded "4" (qa-test-executor.md:3,19,80; CLAUDE.md:69,98), tell agents to use `pnpm aegis` (H4 cheat-sheet + agent edits), build `apps/cli/dist` automatically (prepare script) so `pnpm aegis` works on a fresh clone | P0a-2 / P0b-2 |
 | CO-10 | Show acknowledged errors in `run resume` output; multi-process lock proof runs only via `pnpm test:smoke` (no CI yet) | P0b-2 |
+
+## Gaps found in the pre-merge alignment audit (2026-09-29, after P0b-1)
+
+| ID | Finding | Evidence | Sev | Owner | Status |
+|----|---------|----------|-----|-------|--------|
+| AUD-081 | Claim ownership: the **worker** claims its own task (`aegis task claim`), the dispatcher only creates tasks (`task add`) — code enforces the cap and work-report binding on the claimer; no tier2-specialist file has a claim step yet | tasks.ts:72-80; submit.ts:83-86; qa-test-executor.md:145 | HIGH | P0a-2 (agent edits) | open — spec §4.5 amended |
+| AUD-082 | 8 agents lack Bash (6 compliance, qa-curator, qa-cicd-planner) so they cannot call `pnpm aegis`; phases 12/15 can never complete | qa-compliance-istqb.md:6; qa-curator.md:6 | HIGH | P0a-2 / P2 | open |
+| AUD-083 | Specialists never write a work report; all specialist SPVs and the executor expect one | tier2-specialist/*.md Outputs; qa-api-specialist-spv.md:20; qa-test-executor.md:107 | HIGH | P0a-2 | open |
+| AUD-084 | Defects filed directly by web-explorer, responsive and exploratory specialists without origin confirmation; defect-manager only ingests EXP defects | qa-web-explorer.md:65,105; qa-responsive-specialist.md:45; qa-exploratory-specialist.md:75,96; qa-defect-manager.md:25; HANDBOOK/17:84 | MED | P0a-2 | open |
+| AUD-085 | `TestCaseSchema` lacks `gherkin`, `order`, `scenarioId` (non-strict → silently stripped) though designer and HANDBOOK/17 require them | artefacts.ts:53-85; qa-test-designer.md:89,119 | MED | P1 | open |
+| AUD-086 | Security specialist writes `tests/security/` (outside the `tests/qa/` boundary) | qa-security-specialist.md:30; its SPV :21; HANDBOOK/17:71 | MED | P0a-2 | open |
+| AUD-087 | Responsive results named `cases/{TC}-{viewport}-result.json`; rollup/trace expect `{TC}-result.json` | qa-responsive-specialist.md:43 | MED | P0c | open |
+| AUD-088 | Tier-1 agents use task ids like `task:env-setup`, rejected by the CLI `TASK_ID` (no `:`) — agents move to `T-*` ids | qa-environment-engineer.md:125; qa-test-executor.md:145; tasks.ts:12 | MED | P0a-2 | open |
+| AUD-089 | CLAUDE.md lessons stub `{"version":"1.0","lessons":[]}` fails `LessonsFileSchema`; lesson piping in `review submit` errors for such agents | CLAUDE.md:159; lesson.ts:50 | MED | P5 (+ new qa-dev-test-reviewer in P0a-2) | open |
+| AUD-090 | Performance specialist reads `thresholds.yaml.gates.{env}` — key and `development` entry don't exist | qa-performance-specialist.md:46; its SPV :28 | MED | P3 | open |
+| AUD-091 | Unit specialist writes `reports/metrics/coverage.json` (rollup-owned, CLI-only under H1) | qa-unit-specialist.md | LOW | P0c | open |
+| AUD-092 | closure-reporter description says it writes rollup metrics; body says it no longer does | qa-closure-reporter.md:3,45 | LOW | P0c | open |
+| AUD-093 | `isSpecialist` excludes web-explorer/compliance, orchestrator says compliance counts against the cap — decide one rule | caller.ts:77; qa-orchestrator.md:65,88 | LOW | P0a-1 | open |
+| AUD-094 | HANDBOOK/17 sandbox-first list omits feature-flag, security, unit | HANDBOOK/17:36 | LOW | P5 | open |
+| AUD-095 | Missing evidence on existing items: AUD-058 + qa-regression:24, qa-record-manual:25; AUD-057 + qa-help:20; AUD-060 + dashboard-api server.ts:44; gen-index.ts:222 reads `run.module` (RunState has `modules[]`) | as listed | LOW | P3 | open |
+| AUD-096 | Designer uses `BVA`/`EP`; schema uses `BoundaryValue`/`EquivalencePartition` | qa-test-designer.md:98 | LOW | P1 | open |
+| AUD-097 | Adoption-order risk: once the orchestrator uses `aegis run create`, any agent still hand-appending to events.jsonl breaks the chain and blocks the run → P0a-1 and P0a-2 must land together (or H1 first) | CLAUDE.md:100; chain verify | HIGH | P0a / P0b-2 sequencing | open |
+| AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | open |
+| AUD-099 | Run statuses `initializing/aborted/resuming/interrupted` written by skills fail `RunStateSchema` | qa-start:31; qa-stop:22,27; qa-resume:19-22 | MED | P0a-1 (with AUD-023) | open |

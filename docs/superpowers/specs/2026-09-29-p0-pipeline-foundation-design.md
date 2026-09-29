@@ -101,7 +101,7 @@ Three layers:
 
 | # | Phase | Agent(s) | Consumes | Produces | Gate after |
 |---|-------|----------|----------|----------|-----------|
-| 0 | Intake | qa-orchestrator (via `aegis run create`) | command args, `aegis.config.json`, target docs paths | `run.json`, `intake/requirements/**`, `intake/prd.md` (copied from target), `taskmaster.json` | — |
+| 0 | Intake | qa-orchestrator (via `aegis run create`) | command args, `aegis.config.json`, target docs paths | `run.json`, `intake/requirements/**`, `intake/prd.md` (copied from target), `taskmaster/tasks/*.json` | — |
 | 1 | Scan | qa-context-scanner | target source | `target-profile.json` (incl. `targetIsSingleProject`, `sourceInventory`, `existingTests`) | preflight check |
 | 2 | Dev-test review | qa-dev-test-reviewer (NEW) | `target-profile.json#existingTests`, target test files, source | `dev-test-review.json` | — |
 | 3 | Requirements | qa-requirements-analyst | `intake/**`, `target-profile.json`, `dev-test-review.json` | `requirements/ambiguity-report.json`, `requirements/testability-scores.json`, `stories/{STORY-ID}.json` | — |
@@ -254,7 +254,7 @@ All others (`event append`, `id next`, `task *`, `work-report submit`, `review s
 | run | `create --env --module --cycle=full\|smoke`, `status`, `stop --reason`, `resume`, `complete` | new `@qa/run-state` module (inside contracts or a new package) |
 | phase | `start --phase`, `complete --phase` | run-state + barrier checks (§6.1) |
 | gate | `open --gate`, `decide --gate --decision --note`, `auto-decide` | run-state, `GateDecisionSchema` |
-| event | `append --type --json` | `@qa/event-bus.append` (+ hash chain, §4.4) |
+| event | `append --type --json` | `@qa/event-bus.appendChained` (hash chain, §4.4); CLI-recorded event types are refused |
 | id | `next --kind --module [--story --category]` | `@qa/ids.nextId` |
 | task | `add --id --title`, `claim --task`, `release --task --result` | `@qa/taskmaster-client`, pointed at `runs/{id}/taskmaster/` (one file per task under `tasks/`); enforces `parallelism.maxSpecialists` |
 | work-report | `submit --file` | `WorkReportSchema` → `reports/work/{agent}.{taskId}.{attempt}.json` |
@@ -276,7 +276,7 @@ reason on stderr. The current PostToolUse territory hook (reads nonexistent env 
 | Hook | Event / matcher | Rule |
 |------|-----------------|------|
 | H1 `guard-writes` | PreToolUse `Write\|Edit\|NotebookEdit\|Bash` | Resolve caller (`agent_type` absent ⇒ `main`). Resolve target paths (file tools: `tool_input.file_path`; Bash: best-effort parse of redirections, `tee`, `cp/mv/rm`, `sed -i`, heredoc targets). Deny when: (a) caller `main` and path under `runs/**` or `<targetRoot>/tests/**`; (b) caller `qa-*` and path not writable for that role in the path-guard role table; (c) any caller writing `runs/*/events.jsonl`, `runs/*/run.json`, `runs/*/gates/**`, `runs/*/reports/work/**`, `runs/*/reports/review/**`, `runs/*/execution-summary.json`, `runs/*/reports/metrics/**`, `runs/*/reports/closure/metrics.json` directly (CLI-only files); (d) caller `qa-*` writing `packages/**`, `.claude/**`, `apps/**`, `package.json`, lockfiles; (e) caller non-`qa-*` subagent writing anywhere under `aegis/`. Bash commands that invoke `pnpm aegis` are allowed only when their `AEGIS_AGENT=` prefix matches the caller (§4.1) and the subcommand is permitted for that caller; the CLI then performs its own validation. |
-| H2 `require-work-report` | SubagentStop | For `qa-*` workers (not SPVs, not orchestrator) with an active run: block stop unless `reports/work/{agent}.{attempt}.json` exists and validates. On success run `aegis task release` for the agent's claimed task (AUD-016). SPVs: block stop unless their review file exists. |
+| H2 `require-work-report` | SubagentStop | For `qa-*` workers (not SPVs, not orchestrator) with an active run: block stop unless `reports/work/{agent}.{taskId}.{attempt}.json` exists and validates. On success run `aegis task release` for the agent's claimed task (AUD-016). SPVs: block stop unless their review file exists. |
 | H3 `inject-routing` | UserPromptSubmit | Emit the compact routing table from `.claude/routing.yaml` + active run summary (`runId`, phase, status, open gate/escalation). |
 | H4 `inject-run-context` | SubagentStart | For `qa-*` agents: emit `runId`, env, `allowedSpecialists` verdict for this agent, the exact `AEGIS_AGENT=<agent_type> pnpm aegis …` prefix to use, and the CLI cheat-sheet. If the agent is not allowed in the active env, state it; H1 then denies all its writes and `aegis task claim` refuses it (AUD-037 enforcement point; vocabulary fix in P1). |
 
@@ -328,8 +328,9 @@ Paths are resolved from `aegis.config.json#targetProjectRoot`/`testsDir`, and ru
 
 ```
 dispatcher (orchestrator | executor)
-  → aegis task claim           (refuses beyond parallelism.maxSpecialists — AUD-017)
-  → worker → aegis work-report submit → H2 → task.released
+  → aegis task add             (dispatcher creates the task)
+  → worker: aegis task claim   (the WORKER claims its own task; refuses beyond parallelism.maxSpecialists — AUD-017/081)
+  → worker → aegis work-report submit (must hold the claim) → H2 → task.released
   → dispatcher dispatches the paired SPV (mandatory — barrier §6.1)
   → SPV → aegis review submit
        passed | passed-with-notes → continue
@@ -518,7 +519,7 @@ Each slice is independently mergeable and leaves the repo green.
 | 001, 002 | §3.1 Scan first, preflight after Scan |
 | 003 | §3.1 Env:auth before Explore |
 | 004 | §3.1 closure draft/final split |
-| 005, 006 | §3.1 Intake phase; CLI task wraps taskmaster at `runs/{id}/taskmaster.json` |
+| 005, 006 | §3.1 Intake phase; CLI task wraps taskmaster at `runs/{id}/taskmaster/` |
 | 007, 008, 009, 010 | §3.2 |
 | 011 | §3.1, §5.1 flaky from rollup |
 | 012 | §4.6 |
