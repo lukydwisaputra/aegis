@@ -94,3 +94,43 @@ it('run.json never contains unknown statuses', async () => {
   const state = JSON.parse(fs.readFileSync(path.join(t.root, 'runs', runId, 'run.json'), 'utf8'));
   expect(['created', 'running', 'awaiting-gate', 'blocked', 'stopped', 'completed']).toContain(state.status);
 });
+
+describe('integrity block', () => {
+  const INTEGRITY = 'integrity violation: test';
+
+  it('requires a real acknowledgement and records throughLine', async () => {
+    const { runId } = await create();
+    await blockRun(t.root, runId, INTEGRITY, 'qa-orchestrator');
+    await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(resumeRun(t.root, runId, 'owner', { acknowledgeIntegrity: { reason: '  ' } })).rejects.toMatchObject({ code: 'invalid-input' });
+    const before = readLines(busPath(t.root, runId)).length;
+    const resumed = await resumeRun(t.root, runId, 'owner', { acknowledgeIntegrity: { reason: 'reviewed log' }, now: NOW });
+    expect(resumed.status).toBe('running');
+    expect(resumed.integrityAcknowledgedThroughLine).toBe(before);
+    expect(events(runId).find((e) => e.type === 'integrity.acknowledged')).toMatchObject({ throughLine: before, reason: 'reviewed log' });
+  });
+
+  it('stop then resume cannot bypass the acknowledgement', async () => {
+    const { runId } = await create();
+    await blockRun(t.root, runId, INTEGRITY, 'qa-orchestrator');
+    await requestStop(t.root, runId, 'pause', 'owner');
+    await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});
+
+describe('concurrency and missing runs', () => {
+  it('concurrent block and stop keep both updates', async () => {
+    const { runId } = await create();
+    await Promise.all([
+      blockRun(t.root, runId, 'escalation: x', 'qa-ui-specialist-spv'),
+      requestStop(t.root, runId, 'pause', 'owner'),
+    ]);
+    const final = readRun(t.root, runId);
+    expect(final.stopRequested).toBe(true);
+    expect(final.blockedReason).toBe('escalation: x');
+  });
+
+  it('readRun on a nonexistent run is run-not-found', () => {
+    expect(() => readRun(t.root, 'RUN-20260929-099')).toThrow(expect.objectContaining({ code: 'run-not-found' }));
+  });
+});
