@@ -6,3 +6,4 @@ export * from "./caller.js";
 export * from "./run.js";
 export * from "./tasks.js";
 export * from "./submit.js";
+export * from "./integrity.js";
