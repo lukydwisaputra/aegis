@@ -82,6 +82,7 @@ grep -q "undeclared field" <<<"$err" || fail "contract undeclared-field: expecte
 expect_refusal "forged-run-created" invalid-input qa-orchestrator event append --type run.created --json '{"profile":"full","environment":"development","modules":["AUTH"]}'
 grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-run-created: expected the reserved-type refusal"
 expect_refusal "bad-module" invalid-input qa-test-designer id next --kind TC --module au-th
+expect_refusal "claim-traversal" invalid-input qa-ui-specialist task claim --task ../evil
 
 # overwrite detection: a log replaced by a hand-written line must not verify (and blocks the run)
 RUN_ID="$(tr -d '[:space:]' < "$TMP/runs/.active")"

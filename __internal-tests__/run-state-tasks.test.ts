@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import { addTask, blockRun, busPath, claimTask, createRun, releaseTask, requestStop, taskmasterDir } from '@qa/run-state';
@@ -150,5 +152,35 @@ describe('reopen', () => {
     expect(task.claimedBy).toBeUndefined();
     expect(task.claimedAt).toBeUndefined();
     expect(task.completedAt).toBeUndefined();
+  });
+});
+
+describe('task id validation on claim and release', () => {
+  beforeEach(() => setup(2));
+
+  function walk(dir: string): string[] {
+    return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const p = path.join(dir, e.name);
+      return e.isDirectory() ? [p, ...walk(p)] : [p];
+    });
+  }
+
+  it.each(['../../x', 'a/b'])('claimTask and releaseTask refuse %s without side effects', async (bad) => {
+    const before = readLines(busPath(t.root, runId)).length;
+    const filesBefore = walk(t.root).length;
+    await expect(claimTask(t.root, runId, bad, 'qa-ui-specialist')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('must match') });
+    await expect(releaseTask(t.root, runId, bad, 'done', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('must match') });
+    expect(readLines(busPath(t.root, runId)).length).toBe(before);
+    expect(walk(t.root).length).toBe(filesBefore);
+    expect(walk(t.root).filter((p) => /^x/.test(path.basename(p)))).toEqual([]);
+  });
+
+  it('cannot reach a task in another run through a traversal id', async () => {
+    const other = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    await addTask(t.root, other, { id: 'T-B', title: 'other' }, 'qa-test-executor');
+    const evil = `../../../${other}/taskmaster/tasks/T-B`;
+    await expect(claimTask(t.root, runId, evil, 'qa-ui-specialist')).rejects.toMatchObject({ message: expect.stringContaining('must match') });
+    const c = createTaskmasterClient(taskmasterDir(t.root, other));
+    expect((await c.get('T-B'))!.status).toBe('pending');
   });
 });

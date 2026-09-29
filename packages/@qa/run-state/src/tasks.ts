@@ -24,6 +24,12 @@ function assertRunAcceptsWork(state: RunState): void {
   }
 }
 
+function assertTaskId(taskId: string): void {
+  if (!TASK_ID.test(taskId)) {
+    throw new RunStateError("invalid-input", `task id "${taskId}" must match ${TASK_ID.source}`);
+  }
+}
+
 async function mustGet(root: string, runId: string, taskId: string): Promise<Task> {
   const task = await client(root, runId).get(taskId);
   if (task === null) throw new RunStateError("invalid-input", `task ${taskId} not found in run ${runId}`);
@@ -38,9 +44,7 @@ export async function addTask(
 ): Promise<Task> {
   assertCallerAllowed(caller, "task.add");
   assertRunAcceptsWork(readRun(root, runId));
-  if (!TASK_ID.test(input.id)) {
-    throw new RunStateError("invalid-input", `task id "${input.id}" must match ${TASK_ID.source}`);
-  }
+  assertTaskId(input.id);
   try {
     await client(root, runId).addRootTask({
       id: input.id,
@@ -60,6 +64,7 @@ function withClaimsLock<T>(root: string, runId: string, fn: () => Promise<T>): P
 
 export async function claimTask(root: string, runId: string, taskId: string, caller: string, now?: Date): Promise<Task> {
   assertCallerAllowed(caller, "task.claim");
+  assertTaskId(taskId);
   assertRunAcceptsWork(readRun(root, runId));
   await mustGet(root, runId, taskId);
 
@@ -102,6 +107,7 @@ export async function releaseTask(
   now?: Date
 ): Promise<Task> {
   assertCallerAllowed(caller, "task.release");
+  assertTaskId(taskId);
   await mustGet(root, runId, taskId);
   return withClaimsLock(root, runId, async () => {
     const task = await mustGet(root, runId, taskId);
