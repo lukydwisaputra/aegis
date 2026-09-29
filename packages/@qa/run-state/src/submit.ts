@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import * as fs from "node:fs";
 import { join, relative } from "node:path";
+import lockfile from "proper-lockfile";
 import { ReviewSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
@@ -17,34 +18,61 @@ export interface SubmitResult {
   attempt: number;
 }
 
+export interface LessonOutcome {
+  outcome: string;
+  error?: string;
+}
+
 export interface ReviewResult extends SubmitResult {
   verdict: ReviewVerdict;
   rejections: number;
   escalated: boolean;
   reopened: boolean;
+  lessons: LessonOutcome[];
 }
 
 const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
 const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
+const ALLOC_TRIES = 5;
+
+/**
+ * Serialises every submission for one agent/task. Lock order (outermost first):
+ * submit.lock -> run.lock -> task-file lock -> event-bus lock.
+ */
+export async function withSubmitLock<T>(root: string, runId: string, agent: string, taskId: string, fn: () => Promise<T>): Promise<T> {
+  const dir = join(runDir(root, runId), "reports", ".locks");
+  fs.mkdirSync(dir, { recursive: true });
+  const lockPath = join(dir, `${agent}.${taskId}.lock`);
+  if (!fs.existsSync(lockPath)) fs.closeSync(fs.openSync(lockPath, "a"));
+  const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
+  try {
+    return await fn();
+  } finally {
+    await release();
+  }
+}
 
 function attemptsIn(dir: string, agent: string, taskId: string): number[] {
-  if (!existsSync(dir)) return [];
+  if (!fs.existsSync(dir)) return [];
   const re = new RegExp(`^${escapeRe(agent)}\\.${escapeRe(taskId)}\\.(\\d+)\\.json$`);
-  return readdirSync(dir).flatMap((f) => {
+  return fs.readdirSync(dir).flatMap((f) => {
     const m = re.exec(f);
     return m?.[1] !== undefined ? [Number(m[1])] : [];
   });
 }
 
-/** Exclusive create: throws EEXIST when the file is already there. */
-function writeJsonExclusive(file: string, value: unknown): void {
-  writeFileSync(file, JSON.stringify(value, null, 2) + "\n", { encoding: "utf-8", flag: "wx" });
+/** Atomic exclusive publish: full content is written to a temp file, then hard-linked into place (EEXIST if taken). */
+function publishJson(file: string, value: unknown): void {
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n", { encoding: "utf-8", flag: "wx" });
+    fs.linkSync(tmp, file);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
 }
-
-const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
-
-const ALLOC_TRIES = 5;
 
 export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<SubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
@@ -54,44 +82,55 @@ export async function submitWorkReport(root: string, runId: string, file: string
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
-  const task = await createTaskmasterClient(taskmasterDir(root, runId)).get(report.taskId);
-  if (task === null || task.claimedBy !== caller) {
-    throw new RunStateError("not-claimed", `task ${report.taskId} was not claimed by ${caller}`);
-  }
 
-  const dir = workDir(root, runId);
-  mkdirSync(dir, { recursive: true });
-  let attempt = 0;
-  let out = "";
-  for (let tries = 0; ; tries++) {
-    if (tries >= ALLOC_TRIES) throw new RunStateError("invalid-input", "could not allocate a work-report attempt number");
-    attempt = Math.max(0, ...attemptsIn(dir, caller, report.taskId)) + 1;
-    out = join(dir, `${caller}.${report.taskId}.${attempt}.json`);
-    try {
-      writeJsonExclusive(out, report);
-      break;
-    } catch (e) {
-      if (!isExists(e)) throw e;
+  return withSubmitLock(root, runId, caller, report.taskId, async () => {
+    const task = await createTaskmasterClient(taskmasterDir(root, runId)).get(report.taskId);
+    if (task === null || task.status !== "in-progress" || task.claimedBy !== caller) {
+      throw new RunStateError("not-claimed", `task ${report.taskId} is not in progress under ${caller}`);
     }
-  }
 
-  const rel = relative(runDir(root, runId), out);
-  await appendChained(
-    { type: "artifact.created", ts: iso(now), kind: "work-report", path: rel, schemaVersion: "1.0" },
-    busPath(root, runId),
-    { emittedBy: caller, runId }
-  );
-  return { path: rel, attempt };
+    const dir = workDir(root, runId);
+    fs.mkdirSync(dir, { recursive: true });
+    let attempt = 0;
+    let out = "";
+    for (let tries = 0; ; tries++) {
+      if (tries >= ALLOC_TRIES) throw new RunStateError("invalid-input", "could not allocate a work-report attempt number");
+      attempt = Math.max(0, ...attemptsIn(dir, caller, report.taskId)) + 1;
+      out = join(dir, `${caller}.${report.taskId}.${attempt}.json`);
+      try {
+        publishJson(out, report);
+        break;
+      } catch (e) {
+        if (!isExists(e)) throw e;
+      }
+    }
+
+    const rel = relative(runDir(root, runId), out);
+    try {
+      await appendChained(
+        { type: "artifact.created", ts: iso(now), kind: "work-report", path: rel, schemaVersion: "1.0" },
+        busPath(root, runId),
+        { emittedBy: caller, runId }
+      );
+    } catch (e) {
+      fs.rmSync(out, { force: true });
+      throw e;
+    }
+    return { path: rel, attempt };
+  });
 }
 
 function rejectionsSoFar(dir: string, agent: string, taskId: string): number {
   return attemptsIn(dir, agent, taskId).filter((n) => {
+    const name = `${agent}.${taskId}.${n}.json`;
+    let parsed;
     try {
-      const r = ReviewSchema.safeParse(loadJson(join(dir, `${agent}.${taskId}.${n}.json`)));
-      return r.success && r.data.verdict === "requested-changes";
+      parsed = ReviewSchema.safeParse(loadJson(join(dir, name)));
     } catch {
-      return false; // a concurrent submit may still be mid-write
+      throw new RunStateError("invalid-input", `corrupt review file ${name}`);
     }
+    if (!parsed.success) throw new RunStateError("invalid-input", `corrupt review file ${name}`);
+    return parsed.data.verdict === "requested-changes";
   }).length;
 }
 
@@ -108,64 +147,101 @@ export async function submitReview(root: string, runId: string, file: string, ca
   }
 
   const { agent, taskId } = review.target;
-  const worked = attemptsIn(workDir(root, runId), agent, taskId);
-  if (worked.length === 0) {
-    throw new RunStateError("no-work-report", `no work report from ${agent} for task ${taskId}; the worker must submit first`);
-  }
-  const attempt = Math.max(...worked);
-  const dir = reviewDir(root, runId);
-  mkdirSync(dir, { recursive: true });
-  const out = join(dir, `${agent}.${taskId}.${attempt}.json`);
-  try {
-    writeJsonExclusive(out, review);
-  } catch (e) {
-    if (isExists(e)) throw new RunStateError("invalid-input", `attempt ${attempt} of ${agent}/${taskId} is already reviewed`);
-    throw e;
-  }
-
-  const rel = relative(runDir(root, runId), out);
-  const ts = iso(now);
-  const bus = busPath(root, runId);
-  const ctx = { emittedBy: caller, runId };
-  const target = { agent, taskId };
-  if (review.verdict === "passed") {
-    await appendChained({ type: "review.passed", ts, target, reviewId: review.id }, bus, ctx);
-  } else if (review.verdict === "passed-with-notes") {
-    await appendChained({ type: "review.passed-with-notes", ts, target, reviewId: review.id, noteCount: review.findings.length }, bus, ctx);
-  } else {
-    await appendChained(
-      { type: "review.requested-changes", ts, target, reviewId: review.id, findingCount: Math.max(1, review.findings.length) },
-      bus,
-      ctx
-    );
-  }
-
-  // The single lesson-piping path (spec §4.5).
-  const trigger = review.verdict === "requested-changes" ? "spv-rejection" : "spv-pass-with-note";
-  for (const instruction of review.correctiveInstructions) {
-    await pipeCorrectiveInstruction(agent, instruction, trigger, [rel], root);
-  }
-
-  const rejections = rejectionsSoFar(dir, agent, taskId);
-  const escalated = review.verdict === "requested-changes" && rejections >= MAX_ATTEMPTS;
-  let reopened = false;
-  if (escalated) {
-    await appendChained({ type: "task.escalated", ts, taskId, agent, rejectionCount: rejections }, bus, ctx);
-    await blockRun(
-      root,
-      runId,
-      `${ESCALATION_REASON_PREFIX}: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`,
-      caller,
-      now
-    );
-  } else if (review.verdict === "requested-changes") {
-    const client = createTaskmasterClient(taskmasterDir(root, runId));
-    const current = await client.get(taskId);
-    if (current !== null && (current.status === "done" || current.status === "failed")) {
-      await client.reopen(taskId);
-      reopened = true;
+  return withSubmitLock(root, runId, agent, taskId, async () => {
+    const worked = attemptsIn(workDir(root, runId), agent, taskId);
+    if (worked.length === 0) {
+      throw new RunStateError("no-work-report", `no work report from ${agent} for task ${taskId}; the worker must submit first`);
     }
-  }
+    const attempt = Math.max(...worked);
+    const dir = reviewDir(root, runId);
+    fs.mkdirSync(dir, { recursive: true });
+    const out = join(dir, `${agent}.${taskId}.${attempt}.json`);
+    const rejected = review.verdict === "requested-changes";
+    const rejections = rejectionsSoFar(dir, agent, taskId) + (rejected ? 1 : 0);
+    try {
+      publishJson(out, review);
+    } catch (e) {
+      if (isExists(e)) throw new RunStateError("invalid-input", `attempt ${attempt} of ${agent}/${taskId} is already reviewed`);
+      throw e;
+    }
 
-  return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened };
+    const rel = relative(runDir(root, runId), out);
+    const ts = iso(now);
+    const bus = busPath(root, runId);
+    const ctx = { emittedBy: caller, runId };
+    const target = { agent, taskId };
+    try {
+      if (review.verdict === "passed") {
+        await appendChained({ type: "review.passed", ts, target, reviewId: review.id }, bus, ctx);
+      } else if (review.verdict === "passed-with-notes") {
+        await appendChained({ type: "review.passed-with-notes", ts, target, reviewId: review.id, noteCount: review.findings.length }, bus, ctx);
+      } else {
+        await appendChained(
+          { type: "review.requested-changes", ts, target, reviewId: review.id, findingCount: Math.max(1, review.findings.length) },
+          bus,
+          ctx
+        );
+      }
+    } catch (e) {
+      fs.rmSync(out, { force: true });
+      throw e;
+    }
+
+    let escalated = false;
+    let reopened = false;
+    if (rejected && rejections >= MAX_ATTEMPTS) {
+      // Exactly-once: only the creator of the marker escalates.
+      const marker = join(dir, `${agent}.${taskId}.escalated`);
+      let created = false;
+      try {
+        fs.writeFileSync(marker, `${ts}\n`, { encoding: "utf-8", flag: "wx" });
+        created = true;
+      } catch (e) {
+        if (!isExists(e)) throw e;
+      }
+      if (created) {
+        try {
+          await blockRun(
+            root,
+            runId,
+            `${ESCALATION_REASON_PREFIX}: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`,
+            caller,
+            now
+          );
+          await appendChained({ type: "task.escalated", ts, taskId, agent, rejectionCount: rejections }, bus, ctx);
+          escalated = true;
+        } catch (e) {
+          fs.rmSync(marker, { force: true });
+          throw e;
+        }
+      }
+    } else if (rejected) {
+      const client = createTaskmasterClient(taskmasterDir(root, runId));
+      const current = await client.get(taskId);
+      if (current !== null && (current.status === "done" || current.status === "failed")) {
+        try {
+          await client.reopen(taskId);
+          reopened = true;
+        } catch {
+          reopened = false; // status changed under us
+        }
+      }
+    }
+
+    // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission.
+    const trigger = rejected ? "spv-rejection" : "spv-pass-with-note";
+    const lessons: LessonOutcome[] = [];
+    for (const instruction of review.correctiveInstructions) {
+      try {
+        const r = await pipeCorrectiveInstruction(agent, instruction, trigger, [rel], root);
+        const detail = r as { error?: string; description?: string };
+        const error = detail.error ?? detail.description;
+        lessons.push(error !== undefined ? { outcome: r.outcome, error } : { outcome: r.outcome });
+      } catch (e) {
+        lessons.push({ outcome: "error", error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, lessons };
+  });
 }

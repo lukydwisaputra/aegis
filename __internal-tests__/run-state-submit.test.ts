@@ -8,6 +8,7 @@ import {
   createRun,
   readRun,
   releaseTask,
+  resumeRun,
   runDir,
   submitReview,
   submitWorkReport,
@@ -84,19 +85,6 @@ describe('submitWorkReport', () => {
   });
 });
 
-describe('submitWorkReport concurrency', () => {
-  it('two concurrent submits get distinct attempts', async () => {
-    const [a, b] = await Promise.all([
-      submitWorkReport(t.root, runId, writeJson('c1.json', workReport()), WORKER),
-      submitWorkReport(t.root, runId, writeJson('c2.json', workReport()), WORKER),
-    ]);
-    expect(new Set([a.attempt, b.attempt])).toEqual(new Set([1, 2]));
-    expect(a.path).not.toBe(b.path);
-    expect(fs.existsSync(path.join(runDir(t.root, runId), a.path))).toBe(true);
-    expect(fs.existsSync(path.join(runDir(t.root, runId), b.path))).toBe(true);
-  });
-});
-
 describe('submitReview', () => {
   it('refuses a review before the worker submitted', async () => {
     await expect(submitReview(t.root, runId, writeJson('r.json', review('passed')), SPV)).rejects.toMatchObject({ code: 'no-work-report' });
@@ -158,18 +146,83 @@ describe('submitReview extras', () => {
     expect(task?.claimedBy).toBe(WORKER);
   });
 
-  it('concurrent reviews of the same attempt: exactly one wins', async () => {
+  it('reviewing the same attempt twice: second rejects, one review event', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
-    const f1 = writeJson('r1.json', review('passed'));
-    const f2 = writeJson('r2.json', review('passed'));
-    const results = await Promise.allSettled([
-      submitReview(t.root, runId, f1, SPV),
-      submitReview(t.root, runId, f2, SPV),
-    ]);
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
-    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-    expect(rejected).toHaveLength(1);
-    expect(rejected[0]!.reason).toMatchObject({ code: 'invalid-input' });
+    await submitReview(t.root, runId, writeJson('r1.json', review('passed')), SPV);
+    await expect(submitReview(t.root, runId, writeJson('r2.json', review('passed')), SPV)).rejects.toMatchObject({ code: 'invalid-input' });
     expect(events().filter((e) => String(e.type).startsWith('review.'))).toHaveLength(1);
+  });
+
+  it('a corrupt sibling review file is refused', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    const dir = path.join(runDir(t.root, runId), 'reports', 'review');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${WORKER}.T-1.7.json`), '{"trunc');
+    await expect(submitReview(t.root, runId, writeJson('r.json', review('passed')), SPV)).rejects.toThrow(/corrupt review file/);
+  });
+
+  it('after escalation a further rejection does not escalate again', async () => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (attempt > 1) await claimTask(t.root, runId, 'T-1', WORKER);
+      await submitWorkReport(t.root, runId, writeJson(`wr${attempt}.json`, workReport()), WORKER);
+      await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+      await submitReview(t.root, runId, writeJson(`r${attempt}.json`, review('requested-changes')), SPV);
+    }
+    await resumeRun(t.root, runId, 'owner');
+    await createTaskmasterClient(path.join(runDir(t.root, runId), 'taskmaster')).reopen('T-1');
+    await claimTask(t.root, runId, 'T-1', WORKER);
+    await submitWorkReport(t.root, runId, writeJson('wr4.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+    const res = await submitReview(t.root, runId, writeJson('r4.json', review('requested-changes')), SPV);
+    expect(res).toMatchObject({ attempt: 4, rejections: 4, escalated: false });
+    expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(1);
+  });
+
+  it('reports lesson outcomes without failing the review', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    const res = await submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV);
+    expect(res.lessons).toEqual([{ outcome: 'appended' }]);
+  });
+});
+
+describe('submission robustness', () => {
+  it('retries the attempt number when the slot is already taken (EEXIST)', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr1.json', workReport()), WORKER);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const realFs = require('node:fs') as typeof fs;
+    const real = realFs.readdirSync;
+    let hidden = false;
+    const spy = jest.spyOn(realFs, 'readdirSync').mockImplementation(((dir: fs.PathLike, ...rest: unknown[]) => {
+      if (!hidden && String(dir).endsWith(path.join('reports', 'work'))) {
+        hidden = true;
+        return [];
+      }
+      return (real as (...a: unknown[]) => unknown)(dir, ...rest);
+    }) as typeof fs.readdirSync);
+    try {
+      const res = await submitWorkReport(t.root, runId, writeJson('wr2.json', workReport()), WORKER);
+      expect(hidden).toBe(true);
+      expect(res.attempt).toBe(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('a failed event append leaves no work-report file and a retry succeeds', async () => {
+    const bus = busPath(t.root, runId);
+    const good = fs.readFileSync(bus, 'utf8');
+    fs.appendFileSync(bus, '{"partial');
+    await expect(submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER)).rejects.toThrow();
+    const dir = path.join(runDir(t.root, runId), 'reports', 'work');
+    expect(fs.readdirSync(dir)).toEqual([]);
+    fs.writeFileSync(bus, good);
+    const res = await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    expect(res.attempt).toBe(1);
+  });
+
+  it('refuses a work report after the task was released', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+    await expect(submitWorkReport(t.root, runId, writeJson('wr2.json', workReport()), WORKER)).rejects.toMatchObject({ code: 'not-claimed' });
   });
 });

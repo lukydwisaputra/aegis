@@ -63,6 +63,7 @@ function writeRun(root: string, state: RunState): void {
  *   integrity.lock -> run.lock -> event-bus lock;
  *   claims.lock -> run.lock -> (task-file lock) -> event-bus lock.
  *   Nothing may take claims.lock while holding run.lock.
+ *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).
  */
 export async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
   const lockPath = join(runDir(root, runId), "run.lock");
