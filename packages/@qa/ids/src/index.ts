@@ -146,7 +146,8 @@ export async function nextId(kind: IdKind, moduleOrArg: string | number, extra?:
     }
     case "AC": {
       const story = StoryIdSchema.parse(mod); // STORY-AUTH-003
-      const letter = AC_LETTER[extra as AcCategory];
+      // Own keys only: an inherited key such as "constructor" is not a category.
+      const letter = typeof extra === "string" && Object.hasOwn(AC_LETTER, extra) ? AC_LETTER[extra as AcCategory] : undefined;
       if (letter === undefined) {
         throw new Error(`nextId("AC"): category must be happy|rejection|edge, got "${String(extra)}"`);
       }

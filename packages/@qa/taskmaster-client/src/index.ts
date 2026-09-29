@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import lockfile from "proper-lockfile";
@@ -89,8 +90,20 @@ function readTaskFile(filePath: string): Task {
   return JSON.parse(raw) as Task;
 }
 
-function writeTaskFile(filePath: string, task: Task): void {
-  fs.writeFileSync(filePath, JSON.stringify(task, null, 2), "utf-8");
+/**
+ * Write a task file so a concurrent get()/list() never sees it torn: the full content goes to a
+ * unique temp file (".tmp", so list() skips it), then replaces the target by rename, or with
+ * `exclusive` is hard-linked into place and fails with EEXIST if the task already exists.
+ */
+function writeTaskFile(filePath: string, task: Task, opts: { exclusive?: boolean } = {}): void {
+  const tmp = `${filePath}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(task, null, 2), { encoding: "utf-8", flag: "wx" });
+    if (opts.exclusive === true) fs.linkSync(tmp, filePath);
+    else fs.renameSync(tmp, filePath);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
 }
 
 function nowIso(): string {
@@ -223,7 +236,7 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
       const filePath = taskFilePath(tasksDir, taskData.id);
       const task: Task = { ...taskData, status: "pending" };
       try {
-        fs.writeFileSync(filePath, JSON.stringify(task, null, 2), { encoding: "utf-8", flag: "wx" });
+        writeTaskFile(filePath, task, { exclusive: true });
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "EEXIST") {
           throw new Error(`Task "${taskData.id}" already exists`);

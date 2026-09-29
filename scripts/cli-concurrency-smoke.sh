@@ -83,4 +83,19 @@ expect_refusal "forged-run-created" invalid-input qa-orchestrator event append -
 grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-run-created: expected the reserved-type refusal"
 expect_refusal "bad-module" invalid-input qa-test-designer id next --kind TC --module au-th
 
+# overwrite detection: a log replaced by a hand-written line must not verify (and blocks the run)
+RUN_ID="$(tr -d '[:space:]' < "$TMP/runs/.active")"
+printf '%s\n' '{"type":"run.created","ts":"2026-09-29T00:00:00.000Z","runId":"'"$RUN_ID"'","profile":"full","environment":"development","modules":["AUTH"]}' \
+  > "$TMP/runs/$RUN_ID/events.jsonl"
+set +e
+AEGIS_AGENT=owner node "$AEGIS" integrity verify >"$TMP/tamper.out" 2>"$TMP/tamper.err"
+trc=$?
+set -e
+echo "overwrite verify rc=$trc $(head -c 300 "$TMP/tamper.out" | tr -d '\n')"
+[ "$trc" = 2 ] || fail "overwrite: expected integrity verify exit 2, got $trc $(cat "$TMP/tamper.err")"
+node -e '
+const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+if(r.ok!==false){console.error("bad report",JSON.stringify(r));process.exit(1)}' "$TMP/tamper.out" \
+  || fail "overwrite: expected \"ok\": false"
+
 if [ "$FAIL" = 0 ]; then echo "PASS"; else echo "FAIL"; exit 1; fi

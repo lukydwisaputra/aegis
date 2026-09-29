@@ -32,6 +32,10 @@ describe('@qa/ids — AC kind', () => {
     await expect(nextId('AC', 'STORY-AUTH-003', 'sad' as never)).rejects.toThrow(/category/);
   });
 
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])('rejects inherited key %s as a category', async (key) => {
+    await expect(nextId('AC', 'STORY-AUTH-003', key as never)).rejects.toThrow(/category must be happy\|rejection\|edge/);
+  });
+
   it('rejects a malformed story id', async () => {
     await expect(nextId('AC', 'US-AUTH-003', 'happy')).rejects.toThrow();
   });

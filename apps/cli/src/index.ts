@@ -30,4 +30,4 @@ program.addCommand(workReportCommand());
 program.addCommand(reviewCommand());
 program.addCommand(integrityCommand());
 
-program.parse();
+await program.parseAsync();

@@ -5,6 +5,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
+    "test:smoke": "bash scripts/cli-concurrency-smoke.sh",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "aegis": "node apps/cli/dist/index.js",
