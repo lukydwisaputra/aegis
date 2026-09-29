@@ -51,6 +51,12 @@ export interface TaskmasterClient {
     task: Omit<Task, "id" | "status">
   ): Promise<string>;
 
+  /** Create a top-level task (no parent). Throws if the ID already exists. */
+  addRootTask(task: Omit<Task, "status" | "parentId">): Promise<void>;
+
+  /** Return a finished task to pending so it can be claimed again (SPV requested changes). */
+  reopen(taskId: string): Promise<void>;
+
   /** Expand a task: replace it with subtasks. */
   expand(
     taskId: string,
@@ -211,6 +217,28 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
       };
       writeTaskFile(taskFilePath(tasksDir, newId), newTask);
       return newId;
+    },
+
+    async addRootTask(taskData) {
+      const filePath = taskFilePath(tasksDir, taskData.id);
+      if (fs.existsSync(filePath)) {
+        throw new Error(`Task "${taskData.id}" already exists`);
+      }
+      writeTaskFile(filePath, { ...taskData, status: "pending" });
+    },
+
+    async reopen(taskId) {
+      const filePath = taskFilePath(tasksDir, taskId);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+      const release = await lockfile.lock(filePath, LOCK_OPTIONS);
+      try {
+        const { completedAt: _completedAt, result: _result, ...task } = readTaskFile(filePath);
+        writeTaskFile(filePath, { ...task, status: "pending" });
+      } finally {
+        await release();
+      }
     },
 
     async expand(taskId, subtasks) {

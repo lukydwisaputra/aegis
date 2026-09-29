@@ -1,0 +1,114 @@
+import { readLines } from '@qa/event-bus';
+import { addTask, busPath, claimTask, createRun, releaseTask, requestStop } from '@qa/run-state';
+import { last, makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+
+let t: TmpAegis;
+let runId: string;
+
+async function setup(maxSpecialists: number) {
+  t = makeAegisRoot({ maxSpecialists });
+  runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+  for (const id of ['T-1', 'T-2', 'T-3']) await addTask(t.root, runId, { id, title: `task ${id}` }, 'qa-test-executor');
+}
+
+afterEach(() => t.cleanup());
+
+const lastEvent = () => JSON.parse(last(readLines(busPath(t.root, runId))));
+
+describe('claimTask', () => {
+  beforeEach(() => setup(1));
+
+  it('claims a pending task and emits task.claimed', async () => {
+    const task = await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    expect(task).toMatchObject({ status: 'in-progress', claimedBy: 'qa-ui-specialist' });
+    expect(lastEvent()).toMatchObject({ type: 'task.claimed', taskId: 'T-1', agent: 'qa-ui-specialist', emittedBy: 'qa-ui-specialist' });
+  });
+
+  it('refuses a specialist beyond parallelism.maxSpecialists until a slot frees', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await expect(claimTask(t.root, runId, 'T-2', 'qa-api-specialist')).rejects.toMatchObject({ code: 'cap-reached' });
+    await releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist');
+    await expect(claimTask(t.root, runId, 'T-2', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+  });
+
+  it('lets exactly one of two simultaneous specialists take the last slot', async () => {
+    const results = await Promise.allSettled([
+      claimTask(t.root, runId, 'T-1', 'qa-ui-specialist'),
+      claimTask(t.root, runId, 'T-2', 'qa-api-specialist'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: 'cap-reached' });
+  });
+
+  it('does not count non-specialists against the cap', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await expect(claimTask(t.root, runId, 'T-2', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
+  });
+
+  it('refuses claims once a stop is requested', async () => {
+    await requestStop(t.root, runId, 'pause', 'owner');
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'stop-requested' });
+  });
+
+  it('a concurrent stop and claim never lets a claim land after the stop', async () => {
+    const [claim] = await Promise.allSettled([
+      claimTask(t.root, runId, 'T-1', 'qa-ui-specialist'),
+      requestStop(t.root, runId, 'pause', 'owner'),
+    ]);
+    const types = readLines(busPath(t.root, runId)).map((l) => JSON.parse(l).type as string);
+    if (claim.status === 'fulfilled') {
+      expect(types.indexOf('task.claimed')).toBeGreaterThan(-1);
+      expect(types.indexOf('task.claimed')).toBeLessThan(types.indexOf('run.stop.requested'));
+    } else {
+      expect(claim.reason).toMatchObject({ code: 'stop-requested' });
+      expect(types).not.toContain('task.claimed');
+    }
+  });
+
+  it('refuses the owner and unknown tasks', async () => {
+    await expect(claimTask(t.root, runId, 'T-1', 'owner')).rejects.toMatchObject({ code: 'caller-forbidden' });
+    await expect(claimTask(t.root, runId, 'T-99', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+
+  it('refuses a task that is already claimed', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-test-executor');
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-test-designer')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});
+
+describe('releaseTask', () => {
+  beforeEach(() => setup(2));
+
+  it('two concurrent releases of the same task yield exactly one success and one event', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    const results = await Promise.allSettled([
+      releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist'),
+      releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: 'not-claimed' });
+    const released = readLines(busPath(t.root, runId))
+      .map((l) => JSON.parse(l))
+      .filter((ev) => ev.type === 'task.released' && ev.taskId === 'T-1');
+    expect(released).toHaveLength(1);
+  });
+
+  it('only the claimer can release, and release emits task.released', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await expect(releaseTask(t.root, runId, 'T-1', 'done', 'qa-api-specialist')).rejects.toMatchObject({ code: 'not-claimed' });
+    const task = await releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist');
+    expect(task.status).toBe('done');
+    expect(lastEvent()).toMatchObject({ type: 'task.released', taskId: 'T-1', result: 'done' });
+  });
+});
+
+describe('addTask', () => {
+  beforeEach(() => setup(2));
+
+  it('rejects duplicate and malformed ids', async () => {
+    await expect(addTask(t.root, runId, { id: 'T-1', title: 'dup' }, 'qa-test-executor')).rejects.toThrow(/already exists/);
+    await expect(addTask(t.root, runId, { id: '../x', title: 'bad' }, 'qa-test-executor')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});
