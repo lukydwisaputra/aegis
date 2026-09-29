@@ -15,6 +15,8 @@ export interface ChainVerifyResult {
   ok: boolean;
   legacyLines: number;
   chainedLines: number;
+  /** True when the file ends with an unterminated segment (in-flight or torn write); it is not counted or validated. */
+  pendingTail: boolean;
   errors: string[];
 }
 
@@ -27,14 +29,24 @@ export function readLines(busPath: string): string[] {
   return readFileSync(busPath, "utf-8").split(/\r?\n/).filter((l) => l.length > 0);
 }
 
-function seqOf(line: string | undefined): number {
-  if (line === undefined) return 0;
+function seqOf(line: string): number {
   try {
-    const seq = (JSON.parse(line) as { seq?: unknown }).seq;
+    const parsed: unknown = JSON.parse(line);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return 0;
+    const seq = (parsed as { seq?: unknown }).seq;
     return typeof seq === "number" ? seq : 0;
   } catch {
     return 0;
   }
+}
+
+/** Seq of the nearest chained line scanning backward; 0 when there is none. */
+function lastChainedSeq(lines: string[]): number {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const seq = seqOf(lines[i]!);
+    if (seq > 0) return seq;
+  }
+  return 0;
 }
 
 /**
@@ -49,6 +61,10 @@ export async function appendChained(
   const envelopeCheck = EventEnvelopeSchema.pick({ emittedBy: true, runId: true }).safeParse(ctx);
   if (!envelopeCheck.success) {
     throw new Error(`EventBus chain context invalid: ${envelopeCheck.error.message}`);
+  }
+  const spoofed = ["seq", "prevHash", "emittedBy"].filter((k) => k in event);
+  if (spoofed.length > 0) {
+    throw new Error(`EventBus: envelope field(s) are set by the bus, not the caller: ${spoofed.join(", ")}`);
   }
   if ("runId" in event && event["runId"] !== ctx.runId) {
     throw new Error(`EventBus: event.runId="${String(event["runId"])}" conflicts with caller runId="${ctx.runId}"`);
@@ -70,20 +86,28 @@ export async function appendChained(
 
   const release = await lockfile.lock(busPath, {
     stale: 5_000,
-    retries: { retries: 20, minTimeout: 20, maxTimeout: 250 },
+    retries: { retries: 50, minTimeout: 20, maxTimeout: 250 },
   });
   try {
     const raw = readFileSync(busPath, "utf-8");
+    const needsNewline = raw.length > 0 && !raw.endsWith("\n");
+    if (needsNewline) {
+      const tail = raw.slice(raw.lastIndexOf("\n") + 1);
+      try {
+        JSON.parse(tail);
+      } catch {
+        throw new Error(`EventBus: torn tail — last line of ${busPath} is incomplete; owner must repair or acknowledge`);
+      }
+    }
     const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
     const prev = lines[lines.length - 1];
     const record: Record<string, unknown> = {
-      seq: seqOf(prev) + 1,
+      seq: lastChainedSeq(lines) + 1,
       prevHash: prev === undefined ? GENESIS_HASH : hashLine(prev),
       emittedBy: ctx.emittedBy,
       ...kept,
       runId: ctx.runId,
     };
-    const needsNewline = raw.length > 0 && !raw.endsWith("\n");
     appendFileSync(busPath, (needsNewline ? "\n" : "") + JSON.stringify(record) + "\n", "utf-8");
     return record;
   } finally {
@@ -93,7 +117,13 @@ export async function appendChained(
 
 /** Recompute the chain and validate every chained line. Pure read; never writes. */
 export function verifyChain(busPath: string, opts: { ignoreThroughLine?: number } = {}): ChainVerifyResult {
-  const lines = readLines(busPath);
+  let raw = existsSync(busPath) ? readFileSync(busPath, "utf-8") : "";
+  let pendingTail = false;
+  if (raw.length > 0 && !raw.endsWith("\n")) {
+    pendingTail = true;
+    raw = raw.slice(0, raw.lastIndexOf("\n") + 1);
+  }
+  const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
   const errors: Array<{ line: number; message: string }> = [];
   let legacyLines = 0;
   let chainedLines = 0;
@@ -104,7 +134,12 @@ export function verifyChain(busPath: string, opts: { ignoreThroughLine?: number 
     const n = i + 1;
     let obj: Record<string, unknown>;
     try {
-      obj = JSON.parse(line) as Record<string, unknown>;
+      const parsed: unknown = JSON.parse(line);
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        errors.push({ line: n, message: "not a JSON object" });
+        return;
+      }
+      obj = parsed as Record<string, unknown>;
     } catch {
       errors.push({ line: n, message: "invalid JSON" });
       return;
@@ -141,5 +176,5 @@ export function verifyChain(busPath: string, opts: { ignoreThroughLine?: number 
 
   const cutoff = opts.ignoreThroughLine ?? 0;
   const kept = errors.filter((e) => e.line > cutoff).map((e) => `line ${e.line}: ${e.message}`);
-  return { ok: kept.length === 0, legacyLines, chainedLines, errors: kept };
+  return { ok: kept.length === 0, legacyLines, chainedLines, pendingTail, errors: kept };
 }

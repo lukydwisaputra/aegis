@@ -67,7 +67,7 @@ describe('appendChained', () => {
 
 describe('verifyChain', () => {
   it('reports ok for an empty or missing file', () => {
-    expect(verifyChain(bus)).toEqual({ ok: true, legacyLines: 0, chainedLines: 0, errors: [] });
+    expect(verifyChain(bus)).toEqual({ ok: true, legacyLines: 0, chainedLines: 0, pendingTail: false, errors: [] });
   });
 
   it('detects an altered line through the next prevHash', async () => {
@@ -93,7 +93,7 @@ describe('verifyChain', () => {
     await appendChained(blocked('a'), bus, ctx);
     const lines = readLines(bus);
     expect(JSON.parse(lines[2]!).prevHash).toBe(hashLine(lines[1]!));
-    expect(verifyChain(bus)).toEqual({ ok: true, legacyLines: 2, chainedLines: 1, errors: [] });
+    expect(verifyChain(bus)).toEqual({ ok: true, legacyLines: 2, chainedLines: 1, pendingTail: false, errors: [] });
   });
 
   it('flags a legacy line that appears after the chain started', async () => {
@@ -116,5 +116,43 @@ describe('verifyChain', () => {
     fs.writeFileSync(bus, lines.join('\n') + '\n');
     expect(verifyChain(bus).ok).toBe(false);
     expect(verifyChain(bus, { ignoreThroughLine: 2 }).ok).toBe(true);
+  });
+
+  it('treats an unterminated final segment as a pending tail, not an error', async () => {
+    for (const r of ['a', 'b']) await appendChained(blocked(r), bus, ctx);
+    fs.appendFileSync(bus, '{"seq":3,"prevH');
+    expect(verifyChain(bus)).toEqual({ ok: true, legacyLines: 0, chainedLines: 2, pendingTail: true, errors: [] });
+  });
+
+  it('reports a null or non-object line without throwing', () => {
+    fs.writeFileSync(bus, 'null\n42\n[]\n');
+    const result = verifyChain(bus);
+    expect(result.errors.join('\n')).toMatch(/line 1: not a JSON object/);
+    expect(result.errors).toHaveLength(3);
+  });
+});
+
+describe('appendChained hardening', () => {
+  it('refuses to append after an unterminated garbage tail', async () => {
+    await appendChained(blocked('a'), bus, ctx);
+    fs.appendFileSync(bus, '{"seq":2,"prevH');
+    const before = fs.readFileSync(bus);
+    await expect(appendChained(blocked('b'), bus, ctx)).rejects.toThrow(/torn tail/);
+    expect(fs.readFileSync(bus).equals(before)).toBe(true);
+  });
+
+  it('continues seq from the last chained line across an unchained line', async () => {
+    await appendChained(blocked('a'), bus, ctx);
+    fs.appendFileSync(bus, '{"type":"HandWritten"}\n');
+    const rec = await appendChained(blocked('b'), bus, ctx);
+    expect(rec['seq']).toBe(2);
+    expect(verifyChain(bus).errors.join('\n')).toMatch(/line 2: unchained event after chain start/);
+  });
+
+  it.each([{ emittedBy: 'owner' }, { seq: 5 }, { prevHash: 'x' }])('rejects caller-supplied envelope field %j', async (extra) => {
+    await appendChained(blocked('a'), bus, ctx);
+    const before = fs.readFileSync(bus, 'utf8');
+    await expect(appendChained({ ...blocked('b'), ...extra }, bus, ctx)).rejects.toThrow(/set by the bus/);
+    expect(fs.readFileSync(bus, 'utf8')).toBe(before);
   });
 });
