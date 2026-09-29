@@ -47,8 +47,8 @@ Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
 | AUD-014 | SPV output location undefined (`reviews/` vs `reports/work/`); SPVs have only `[Read, Bash]`; curator/CMMI read `reviews/*.json` nobody writes; `review.passed-with-notes` never emitted | qa-curator.md:23; qa-compliance-cmmi.md:22 | MED | in-spec |
 | AUD-015 | SPV reject-twice escalation "human gate" undefined; `task.escalated` unused; lesson-piping owner conflicts | qa-orchestrator.md:73-74; qa-test-executor.md:9; HANDBOOK/13:91 | MED | in-spec |
 | AUD-016 | `task.released` emitted by no worker; SPV trigger inconsistent (`task.released` vs `run.phase.completed`) | CLAUDE.md:99; HANDBOOK/13:82; qa-orchestrator.md:69 | MED | in-spec |
-| AUD-017 | Concurrency cap hardcoded 4; config `parallelism.maxSpecialists=2` never read | qa-orchestrator.md:3,21,62,95,110; qa-test-executor.md:3,19,80,89,121,139; qa-start:23 | MED | in-spec |
-| AUD-018 | Agents have no invocation path to `@qa/*` packages (event-bus, ids, taskmaster, agent-memory); `require.resolve` fails from root → events.jsonl hand-written | require.resolve('@qa/event-bus') MODULE_NOT_FOUND | HIGH | in-spec |
+| AUD-017 | Concurrency cap hardcoded 4; config `parallelism.maxSpecialists=2` never read | qa-orchestrator.md:3,21,62,95,110; qa-test-executor.md:3,19,80,89,121,139; qa-start:23 | MED | fixed (P0b-1) |
+| AUD-018 | Agents have no invocation path to `@qa/*` packages (event-bus, ids, taskmaster, agent-memory); `require.resolve` fails from root → events.jsonl hand-written | require.resolve('@qa/event-bus') MODULE_NOT_FOUND | HIGH | fixed (P0b-1) |
 | AUD-019 | Territory hook non-functional: reads nonexistent env vars, PostToolUse cannot block, empty agent name passes | .claude/settings.json | HIGH | in-spec |
 | AUD-020 | No enforcement for events.jsonl direct writes or brand exposure | .claude/settings.json | HIGH | in-spec |
 | AUD-021 | Main thread does worker work: MTH never dispatched orchestrator; CH interactive; SCH white-box DB; SCS coordinator-mcp reruns | MTH transcript f28b9186; commhub reports/work/README.md; onecare-schedule whitebox-merge-summary.md; scs-finance events | HIGH | in-spec |
@@ -59,7 +59,7 @@ Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
 | AUD-026 | Run path resolution: SCS evidence landed in boilerplate `aegis/runs/`; MTH run written outside `aegis/runs` | aegis/runs/RUN-20260707-001; multi-tenant-helpdesk-ticketing/runs | MED | in-spec |
 | AUD-027 | `rtm.append-link` processed by a "post-design RTM updater" that does not exist | qa-defect-manager.md:121 | MED | in-spec |
 | AUD-028 | Real run skipped Triage, Executive Report, Curator and still emitted RunCompleted (no completion barrier) | scs-finance RUN-20260707-001 | HIGH | in-spec |
-| AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | in-spec |
+| AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | fixed (P0b-1) |
 | AUD-062 | `qa-run-phase`: missing phases, expects `test-cases.json`, writes to unused `runs/{run}/{phase}/` | qa-run-phase:19,26 | MED | in-spec |
 | AUD-063 | `/qa-smoke` is a separate pipeline (no executor/env/exploratory); no smoke thresholds; `--include-security` re-adds email; exit code unimplementable | qa-smoke:27-29 | MED | in-spec |
 | AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report | MED | in-spec |
