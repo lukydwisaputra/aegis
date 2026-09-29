@@ -183,3 +183,4 @@ export function typeFilter(...types: string[]): EventFilter {
 }
 
 export type { AegisEvent };
+export * from "./chain.js";
