@@ -1,6 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import lockfile from "proper-lockfile";
 import type { RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
@@ -9,7 +7,7 @@ import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun, withRunLock } from "./run.js";
-import { iso } from "./util.js";
+import { iso, withFileLock } from "./util.js";
 
 export const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -56,18 +54,8 @@ export async function addTask(
   return mustGet(root, runId, input.id);
 }
 
-async function withClaimsLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
-  const lockTarget = join(taskmasterDir(root, runId), "claims.lock");
-  if (!existsSync(lockTarget)) writeFileSync(lockTarget, "", "utf-8");
-  const release = await lockfile.lock(lockTarget, {
-    stale: 10_000,
-    retries: { retries: 50, minTimeout: 20, maxTimeout: 250 },
-  });
-  try {
-    return await fn();
-  } finally {
-    await release();
-  }
+function withClaimsLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
+  return withFileLock(join(taskmasterDir(root, runId), "claims.lock"), fn);
 }
 
 export async function claimTask(root: string, runId: string, taskId: string, caller: string, now?: Date): Promise<Task> {

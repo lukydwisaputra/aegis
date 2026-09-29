@@ -145,6 +145,12 @@ describe('concurrency and missing runs', () => {
     expect(final.blockedReason).toBe('escalation: x');
   });
 
+  it('readRun on a run.json that is not JSON is invalid-input', async () => {
+    const { runId } = await create();
+    fs.writeFileSync(runJsonPath(t.root, runId), '{"runId":');
+    expect(() => readRun(t.root, runId)).toThrow(expect.objectContaining({ code: 'invalid-input' }));
+  });
+
   it('readRun on a nonexistent run is run-not-found', () => {
     expect(() => readRun(t.root, 'RUN-20260929-099')).toThrow(expect.objectContaining({ code: 'run-not-found' }));
   });

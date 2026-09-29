@@ -1,7 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import lockfile from "proper-lockfile";
 import { RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
 import { appendChained, readCommittedLines } from "@qa/event-bus";
 import { nextId } from "@qa/ids";
@@ -10,7 +8,7 @@ import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { acknowledgementOf, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
 import { busPath, runDir, runJsonPath, taskmasterDir, writeActiveRun } from "./paths.js";
-import { formatIssues, iso } from "./util.js";
+import { atomicWrite, formatIssues, iso, withFileLock } from "./util.js";
 
 export const INTEGRITY_REASON_PREFIX = "integrity violation";
 export const ESCALATION_REASON_PREFIX = "escalation";
@@ -42,7 +40,12 @@ export function readRun(root: string, runId: string): RunState {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") throw new RunStateError("run-not-found", `run ${runId} not found`);
     throw e;
   }
-  const raw: unknown = JSON.parse(text);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (e) {
+    throw new RunStateError("invalid-input", `run.json for ${runId} is not valid JSON: ${(e as Error).message}`);
+  }
   const parsed = RunStateSchema.safeParse(raw);
   if (!parsed.success) {
     throw new RunStateError("invalid-input", `run.json for ${runId} is invalid: ${formatIssues(parsed.error.issues)}`);
@@ -52,15 +55,7 @@ export function readRun(root: string, runId: string): RunState {
 
 function writeRun(root: string, state: RunState): void {
   const valid = RunStateSchema.parse(state);
-  const target = runJsonPath(root, valid.runId);
-  const tmp = `${target}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
-  try {
-    writeFileSync(tmp, JSON.stringify(valid, null, 2) + "\n", "utf-8");
-    renameSync(tmp, target);
-  } catch (e) {
-    rmSync(tmp, { force: true });
-    throw e;
-  }
+  atomicWrite(runJsonPath(root, valid.runId), JSON.stringify(valid, null, 2) + "\n");
 }
 
 /**
@@ -72,27 +67,13 @@ function writeRun(root: string, state: RunState): void {
  *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).
  */
 export async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
-  const lockPath = join(runDir(root, runId), "run.lock");
   if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
-  if (!existsSync(lockPath)) closeSync(openSync(lockPath, "a"));
-  const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
-  try {
-    return await fn();
-  } finally {
-    await release();
-  }
+  return withFileLock(join(runDir(root, runId), "run.lock"), fn);
 }
 
 /** Serialises integrity decisions per run (verify, acknowledge). Taken before run.lock, never inside it. */
 export async function withIntegrityLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
-  const lockPath = join(runDir(root, runId), "integrity.lock");
-  if (!existsSync(lockPath)) closeSync(openSync(lockPath, "a"));
-  const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
-  try {
-    return await fn();
-  } finally {
-    await release();
-  }
+  return withFileLock(join(runDir(root, runId), "integrity.lock"), fn);
 }
 
 export async function createRun(root: string, input: CreateRunInput, caller: string): Promise<RunState> {

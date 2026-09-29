@@ -1,8 +1,8 @@
-import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, parse } from "node:path";
 import { RunIdSchema } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
+import { atomicWrite } from "./util.js";
 
 export function findAegisRoot(start: string = process.cwd()): string {
   let dir = start;
@@ -40,18 +40,7 @@ export function readActiveRun(root: string): string | null {
 
 export function writeActiveRun(root: string, runId: string): void {
   mkdirSync(runsDir(root), { recursive: true });
-  const tmp = join(runsDir(root), `.active.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-  try {
-    writeFileSync(tmp, runId + "\n", "utf-8");
-    renameSync(tmp, activePointer(root));
-  } catch (e) {
-    rmSync(tmp, { force: true });
-    throw e;
-  }
-}
-
-export function clearActiveRun(root: string): void {
-  rmSync(activePointer(root), { force: true });
+  atomicWrite(activePointer(root), runId + "\n");
 }
 
 export function resolveRunId(root: string, explicit: string | undefined): string {

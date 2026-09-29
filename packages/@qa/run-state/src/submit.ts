@@ -1,6 +1,5 @@
 import * as fs from "node:fs";
 import { join, relative } from "node:path";
-import lockfile from "proper-lockfile";
 import { ReviewSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
@@ -10,7 +9,7 @@ import { RunStateError } from "./errors.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, ESCALATION_REASON_PREFIX } from "./run.js";
 import { TASK_ID } from "./tasks.js";
-import { formatIssues, iso, loadJson } from "./util.js";
+import { atomicWrite, formatIssues, iso, loadJson, withFileLock } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -49,17 +48,10 @@ function assertSafeIds(agent: string, taskId: string): void {
  * Serialises every submission for one agent/task. Lock order (outermost first):
  * submit.lock -> run.lock -> task-file lock -> event-bus lock.
  */
-export async function withSubmitLock<T>(root: string, runId: string, agent: string, taskId: string, fn: () => Promise<T>): Promise<T> {
+function withSubmitLock<T>(root: string, runId: string, agent: string, taskId: string, fn: () => Promise<T>): Promise<T> {
   const dir = join(runDir(root, runId), "reports", ".locks");
   fs.mkdirSync(dir, { recursive: true });
-  const lockPath = join(dir, `${agent}.${taskId}.lock`);
-  if (!fs.existsSync(lockPath)) fs.closeSync(fs.openSync(lockPath, "a"));
-  const release = await lockfile.lock(lockPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
-  try {
-    return await fn();
-  } finally {
-    await release();
-  }
+  return withFileLock(join(dir, `${agent}.${taskId}.lock`), fn);
 }
 
 function attemptsIn(dir: string, agent: string, taskId: string): number[] {
@@ -73,13 +65,7 @@ function attemptsIn(dir: string, agent: string, taskId: string): number[] {
 
 /** Atomic exclusive publish: full content is written to a temp file, then hard-linked into place (EEXIST if taken). */
 function publishJson(file: string, value: unknown): void {
-  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
-  try {
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n", { encoding: "utf-8", flag: "wx" });
-    fs.linkSync(tmp, file);
-  } finally {
-    fs.rmSync(tmp, { force: true });
-  }
+  atomicWrite(file, JSON.stringify(value, null, 2) + "\n", { exclusive: true });
 }
 
 export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<SubmitResult> {
