@@ -157,3 +157,18 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | NEW-04 | Main thread is a router to Aegis commands | P0 | in-spec |
 | NEW-05 | Retest / defect re-verify commands with automatic rollup + closure regeneration | P0 | in-spec |
 | NEW-06 | Framework-defect proposals from curator when a command is broken/missing | P2 | open |
+
+## Carry-overs from P0b-1 (to be closed by the named slice)
+
+| ID | Item | Slice |
+|----|------|-------|
+| CO-01 | Legacy writers break the chain: event-bus `_forceAppend` (unlocked), sandbox-manager direct append, `reporters` legacy `append()` (no torn-tail guard) → move to `appendChained` | P0b-2 |
+| CO-02 | Sanctioned `aegis integrity repair-tail` (a torn tail bricks every append; ack itself appends) | P0b-2 |
+| CO-03 | Integrity: re-anchor checkpoint at ack (acked checkpoint error names only seq); seed checkpoint at `createRun`; close createRun/verify race (append `run.created` first or wrap in integrity.lock) | P0b-2 |
+| CO-04 | taskmaster per-task `LOCK_OPTIONS` (5 retries) leaks raw ELOCKED; commander validation errors → JSON envelope via `exitOverride` | P0b-2 |
+| CO-05 | `RESERVED_EVENT_TYPES` must grow with `run.phase.*`, `gate.*`, `manual.*`, escalation events (F5 test + smoke use `run.phase.started` as agent-owned) | P0a |
+| CO-06 | `currentPhase` enum + `RunStateSchema.strict()`; replace `blockedReason` string stacking with a list of causes | P0a |
+| CO-07 | `/qa-escalation` must clear the escalation marker; escalation on a completed run loses lessons; escalation block currently resumable with no decision | P0a |
+| CO-08 | Claims accepted on `created`/`awaiting-gate` runs; agents may call `run create/stop/resume`; SPV↔worker pairing needs the role table (qa-cicd-spv/qa-github-spv) | P0a / P0b-2 |
+| CO-09 | Full-log read per append (tail read); reopen emits no event; review events lack attempt/path; state written before event; uncapped violation `errors` array | P0c |
+| CO-10 | Show acknowledged errors in `run resume` output; multi-process lock proof runs only via `pnpm test:smoke` (no CI yet) | P0b-2 |
