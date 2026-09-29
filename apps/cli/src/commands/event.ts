@@ -3,6 +3,9 @@ import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed, busPath, RunStateError } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
+const BUS_REFUSAL =
+  /schema validation failed|undeclared field\(s\)|set by the bus|conflicts with caller|chain context invalid/;
+
 export function eventCommand(): Command {
   const ev = new Command("event").description("Append events to the run's hash-chained log");
 
@@ -32,7 +35,9 @@ export function eventCommand(): Command {
             { emittedBy: ctx.caller, runId }
           );
         } catch (e) {
-          throw new RunStateError("invalid-input", (e as Error).message);
+          const msg = (e as Error).message;
+          if (BUS_REFUSAL.test(msg)) throw new RunStateError("invalid-input", msg);
+          throw e;
         }
       })
     );

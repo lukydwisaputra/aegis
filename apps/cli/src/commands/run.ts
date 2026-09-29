@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { createRun, requestStop, resumeRun, runStatus } from "@qa/run-state";
+import { createRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function runCommand(): Command {
@@ -50,6 +50,9 @@ export function runCommand(): Command {
     .action(
       action((o: { run?: string; acknowledgeIntegrity?: boolean; reason?: string }) => {
         const ctx = context();
+        if (o.acknowledgeIntegrity === true && (o.reason ?? "").trim() === "") {
+          throw new RunStateError("invalid-input", "--reason is required with --acknowledge-integrity");
+        }
         return resumeRun(
           ctx.root,
           runIdFor(ctx, o.run),

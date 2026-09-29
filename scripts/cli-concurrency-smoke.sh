@@ -4,6 +4,10 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AEGIS="$REPO/apps/cli/dist/index.js"
+if [ ! -f "$AEGIS" ]; then
+  echo "FAIL: $AEGIS missing; build first: pnpm --filter './packages/@qa/**' --filter @aegis-qa/cli run build"
+  exit 1
+fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 FAIL=0
@@ -56,8 +60,23 @@ vrc=$?
 set -e
 cat "$TMP/verify.out"
 [ "$vrc" = 0 ] || fail "integrity verify rc=$vrc $(cat "$TMP/verify.err")"
-grep -q '"ok": true' "$TMP/verify.out" || fail "integrity ok != true"
-grep -q '"chainedLines": 8' "$TMP/verify.out" || fail "chainedLines != 8"
-if grep -q 'pendingTail' "$TMP/verify.out" && ! grep -q '"pendingTail": false' "$TMP/verify.out"; then fail "pendingTail present"; fi
+node -e '
+const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+if(r.ok!==true||r.chainedLines!==8||r.pendingTail!==false){console.error("bad report",JSON.stringify(r));process.exit(1)}' "$TMP/verify.out" \
+  || fail "integrity report: expected ok=true chainedLines=8 pendingTail=false"
+
+# exit-code contract (all refusals; none append to the log)
+expect_refusal() { # <label> <code> <agent-or-empty> args...
+  local label="$1" code="$2" agent="$3"; shift 3
+  local rc=0 err
+  if [ -n "$agent" ]; then err=$(AEGIS_AGENT="$agent" node "$AEGIS" "$@" 2>&1 >/dev/null) || rc=$?
+  else err=$(env -u AEGIS_AGENT node "$AEGIS" "$@" 2>&1 >/dev/null) || rc=$?; fi
+  echo "contract $label rc=$rc $err" | head -c 300; echo
+  if [ "$rc" != 2 ] || ! grep -q "\"error\":\"$code\"" <<<"$err"; then fail "contract $label: expected exit 2 + $code"; fi
+}
+expect_refusal "owner-claim" caller-forbidden owner task claim --task T-A
+expect_refusal "no-agent" caller-unknown "" run status
+expect_refusal "undeclared-field" invalid-input qa-orchestrator event append --type run.blocked --json '{"reason":"x","reasn":"y"}'
+expect_refusal "bad-module" invalid-input qa-test-designer id next --kind TC --module au-th
 
 if [ "$FAIL" = 0 ]; then echo "PASS"; else echo "FAIL"; exit 1; fi

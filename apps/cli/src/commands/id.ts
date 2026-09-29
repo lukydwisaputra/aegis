@@ -1,11 +1,32 @@
 import { Command, Option } from "commander";
 import { nextId, type AcCategory, type DefectType } from "@qa/ids";
+import { StoryIdSchema } from "@qa/contracts";
 import { assertCallerAllowed, RunStateError } from "@qa/run-state";
 import { action, context } from "./_io.js";
+
+const DEFECT_TYPES = ["UI", "API", "A11Y", "SEC", "PERF", "DATA", "UNIT", "EXP"];
+
+function moduleCode(value: string | undefined, kind: string): string {
+  const m = need(value, "module", kind);
+  if (!/^[A-Z]{2,8}$/.test(m)) throw new RunStateError("invalid-input", `--module must be 2-8 uppercase letters, got "${m}"`);
+  return m;
+}
 
 function need(value: string | undefined, flag: string, kind: string): string {
   if (value === undefined || value === "") throw new RunStateError("invalid-input", `--${flag} is required for --kind ${kind}`);
   return value;
+}
+
+function storyId(value: string | undefined): string {
+  const s = need(value, "story", "AC");
+  if (!StoryIdSchema.safeParse(s).success) throw new RunStateError("invalid-input", `--story is not a valid story id: "${s}"`);
+  return s;
+}
+
+function defectType(value: string | undefined): DefectType {
+  const t = value ?? "UI";
+  if (!DEFECT_TYPES.includes(t)) throw new RunStateError("invalid-input", `--defect-type must be one of ${DEFECT_TYPES.join(", ")}`);
+  return t as DefectType;
 }
 
 export function idCommand(): Command {
@@ -24,17 +45,17 @@ export function idCommand(): Command {
         assertCallerAllowed(ctx.caller, "id.next");
         switch (o.kind) {
           case "AC":
-            return { id: await nextId("AC", need(o.story, "story", "AC"), need(o.category, "category", "AC") as AcCategory) };
+            return { id: await nextId("AC", storyId(o.story), need(o.category, "category", "AC") as AcCategory) };
           case "DEF":
-            return { id: await nextId("DEF", need(o.module, "module", "DEF"), (o.defectType ?? "UI").toUpperCase() as DefectType) };
+            return { id: await nextId("DEF", moduleCode(o.module, "DEF"), defectType(o.defectType)) };
           case "TC":
-            return { id: await nextId("TC", need(o.module, "module", "TC")) };
+            return { id: await nextId("TC", moduleCode(o.module, "TC")) };
           case "STORY":
-            return { id: await nextId("STORY", need(o.module, "module", "STORY")) };
+            return { id: await nextId("STORY", moduleCode(o.module, "STORY")) };
           case "REQ":
-            return { id: await nextId("REQ", need(o.module, "module", "REQ")) };
+            return { id: await nextId("REQ", moduleCode(o.module, "REQ")) };
           case "RISK":
-            return { id: await nextId("RISK", need(o.module, "module", "RISK")) };
+            return { id: await nextId("RISK", moduleCode(o.module, "RISK")) };
           default:
             throw new RunStateError("invalid-input", `unsupported kind ${o.kind}`);
         }
