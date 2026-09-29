@@ -1,5 +1,6 @@
 import { readLines } from '@qa/event-bus';
-import { addTask, busPath, claimTask, createRun, releaseTask, requestStop } from '@qa/run-state';
+import { createTaskmasterClient } from '@qa/taskmaster-client';
+import { addTask, blockRun, busPath, claimTask, createRun, releaseTask, requestStop, taskmasterDir } from '@qa/run-state';
 import { last, makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
 let t: TmpAegis;
@@ -66,6 +67,21 @@ describe('claimTask', () => {
     }
   });
 
+  it('a concurrent block and claim never lets a claim land after the block', async () => {
+    const [claim] = await Promise.allSettled([
+      claimTask(t.root, runId, 'T-1', 'qa-ui-specialist'),
+      blockRun(t.root, runId, 'escalation: x', 'qa-ui-specialist-spv'),
+    ]);
+    const types = readLines(busPath(t.root, runId)).map((l) => JSON.parse(l).type as string);
+    if (claim.status === 'fulfilled') {
+      expect(types.indexOf('task.claimed')).toBeGreaterThan(-1);
+      expect(types.indexOf('task.claimed')).toBeLessThan(types.indexOf('run.blocked'));
+    } else {
+      expect(claim.reason).toMatchObject({ code: 'run-not-active' });
+      expect(types).not.toContain('task.claimed');
+    }
+  });
+
   it('refuses the owner and unknown tasks', async () => {
     await expect(claimTask(t.root, runId, 'T-1', 'owner')).rejects.toMatchObject({ code: 'caller-forbidden' });
     await expect(claimTask(t.root, runId, 'T-99', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'invalid-input' });
@@ -109,6 +125,30 @@ describe('addTask', () => {
 
   it('rejects duplicate and malformed ids', async () => {
     await expect(addTask(t.root, runId, { id: 'T-1', title: 'dup' }, 'qa-test-executor')).rejects.toThrow(/already exists/);
+    const results = await Promise.allSettled([
+      addTask(t.root, runId, { id: 'T-NEW', title: 'a' }, 'qa-test-executor'),
+      addTask(t.root, runId, { id: 'T-NEW', title: 'b' }, 'qa-test-executor'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rej = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(rej.reason).toMatchObject({ code: 'invalid-input' });
     await expect(addTask(t.root, runId, { id: '../x', title: 'bad' }, 'qa-test-executor')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});
+
+describe('reopen', () => {
+  beforeEach(() => setup(2));
+
+  it('refuses an in-progress task and clears claim fields on a finished one', async () => {
+    const c = createTaskmasterClient(taskmasterDir(t.root, runId));
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await expect(c.reopen('T-1')).rejects.toThrow(/only done or failed/);
+    await releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist');
+    await c.reopen('T-1');
+    const task = (await c.get('T-1'))!;
+    expect(task.status).toBe('pending');
+    expect(task.claimedBy).toBeUndefined();
+    expect(task.claimedAt).toBeUndefined();
+    expect(task.completedAt).toBeUndefined();
   });
 });

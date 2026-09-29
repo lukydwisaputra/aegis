@@ -60,9 +60,11 @@ function writeRun(root: string, state: RunState): void {
 /**
  * Serialises run.json read-modify-write per run.
  * Lock order (never invert; never take run.lock while holding the bus lock):
- *   integrity.lock -> run.lock -> event-bus lock;  claims.lock -> event-bus lock.
+ *   integrity.lock -> run.lock -> event-bus lock;
+ *   claims.lock -> run.lock -> (task-file lock) -> event-bus lock.
+ *   Nothing may take claims.lock while holding run.lock.
  */
-async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
+export async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
   const lockPath = join(runDir(root, runId), "run.lock");
   if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
   if (!existsSync(lockPath)) closeSync(openSync(lockPath, "a"));

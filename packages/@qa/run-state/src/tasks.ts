@@ -8,7 +8,7 @@ import { assertCallerAllowed, isSpecialist } from "./caller.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { busPath, taskmasterDir } from "./paths.js";
-import { readRun } from "./run.js";
+import { readRun, withRunLock } from "./run.js";
 import { iso } from "./util.js";
 
 const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -43,11 +43,16 @@ export async function addTask(
   if (!TASK_ID.test(input.id)) {
     throw new RunStateError("invalid-input", `task id "${input.id}" must match ${TASK_ID.source}`);
   }
-  await client(root, runId).addRootTask({
-    id: input.id,
-    title: input.title,
-    ...(input.description !== undefined ? { description: input.description } : {}),
-  });
+  try {
+    await client(root, runId).addRootTask({
+      id: input.id,
+      title: input.title,
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
+  } catch (e) {
+    if (e instanceof Error && /already exists/.test(e.message)) throw new RunStateError("invalid-input", e.message);
+    throw e;
+  }
   return mustGet(root, runId, input.id);
 }
 
@@ -71,31 +76,33 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
   await mustGet(root, runId, taskId);
 
   // Serialise "count running specialists + claim" so two agents cannot both take the last slot.
-  await withClaimsLock(root, runId, async () => {
-    // A stop may have landed between the early check and acquiring the lock.
-    assertRunAcceptsWork(readRun(root, runId));
-    const c = client(root, runId);
-    if (isSpecialist(caller)) {
-      const { maxSpecialists } = readSettings(root);
-      const running = (await c.list({ status: "in-progress" })).filter(
-        (t) => t.claimedBy !== undefined && isSpecialist(t.claimedBy)
-      );
-      if (running.length >= maxSpecialists) {
-        throw new RunStateError(
-          "cap-reached",
-          `${running.length}/${maxSpecialists} specialists already running (aegis.config.json#parallelism.maxSpecialists)`
+  return withClaimsLock(root, runId, () =>
+    withRunLock(root, runId, async () => {
+      // A stop or block may have landed after the early check; run.lock now excludes it.
+      assertRunAcceptsWork(readRun(root, runId));
+      const c = client(root, runId);
+      if (isSpecialist(caller)) {
+        const { maxSpecialists } = readSettings(root);
+        const running = (await c.list({ status: "in-progress" })).filter(
+          (t) => t.claimedBy !== undefined && isSpecialist(t.claimedBy)
         );
+        if (running.length >= maxSpecialists) {
+          throw new RunStateError(
+            "cap-reached",
+            `${running.length}/${maxSpecialists} specialists already running (aegis.config.json#parallelism.maxSpecialists)`
+          );
+        }
       }
-    }
-    try {
-      await c.claim(taskId, caller);
-    } catch (e) {
-      if (e instanceof ClaimError) throw new RunStateError("invalid-input", e.message);
-      throw e;
-    }
-    await appendChained({ type: "task.claimed", ts: iso(now), taskId, agent: caller }, busPath(root, runId), { emittedBy: caller, runId });
-  });
-  return mustGet(root, runId, taskId);
+      try {
+        await c.claim(taskId, caller);
+      } catch (e) {
+        if (e instanceof ClaimError) throw new RunStateError("invalid-input", e.message);
+        throw e;
+      }
+      await appendChained({ type: "task.claimed", ts: iso(now), taskId, agent: caller }, busPath(root, runId), { emittedBy: caller, runId });
+      return mustGet(root, runId, taskId);
+    })
+  );
 }
 
 export async function releaseTask(
@@ -108,13 +115,13 @@ export async function releaseTask(
 ): Promise<Task> {
   assertCallerAllowed(caller, "task.release");
   await mustGet(root, runId, taskId);
-  await withClaimsLock(root, runId, async () => {
+  return withClaimsLock(root, runId, async () => {
     const task = await mustGet(root, runId, taskId);
     if (task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${taskId} is not in progress under ${caller}`);
     }
     await client(root, runId).release(taskId, result);
     await appendChained({ type: "task.released", ts: iso(now), taskId, agent: caller, result }, busPath(root, runId), { emittedBy: caller, runId });
+    return mustGet(root, runId, taskId);
   });
-  return mustGet(root, runId, taskId);
 }

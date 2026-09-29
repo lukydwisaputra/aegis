@@ -221,10 +221,15 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
 
     async addRootTask(taskData) {
       const filePath = taskFilePath(tasksDir, taskData.id);
-      if (fs.existsSync(filePath)) {
-        throw new Error(`Task "${taskData.id}" already exists`);
+      const task: Task = { ...taskData, status: "pending" };
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(task, null, 2), { encoding: "utf-8", flag: "wx" });
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "EEXIST") {
+          throw new Error(`Task "${taskData.id}" already exists`);
+        }
+        throw e;
       }
-      writeTaskFile(filePath, { ...taskData, status: "pending" });
     },
 
     async reopen(taskId) {
@@ -234,7 +239,16 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
       }
       const release = await lockfile.lock(filePath, LOCK_OPTIONS);
       try {
-        const { completedAt: _completedAt, result: _result, ...task } = readTaskFile(filePath);
+        const {
+          completedAt: _completedAt,
+          result: _result,
+          claimedBy: _claimedBy,
+          claimedAt: _claimedAt,
+          ...task
+        } = readTaskFile(filePath);
+        if (task.status !== "done" && task.status !== "failed") {
+          throw new Error(`Task "${taskId}" is ${task.status}; only done or failed tasks can be reopened`);
+        }
         writeTaskFile(filePath, { ...task, status: "pending" });
       } finally {
         await release();
