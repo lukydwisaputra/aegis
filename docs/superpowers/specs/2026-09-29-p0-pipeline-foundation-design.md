@@ -104,7 +104,7 @@ Three layers:
 | 0 | Intake | qa-orchestrator (via `aegis run create`) | command args, `aegis.config.json`, target docs paths | `run.json`, `intake/requirements/**`, `intake/prd.md` (copied from target), `taskmaster.json` | — |
 | 1 | Scan | qa-context-scanner | target source | `target-profile.json` (incl. `targetIsSingleProject`, `sourceInventory`, `existingTests`) | preflight check |
 | 2 | Dev-test review | qa-dev-test-reviewer (NEW) | `target-profile.json#existingTests`, target test files, source | `dev-test-review.json` | — |
-| 3 | Requirements | qa-requirements-analyst | `intake/**`, `target-profile.json`, `dev-test-review.json` | `requirements/ambiguity-report.json`, `requirements/testability-scores.json`, `stories/{US-ID}.json` | — |
+| 3 | Requirements | qa-requirements-analyst | `intake/**`, `target-profile.json`, `dev-test-review.json` | `requirements/ambiguity-report.json`, `requirements/testability-scores.json`, `stories/{STORY-ID}.json` | — |
 | 4 | Env:auth | qa-environment-engineer (`scope=auth`) | `target-profile.json`, credentials | `tests/qa/fixtures/auth.fixture.ts`, `tests/qa/global-setup.ts`, `env-auth-report.json` | — |
 | 5 | Explore | qa-web-explorer, then qa-exploratory-specialist (story charters) | fixtures, `target-profile.json`, `stories/**` | `discovery-report.json`, `evidence/discovery/**`, `reports/exploratory/**`, `tc.proposal` / `observation` events | — |
 | 6 | Planning | qa-test-planner | requirements, stories, discovery, exploratory, dev-test review | `plan.json`, `risk-register.json` | **Gate 1** |
@@ -161,11 +161,11 @@ evaluator (P2) may enrich it but is never a hard dependency.
 
 ### 3.3 User stories & acceptance criteria (NEW-01)
 
-`stories/{US-ID}.json`, schema `UserStorySchema` (contracts):
+`stories/{STORY-ID}.json`, schema `UserStorySchema` (contracts):
 
 ```jsonc
 {
-  "id": "US-AUTH-003",
+  "id": "STORY-AUTH-003",
   "asA": "registered member", "iWant": "to reset my password", "soThat": "I can regain access",
   "source": { "kind": "intake|derived", "ref": "intake/prd.md#reset-password" },
   "derived": false,                       // true → must be confirmed at Gate 1
@@ -178,7 +178,7 @@ evaluator (P2) may enrich it but is never a hard dependency.
 }
 ```
 
-- AC IDs `AC-{MODULE}-{NNN}-{H|R|E}{n}` minted by `aegis id next --kind=AC --story=US-AUTH-003 --category=happy`
+- AC IDs `AC-{MODULE}-{NNN}-{H|R|E}{n}` minted by `aegis id next --kind=AC --story=STORY-AUTH-003 --category=happy`
   (`@qa/ids` gains kind `AC`).
 - A story with zero `rejection` or zero `edge` AC must carry `notApplicable: { rejection|edge: "<reason>" }`;
   the requirements-analyst SPV rejects silent omission.
@@ -245,7 +245,7 @@ for a subagent call the prefix must equal the hook's `agent_type`; for a main-th
 `owner`. A mismatch is denied.
 
 Commands callable as `owner` (main thread, via skills only): `run create|status|stop|resume`,
-`gate decide`, `escalation decide`, `manual record`, `rollup`, `trace`, `verify-integrity`.
+`gate decide`, `escalation decide`, `manual record`, `rollup`, `trace`, `integrity verify`.
 All others (`event append`, `id next`, `task *`, `work-report submit`, `review submit`,
 `phase *`, `gate open`, `run complete`) are agent-only; H1 denies them for `owner`.
 
@@ -256,12 +256,12 @@ All others (`event append`, `id next`, `task *`, `work-report submit`, `review s
 | gate | `open --gate`, `decide --gate --decision --note`, `auto-decide` | run-state, `GateDecisionSchema` |
 | event | `append --type --json` | `@qa/event-bus.append` (+ hash chain, §4.4) |
 | id | `next --kind --module [--story --category]` | `@qa/ids.nextId` |
-| task | `claim --task`, `release --task` | `@qa/taskmaster-client`, pointed at `runs/{id}/taskmaster.json`; enforces `parallelism.maxSpecialists` |
-| work-report | `submit --file` | `WorkReportSchema` → `reports/work/{agent}.{attempt}.json` |
-| review | `submit --file` | `ReviewSchema` → `reports/review/{agent}.{attempt}.json`; pipes corrective instructions to `@qa/agent-memory.pipeCorrectiveInstruction` |
+| task | `add --id --title`, `claim --task`, `release --task --result` | `@qa/taskmaster-client`, pointed at `runs/{id}/taskmaster/` (one file per task under `tasks/`); enforces `parallelism.maxSpecialists` |
+| work-report | `submit --file` | `WorkReportSchema` → `reports/work/{agent}.{taskId}.{attempt}.json` |
+| review | `submit --file` | `ReviewSchema` → `reports/review/{agent}.{taskId}.{attempt}.json`; pipes corrective instructions to `@qa/agent-memory.pipeCorrectiveInstruction` |
 | rollup | `rollup` | `@qa/metrics` + `@qa/reporters` (§5.1) |
 | trace | `trace --stage=design\|execution\|all` | new trace module (§5.2) |
-| integrity | `verify-integrity` | hash chain + schema validation of every line |
+| integrity | `verify` | hash chain + schema validation of every line |
 | escalation | `decide --task --decision=retry\|accept-with-risk\|abort --reason` | run-state |
 | manual | `record --tc --result --evidence` | writes `cases/{TC}-result.json` + `manual.recorded` |
 
@@ -297,12 +297,19 @@ Paths are resolved from `aegis.config.json#targetProjectRoot`/`testsDir`, and ru
 
 ### 4.4 Event log integrity
 
-- Every event gains `seq` (monotonic int), `prevHash` (sha256 of previous line), `agent` (required;
-  from `AEGIS_AGENT`), `runId` (required).
+- Every event gains an envelope: `seq` (monotonic int), `prevHash` (sha256 of previous line),
+  `emittedBy` (required; the verified caller) and `runId` (required). The emitter field is named
+  `emittedBy`, not `agent`, because many existing events already use `agent` for the *subject*
+  (e.g. `task.escalated.agent` is the worker, emitted by its SPV).
+- Lines written before the chain existed are **legacy**: tolerated only before the first chained
+  line, counted and reported by verification.
+- A broken chain blocks the run; the owner can resume with
+  `aegis run resume --acknowledge-integrity --reason "…"`, which records `integrity.acknowledged`
+  and makes verification ignore errors up to the acknowledged line (the incident stays in the log).
 - `@qa/event-bus.append` computes `seq`/`prevHash` under the existing lock and **writes the raw
   validated object with passthrough**, no longer silently stripping undeclared fields — unknown
   fields fail validation instead (AUD-039 partial; declaring the fields is P1).
-- `aegis verify-integrity` recomputes the chain and validates every line; run by `rollup`,
+- `aegis integrity verify` recomputes the chain and validates every line; run by `rollup`,
   `aegis gate open`, `aegis run complete`, and `/qa-health`. A broken chain sets the run `blocked`
   with `integrity.violation` (detects AUD-022-style overwrites).
 - Known limitation: hooks are best-effort against deliberate circumvention (e.g. a wrapped script
@@ -411,7 +418,7 @@ Refuses unless, for the phase:
 2. Every such report has a review with `passed|passed-with-notes` (or an `accept-with-risk`
    escalation decision); SPV-less agents are listed explicitly (§4.5).
 3. Stage traceability passes (Design → `trace --stage=design`; Execution → `--stage=execution`).
-4. `verify-integrity` passes.
+4. `integrity verify` passes.
 5. The preceding gate (if any) is `approved|approved-with-conditions`.
 6. Phase-specific outputs from §3.1 exist and validate against their schemas.
 
@@ -420,9 +427,9 @@ Refuses unless, for the phase:
 `RunStateSchema` (run.json), `GateDecisionSchema`, `UserStorySchema` + `AcceptanceCriterionSchema`,
 `DevTestReviewSchema`, `TraceReportSchema`, `TargetProfileSchema` (minimal fields P0 relies on:
 `targetIsSingleProject`, `sourceInventory`, `existingTests`; full schema in P1), event additions
-(`gate.auto-decided`, `gate.decided`, `integrity.violation`, `manual.recorded`, `manual.override`,
+(`gate.auto-decided`, `gate.decided`, `integrity.violation`, `integrity.acknowledged`, `manual.recorded`, `manual.override`,
 `tc.approved`, `tc.proposal`, `script.committed`, `observation`, `task.escalated` now used), and
-common event fields `seq`, `prevHash`, `agent`, `runId`. `@qa/ids` gains kind `AC`.
+common envelope fields `seq`, `prevHash`, `emittedBy`, `runId`. `@qa/ids` gains kind `AC`.
 
 ### 6.3 Config changes
 
@@ -484,7 +491,7 @@ common event fields `seq`, `prevHash`, `agent`, `runId`. `@qa/ids` gains kind `A
 Each slice is independently mergeable and leaves the repo green.
 
 1. **P0b-1** Contracts + CLI skeleton: run-state, event chain, ids `AC`, work-report/review submit,
-   task claim with cap, verify-integrity. Tests.
+   task claim with cap, integrity verify. Tests.
 2. **P0b-2** Hooks H1–H4 + path-guard role table; remove the old hook. Tests.
 3. **P0a-1** Phase map + gate lifecycle + barrier in CLI; orchestrator rewrite; `qa-gate-decide`,
    `qa-escalation`.
@@ -518,7 +525,7 @@ Each slice is independently mergeable and leaves the repo green.
 | 025, 028 | §3.1 `aegis run complete` barrier |
 | 026 | §4.2 path resolution from config + `runs/.active` |
 | 027 | §5.1 rollup applies RTM links |
-| 040 (moved from P1) | §4.4 required `agent`/`runId` |
+| 040 (moved from P1) | §4.4 required `emittedBy`/`runId` envelope |
 | 056 (execution skills part), 062, 063, 064 (moved from P3) | §4.6, §5.3 |
 
 ---
