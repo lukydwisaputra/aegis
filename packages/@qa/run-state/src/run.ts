@@ -5,7 +5,7 @@ import lockfile from "proper-lockfile";
 import { RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
 import { appendChained, readCommittedLines } from "@qa/event-bus";
 import { nextId } from "@qa/ids";
-import { assertCallerAllowed } from "./caller.js";
+import { assertCallerAllowed, OWNER } from "./caller.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { acknowledgementOf, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
@@ -189,6 +189,9 @@ export async function resumeRun(root: string, runId: string, caller: string, opt
   assertCallerAllowed(caller, "run.resume");
   // An acknowledgement is an integrity decision: serialise it with verify (integrity.lock -> run.lock).
   if (opts.acknowledgeIntegrity !== undefined) {
+    if (caller !== OWNER) {
+      throw new RunStateError("caller-forbidden", "only the owner may acknowledge an integrity violation");
+    }
     if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
     return withIntegrityLock(root, runId, () => resumeLocked(root, runId, caller, opts));
   }
@@ -215,6 +218,9 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
     if (opts.acknowledgeIntegrity !== undefined) {
       const reason = opts.acknowledgeIntegrity.reason.trim();
       if (reason === "") throw new RunStateError("invalid-input", "an acknowledgement reason is required");
+      if (!integrityBlocked) {
+        throw new RunStateError("invalid-input", "no recorded integrity violation to acknowledge; run `aegis integrity verify` first");
+      }
       // Pin exactly what the owner reviewed: the current log prefix and its unfiltered errors.
       const snap = readCommittedLines(bus);
       acknowledged = acknowledgementOf(snap, logErrors(snap, state.integrityCheckpoint).errors);

@@ -215,6 +215,26 @@ describe('acknowledged prefix is pinned (F2)', () => {
   });
 });
 
+describe('acknowledgement rules (F3, F4)', () => {
+  it('only the owner may acknowledge an integrity violation', async () => {
+    tamperFirstLine();
+    await verifyRunIntegrity(t.root, runId, 'owner');
+    await expect(
+      resumeRun(t.root, runId, 'qa-orchestrator', { acknowledgeIntegrity: { reason: 'looks fine' } }),
+    ).rejects.toMatchObject({ code: 'caller-forbidden' });
+    expect(readRun(t.root, runId).status).toBe('blocked');
+    expect(count('integrity.acknowledged')).toBe(0);
+  });
+
+  it('refuses an acknowledgement when no violation was recorded', async () => {
+    tamperFirstLine();
+    await requestStop(t.root, runId, 'pause', 'owner');
+    await expect(ack()).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/no recorded integrity violation to acknowledge/) });
+    expect(count('integrity.acknowledged')).toBe(0);
+    expect(readRun(t.root, runId).status).toBe('stopped');
+  });
+});
+
 describe('block interplay (F6, C7)', () => {
   it('a stopped integrity-blocked run verified again records no second violation', async () => {
     tamperFirstLine();
