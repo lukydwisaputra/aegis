@@ -314,9 +314,9 @@ Paths are resolved from `aegis.config.json#targetProjectRoot`/`testsDir`, and ru
   `integrity.acknowledged` with `throughLine`, `lineHash`, `prefixHash` (lines 1..throughLine) and the
   exact error set; later verifies ignore only those exact errors and fail with "acknowledged prefix
   altered" if the pinned prefix changes (the incident stays in the log).
-- `@qa/event-bus.append` computes `seq`/`prevHash` under the existing lock and **writes the raw
-  validated object with passthrough**, no longer silently stripping undeclared fields — unknown
-  fields fail validation instead (AUD-039 partial; declaring the fields is P1).
+- `@qa/event-bus.appendChained` computes `seq`/`prevHash` under the bus lock and **rejects**
+  undeclared fields instead of silently stripping them (AUD-039 partial; declaring the fields is P1).
+  The legacy `append()` is unchanged until its callers move to `appendChained` (CO-01).
 - `aegis integrity verify` recomputes the chain and validates every line; run by `rollup`,
   `aegis gate open`, `aegis run complete`, and `/qa-health`. A broken chain sets the run `blocked`
   with `integrity.violation` (detects AUD-022-style overwrites).
