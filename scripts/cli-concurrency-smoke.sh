@@ -68,15 +68,19 @@ if(r.ok!==true||r.chainedLines!==8||r.pendingTail!==false){console.error("bad re
 # exit-code contract (all refusals; none append to the log)
 expect_refusal() { # <label> <code> <agent-or-empty> args...
   local label="$1" code="$2" agent="$3"; shift 3
-  local rc=0 err
+  local rc=0
   if [ -n "$agent" ]; then err=$(AEGIS_AGENT="$agent" node "$AEGIS" "$@" 2>&1 >/dev/null) || rc=$?
   else err=$(env -u AEGIS_AGENT node "$AEGIS" "$@" 2>&1 >/dev/null) || rc=$?; fi
   echo "contract $label rc=$rc $err" | head -c 300; echo
   if [ "$rc" != 2 ] || ! grep -q "\"error\":\"$code\"" <<<"$err"; then fail "contract $label: expected exit 2 + $code"; fi
 }
+err=""
 expect_refusal "owner-claim" caller-forbidden owner task claim --task T-A
 expect_refusal "no-agent" caller-unknown "" run status
-expect_refusal "undeclared-field" invalid-input qa-orchestrator event append --type run.blocked --json '{"reason":"x","reasn":"y"}'
+expect_refusal "undeclared-field" invalid-input qa-orchestrator event append --type run.phase.started --json '{"phase":"scan","phaes":"y"}'
+grep -q "undeclared field" <<<"$err" || fail "contract undeclared-field: expected the bus refusal"
+expect_refusal "forged-run-created" invalid-input qa-orchestrator event append --type run.created --json '{"profile":"full","environment":"development","modules":["AUTH"]}'
+grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-run-created: expected the reserved-type refusal"
 expect_refusal "bad-module" invalid-input qa-test-designer id next --kind TC --module au-th
 
 if [ "$FAIL" = 0 ]; then echo "PASS"; else echo "FAIL"; exit 1; fi

@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+  assertAppendableByAgent,
   assertCallerAllowed,
+  RESERVED_EVENT_TYPES,
   findAegisRoot,
   isSpecialist,
   readActiveRun,
@@ -110,5 +112,24 @@ describe('config', () => {
     cfg.parallelism.maxSpecialists = 0;
     fs.writeFileSync(cfgPath, JSON.stringify(cfg));
     expect(thrownCode(() => readSettings(t.root))).toBe('invalid-input');
+  });
+});
+
+describe('reserved event types (F5)', () => {
+  it.each([
+    'run.created', 'run.blocked', 'run.resumed', 'run.stop.requested', 'run.completed',
+    'task.claimed', 'task.released', 'task.escalated',
+    'review.passed', 'review.passed-with-notes', 'review.requested-changes',
+    'integrity.violation', 'integrity.acknowledged', 'artifact.created',
+  ])('refuses a direct append of %s', (type) => {
+    expect(RESERVED_EVENT_TYPES.has(type)).toBe(true);
+    expect(() => assertAppendableByAgent(type)).toThrow(
+      expect.objectContaining({ code: 'invalid-input', message: `event type ${type} is recorded by the CLI, not appended directly` }),
+    );
+  });
+
+  it('allows event types agents own', () => {
+    expect(() => assertAppendableByAgent('run.phase.started')).not.toThrow();
+    expect(() => assertAppendableByAgent('sandbox.explored')).not.toThrow();
   });
 });

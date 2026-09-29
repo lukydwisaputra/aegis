@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { appendChained } from "@qa/event-bus";
-import { assertCallerAllowed, busPath, RunStateError } from "@qa/run-state";
+import { assertAppendableByAgent, assertCallerAllowed, busPath, RunStateError } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 const BUS_REFUSAL =
@@ -18,6 +18,7 @@ export function eventCommand(): Command {
       action(async (o: { type: string; json: string; run?: string }) => {
         const ctx = context();
         assertCallerAllowed(ctx.caller, "event.append");
+        assertAppendableByAgent(o.type);
         const runId = runIdFor(ctx, o.run);
         let fields: unknown;
         try {

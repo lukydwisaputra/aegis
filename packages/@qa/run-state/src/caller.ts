@@ -45,6 +45,30 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   }
 }
 
+// Events whose facts the CLI records itself; an agent appending one directly would forge run state.
+export const RESERVED_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "run.created",
+  "run.blocked",
+  "run.resumed",
+  "run.stop.requested",
+  "run.completed",
+  "task.claimed",
+  "task.released",
+  "task.escalated",
+  "review.passed",
+  "review.passed-with-notes",
+  "review.requested-changes",
+  "integrity.violation",
+  "integrity.acknowledged",
+  "artifact.created",
+]);
+
+export function assertAppendableByAgent(type: string): void {
+  if (RESERVED_EVENT_TYPES.has(type)) {
+    throw new RunStateError("invalid-input", `event type ${type} is recorded by the CLI, not appended directly`);
+  }
+}
+
 /** Tier-2 specialists count against parallelism.maxSpecialists; their SPVs do not. */
 export function isSpecialist(agent: string): boolean {
   return /^qa-[a-z0-9-]+-specialist$/.test(agent);
