@@ -25,16 +25,27 @@ function skipPathLine(line: string, self: string, names: Set<string>): boolean {
   return false;
 }
 
-export function prosePaths(u: Unit, names: Set<string> = new Set()): Array<{ path: string; line: number }> {
-  const out: Array<{ path: string; line: number }> = [];
+/** Which contract list a prose path must appear in: Inputs → reads, Outputs → writes, else either. */
+export type PathSide = "reads" | "writes" | "either";
+
+function sideOf(u: Unit, heading: string): PathSide {
+  if (u.kind === "skill") return "either";
+  if (/^Inputs/.test(heading)) return "reads";
+  if (/^Outputs/.test(heading)) return "writes";
+  return "either";
+}
+
+export function prosePaths(u: Unit, names: Set<string> = new Set()): Array<{ path: string; line: number; side: PathSide }> {
+  const out: Array<{ path: string; line: number; side: PathSide }> = [];
   for (const sec of proseSections(u)) {
+    const side = sideOf(u, sec.heading);
     const narrow = u.kind === "skill" || /^Process/.test(sec.heading);
     sec.text.split("\n").forEach((text, i) => {
       if (narrow && skipPathLine(text, u.name, names)) return;
       if (/\b(testDir|testMatch)\b/.test(text)) return;
       for (const m of text.matchAll(/`([^`\n]+)`/g)) {
         const p = normalizePath(m[1]!);
-        if (p.startsWith("{run}/") || p.startsWith("{tests}/") || p.startsWith("{target}/")) out.push({ path: p, line: sec.startLine + 1 + i });
+        if (p.startsWith("{run}/") || p.startsWith("{tests}/") || p.startsWith("{target}/")) out.push({ path: p, line: sec.startLine + 1 + i, side });
       }
     });
   }
@@ -98,12 +109,27 @@ export function driftRule(m: Model): Violation[] {
   for (const u of m.units.values()) {
     const c = u.contract;
     if (c === null) continue;
-    const declared = [...c.reads, ...c.writes].map(pathOf);
+    const reads = c.reads.map(pathOf);
+    const writes = c.writes.map(pathOf);
     const seen = new Set<string>();
-    for (const { path, line } of prosePaths(u, allNames)) {
-      if (seen.has(path) || declared.some((d) => overlaps(d, path))) continue;
-      seen.add(path);
-      out.push(violation("DRIFT", u.name, path, "path-not-in-contract", u.file, line, `prose mentions ${path}; contract does not`));
+    for (const { path, line, side } of prosePaths(u, allNames)) {
+      const inReads = reads.some((d) => overlaps(d, path));
+      const inWrites = writes.some((d) => overlaps(d, path));
+      let reason: string;
+      let message: string;
+      if (!inReads && !inWrites) {
+        reason = "path-not-in-contract";
+        message = `prose mentions ${path}; contract does not`;
+      } else if (side === "writes" && !inWrites) {
+        reason = "undeclared-write";
+        message = `Outputs names ${path}; contract writes do not`;
+      } else if (side === "reads" && !inReads) {
+        reason = "undeclared-read";
+        message = `Inputs names ${path}; contract reads do not`;
+      } else continue;
+      if (seen.has(`${path}:${reason}`)) continue;
+      seen.add(`${path}:${reason}`);
+      out.push(violation("DRIFT", u.name, path, reason, u.file, line, message));
     }
     const events = new Set([...c.emits.map((e) => e.event), ...c.awaits]);
     for (const { event, line } of proseEvents(u, m.declaredEvents)) {

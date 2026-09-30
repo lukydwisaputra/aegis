@@ -121,3 +121,16 @@ it('SKILL: a read resolves only against agent writes or the skill’s own writes
   ]);
   t.cleanup();
 });
+
+it('DRIFT paths: Outputs must be in writes, Inputs in reads, Process in either', () => {
+  const body = (sec: string, line: string) => `# A\n## ${sec}\n${line}\n`;
+  const c = ag({ reads: ['{target}/**', '{run}/in.json'], writes: ['{run}/out.json'] });
+  const mk = (sec: string, line: string) => driftKeys({ 'qa-a': { body: body(sec, line), contract: c } });
+  expect(mk('Outputs', '- `../src/lib/patched.ts` — hot-fix the source')).toEqual(['DRIFT:qa-a:{target}/src/lib/patched.ts:undeclared-write']);
+  expect(mk('Outputs', '- `{run}/in.json`')).toEqual(['DRIFT:qa-a:{run}/in.json:undeclared-write']);
+  expect(mk('Outputs', '- `{run}/out.json`')).toEqual([]);
+  expect(mk('Inputs', '- `{run}/out.json`')).toEqual(['DRIFT:qa-a:{run}/out.json:undeclared-read']);
+  expect(mk('Inputs', '- `{run}/in.json`')).toEqual([]);
+  expect(mk('Process', '1. Read `{run}/in.json`, write `{run}/out.json`.')).toEqual([]);
+  expect(mk('Process', '1. Write `{run}/other.json`.')).toEqual(['DRIFT:qa-a:{run}/other.json:path-not-in-contract']);
+});

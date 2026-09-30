@@ -153,7 +153,7 @@ the offending path/event/name) and file:line evidence. Keys never include line n
 | `ENV` | Every `aegis.config.json#environments.*.allowedSpecialists` / `forbiddenSpecialists` name resolves via `envSpecialists` (or `*`) | new (AUD-036) |
 | `CONFIG` | Every `config` key exists in `aegis.config.json` / `thresholds.yaml`; every referenced config file exists | 22 |
 | `SKILL` | Execution skills dispatch only `qa-orchestrator`; every skill `reads` resolves (exists, is produced by an agent, or is in `sources`) | 53 (narrowed) |
-| `DRIFT` | Prose ↔ contract: every backticked `runs/…`, `tests/…`, `{run}/…` path in Inputs/Outputs/Process appears in `reads`/`writes`; every dotted event in "Events You Emit" / "Events emitted" appears in `emits`; every agent named on a dispatch line appears in `dispatches` | new |
+| `DRIFT` | Prose ↔ contract: every backticked `runs/…`, `tests/…`, `{run}/…` path in Inputs/Outputs/Process appears in the contract — an Outputs path in `writes` (`undeclared-write`), an Inputs path in `reads` (`undeclared-read`), a Process or skill path in either (`path-not-in-contract`, also used when the path is in neither list); every dotted event in "Events You Emit" / "Events emitted" appears in `emits`; every agent named on a dispatch line appears in `dispatches` | new |
 | `DOC-REF` | Every `qa-[a-z0-9-]+` token in HANDBOOK, CLAUDE.md, README and skills is an agent, a skill, an `@qa/` package, a `.yml` workflow, or in `nonAgentNames` | 27 (narrowed) |
 
 Probe-informed narrowing: `SKILL` ignores example IDs (`RUN-…`) and paths the skill itself writes;
