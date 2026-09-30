@@ -145,9 +145,10 @@ reads:
   - "{run}/discovery-report.json"
   - agent-memory/qa-ui-specialist/lessons.md
   - "{tests}/qa/factories/**"
+  - "{target}/playwright.config.ts"
 writes:
-  - "{tests}/qa/specs/{url-path}/ui.spec.ts"
-  - "{tests}/qa/specs/auth/login/**"
+  - "{tests}/qa/specs/{url-path}/**"
+  - "{tests}/qa/fixtures/files/**"
   - "{tests}/qa/pages/{url-path}/{page}.page.ts"
   - "{run}/cases/{TC-ID}-result.json"
   - "{run}/evidence/{TC-ID}/**"
