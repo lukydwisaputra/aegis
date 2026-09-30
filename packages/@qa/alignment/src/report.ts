@@ -34,7 +34,7 @@ export function checkAlignment(root: string): AlignmentReport {
   const unique = [...new Map(all.map((v) => [v.key, v])).values()].sort(byKey);
   const counts: Record<string, number> = {};
   for (const v of unique) counts[v.rule] = (counts[v.rule] ?? 0) + 1;
-  return { violations: unique, ratchet: ratchet(unique, loadBaseline(root), m.matrixIds), counts };
+  return { violations: unique, ratchet: ratchet(unique, loadBaseline(root), m.matrixIds, m.matrixStatus), counts };
 }
 
 export function formatReport(r: AlignmentReport): string {
@@ -44,6 +44,7 @@ export function formatReport(r: AlignmentReport): string {
   for (const v of r.ratchet.unexpected) lines.push(`  + add or fix  ${v.key}  (${v.file}:${v.line}) ${v.message}`);
   for (const s of r.ratchet.stale) lines.push(`  - delete      ${s.key}  (fixed; ids ${s.ids.join(",")})`);
   for (const u of r.ratchet.unknownIds) lines.push(`  ? unknown id  ${u.id} on ${u.key}`);
+  for (const c of r.ratchet.closedIds) lines.push(`  x closed-id   ${c.id} (${c.status}) on ${c.key}`);
   for (const d of r.ratchet.duplicates) lines.push(`  ! duplicate   ${d}`);
   return lines.join("\n");
 }

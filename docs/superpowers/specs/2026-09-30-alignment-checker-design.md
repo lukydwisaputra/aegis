@@ -178,7 +178,9 @@ entries:
 1. a current violation key is not in the baseline (**new regression**);
 2. a baseline key no longer occurs (**fixed — delete the entry**);
 3. an entry's `ids` reference an ID absent from the matrix (parsed from the matrix tables);
-4. the baseline has duplicate keys.
+4. the baseline has duplicate keys;
+5. an entry's `ids` include an ID whose matrix Status starts with `fixed` or `wontfix` (**closed-id**;
+   the Status column is read per table header; tables without one, e.g. carry-overs, count as open).
 
 The failure message lists exactly which keys to add or delete, so PR 1b and later slices update
 the baseline mechanically. The checker never writes the baseline itself; a helper

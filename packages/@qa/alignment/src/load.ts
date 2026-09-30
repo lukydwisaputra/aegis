@@ -112,6 +112,28 @@ function loadUnit(root: string, file: string, kind: "agent" | "skill", name: str
   return unit;
 }
 
+const MATRIX_ROW = /^\|\s*((?:AUD-\d{3}[a-z]?|CO-\d{2}|NEW-\d{2}))\s*\|/;
+
+/** Matrix table rows as [ID, Status]. The Status column is found from each table's `| ID | … |` header; a table without one (carry-overs) counts as open. */
+export function matrixRows(text: string): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  let statusCol = -1;
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("|")) {
+      statusCol = -1;
+      continue;
+    }
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells[0] === "ID") {
+      statusCol = cells.indexOf("Status");
+      continue;
+    }
+    const m = MATRIX_ROW.exec(line);
+    if (m) out.push([m[1]!, statusCol >= 0 ? (cells[statusCol] ?? "open") : "open"]);
+  }
+  return out;
+}
+
 function readJson(file: string): Record<string, unknown> {
   try {
     return JSON.parse(readFileSync(file, "utf-8")) as Record<string, unknown>;
@@ -189,10 +211,14 @@ export function loadModel(root: string): Model {
   }
 
   const matrixIds = new Set<string>();
+  const matrixStatus = new Map<string, string>();
   for (const f of walk(join(root, "docs", "superpowers", "specs"), (p) => p.endsWith("-audit-remediation-matrix.md"))) {
     const text = tryRead(f);
     if (typeof text !== "string") continue;
-    for (const m of text.matchAll(/^\|\s*((?:AUD-\d{3}[a-z]?|CO-\d{2}|NEW-\d{2}))\s*\|/gm)) matrixIds.add(m[1]!);
+    for (const [id, status] of matrixRows(text)) {
+      matrixIds.add(id);
+      matrixStatus.set(id, status);
+    }
   }
 
   const declaredEvents = new Set<string>(
@@ -223,6 +249,7 @@ export function loadModel(root: string): Model {
     aegisConfig: readJson(join(root, "aegis.config.json")),
     thresholds,
     matrixIds,
+    matrixStatus,
     declaredEvents,
     packageNames,
     docs,
