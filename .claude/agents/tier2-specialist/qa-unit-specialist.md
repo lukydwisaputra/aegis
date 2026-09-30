@@ -60,3 +60,30 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 - `test.passed` / `test.failed` — per TC
 - `coverage.updated` — after Jest run; includes new coverage delta
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor]
+reviewedBy: qa-unit-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - "{target}/**"
+  - agent-memory/qa-unit-specialist/lessons.md
+writes:
+  - "{run}/reports/unit-coverage-gaps.json"
+  - "{tests}/qa/unit/{path}/{name}.test.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/reports/metrics/coverage.json"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: coverage.updated, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```
