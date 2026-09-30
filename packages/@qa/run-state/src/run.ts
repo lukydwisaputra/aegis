@@ -1,19 +1,20 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
+import { RunIdSchema, RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
 import { appendChained, readCommittedLines } from "@qa/event-bus";
 import { nextId } from "@qa/ids";
 import { assertCallerAllowed, OWNER } from "./caller.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { acknowledgementOf, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
-import { busPath, runDir, runJsonPath, taskmasterDir, writeActiveRun } from "./paths.js";
+import { busPath, runDir, runJsonPath, runsDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { atomicWrite, formatIssues, iso, withFileLock } from "./util.js";
 
 export const INTEGRITY_REASON_PREFIX = "integrity violation";
 export const ESCALATION_REASON_PREFIX = "escalation";
 
 const MODULE_CODE = /^[A-Z]{2,8}$/;
+const RUN_DIR_TRIES = 50;
 
 export interface CreateRunInput {
   environment: string;
@@ -76,6 +77,27 @@ export async function withIntegrityLock<T>(root: string, runId: string, fn: () =
   return withFileLock(join(runDir(root, runId), "integrity.lock"), fn);
 }
 
+/**
+ * Mint a run id and claim its directory. The non-recursive mkdir is the atomic existence check:
+ * EEXIST (a counter reset, or a directory left behind) mints the next id instead.
+ */
+async function allocateRunDir(root: string, day: string): Promise<string> {
+  mkdirSync(runsDir(root), { recursive: true });
+  for (let tries = 0; tries < RUN_DIR_TRIES; tries++) {
+    const runId = await nextId("RUN", day);
+    if (!RunIdSchema.safeParse(runId).success) {
+      throw new RunStateError("invalid-input", `minted run id ${runId} is not RUN-YYYYMMDD-NNN (more than 999 runs on ${day}?)`);
+    }
+    try {
+      mkdirSync(runDir(root, runId));
+      return runId;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+    }
+  }
+  throw new RunStateError("invalid-input", `no free run directory after ${RUN_DIR_TRIES} ids on ${day}; check .aegis counters`);
+}
+
 export async function createRun(root: string, input: CreateRunInput, caller: string): Promise<RunState> {
   assertCallerAllowed(caller, "run.create");
   const settings = readSettings(root);
@@ -91,10 +113,7 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
   }
 
   const ts = iso(input.now);
-  const runId = await nextId("RUN", ts.slice(0, 10).replace(/-/g, ""));
-  if (existsSync(runDir(root, runId))) {
-    throw new RunStateError("invalid-input", `run directory for ${runId} already exists; check .aegis counters`);
-  }
+  const runId = await allocateRunDir(root, ts.slice(0, 10).replace(/-/g, ""));
   mkdirSync(taskmasterDir(root, runId), { recursive: true });
 
   const state: RunState = {

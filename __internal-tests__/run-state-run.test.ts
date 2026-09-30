@@ -46,6 +46,34 @@ describe('createRun', () => {
   });
 });
 
+describe('createRun robustness (R6)', () => {
+  const counters = () => path.join(t.root, '.aegis', '.counters.json');
+  const runDirs = () => (fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')).filter((n) => n.startsWith('RUN-')) : []);
+
+  it('skips run directories that already exist (counter reset)', async () => {
+    for (const n of ['001', '002']) fs.mkdirSync(path.join(t.root, 'runs', `RUN-20260929-${n}`), { recursive: true });
+    const run = await create();
+    expect(run.runId).toBe('RUN-20260929-003');
+    expect(readRun(t.root, run.runId).runId).toBe('RUN-20260929-003');
+    expect(fs.existsSync(runJsonPath(t.root, 'RUN-20260929-001'))).toBe(false);
+  });
+
+  it('refuses a minted id beyond 999 runs a day before creating anything', async () => {
+    fs.mkdirSync(path.dirname(counters()), { recursive: true });
+    fs.writeFileSync(counters(), JSON.stringify({ RUN: { '20260929': 999 } }));
+    await expect(create()).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(runDirs()).toEqual([]);
+    expect(readActiveRun(t.root)).toBeNull();
+  });
+
+  it('gives up after 50 taken directories', async () => {
+    for (let n = 1; n <= 50; n++) fs.mkdirSync(path.join(t.root, 'runs', `RUN-20260929-${String(n).padStart(3, '0')}`), { recursive: true });
+    await expect(create()).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(runDirs()).toHaveLength(50);
+    expect(readActiveRun(t.root)).toBeNull();
+  });
+});
+
 describe('stop / resume', () => {
   it('stop marks the run stopped with a stop request and an event', async () => {
     const { runId } = await create();
