@@ -90,6 +90,7 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: crosscutting
 dispatchedBy: [qa-orchestrator]

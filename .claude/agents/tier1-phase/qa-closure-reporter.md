@@ -128,6 +128,7 @@ Claims `task:closure-reporting` via taskmaster-client. Read-only on all prior ar
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: closure
 dispatchedBy: [qa-orchestrator]

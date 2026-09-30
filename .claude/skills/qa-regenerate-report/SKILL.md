@@ -43,6 +43,7 @@ Replays events from run 001 and rewrites only the closure and token-usage report
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: execution
 dispatchedBy: []

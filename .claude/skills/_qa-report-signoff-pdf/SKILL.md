@@ -85,6 +85,7 @@ Renders `runs/RUN-20260524-001/reports/signoff.pdf` as the formal attestation fo
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: internal
 dispatchedBy: [qa-executive-reporter]

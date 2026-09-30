@@ -44,6 +44,7 @@ Prepares revert instructions to v1.4.2, creates a Sev1 incident defect, and scaf
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: execution
 dispatchedBy: []

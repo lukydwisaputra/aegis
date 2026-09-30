@@ -45,6 +45,7 @@ Watches the prospect app's source, re-running unit and API tests within 1 second
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: execution
 dispatchedBy: []

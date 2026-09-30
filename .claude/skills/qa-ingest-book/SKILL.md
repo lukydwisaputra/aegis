@@ -42,6 +42,7 @@ Ingests the ISTQB Foundation syllabus PDF, splitting by chapter headings into th
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: query
 dispatchedBy: []

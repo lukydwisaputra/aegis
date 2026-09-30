@@ -152,6 +152,7 @@ Run `RUN-20260524-001`: dispatched qa-requirements-analyst first (mission: find 
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: crosscutting
 dispatchedBy: [qa-start, qa-resume]

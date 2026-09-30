@@ -47,6 +47,7 @@ Starts the dashboard server on port 3030 without opening a browser tab.
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: query
 dispatchedBy: []

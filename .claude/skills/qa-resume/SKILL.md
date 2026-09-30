@@ -42,6 +42,7 @@ Detects that run 002 stalled mid-execution phase and resumes from the first unfi
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: execution
 dispatchedBy: []

@@ -66,6 +66,7 @@ Re-exports every run currently under `onecare-schedule/aegis/runs/`, overwriting
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: query
 dispatchedBy: []

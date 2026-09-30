@@ -44,6 +44,7 @@ Runs P0/P1 regression TCs for BILLING and compares results against run 003.
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: execution
 dispatchedBy: []

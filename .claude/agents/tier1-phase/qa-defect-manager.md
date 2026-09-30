@@ -136,6 +136,7 @@ If a security scan later also surfaces the same root cause, it would be `DEF-AUT
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: triage
 dispatchedBy: [qa-orchestrator]

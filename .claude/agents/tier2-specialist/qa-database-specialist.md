@@ -75,6 +75,7 @@ You are a read-write agent against the test database. You never touch the produc
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: execution
 dispatchedBy: [qa-test-executor, qa-run-specialist]

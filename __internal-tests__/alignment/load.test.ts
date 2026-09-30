@@ -19,6 +19,16 @@ describe('extractContract', () => {
   });
 });
 
+it('a leading legend comment inside the fence is ignored by the contract parse', () => {
+  const legend = '# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.';
+  const body = `# qa-a\n\n## Contract (machine-checked)\n\n\`\`\`yaml\n${legend}\ncontract: 1\nphase: design\ndispatch: {none: test only}\nreviewedBy: {none: test only}\n\`\`\`\n`;
+  const t = makeRepo({ agents: { 'qa-a': { body, contract: null } } });
+  const m = loadModel(t.root);
+  expect(m.loadErrors).toEqual([]);
+  expect(m.units.get('qa-a')?.contract).toMatchObject({ phase: 'design' });
+  t.cleanup();
+});
+
 describe('parseSections / frontmatterLite', () => {
   it('splits on ## headings with 1-based start lines', () => {
     const s = parseSections('# T\n## Inputs\n- a\n## Process\n1. b\n');

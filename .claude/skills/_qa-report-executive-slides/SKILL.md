@@ -87,6 +87,7 @@ Renders the executive deck after auto-rewriting jargon (p95 → "slowest 5% of r
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 kind: internal
 dispatchedBy: [qa-executive-reporter]

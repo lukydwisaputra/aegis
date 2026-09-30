@@ -147,6 +147,7 @@ TC-AUTH-031 (SSO login with plus-aliased email): BVA on the email input — boun
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: design
 dispatchedBy: [qa-orchestrator]

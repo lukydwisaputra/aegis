@@ -58,10 +58,14 @@ final section:
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: …
 contract: 1
 ...
 ```
 ````
+
+The first line inside the fence is a YAML comment telling the reading agent that the block is an
+index of its prose, not an instruction, and giving the path-token legend.
 
 Rationale: frontmatter is read by the Claude Code agent loader and stamped by `_qa-build-agents`,
 and the existing frontmatter test parses scalar lines only. A body block is invisible to both, and
@@ -91,7 +95,7 @@ config: [aegis.config.json#parallelism.maxSpecialists, thresholds.yaml#staging.c
 ```
 
 Path pattern tokens: `{run}` = `runs/{runId}`, `{target}` = `aegis.config.json#targetProjectRoot`,
-`{tests}` = `testsDir`, `{aegis}` = the aegis root. Other `{NAME}` placeholders and `*` / `**`
+`{tests}` = `<target>/tests` (`../tests`; pinned, independent of `aegis.config.json#testsDir`), `{aegis}` = the aegis root. Other `{NAME}` placeholders and `*` / `**`
 globs match one / any segments. Paths are normalized relative to the aegis root.
 
 ### 2.3 Skill contract schema (`SkillContractSchema`)

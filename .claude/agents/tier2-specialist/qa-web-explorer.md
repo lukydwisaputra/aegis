@@ -134,6 +134,7 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 ## Contract (machine-checked)
 
 ```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: discovery
 dispatchedBy: [qa-orchestrator]
