@@ -13,6 +13,8 @@ import {
 import { PackageManagerSchema } from "./target-profile.js";
 import { SeveritySchema } from "./severity.js";
 import { Sha256HexSchema } from "./chain.js";
+import { GateIdSchema, PhaseIdSchema } from "./phases.js";
+import { GateDecisionValueSchema, GateMetricSchema } from "./gate-decision.js";
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
@@ -92,13 +94,13 @@ export const DefectReopenedEventSchema = EventBase.extend({
 
 export const GateRequestedEventSchema = EventBase.extend({
   type: z.literal("gate.requested"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
 });
 
 export const GateApprovedEventSchema = EventBase.extend({
   type: z.literal("gate.approved"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
   approvedBy: z.string(),
 });
@@ -895,7 +897,7 @@ export const SecurityFindingCriticalEventSchema = EventBase.extend({
 
 export const GateClosedEventSchema = EventBase.extend({
   type: z.literal("gate.closed"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
   decision: z.string(),
 });
@@ -909,7 +911,7 @@ export const GateEvaluationStartedEventSchema = EventBase.extend({
 
 export const GateOpenedEventSchema = EventBase.extend({
   type: z.literal("gate.opened"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
 });
 
@@ -1530,6 +1532,44 @@ export const IntegrityAcknowledgedEventSchema = EventBase.extend({
   reason: z.string().min(1),
 });
 
+// ─── Phases, gates and escalation (P0a-1) ─────────────────────────────────────
+// Recorded only by the aegis CLI. Every field is declared here: appendChained rejects undeclared ones.
+
+export const RunPhaseNotApplicableEventSchema = EventBase.extend({
+  type: z.literal("run.phase.not-applicable"),
+  runId: RunIdSchema,
+  phase: PhaseIdSchema,
+  reason: z.string().min(1),
+});
+
+export const GateDecidedEventSchema = EventBase.extend({
+  type: z.literal("gate.decided"),
+  runId: RunIdSchema,
+  gate: GateIdSchema,
+  decision: GateDecisionValueSchema,
+  sequence: z.number().int().positive(),
+  note: z.string().min(1),
+  reopenPhase: PhaseIdSchema.optional(),
+});
+
+export const GateAutoDecidedEventSchema = EventBase.extend({
+  type: z.literal("gate.auto-decided"),
+  runId: RunIdSchema,
+  gate: GateIdSchema,
+  decision: GateDecisionValueSchema,
+  sequence: z.number().int().positive(),
+  metrics: z.array(GateMetricSchema),
+});
+
+export const EscalationDecidedEventSchema = EventBase.extend({
+  type: z.literal("escalation.decided"),
+  runId: RunIdSchema,
+  taskId: z.string().min(1),
+  agent: z.string().min(1),
+  decision: z.enum(["retry", "accept-with-risk", "abort"]),
+  reason: z.string().min(1),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 export const AegisEventSchema = z.discriminatedUnion("type", [
@@ -1745,6 +1785,10 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   ScanWarningEventSchema,
   IntegrityViolationEventSchema,
   IntegrityAcknowledgedEventSchema,
+  RunPhaseNotApplicableEventSchema,
+  GateDecidedEventSchema,
+  GateAutoDecidedEventSchema,
+  EscalationDecidedEventSchema,
 ]);
 
 export type AegisEvent = z.infer<typeof AegisEventSchema>;

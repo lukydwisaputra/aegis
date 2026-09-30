@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe('@qa/event-bus', () => {
   it('append() writes a valid JSONL event to disk', async () => {
-    await append({ type: 'gate.requested', ts: TS, gate: 'plan-approval', runId: RUN_A }, busPath);
+    await append({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_A }, busPath);
     const raw = fs.readFileSync(busPath, 'utf8').trim();
     const parsed = JSON.parse(raw);
     expect(parsed.type).toBe('gate.requested');
@@ -30,8 +30,8 @@ describe('@qa/event-bus', () => {
   });
 
   it('readAll() returns previously appended events in order', async () => {
-    await append({ type: 'gate.requested', ts: TS, gate: 'plan-approval', runId: RUN_B }, busPath);
-    await append({ type: 'gate.approved', ts: TS, gate: 'plan-approval', runId: RUN_B, approvedBy: 'ci-bot' }, busPath);
+    await append({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_B }, busPath);
+    await append({ type: 'gate.approved', ts: TS, gate: 'G1', runId: RUN_B, approvedBy: 'ci-bot' }, busPath);
     const events = readAll(busPath);
     expect(events).toHaveLength(2);
     expect(events[0]!.type).toBe('gate.requested');
@@ -41,7 +41,7 @@ describe('@qa/event-bus', () => {
   it('sequential appends (10 writers) produce 10 valid JSONL lines', async () => {
     for (let i = 0; i < 10; i++) {
       await append(
-        { type: 'gate.requested', ts: TS, gate: 'plan-approval', runId: `RUN-20260525-${String(i + 1).padStart(3, '0')}` },
+        { type: 'gate.requested', ts: TS, gate: 'G1', runId: `RUN-20260525-${String(i + 1).padStart(3, '0')}` },
         busPath
       );
     }
@@ -55,13 +55,13 @@ describe('@qa/event-bus', () => {
 
   it('throws on invalid event schema (missing type)', async () => {
     await expect(
-      append({ ts: TS, gate: 'plan-approval', runId: RUN_A } as any, busPath)
+      append({ ts: TS, gate: 'G1', runId: RUN_A } as any, busPath)
     ).rejects.toThrow();
   });
 
   it('throws on invalid event schema (missing runId)', async () => {
     await expect(
-      append({ type: 'gate.requested', ts: TS, gate: 'plan-approval' } as any, busPath)
+      append({ type: 'gate.requested', ts: TS, gate: 'G1' } as any, busPath)
     ).rejects.toThrow();
   });
 });
