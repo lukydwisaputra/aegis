@@ -12,11 +12,13 @@ import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 import lockfile from "proper-lockfile";
 import { AegisEventSchema, type AegisEvent } from "@qa/contracts";
-import { EventBusRefusal } from "./chain.js";
+import { EventBusRefusal, undeclaredFields } from "./chain.js";
 
 // ─── Stale lock threshold ─────────────────────────────────────────────────────
 
 const STALE_LOCK_MS = 5_000;
+
+const LEGACY_ALLOWED: ReadonlySet<string> = new Set(["runId"]);
 
 // ─── append ───────────────────────────────────────────────────────────────────
 
@@ -38,6 +40,13 @@ export async function append(event: AegisEvent, busPath: string): Promise<void> 
     _forceAppend(JSON.stringify(errEvent), busPath);
     throw new EventBusRefusal(`EventBus schema validation failed: ${parsed.error.message}`);
   }
+  const raw = event as unknown as Record<string, unknown>;
+  const kept = parsed.data as Record<string, unknown>;
+  const undeclared = undeclaredFields(raw, kept, LEGACY_ALLOWED);
+  if (undeclared.length > 0) {
+    throw new EventBusRefusal(`EventBus: undeclared field(s) for "${event.type}": ${undeclared.join(", ")}`);
+  }
+  const line = typeof raw["runId"] === "string" ? { ...kept, runId: raw["runId"] } : kept;
 
   const dir = dirname(busPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -48,7 +57,7 @@ export async function append(event: AegisEvent, busPath: string): Promise<void> 
     retries: { retries: 8, minTimeout: 50, maxTimeout: 500 },
   });
   try {
-    appendFileSync(busPath, JSON.stringify(parsed.data) + "\n", "utf-8");
+    appendFileSync(busPath, JSON.stringify(line) + "\n", "utf-8");
   } finally {
     await release();
   }

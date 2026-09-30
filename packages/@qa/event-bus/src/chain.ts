@@ -6,6 +6,11 @@ import { AegisEventSchema, EventEnvelopeSchema, GENESIS_HASH } from "@qa/contrac
 
 const ENVELOPE_KEYS = new Set(["seq", "prevHash", "emittedBy", "runId"]);
 
+/** Top-level fields of `event` the schema did not keep, except `allowed` (envelope keys). */
+export function undeclaredFields(event: Record<string, unknown>, kept: Record<string, unknown>, allowed: ReadonlySet<string>): string[] {
+  return Object.keys(event).filter((k) => !(k in kept) && !allowed.has(k));
+}
+
 /**
  * The bus refused an event on validation (schema, undeclared fields, caller-set envelope fields,
  * runId conflict, invalid context). Nothing was written. I/O and torn-tail failures stay plain Errors.
@@ -86,7 +91,7 @@ export async function appendChained(
     throw new EventBusRefusal(`EventBus schema validation failed: ${parsed.error.message}`);
   }
   const kept = parsed.data as Record<string, unknown>;
-  const stripped = Object.keys(event).filter((k) => !(k in kept) && !ENVELOPE_KEYS.has(k));
+  const stripped = undeclaredFields(event, kept, ENVELOPE_KEYS);
   if (stripped.length > 0) {
     throw new EventBusRefusal(`EventBus: undeclared field(s) for "${String(kept["type"])}": ${stripped.join(", ")}`);
   }

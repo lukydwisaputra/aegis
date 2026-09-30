@@ -105,7 +105,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 
 ## Events You Emit
 
-- `target.profiled` — always, includes `scannedAt`, `platform`, `appCount`
+- `target.profiled` — always, includes `appCount`, `framework`, `packageManager` and `platform` (the event `ts` is the scan time)
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
 - `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }`; the orchestrator collects this as one half of the Discovery two-event barrier (the other half is `qa-web-explorer`'s `{ step: "explore" }`)
 - `preflight.failed` — emitted (in addition to `target.profiled`) when `targetIsSingleProject` resolves to `false`; the orchestrator halts before dispatching any phase

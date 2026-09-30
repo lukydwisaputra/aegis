@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { append, readAll } from '@qa/event-bus';
+import { AegisEventSchema } from '@qa/contracts';
 
 let tmpDir: string;
 let busPath: string;
@@ -62,5 +63,28 @@ describe('@qa/event-bus', () => {
     await expect(
       append({ type: 'gate.requested', ts: TS, gate: 'plan-approval' } as any, busPath)
     ).rejects.toThrow();
+  });
+});
+
+describe('event field declarations (AUD-039)', () => {
+  const lines = () => (fs.existsSync(busPath) ? fs.readFileSync(busPath, 'utf-8').split('\n').filter(Boolean) : []);
+  const artifact = { type: 'artifact.created', ts: TS, kind: 'plan', path: 'runs/x/plan.json', schemaVersion: '1.0' } as const;
+  const valid = (ev: object) => AegisEventSchema.safeParse(ev).success;
+  it('append() refuses undeclared fields instead of stripping them, but keeps runId', async () => {
+    await expect(append({ ...artifact, brief: 'x' } as any, busPath)).rejects.toThrow(/undeclared field\(s\).*brief/);
+    expect(lines()).toHaveLength(0);
+    await append({ ...artifact, runId: RUN_A } as any, busPath);
+    expect(JSON.parse(lines()[0]!)).toMatchObject({ type: 'artifact.created', runId: RUN_A });
+  });
+  it('specialist.dispatched declares a strict brief', () => {
+    const ev = { type: 'specialist.dispatched', ts: TS, specialistName: 'qa-ui-specialist', tcIds: ['TC-AUTH-031'], environment: 'staging',
+      brief: { missionGoal: 'Find SSO breakages', lessonsRef: 'agent-memory/qa-ui-specialist/lessons.md' } };
+    const r = AegisEventSchema.safeParse(ev);
+    expect(r.success && (r.data as any).brief.missionGoal).toBe('Find SSO breakages');
+    expect(valid({ ...ev, brief: { ...ev.brief, extra: 1 } })).toBe(false);
+  });
+  it('target.profiled accepts bun and platform; discovery steps stay scan|explore', () => {
+    expect(valid({ type: 'target.profiled', ts: TS, appCount: 1, framework: 'vite-react', packageManager: 'bun', platform: 'generic' })).toBe(true);
+    expect(valid({ type: 'discovery.step-complete', ts: TS, step: 'explore-live', artifact: 'x' })).toBe(false);
   });
 });
