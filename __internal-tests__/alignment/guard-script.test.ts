@@ -73,6 +73,24 @@ describe('baseline guard script (spawned in a temp git repo)', () => {
     r.cleanup();
   });
 
+  it('a whitespace-only prose edit does not justify a contract-only removal', () => {
+    const r = scenario();
+    r.write(AGENT, agent('1. Write `{run}/x.json`.  ', ['{run}/x.json']));
+    r.write(BASELINE, baseline([K_KEEP]));
+    r.commit('contract edit plus trailing space');
+    expect(r.run().status).toBe(1);
+    r.cleanup();
+  });
+
+  it('an added blank line does not justify a contract-only removal', () => {
+    const r = scenario();
+    r.write(AGENT, agent('1. Write `{run}/x.json`.\n', ['{run}/x.json']));
+    r.write(BASELINE, baseline([K_KEEP]));
+    r.commit('contract edit plus blank line');
+    expect(r.run().status).toBe(1);
+    r.cleanup();
+  });
+
   it('the same removal passes with the contract-only-fix label', () => {
     const r = scenario();
     r.write(AGENT, agent('1. Write `{run}/x.json`.', ['{run}/x.json']));

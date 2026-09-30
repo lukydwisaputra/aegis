@@ -80,7 +80,7 @@ function subjectIndex(): SubjectIndex {
 
 function evaluate(): { added: string[]; shrunk: ShrinkFinding[] } {
   try {
-    const patch = git(["diff", "--unified=0", "--no-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", mb, "HEAD"]);
+    const patch = git(["diff", "--unified=0", "-w", "--no-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", mb, "HEAD"]);
     const changes = fileChanges(parseUnifiedDiff(patch), (f, side) => show(side === "base" ? mb : "HEAD", f));
     return {
       added: [
