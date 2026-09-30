@@ -11,6 +11,8 @@ const EmitSchema = z
   .object({ event: z.string().min(1), via: z.union([z.literal("append"), z.string().regex(/^cli:[a-z-]+\.[a-z-]+$/)]) })
   .strict();
 
+export const ESCAPE_FIELDS = ["reviewedBy.none", "dispatch.none", "optional", "terminal"] as const;
+
 const base = {
   contract: z.literal(1),
   dispatchedBy: z.array(Name).default([]),
@@ -54,6 +56,13 @@ export const PipelineSchema = z
       })
       .strict(),
     nonAgentNames: z.array(z.string()).default([]),
+    escapes: z
+      .array(
+        z
+          .object({ unit: Name, field: z.enum(ESCAPE_FIELDS), value: z.string().min(1).optional(), reason: z.string().min(10) })
+          .strict(),
+      )
+      .default([]),
   })
   .strict();
 

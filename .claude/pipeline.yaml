@@ -78,3 +78,62 @@ nonAgentNames:
   - qa-e2e # Playwright project name (qa-environment-engineer.md:61, HANDBOOK/17:76)
   - qa-automated # GitHub label (qa-github-planner.md:40)
   - qa-build-toc # pnpm script in package.json (CLAUDE.md:36 `pnpm qa-build-toc`), not the _qa-build-toc skill
+# Every escape hatch a contract uses, with its reason (ESCAPE rule). A new entry needs the baseline-growth label.
+escapes:
+  - {unit: _qa-report-executive-slides, field: terminal, value: "{run}/reports/executive-deck.pdf", reason: "SKILL.md:12 renders the final stakeholder deck"}
+  - {unit: _qa-report-signoff-pdf, field: terminal, value: "{run}/reports/signoff.pdf", reason: "SKILL.md:12 renders the final sign-off attestation"}
+  - {unit: _qa-report-technical-pdf, field: optional, value: "{run}/reports/compliance/*.json", reason: "SKILL.md:46 missing optional inputs coalesce to empty defaults (compliance phase skipped)"}
+  - {unit: _qa-report-technical-pdf, field: optional, value: "{run}/evidence/screenshots/**", reason: "SKILL.md:37 evidence/screenshots/ (optional)"}
+  - {unit: _qa-report-technical-pdf, field: terminal, value: "{run}/reports/technical-report.pdf", reason: "SKILL.md:12 renders the final technical report"}
+  - {unit: qa-accessibility-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-api-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-cicd-evaluator, field: reviewedBy.none, reason: "SPV not required — evaluator is read-only; curator monitors for recurring patterns"}
+  - {unit: qa-cicd-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-closure-reporter, field: optional, value: "{run}/reports/compliance/*.json", reason: "qa-closure-reporter.md:34 per-regulation findings (if compliance phase ran)"}
+  - {unit: qa-closure-reporter, field: terminal, value: "{run}/reports/closure/closure.md", reason: "qa-closure-reporter.md:40 ISTQB closure narrative for human readers"}
+  - {unit: qa-closure-reporter-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-cmmi, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-gdpr, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-iso25010, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-iso5055, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-istqb, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-pdpa, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-context-scanner, field: reviewedBy.none, reason: "(no SPV — cross-cutting profiler)"}
+  - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:94 compares with the previous run's target-profile.json only if one is referenced"}
+  - {unit: qa-curator, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}
+  - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}
+  - {unit: qa-database-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-defect-manager-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-email-specialist, field: optional, value: "secrets/.env.{env}", reason: "qa-email-specialist.md:25 Gmail OAuth credentials if adapter is gmail"}
+  - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-environment-engineer-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-event-bus, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.pdf", reason: "qa-executive-reporter.md:40 Deliverable 1, final human-facing PDF"}
+  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/signoff.pdf", reason: "qa-executive-reporter.md:41 Deliverable 2, final human-facing PDF"}
+  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/executive-deck.pdf", reason: "qa-executive-reporter.md:42 Deliverable 3, final human-facing PDF"}
+  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/executive-slides.pdf", reason: "qa-executive-reporter.md:89 Deliverable 3 slide deck, final human-facing PDF"}
+  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.md", reason: "qa-executive-reporter.md:142 .md fallback when the skill fails, for human readers"}
+  - {unit: qa-executive-reporter-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-exploratory-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-export, field: optional, value: "config/integrations.yaml", reason: "SKILL.md:25 tracker credentials from environment variables or config/integrations.yaml"}
+  - {unit: qa-feature-flag-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-github-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-help, field: optional, value: "config/commands.yaml", reason: "SKILL.md:20 a static embedded list is used if the file is absent"}
+  - {unit: qa-knowledge-librarian, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-metrics-collector, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-metrics-collector, field: optional, value: "{run}/reports/work/qa-unit-specialist.json", reason: "qa-metrics-collector.md:41 code coverage from the unit-specialist work report (if available)"}
+  - {unit: qa-orchestrator-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-performance-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-realtime-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-requirements-analyst, field: optional, value: "{run}/intake/prd.md", reason: "qa-requirements-analyst.md:26 product requirements document if provided"}
+  - {unit: qa-requirements-analyst-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-responsive-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-security-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-executor-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-planner-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-ui-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-ui-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-unit-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-web-explorer-spv, field: reviewedBy.none, reason: "not stated in prose"}

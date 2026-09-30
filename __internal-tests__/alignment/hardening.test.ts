@@ -158,8 +158,8 @@ describe('8h item 5: baseline errors and report', () => {
     expect(text).toMatch(/- delete\s+CONFIG:a:old:missing/);
     expect(text).toMatch(/! duplicate\s+CONFIG:a:old:missing/);
   });
-  it('formatReport prints the filter; RULE_IDS has 14 ids; keys sort by plain comparison', () => {
-    expect(RULE_IDS).toHaveLength(14);
+  it('formatReport prints the filter; RULE_IDS has 15 ids; keys sort by plain comparison', () => {
+    expect(RULE_IDS).toHaveLength(15);
     const t = makeRepo({ agents: { 'qa-a': { contract: null } } });
     const rep = checkAlignment(t.root);
     expect(formatReport({ ...rep, filter: 'CONTRACT' })).toMatch(/^violations: \d+ \(filtered: CONTRACT\)/);

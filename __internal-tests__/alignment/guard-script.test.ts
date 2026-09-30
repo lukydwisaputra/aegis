@@ -134,6 +134,21 @@ describe('baseline guard script (spawned in a temp git repo)', () => {
     }
     r.cleanup();
   });
+
+  it('an entry added to pipeline.yaml#escapes counts as growth', () => {
+    const r = tmpRepo();
+    r.write(BASELINE, baseline([]));
+    r.write('.claude/pipeline.yaml', 'pipeline: 1\nescapes: []\n');
+    r.commit('base');
+    r.git('checkout', '-q', '-b', 'feature');
+    r.write('.claude/pipeline.yaml', 'pipeline: 1\nescapes:\n  - {unit: qa-a, field: optional, value: "runs/{runId}/a.json", reason: "read when a previous run exists"}\n');
+    r.commit('list a hatch');
+    const denied = r.run();
+    expect(denied.status).toBe(1);
+    expect(denied.out).toContain('+ escapes:qa-a:optional:{run}/a.json');
+    expect(r.run({ ALLOW_BASELINE_GROWTH: 'true' }).status).toBe(0);
+    r.cleanup();
+  });
 });
 
 it('CI runs the guard only on pull_request events and passes both label flags (Review Focus 5)', () => {

@@ -4,7 +4,7 @@ export const SPECIAL_PHASES: ReadonlySet<string> = new Set(["crosscutting", "spv
 
 export const RULE_IDS = [
   "CONTRACT", "DISPATCH", "SPV", "PRODUCER", "CONSUMER", "EVENT", "CLI",
-  "WRITE-POLICY", "ROUTE", "ENV", "CONFIG", "SKILL", "DRIFT", "DOC-REF",
+  "WRITE-POLICY", "ROUTE", "ENV", "CONFIG", "SKILL", "DRIFT", "DOC-REF", "ESCAPE",
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];

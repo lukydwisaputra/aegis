@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { baselineGrowth } from "../packages/@qa/alignment/src/growth.js";
+import { existsSync, readFileSync } from "node:fs";
+import { baselineGrowth, escapesGrowth } from "../packages/@qa/alignment/src/growth.js";
 import { baselineShrink, fileChanges, parseUnifiedDiff, unitNameOf, type ShrinkFinding, type SubjectIndex } from "../packages/@qa/alignment/src/shrink.js";
 
 // Baseline guard (slice 1a' + 1a-H): added keys need the baseline-growth label; removed keys need a
@@ -8,6 +8,7 @@ import { baselineShrink, fileChanges, parseUnifiedDiff, unitNameOf, type ShrinkF
 // Runs before `pnpm build`: import only dependency-free modules of @qa/alignment.
 
 const BASELINE = "__internal-tests__/alignment/baseline.yaml";
+const PIPELINE = ".claude/pipeline.yaml";
 
 function git(args: string[]): string {
   return execFileSync("git", ["-c", "core.quotePath=false", ...args], {
@@ -82,7 +83,10 @@ function evaluate(): { added: string[]; shrunk: ShrinkFinding[] } {
     const patch = git(["diff", "--unified=0", "--no-renames", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", mb, "HEAD"]);
     const changes = fileChanges(parseUnifiedDiff(patch), (f, side) => show(side === "base" ? mb : "HEAD", f));
     return {
-      added: baselineGrowth(baseYaml, headYaml),
+      added: [
+        ...baselineGrowth(baseYaml, headYaml),
+        ...escapesGrowth(show(mb, PIPELINE), existsSync(PIPELINE) ? readFileSync(PIPELINE, "utf-8") : "").map((id) => `escapes:${id}`),
+      ],
       shrunk: baselineShrink(baseYaml, headYaml, changes, subjectIndex()),
     };
   } catch (e) {

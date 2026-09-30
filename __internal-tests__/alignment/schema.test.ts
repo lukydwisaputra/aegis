@@ -53,4 +53,11 @@ describe('PipelineSchema / BaselineSchema', () => {
     expect(BaselineSchema.safeParse({ baseline: 1, entries: [{ key: 'A:b:c', ids: ['BUG-1'] }] }).success).toBe(false);
     expect(BaselineSchema.safeParse({ baseline: 1, entries: [{ key: 'A:b:c', ids: [] }] }).success).toBe(false);
   });
+  it('escapes need a known field and a reason of at least 10 characters', () => {
+    const base = { pipeline: 1, phases: [{ id: 'design', agents: [] }], routing: { byType: {}, byTechnique: {}, designerEmits: { testType: [], testTechnique: [] } }, sources: {} };
+    expect(PipelineSchema.parse(base).escapes).toEqual([]);
+    expect(PipelineSchema.safeParse({ ...base, escapes: [{ unit: 'qa-a', field: 'optional', value: '{run}/a.json', reason: 'read when present' }] }).success).toBe(true);
+    expect(PipelineSchema.safeParse({ ...base, escapes: [{ unit: 'qa-a', field: 'optional', reason: 'short' }] }).success).toBe(false);
+    expect(PipelineSchema.safeParse({ ...base, escapes: [{ unit: 'qa-a', field: 'phase', reason: 'not a hatch field' }] }).success).toBe(false);
+  });
 });
