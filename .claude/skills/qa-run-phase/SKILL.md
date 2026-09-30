@@ -47,7 +47,7 @@ contract: 1
 kind: execution
 dispatchedBy: []
 reads:
-  - "{run}/test-cases.json"
+  - "test-cases.json"
 writes:
   - "{run}/{phase}/**"
   - "{run}/run.json"

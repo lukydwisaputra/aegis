@@ -49,6 +49,7 @@ reads:
   - "artifacts/test-cases/**"
 writes:
   - "{run}/evidence/{TC-ID}/**"
+  - "manual-{date}/**"
   - "{run}/execution/results.json"
 emits:
   - {event: manual.test.recorded, via: append}

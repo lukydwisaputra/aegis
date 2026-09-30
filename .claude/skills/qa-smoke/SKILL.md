@@ -46,7 +46,7 @@ Runs a ~12-minute smoke cycle for the AUTH module including a security scan.
 ```yaml
 contract: 1
 kind: execution
-dispatchedBy: []
+dispatchedBy: [qa-deps-update]
 reads: []
 writes: []
 emits:
