@@ -11,7 +11,7 @@ export function eventCommand(): Command {
 
   ev.command("append")
     .description("Validate and append one event (ts and runId are filled in)")
-    .requiredOption("--type <type>", "event type, e.g. run.phase.started")
+    .requiredOption("--type <type>", "event type, e.g. discovery.step-complete (run.*, task.*, gate.*, review.*, integrity.* and artifact.created are CLI-recorded)")
     .option("--json <payload>", "event fields as a JSON object", "{}")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(

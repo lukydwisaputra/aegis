@@ -4,8 +4,8 @@ import * as path from 'path';
 import {
   assertAppendableByAgent,
   assertCallerAllowed,
-  RESERVED_EVENT_TYPES,
   findAegisRoot,
+  isCliRecordedEventType,
   isSpecialist,
   readActiveRun,
   readSettings,
@@ -14,6 +14,7 @@ import {
   runJsonPath,
   writeActiveRun,
 } from '@qa/run-state';
+import { appendChained } from '@qa/event-bus';
 import { makeAegisRoot, thrownCode, type TmpAegis } from './helpers/aegis-root';
 
 let t: TmpAegis;
@@ -127,21 +128,33 @@ describe('config', () => {
   });
 });
 
-describe('reserved event types (F5)', () => {
+describe('reserved event types (F5, R2)', () => {
   it.each([
     'run.created', 'run.blocked', 'run.resumed', 'run.stop.requested', 'run.completed',
-    'task.claimed', 'task.released', 'task.escalated',
+    'run.phase.started', 'run.phase.completed', 'run.aborted',
+    'task.claimed', 'task.released', 'task.escalated', 'task.failed',
+    'gate.approved', 'gate.opened',
     'review.passed', 'review.passed-with-notes', 'review.requested-changes',
     'integrity.violation', 'integrity.acknowledged', 'artifact.created',
   ])('refuses a direct append of %s', (type) => {
-    expect(RESERVED_EVENT_TYPES.has(type)).toBe(true);
+    expect(isCliRecordedEventType(type)).toBe(true);
     expect(() => assertAppendableByAgent(type)).toThrow(
       expect.objectContaining({ code: 'invalid-input', message: `event type ${type} is recorded by the CLI, not appended directly` }),
     );
   });
 
-  it('allows event types agents own', () => {
-    expect(() => assertAppendableByAgent('run.phase.started')).not.toThrow();
-    expect(() => assertAppendableByAgent('sandbox.explored')).not.toThrow();
+  it.each(['discovery.step-complete', 'test.passed', 'sandbox.explored', 'artifact.captured', 'runner.x', 'tasks.x'])(
+    'allows agent-owned type %s',
+    (type) => {
+      expect(isCliRecordedEventType(type)).toBe(false);
+      expect(() => assertAppendableByAgent(type)).not.toThrow();
+    },
+  );
+
+  it('a normal agent event is accepted by the chained bus', async () => {
+    const bus = path.join(t.root, 'events.jsonl');
+    const event = { type: 'discovery.step-complete', ts: '2026-09-29T00:00:00.000Z', step: 'scan', artifact: 'discovery/scan.json' };
+    assertAppendableByAgent(event.type);
+    await expect(appendChained(event, bus, { emittedBy: 'qa-web-explorer', runId: 'RUN-20260929-001' })).resolves.toMatchObject({ seq: 1, type: 'discovery.step-complete' });
   });
 });

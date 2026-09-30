@@ -51,26 +51,16 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   }
 }
 
-// Events whose facts the CLI records itself; an agent appending one directly would forge run state.
-export const RESERVED_EVENT_TYPES: ReadonlySet<string> = new Set([
-  "run.created",
-  "run.blocked",
-  "run.resumed",
-  "run.stop.requested",
-  "run.completed",
-  "task.claimed",
-  "task.released",
-  "task.escalated",
-  "review.passed",
-  "review.passed-with-notes",
-  "review.requested-changes",
-  "integrity.violation",
-  "integrity.acknowledged",
-  "artifact.created",
-]);
+// Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
+export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity."];
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created"]);
+
+export function isCliRecordedEventType(type: string): boolean {
+  return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));
+}
 
 export function assertAppendableByAgent(type: string): void {
-  if (RESERVED_EVENT_TYPES.has(type)) {
+  if (isCliRecordedEventType(type)) {
     throw new RunStateError("invalid-input", `event type ${type} is recorded by the CLI, not appended directly`);
   }
 }

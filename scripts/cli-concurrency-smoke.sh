@@ -46,7 +46,7 @@ done
 # 5 parallel event appends
 pids=()
 for i in 1 2 3 4 5; do
-  ( set +e; AEGIS_AGENT=qa-orchestrator node "$AEGIS" event append --type run.phase.started --json '{"phase":"scan"}' >"$TMP/ev$i.out" 2>"$TMP/ev$i.err"; echo $? >"$TMP/ev$i.rc" ) &
+  ( set +e; AEGIS_AGENT=qa-web-explorer node "$AEGIS" event append --type discovery.step-complete --json '{"step":"scan","artifact":"discovery/scan.json"}' >"$TMP/ev$i.out" 2>"$TMP/ev$i.err"; echo $? >"$TMP/ev$i.rc" ) &
   pids+=($!)
 done
 wait "${pids[@]}"
@@ -77,10 +77,13 @@ expect_refusal() { # <label> <code> <agent-or-empty> args...
 err=""
 expect_refusal "owner-claim" caller-forbidden owner task claim --task T-A
 expect_refusal "no-agent" caller-unknown "" run status
-expect_refusal "undeclared-field" invalid-input qa-orchestrator event append --type run.phase.started --json '{"phase":"scan","phaes":"y"}'
+expect_refusal "undeclared-field" invalid-input qa-web-explorer event append --type discovery.step-complete --json '{"step":"scan","artifact":"discovery/scan.json","artefact":"y"}'
 grep -q "undeclared field" <<<"$err" || fail "contract undeclared-field: expected the bus refusal"
 expect_refusal "forged-run-created" invalid-input qa-orchestrator event append --type run.created --json '{"profile":"full","environment":"development","modules":["AUTH"]}'
 grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-run-created: expected the reserved-type refusal"
+expect_refusal "forged-phase" invalid-input qa-orchestrator event append --type run.phase.started --json '{"phase":"scan"}'
+grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-phase: expected the reserved-type refusal"
+expect_refusal "agent-stop" caller-forbidden qa-orchestrator run stop --reason "agent tried"
 expect_refusal "bad-module" invalid-input qa-test-designer id next --kind TC --module au-th
 expect_refusal "claim-traversal" invalid-input qa-ui-specialist task claim --task ../evil
 
