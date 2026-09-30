@@ -129,7 +129,7 @@ At session end (durable):
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-exploratory-specialist-spv
 reads:
   - "{run}/risk-register.json"

@@ -64,7 +64,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
 reviewedBy: qa-api-specialist-spv
 reads:
   - "{run}/target-profile.json"

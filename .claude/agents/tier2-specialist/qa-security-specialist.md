@@ -69,7 +69,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke]
 reviewedBy: qa-security-specialist-spv
 reads:
   - "{run}/target-profile.json"

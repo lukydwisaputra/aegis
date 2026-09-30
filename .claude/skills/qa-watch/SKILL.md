@@ -58,6 +58,6 @@ emits:
 awaits: []
 cli: []
 runs: []
-dispatches: []
+dispatches: [qa-unit-specialist, qa-api-specialist, qa-ui-specialist]
 config: []
 ```

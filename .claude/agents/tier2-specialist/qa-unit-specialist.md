@@ -66,7 +66,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
 reviewedBy: qa-unit-specialist-spv
 reads:
   - "{run}/target-profile.json"

@@ -112,6 +112,12 @@ awaits:
   - discovery.step-complete
   - execution.complete
   - run.completed
+  - token.used
+  - run.phase.started
+  - PhaseCompleted
+  - defect.opened
+  - defect.closed
+  - defect.reopened
 cli: []
 runs: []
 dispatches: []

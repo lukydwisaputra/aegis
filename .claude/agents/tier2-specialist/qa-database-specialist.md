@@ -77,7 +77,7 @@ You are a read-write agent against the test database. You never touch the produc
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-database-specialist-spv
 reads:
   - "{run}/target-profile.json"

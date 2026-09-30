@@ -56,7 +56,7 @@ emits:
 awaits: []
 cli: []
 runs: []
-dispatches: []
+dispatches: [qa-api-specialist, qa-ui-specialist, qa-unit-specialist, qa-performance-specialist, qa-security-specialist, qa-accessibility-specialist, qa-exploratory-specialist, qa-email-specialist, qa-database-specialist, qa-realtime-specialist, qa-feature-flag-specialist, qa-responsive-specialist]
 config:
   - config/model-policy.yaml
 ```

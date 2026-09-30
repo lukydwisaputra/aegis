@@ -73,7 +73,7 @@ You are forbidden against the production environment.
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-email-specialist-spv
 reads:
   - aegis.config.json

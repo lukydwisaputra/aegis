@@ -62,7 +62,7 @@ If no flag system is detected, emit `specialist.no-op` and exit gracefully.
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-feature-flag-specialist-spv
 reads:
   - "{run}/target-profile.json"

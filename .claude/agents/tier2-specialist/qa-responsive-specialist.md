@@ -87,7 +87,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-responsive-specialist-spv
 reads:
   - aegis.config.json

@@ -68,7 +68,7 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-realtime-specialist-spv
 reads:
   - "{run}/target-profile.json"

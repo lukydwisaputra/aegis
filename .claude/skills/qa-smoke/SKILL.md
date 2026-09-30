@@ -56,7 +56,7 @@ emits:
 awaits: []
 cli: []
 runs: []
-dispatches: []
+dispatches: [qa-api-specialist, qa-ui-specialist, qa-unit-specialist, qa-accessibility-specialist, qa-security-specialist]
 config:
   - config/thresholds.yaml
 ```

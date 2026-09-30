@@ -73,7 +73,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist]
 reviewedBy: qa-performance-specialist-spv
 reads:
   - thresholds.yaml

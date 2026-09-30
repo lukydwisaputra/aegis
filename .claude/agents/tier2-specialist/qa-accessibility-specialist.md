@@ -80,7 +80,7 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 ```yaml
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke]
 reviewedBy: qa-accessibility-specialist-spv
 reads:
   - "{run}/target-profile.json"
