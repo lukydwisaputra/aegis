@@ -4,7 +4,7 @@ export const SPECIAL_PHASES: ReadonlySet<string> = new Set(["crosscutting", "spv
 
 export const RULE_IDS = [
   "CONTRACT", "DISPATCH", "SPV", "PRODUCER", "CONSUMER", "EVENT", "CLI",
-  "WRITE-POLICY", "ROUTE", "ENV", "CONFIG", "SKILL", "DRIFT", "DOC-REF",
+  "WRITE-POLICY", "ROUTE", "ENV", "CONFIG", "SKILL", "DRIFT", "DOC-REF", "ESCAPE",
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];
@@ -26,17 +26,24 @@ export interface Unit {
   contractLine: number;
 }
 
+/** Git-tracked paths (files, and every parent directory of one). */
+export interface Tracked {
+  files: ReadonlySet<string>;
+  dirs: ReadonlySet<string>;
+}
+
 export interface Model {
   root: string;
   units: Map<string, Unit>;
-  skillAliases: Set<string>; // skill dir names and frontmatter names
+  tracked: Tracked | null; // null when the root is not a git work tree (tmp fixtures)
   pipeline: Pipeline | null;
   aegisConfig: Record<string, unknown>;
   thresholds: Record<string, unknown>;
   matrixIds: Set<string>;
+  matrixOwner: Map<string, string>; // ID → owning slice (Owner/Slice column or section)
   matrixStatus: Map<string, string>; // ID → Status cell ("open" when the table has no Status column)
   declaredEvents: Set<string>;
-  docs: Array<{ file: string; source: string }>; // HANDBOOK/**, CLAUDE.md, README.md
+  docs: Array<{ file: string; source: string }>; // HANDBOOK/**, HANDBOOK.md, CLAUDE.md, README.md, docs/*.md — tracked only
   loadErrors: Violation[];
 }
 

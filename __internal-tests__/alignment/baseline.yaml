@@ -4,6 +4,169 @@
 # unless they belong to an open matrix item.
 baseline: 1
 entries:
+  # --- CLI ---
+  - key: "CLI:qa-accessibility-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-accessibility-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-accessibility-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-accessibility-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-api-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-api-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-api-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-api-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-cicd-implementer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-cicd-implementer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-cicd-planner:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-cicd-planner:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-closure-reporter:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-closure-reporter-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-closure-reporter:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-closure-reporter-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-database-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-database-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-database-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-database-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-defect-manager:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-defect-manager-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-defect-manager:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-defect-manager-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-email-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-email-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-email-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-email-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-environment-engineer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-environment-engineer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-executive-reporter:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-executive-reporter-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-executive-reporter:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-executive-reporter-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-exploratory-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-exploratory-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-feature-flag-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-feature-flag-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-feature-flag-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-feature-flag-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-github-implementer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-github-implementer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-github-planner:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-github-planner:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-orchestrator:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-orchestrator:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-performance-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-performance-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-realtime-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-realtime-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-realtime-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-realtime-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-requirements-analyst:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-requirements-analyst-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-requirements-analyst:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-requirements-analyst-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-responsive-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-responsive-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-responsive-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-responsive-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-security-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-security-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-security-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-security-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-test-designer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-test-designer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-test-executor:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-test-executor:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-test-planner:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-test-planner-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-test-planner:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-test-planner-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-ui-designer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-ui-designer:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-ui-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-ui-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-ui-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-ui-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-unit-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-unit-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-unit-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-unit-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-web-explorer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-web-explorer:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   # --- CONFIG ---
   - key: "CONFIG:_qa-build-agents:config/model-policy.yaml:missing"
     ids: [AUD-061, AUD-057]
@@ -20,6 +183,30 @@ entries:
   - key: "CONFIG:_qa-init-project:templates/config/thresholds.yaml:missing"
     ids: [AUD-104]
     note: "templates/config/thresholds.yaml does not exist"
+  - key: "CONFIG:aegis.config.json:artifacts.evidenceStore:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#artifacts.evidenceStore is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:artifacts.inspectionScreenshots:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#artifacts.inspectionScreenshots is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:budgets:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#budgets is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:collector.remote:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#collector.remote is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:discovery.destructiveActionHeuristics:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#discovery.destructiveActionHeuristics is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:discovery.enabled:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#discovery.enabled is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:ports.k6Dashboard:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#ports.k6Dashboard is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
   - key: "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.secretsRef:missing"
     ids: [AUD-043]
     note: "aegis.config.json#environments.{env}.secretsRef does not exist"
@@ -135,6 +322,10 @@ entries:
   - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
     ids: [NEW-01]
     note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
+  # --- CONTRACT ---
+  - key: "CONTRACT:pipeline:G3:gate-position"
+    ids: [AUD-008]
+    note: "prose places G3 after triage; pipeline.yaml puts it after closure"
   # --- DISPATCH ---
   - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
     ids: [AUD-046]
@@ -200,15 +391,39 @@ entries:
   - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
     ids: [AUD-060]
     note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
+  - key: "DOC-REF:CLAUDE.md:63 agents:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md claims 63 agents; .claude/agents has 64 agent files"
+  - key: "DOC-REF:CLAUDE.md:crosscutting=4:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"Cross-cutting\" claims 4; .claude/agents/crosscutting has 5"
   - key: "DOC-REF:CLAUDE.md:qa-director:unknown"
     ids: [AUD-076]
     note: "qa-director is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:CLAUDE.md:qa-health:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   - key: "DOC-REF:CLAUDE.md:qa-planner:unknown"
     ids: [AUD-076]
     note: "qa-planner is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:CLAUDE.md:qa-specialist:unknown"
     ids: [AUD-076]
     note: "qa-specialist is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:CLAUDE.md:spv=25:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"3 \u2014 SPVs\" claims 25; .claude/agents/spv has 23"
+  - key: "DOC-REF:CLAUDE.md:tier2-5-devops=6:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"2.5 \u2014 DevOps\" claims 6; .claude/agents/tier2-5-devops has 7"
+  - key: "DOC-REF:CLAUDE.md:tier2-specialist=16:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"2 \u2014 Specialists\" claims 16; .claude/agents/tier2-specialist has 14"
+  - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/agent-core:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/agent-core is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/taskmaster:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/taskmaster is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-defect-reporter:unknown"
     ids: [AUD-076]
     note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
@@ -290,6 +505,12 @@ entries:
   - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-reset-agent:unknown-command"
     ids: [AUD-107]
     note: "/qa-reset-agent is not a skill"
+  - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/cli is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/06-agents.md:63 agents:count-mismatch"
+    ids: [AUD-075]
+    note: "HANDBOOK/06-agents.md claims 63 agents; .claude/agents has 64 agent files"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-cicd-planner-spv:unknown"
     ids: [AUD-076]
     note: "qa-cicd-planner-spv is not an agent, skill, package or allowlisted name"
@@ -329,9 +550,40 @@ entries:
   - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:/qa-dash-export:unknown-command"
     ids: [AUD-107]
     note: "/qa-dash-export is not a skill"
+  - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/cli:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/cli is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/dashboard:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/dashboard is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/14-extending.md:@qa/templates:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/templates is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/16-glossary.md:qa-sandbox-manager:unknown"
     ids: [AUD-106]
     note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:docs/D02-teammate-onboarding.md:@qa/templates:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/templates is not a package in packages/@qa/"
+  - key: "DOC-REF:docs/D12-environments-overview.md:qa-smoke:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-smoke is not a root or workspace script, bin or pnpm command"
+  - key: "DOC-REF:docs/D12-environments-overview.md:qa-start:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-start is not a root or workspace script, bin or pnpm command"
+  - key: "DOC-REF:docs/D13-prompt-caching.md:@qa/agent-runner:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/agent-runner is not a package in packages/@qa/"
+  - key: "DOC-REF:docs/D14-extending-the-system.md:@qa/templates:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/templates is not a package in packages/@qa/"
+  - key: "DOC-REF:docs/D14-extending-the-system.md:qa-health:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
+  # --- DRIFT ---
+  - key: "DRIFT:qa-database-specialist:aegis.config.json#environments.{env}.readOnly:config-not-in-prose"
+    ids: [AUD-114]
+    note: "contract config lists aegis.config.json#environments.{env}.readOnly; prose never names it"
   # --- ENV ---
   - key: "ENV:testing:functional:unmapped"
     ids: [AUD-036]
@@ -523,6 +775,9 @@ entries:
   - key: "EVENT:qa-defect-manager:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
+  - key: "EVENT:qa-defect-manager:rtm.append-link:named-consumer-missing"
+    ids: [AUD-027]
+    note: "qa-defect-manager says rtm.append-link is processed by an unnamed consumer, which does not await it"
   - key: "EVENT:qa-defect-manager:run.phase.completed:cli-recorded"
     ids: [CO-05]
     note: "run.phase.completed is recorded by the CLI"
@@ -569,7 +824,7 @@ entries:
     ids: [CO-05]
     note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-event-bus:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
+    ids: [AUD-048]
     note: "emits events without `aegis event append`"
   - key: "EVENT:qa-executive-reporter-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
@@ -682,6 +937,9 @@ entries:
   - key: "EVENT:qa-metrics-collector:defect.reopened:no-emitter"
     ids: [AUD-102]
     note: "nobody emits defect.reopened"
+  - key: "EVENT:qa-metrics-collector:devops.flake-detected:unreachable-emitter"
+    ids: [AUD-011]
+    note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
   - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
     ids: [AUD-042]
     note: "nobody emits token.used"
@@ -821,13 +1079,13 @@ entries:
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
   - key: "EVENT:qa-resume:run.completed:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-024, AUD-025]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-resume:run.lock.stale.cleared:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-024]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-resume:run.resumed:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-024]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-rollback:incident.defect.created:owner-cannot-append"
     ids: [AUD-100]
@@ -881,13 +1139,13 @@ entries:
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.aborted:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.completed:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-025]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.created:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-025]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.phase.completed:owner-cannot-append"
     ids: [AUD-100]
@@ -896,10 +1154,10 @@ entries:
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-stop:run.aborted:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-stop:run.stop.requested:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-test-designer-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
@@ -1016,42 +1274,144 @@ entries:
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
   # --- PRODUCER ---
+  - key: "PRODUCER:qa-accessibility-specialist-spv:{run}/reports/work/qa-accessibility-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-accessibility-specialist.json is a work report, but no worker qa-accessibility-specialist-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-accessibility-specialist-spv:{tests}/qa/a11y/**:none"
     ids: [AUD-109]
     note: "nothing produces {tests}/qa/a11y/**"
+  - key: "PRODUCER:qa-api-specialist-spv:{run}/reports/work/qa-api-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-api-specialist.json is a work report, but no worker qa-api-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-cicd-evaluator:{run}/devops/github-results.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-cicd-implementer:templates/github-workflows/**:unreachable-producer"
+    ids: [AUD-046]
+    note: "templates/github-workflows/** is produced only by _qa-init-project, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-cicd-implementer:{run}/devops/cicd-plan.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/cicd-plan.json is produced only by qa-cicd-planner, which nothing reachable dispatches"
   - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
     ids: [AUD-074]
-    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist"
+    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
+  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-implementer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-cicd-implementer.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-planner.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-cicd-planner.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-closure-reporter-spv:{run}/reports/work/qa-closure-reporter.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-closure-reporter.json is a work report, but no worker qa-closure-reporter-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-closure-reporter:qa-compliance-cmmi:same-phase-cycle"
+    ids: [AUD-004]
+    note: "qa-closure-reporter and qa-compliance-cmmi run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
+  - key: "PRODUCER:qa-closure-reporter:qa-compliance-istqb:same-phase-cycle"
+    ids: [AUD-004]
+    note: "qa-closure-reporter and qa-compliance-istqb run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
   - key: "PRODUCER:qa-compliance-cmmi:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
   - key: "PRODUCER:qa-curator:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
+  - key: "PRODUCER:qa-database-specialist-spv:{run}/reports/work/qa-database-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-database-specialist.json is a work report, but no worker qa-database-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-defect-manager-spv:{run}/reports/work/qa-defect-manager.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-defect-manager.json is a work report, but no worker qa-defect-manager-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-email-specialist-spv:{run}/reports/work/qa-email-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-email-specialist.json is a work report, but no worker qa-email-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-environment-engineer-spv:{run}/reports/work/qa-environment-engineer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-environment-engineer.json is a work report, but no worker qa-environment-engineer-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-executive-reporter-spv:{run}/reports/work/qa-executive-reporter.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-executive-reporter.json is a work report, but no worker qa-executive-reporter-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-executive-reporter:{run}/gates/gate-{1,2,3}-decision.json:none"
     ids: [AUD-009]
     note: "nothing produces {run}/gates/gate-{1,2,3}-decision.json"
+  - key: "PRODUCER:qa-exploratory-specialist-spv:{run}/reports/work/qa-exploratory-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-exploratory-specialist.json is a work report, but no worker qa-exploratory-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-feature-flag-specialist-spv:{run}/reports/work/qa-feature-flag-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-feature-flag-specialist.json is a work report, but no worker qa-feature-flag-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-github-implementer:{run}/devops/github-plan.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
   - key: "PRODUCER:qa-github-spv:agent-memory/qa-github-spv/lessons.md:missing-source"
     ids: [AUD-074]
-    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist"
+    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
+  - key: "PRODUCER:qa-github-spv:{run}/devops/github-plan.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-github-spv:{run}/devops/github-results.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-implementer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-github-implementer.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-planner.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-github-planner.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-orchestrator-spv:{run}/reports/work/qa-orchestrator.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-orchestrator.json is a work report, but no worker qa-orchestrator-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-orchestrator:{run}/gates/gate-{N}-decision.json:none"
     ids: [AUD-009]
     note: "nothing produces {run}/gates/gate-{N}-decision.json"
   - key: "PRODUCER:qa-orchestrator:{run}/taskmaster.json:none"
     ids: [AUD-006]
     note: "nothing produces {run}/taskmaster.json"
+  - key: "PRODUCER:qa-performance-specialist-spv:{run}/reports/work/qa-performance-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-performance-specialist.json is a work report, but no worker qa-performance-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-realtime-specialist-spv:{run}/reports/work/qa-realtime-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-realtime-specialist.json is a work report, but no worker qa-realtime-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-requirements-analyst-spv:{run}/reports/work/qa-requirements-analyst.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-requirements-analyst.json is a work report, but no worker qa-requirements-analyst-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-requirements-analyst:{run}/intake/requirements/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/requirements/**"
   - key: "PRODUCER:qa-requirements-analyst:{run}/target-profile.json:later-phase"
     ids: [AUD-001]
     note: "{run}/target-profile.json is only produced in a later phase"
-  - key: "PRODUCER:qa-test-executor:{run}/concurrency.json:none"
-    ids: [AUD-017]
-    note: "nothing produces {run}/concurrency.json"
+  - key: "PRODUCER:qa-responsive-specialist-spv:{run}/reports/work/qa-responsive-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-responsive-specialist.json is a work report, but no worker qa-responsive-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-security-specialist-spv:{run}/reports/work/qa-security-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-security-specialist.json is a work report, but no worker qa-security-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-test-designer-spv:{run}/reports/work/qa-test-designer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-test-designer.json is a work report, but no worker qa-test-designer-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-test-executor-spv:{run}/reports/work/qa-test-executor.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-test-executor.json is a work report, but no worker qa-test-executor-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-test-planner-spv:{run}/reports/work/qa-test-planner.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-test-planner.json is a work report, but no worker qa-test-planner-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-test-planner:{run}/intake/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/**"
+  - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-ui-specialist-spv:{run}/reports/work/qa-ui-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-ui-specialist.json is a work report, but no worker qa-ui-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-unit-specialist-spv:{run}/reports/work/qa-unit-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-unit-specialist.json is a work report, but no worker qa-unit-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-web-explorer-spv:{run}/reports/work/qa-web-explorer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-web-explorer.json is a work report, but no worker qa-web-explorer-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-web-explorer:{run}/intake/requirements/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/requirements/**"
@@ -1059,6 +1419,30 @@ entries:
     ids: [AUD-003]
     note: "{tests}/qa/fixtures/auth.fixture.ts is only produced in a later phase"
   # --- ROUTE ---
+  - key: "ROUTE:pipeline:API:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byType API → qa-api-specialist is unreachable: the designer never emits testType API"
+  - key: "ROUTE:pipeline:Compatibility:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byType Compatibility → qa-responsive-specialist is unreachable: the designer never emits testType Compatibility"
+  - key: "ROUTE:pipeline:E2E:unroutable-type"
+    ids: [AUD-032]
+    note: "the designer emits testType E2E; routing.byType has no route for it"
+  - key: "ROUTE:pipeline:FeatureFlag:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byTechnique FeatureFlag → qa-feature-flag-specialist is unreachable: the designer never emits testTechnique FeatureFlag"
+  - key: "ROUTE:pipeline:Integration:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byType Integration → qa-api-specialist is unreachable: the designer never emits testType Integration"
+  - key: "ROUTE:pipeline:Performance:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byType Performance → qa-performance-specialist is unreachable: the designer never emits testType Performance"
+  - key: "ROUTE:pipeline:Realtime:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byTechnique Realtime → qa-realtime-specialist is unreachable: the designer never emits testTechnique Realtime"
+  - key: "ROUTE:pipeline:Usability:unreachable-route"
+    ids: [AUD-033]
+    note: "routing.byType Usability → qa-exploratory-specialist is unreachable: the designer never emits testType Usability"
   - key: "ROUTE:testTechnique:BVA:not-in-schema"
     ids: [AUD-096]
     note: "BVA is not a TestTechnique"
@@ -1105,6 +1489,9 @@ entries:
   - key: "SKILL:_qa-report-signoff-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
+  - key: "SKILL:_qa-report-technical-pdf:{run}/evidence/screenshots/**:unresolved"
+    ids: [AUD-060]
+    note: "{run}/evidence/screenshots/** does not exist and nothing produces it"
   - key: "SKILL:_qa-report-technical-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
@@ -1114,6 +1501,9 @@ entries:
   - key: "SKILL:qa-compare:{run}/execution/results.json:unresolved"
     ids: [AUD-056b]
     note: "{run}/execution/results.json does not exist and nothing produces it"
+  - key: "SKILL:qa-deps-update:qa-smoke:direct-dispatch"
+    ids: [AUD-110]
+    note: "execution skill dispatches qa-smoke directly"
   - key: "SKILL:qa-doctor:artifacts/**:unresolved"
     ids: [AUD-058]
     note: "artifacts/** does not exist and nothing produces it"
@@ -1284,6 +1674,9 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:.gitignore:not-writable"
     ids: [AUD-068]
     note: "write to .gitignore violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:_qa-init-project:HANDBOOK.md:not-writable"
+    ids: [AUD-104]
+    note: "write to HANDBOOK.md violates the write policy (not-writable)"
   - key: "WRITE-POLICY:_qa-init-project:artifacts/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/** violates the write policy (not-writable)"
@@ -1302,6 +1695,12 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-accessibility-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-api-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-gate.yml:not-writable"
     ids: [AUD-112, AUD-065]
     note: "write to .github/workflows/qa-gate.yml violates the write policy (not-writable)"
@@ -1347,6 +1746,9 @@ entries:
   - key: "WRITE-POLICY:qa-dashboard:dashboard/dist/**:not-writable"
     ids: [AUD-065]
     note: "write to dashboard/dist/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-database-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-defect-manager:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -1359,6 +1761,9 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-email-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-environment-engineer:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -1374,6 +1779,9 @@ entries:
   - key: "WRITE-POLICY:qa-executive-reporter:{run}/reports/work/qa-executive-reporter.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-executive-reporter.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-exploratory-specialist:sandbox/{YYYY-MM-DD}-{session-slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{YYYY-MM-DD}-{session-slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"
@@ -1395,6 +1803,9 @@ entries:
   - key: "WRITE-POLICY:qa-orchestrator:{run}/reports/work/qa-orchestrator.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-orchestrator.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-performance-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-promote-stage:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1410,9 +1821,15 @@ entries:
   - key: "WRITE-POLICY:qa-promote:skills/**:not-writable"
     ids: [AUD-059, AUD-068]
     note: "write to skills/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-realtime-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-record-manual:manual-{date}/**:not-writable"
     ids: [AUD-068]
     note: "write to manual-{date}/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-regenerate-report:{run}/reports/**:cli-only"
+    ids: [AUD-111, CO-05]
+    note: "write to {run}/reports/** violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-regenerate-report:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1422,6 +1839,9 @@ entries:
   - key: "WRITE-POLICY:qa-requirements-analyst:{run}/reports/work/qa-requirements-analyst.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-requirements-analyst.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-responsive-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-resume:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1434,12 +1854,18 @@ entries:
   - key: "WRITE-POLICY:qa-run-phase:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-run-phase:{run}/{phase}/**:cli-only"
+    ids: [AUD-062]
+    note: "write to {run}/{phase}/** violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-run-specialist:spot/{specialist}/{timestamp}/results.json:not-writable"
     ids: [AUD-068]
     note: "write to spot/{specialist}/{timestamp}/results.json violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-run-specialist:spot/{specialist}/{timestamp}/run.json:not-writable"
     ids: [AUD-068]
     note: "write to spot/{specialist}/{timestamp}/run.json violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-security-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-security-specialist:{tests}/security/{surface}.security.spec.ts:outside-tests-qa"
     ids: [AUD-086]
     note: "write to {tests}/security/{surface}.security.spec.ts violates the write policy (outside-tests-qa)"
@@ -1470,3 +1896,9 @@ entries:
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-ui-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-web-explorer:sandbox/{YYYY-MM-DD}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{YYYY-MM-DD}-{slug}/** violates the write policy (not-writable)"

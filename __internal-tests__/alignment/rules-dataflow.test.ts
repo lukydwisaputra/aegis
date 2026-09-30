@@ -1,4 +1,4 @@
-import { consumerRule, eventRule, loadModel, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
+import { consumerRule, eventRule, loadModel, namedConsumerRule, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
 import { makeRepo, MIN_PIPELINE } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
@@ -72,12 +72,12 @@ const ppl = (sources: object) => ({ ...MIN_PIPELINE, phases: [{ id: 'req', agent
 const wp = (t: { root: string }) => keys(writePolicyRule(loadModel(t.root)));
 
 describe('fix round 1', () => {
-  it('cli-only requires the write to fall inside a CLI-only pattern', () => {
+  it('cli-only uses overlaps: a write that can land in a CLI-only path is flagged (AH-15)', () => {
     const t = makeRepo({
-      agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/reports/**', '{run}/reports/work/{agent}.json'] }) } },
+      agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/reports/**', '{run}/reports/work/{agent}.json', '{run}/plan.json'] }) } },
       pipeline: ppl({ cli: ['{run}/reports/work/**'] }),
     });
-    expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/reports/work/{agent}.json:cli-only']);
+    expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/reports/**:cli-only', 'WRITE-POLICY:qa-a:{run}/reports/work/{agent}.json:cli-only']);
     t.cleanup();
   });
 
@@ -124,10 +124,10 @@ describe('fix round 1', () => {
   it('brace-alternation writes count as producers for a concrete read', () => {
     const t = makeRepo({
       agents: {
-        'qa-plan': { contract: ag('crosscutting', { writes: ['{run}/plan.{md,json}'] }) },
+        'qa-plan': { contract: ag('plan', { writes: ['{run}/plan.{md,json}'] }) },
         'qa-rdr': { contract: ag('crosscutting', { reads: ['{run}/plan.json'] }) },
       },
-      pipeline: phases,
+      pipeline: { ...phases, phases: [...phases.phases, { id: 'plan', agents: ['qa-plan'] }] },
     });
     expect(keys(producerRule(loadModel(t.root))).filter((k) => k.includes('plan.json'))).toEqual([]);
     t.cleanup();
@@ -159,20 +159,50 @@ describe('fix round 1', () => {
   });
 });
 
-it('WRITE-POLICY: runs/** is writable (CLAUDE.md aegis/runs/**); internal skills may write HANDBOOK.md', () => {
+it('WRITE-POLICY: runs/** is writable; only _qa-build-toc may write HANDBOOK.md (writePolicy.units)', () => {
   const sk = (kind: string, writes: string[]) => ({ contract: { contract: 1, kind, writes } });
   const t = makeRepo({
     skills: {
       'qa-q': sk('query', ['runs/**', 'runs/{runId}/run.json', 'HANDBOOK.md']),
       'qa-i': sk('internal', ['HANDBOOK.md', 'README.md']),
+      '_qa-build-toc': sk('internal', ['HANDBOOK.md']),
     },
     pipeline: ppl({ cli: ['{run}/run.json'] }),
   });
   expect(wp(t)).toEqual([
+    'WRITE-POLICY:qa-i:HANDBOOK.md:not-writable',
     'WRITE-POLICY:qa-i:README.md:not-writable',
     'WRITE-POLICY:qa-q:HANDBOOK.md:not-writable',
     'WRITE-POLICY:qa-q:{run}/run.json:cli-only',
   ]);
+  t.cleanup();
+});
+
+it('AH-15: {run}/events*.jsonl is cli-only and {tests}/{kind}/** is outside tests/qa', () => {
+  const t = makeRepo({
+    agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/events*.jsonl', '{tests}/{kind}/x.ts', '{tests}/qa/{kind}/x.ts'] }) } },
+    pipeline: ppl({ cli: ['{run}/events.jsonl'] }),
+  });
+  expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/events*.jsonl:cli-only', 'WRITE-POLICY:qa-a:{tests}/{kind}/x.ts:outside-tests-qa']);
+  t.cleanup();
+});
+
+it('AH-13: sandbox/** is writable only when pipeline.yaml#writePolicy lists it', () => {
+  const agents = { 'qa-a': { contract: ag('crosscutting', { writes: ['sandbox/{date}-{slug}/**'] }) } };
+  const a = makeRepo({ agents, pipeline: ppl({}) });
+  expect(wp(a)).toEqual(['WRITE-POLICY:qa-a:sandbox/{date}-{slug}/**:not-writable']);
+  a.cleanup();
+  const b = makeRepo({ agents, pipeline: { ...ppl({}), writePolicy: { ...MIN_PIPELINE.writePolicy, writable: [...MIN_PIPELINE.writePolicy.writable, 'sandbox/**'] } } });
+  expect(wp(b)).toEqual([]);
+  b.cleanup();
+});
+
+it('AH-07: own writes satisfy an own read only when the read is marked rmw', () => {
+  const t = makeRepo({
+    agents: { 'qa-req': { contract: ag('req', { reads: [{ path: '{run}/ledger.json', rmw: true }, '{run}/own.json'], writes: ['{run}/ledger.json', '{run}/own.json'] }) } },
+    pipeline: ppl({}),
+  });
+  expect(keys(producerRule(loadModel(t.root)))).toEqual(['PRODUCER:qa-req:{run}/own.json:none']);
   t.cleanup();
 });
 
@@ -195,5 +225,51 @@ it('PRODUCER: a placeholder-free read satisfied only by sources.repo must exist 
     'PRODUCER:qa-s:agent-memory/qa-skill/lessons.json:missing-source',
   ]);
   expect(keys(skillRule(m))).toEqual([]);
+  t.cleanup();
+});
+
+it('AH-11/AUD-027: an event whose prose names a consumer that does not await it is reported', () => {
+  const body = (s: string) => `# x\n\n## Your Role\n\n${s}\n`;
+  const t = makeRepo({
+    agents: {
+      'qa-a': {
+        body: body('Emits `rtm.append-link` events that qa-b or a post-design RTM updater processes.\nEmits `test.passed`, which qa-c consumes.\nEmits `defect.opened` for the audit trail.'),
+        contract: ag('crosscutting', { emits: [{ event: 'rtm.append-link', via: 'append' }, { event: 'test.passed', via: 'append' }, { event: 'defect.opened', via: 'append' }] }),
+      },
+      'qa-b': { contract: ag('crosscutting', {}) },
+      'qa-c': { contract: ag('crosscutting', { awaits: ['test.passed'] }) },
+      'qa-d': { body: body('Emits `bus.error`, which an operator handles.\nHandle `bus.error` failures; every item processed is logged; `deps.applied` is emitted too.'), contract: ag('crosscutting', { emits: [{ event: 'bus.error', via: 'append' }] }) },
+    },
+  });
+  expect(keys(namedConsumerRule(loadModel(t.root))).sort()).toEqual([
+    'EVENT:qa-a:rtm.append-link:named-consumer-missing',
+    'EVENT:qa-d:bus.error:named-consumer-missing',
+  ]);
+  t.cleanup();
+});
+
+it('AUD-027 controls: frontmatter, contract block, masked verbs and an earlier clause are handled', () => {
+  const raw = (name: string, desc: string, body: string, contractComment: string, emits: string[]) =>
+    `---\nname: ${name}\ndescription: "${desc}"\nmodelTier: implementation\ntools: [Read]\n---\n# ${name}\n\n## Your Role\n\n${body}\n\n## Contract (machine-checked)\n\n\`\`\`yaml\n${contractComment}\ncontract: 1\nphase: crosscutting\ndispatchedBy: []\ndispatch: {none: test only}\nreviewedBy: {none: test only}\nemits:\n${emits.map((e) => `  - {event: ${e}, via: append}`).join('\n')}\n\`\`\`\n`;
+  const t = makeRepo({
+    agents: { 'qa-b': { contract: ag('crosscutting', {}) } },
+    files: {
+      // frontmatter + contract comment carry the phrasing; body is clean
+      '.claude/agents/tier1-phase/qa-e.md': raw('qa-e', 'Emits `rtm.append-link` that qa-b processes', 'Nothing relevant here.', '# Emits `rtm.append-link` that qa-b processes', ['rtm.append-link']),
+      // masked verbs: backticked span and dotted event token after which
+      '.claude/agents/tier1-phase/qa-m.md': raw('qa-m', 'plain', 'Emits `test.passed`, which uses `consumes` mode.\nEmits `x.y`, which process.done signals.', '', ['test.passed', 'x.y']),
+      // earlier clause (before E) must not hide the valid clause after E
+      // a clause that starts before E does not count for E
+      '.claude/agents/tier1-phase/qa-p.md': raw('qa-p', 'plain', 'A step that handles retries emits `early.event` for the audit trail.', '', ['early.event']),
+      '.claude/agents/tier1-phase/qa-l.md': raw('qa-l', 'plain', 'A step that handles retries emits `late.event`, which qa-b consumes.', '', ['late.event']),
+    },
+  });
+  expect(keys(namedConsumerRule(loadModel(t.root)))).toEqual(['EVENT:qa-l:late.event:named-consumer-missing']);
+  t.cleanup();
+});
+
+it('EVENT: via none skips the channel checks', () => {
+  const t = makeRepo({ agents: { 'qa-a': { contract: ag('crosscutting', { emits: [{ event: 'review.passed', via: 'none' }] }) } } });
+  expect(keys(eventRule(loadModel(t.root)))).toEqual([]);
   t.cleanup();
 });

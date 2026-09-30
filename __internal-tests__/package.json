@@ -4,5 +4,8 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "yaml": "^2.5.0"
   }
 }

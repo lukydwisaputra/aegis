@@ -26,6 +26,9 @@ describe('AgentContractSchema', () => {
   it('accepts reviewedBy none with a reason and dispatch none', () => {
     expect(AgentContractSchema.safeParse({ ...agent, reviewedBy: { none: 'infra agent' }, dispatchedBy: [], dispatch: { none: 'library only' } }).success).toBe(true);
   });
+  it('accepts via: none (documented, no channel)', () => {
+    expect(AgentContractSchema.safeParse({ ...agent, emits: [{ event: 'x.y', via: 'none' }] }).success).toBe(true);
+  });
 });
 
 describe('SkillContractSchema', () => {
@@ -52,5 +55,12 @@ describe('PipelineSchema / BaselineSchema', () => {
     expect(BaselineSchema.safeParse({ baseline: 1, entries: [{ key: 'A:b:c', ids: ['AUD-056a', 'CO-01', 'NEW-03'] }] }).success).toBe(true);
     expect(BaselineSchema.safeParse({ baseline: 1, entries: [{ key: 'A:b:c', ids: ['BUG-1'] }] }).success).toBe(false);
     expect(BaselineSchema.safeParse({ baseline: 1, entries: [{ key: 'A:b:c', ids: [] }] }).success).toBe(false);
+  });
+  it('escapes need a known field and a reason of at least 10 characters', () => {
+    const base = { pipeline: 1, phases: [{ id: 'design', agents: [] }], routing: { byType: {}, byTechnique: {}, designerEmits: { testType: [], testTechnique: [] } }, sources: {} };
+    expect(PipelineSchema.parse(base).escapes).toEqual([]);
+    expect(PipelineSchema.safeParse({ ...base, escapes: [{ unit: 'qa-a', field: 'optional', value: '{run}/a.json', reason: 'read when present' }] }).success).toBe(true);
+    expect(PipelineSchema.safeParse({ ...base, escapes: [{ unit: 'qa-a', field: 'optional', reason: 'short' }] }).success).toBe(false);
+    expect(PipelineSchema.safeParse({ ...base, escapes: [{ unit: 'qa-a', field: 'phase', reason: 'not a hatch field' }] }).success).toBe(false);
   });
 });

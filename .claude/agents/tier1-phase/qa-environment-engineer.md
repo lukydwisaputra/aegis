@@ -154,6 +154,7 @@ reads:
   - "secrets/.env.{env}"
 writes:
   - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{tests}/qa/fixtures/**"
   - "{tests}/qa/global-setup.ts"
   - "{tests}/qa/global-teardown.ts"
   - "{target}/playwright.config.ts"

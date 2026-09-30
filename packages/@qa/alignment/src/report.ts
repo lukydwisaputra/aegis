@@ -1,15 +1,21 @@
 import { stringify } from "yaml";
 import { loadModel } from "./load.js";
 import { loadBaseline, ratchet, type RatchetResult } from "./ratchet.js";
-import { cliRule, configRule, envRule, routeRule } from "./rules/config.js";
-import { consumerRule, eventRule, producerRule, writePolicyRule } from "./rules/dataflow.js";
+import type { Baseline } from "./schema.js";
+import { cliRule, configRule, envRule, handoffRule, routeRule } from "./rules/config.js";
+import { consumerRule, cycleRule, emitterRule, eventRule, namedConsumerRule, producerRule, writePolicyRule } from "./rules/dataflow.js";
+import { cliAnchorRule, configAnchorRule, runsAnchorRule, skillKindRule } from "./rules/anchors.js";
+import { escapeRule } from "./rules/escape.js";
+import { pipelineAnchorRule } from "./rules/pipeline.js";
 import { docRefRule, driftRule, skillRule } from "./rules/prose.js";
-import { contractRule, dispatchRule, spvRule } from "./rules/structure.js";
+import { countRule, docNameRule, unusedConfigRule } from "./rules/reverse.js";
+import { contractRule, dispatchRule, spvRule, toolRule } from "./rules/structure.js";
 import type { Model, Violation } from "./types.js";
 
 export const ALL_RULES: Array<(m: Model) => Violation[]> = [
-  contractRule, dispatchRule, spvRule, cliRule, routeRule, envRule, configRule,
-  producerRule, consumerRule, eventRule, writePolicyRule, skillRule, driftRule, docRefRule,
+  contractRule, dispatchRule, spvRule, toolRule, cliRule, handoffRule, routeRule, envRule, configRule, unusedConfigRule,
+  producerRule, cycleRule, consumerRule, eventRule, emitterRule, namedConsumerRule, writePolicyRule, skillRule, skillKindRule, driftRule,
+  cliAnchorRule, configAnchorRule, runsAnchorRule, pipelineAnchorRule, escapeRule, docRefRule, docNameRule, countRule,
 ];
 
 export interface AlignmentReport {
@@ -17,6 +23,29 @@ export interface AlignmentReport {
   ratchet: RatchetResult;
   counts: Record<string, number>;
   filter?: string;
+  slices?: SliceGroup[];
+}
+
+export interface SliceGroup {
+  slice: string;
+  keys: string[];
+}
+
+/** Violations grouped by the owning slice of their first baseline ID (matrix Owner/Slice column). */
+export function groupBySlice(violations: Violation[], baseline: Baseline, owner: Map<string, string>): SliceGroup[] {
+  const idsOf = new Map<string, string[]>();
+  for (const e of baseline.entries) idsOf.set(e.key, [...(idsOf.get(e.key) ?? []), ...e.ids]);
+  const groups = new Map<string, string[]>();
+  for (const v of violations) {
+    const id = idsOf.get(v.key)?.[0];
+    const slice = id === undefined ? "(not baselined)" : (owner.get(id) ?? "(unknown owner)");
+    groups.set(slice, [...(groups.get(slice) ?? []), v.key]);
+  }
+  return [...groups].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([slice, keys]) => ({ slice, keys }));
+}
+
+export function formatBySlice(groups: SliceGroup[]): string {
+  return groups.flatMap((g) => [`${g.slice.padEnd(16)} ${g.keys.length}`, ...g.keys.map((k) => `  ${k}`)]).join("\n");
 }
 
 const byKey = (a: Violation, b: Violation) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
@@ -25,16 +54,18 @@ export function filterReport(r: AlignmentReport, rule: string): AlignmentReport 
   const violations = r.violations.filter((v) => v.rule === rule);
   const counts: Record<string, number> = {};
   for (const v of violations) counts[v.rule] = (counts[v.rule] ?? 0) + 1;
-  return { ...r, violations, counts, filter: rule };
+  const slices = r.slices?.map((g) => ({ slice: g.slice, keys: g.keys.filter((k) => k.startsWith(`${rule}:`)) })).filter((g) => g.keys.length > 0);
+  return { ...r, violations, counts, filter: rule, ...(slices !== undefined ? { slices } : {}) };
 }
 
 export function checkAlignment(root: string): AlignmentReport {
   const m = loadModel(root);
+  const baseline = loadBaseline(root);
   const all = [...m.loadErrors, ...ALL_RULES.flatMap((r) => r(m))];
   const unique = [...new Map(all.map((v) => [v.key, v])).values()].sort(byKey);
   const counts: Record<string, number> = {};
   for (const v of unique) counts[v.rule] = (counts[v.rule] ?? 0) + 1;
-  return { violations: unique, ratchet: ratchet(unique, loadBaseline(root), m.matrixIds, m.matrixStatus), counts };
+  return { violations: unique, ratchet: ratchet(unique, baseline, m.matrixIds, m.matrixStatus), counts, slices: groupBySlice(unique, baseline, m.matrixOwner) };
 }
 
 export function formatReport(r: AlignmentReport): string {

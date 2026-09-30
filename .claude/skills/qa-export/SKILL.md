@@ -47,7 +47,7 @@ Exports only defects created after run 003 to ClickUp.
 ```yaml
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
-kind: query
+kind: execution
 dispatchedBy: []
 reads:
   - path: "config/integrations.yaml"

@@ -115,6 +115,7 @@ awaits:
   - run.completed
   - token.used
   - run.phase.started
+  - devops.flake-detected
   - PhaseCompleted
   - defect.opened
   - defect.closed

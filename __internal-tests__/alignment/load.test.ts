@@ -48,7 +48,7 @@ describe('loadModel', () => {
     });
     const m = loadModel(t.root);
     expect([...m.units.keys()].sort()).toEqual(['_qa-internal', 'qa-a', 'qa-s']);
-    expect(m.skillAliases.has('qa-internal')).toBe(true);
+    expect(m.units.get('_qa-internal')?.kind).toBe('skill');
     expect(m.pipeline?.phases[0]?.id).toBe('design');
     expect(m.matrixIds).toEqual(new Set(['AUD-001', 'CO-02']));
     expect(m.declaredEvents.has('run.created')).toBe(true);

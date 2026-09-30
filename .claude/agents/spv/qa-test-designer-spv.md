@@ -63,6 +63,7 @@ reads:
   - "{run}/rtm.{md,json}"
   - "{run}/plan.json"
   - "{run}/proposed-changes/**"
+  - "{tests}/qa/pages/{url-path}/**"
   - "agent-memory/qa-test-designer/lessons.md"
 writes: []
 emits:
@@ -72,5 +73,6 @@ awaits: []
 cli: []
 runs: []
 dispatches: []
-config: []
+config:
+  - aegis.config.json#testing.manualCategoriesAllowed
 ```

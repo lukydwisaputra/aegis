@@ -52,7 +52,7 @@ Evaluates the staging gate for run 001 and outputs JSON for CI consumption.
 ```yaml
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
-kind: query
+kind: execution
 dispatchedBy: [qa-promote-stage]
 reads:
   - "{run}/execution/results.json"

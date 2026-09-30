@@ -8,7 +8,7 @@ const RULES = [
   '  1. "+ add or fix": fix the new violation in the prose first (then its contract block). Baselining a new key is allowed',
   '     only for an open or in-spec matrix item; give it that ID and call the new entry out in the PR description.',
   '  2. "- delete": a stale entry may be deleted only in the same commit as the prose/code change that fixed it.',
-  '     Never edit a contract block alone to make an entry stale.',
+  '     Never edit a contract block alone to make an entry stale (CI: such a removal needs the contract-only-fix label).',
   '  3. "x closed-id" / "? unknown id": the entry names a fixed/wontfix or missing matrix ID; fix the violation or re-own it.',
   '  Inspect: pnpm aegis align --rule <RULE>   (or: pnpm aegis align --json)',
 ].join('\n');
