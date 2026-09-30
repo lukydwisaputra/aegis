@@ -3685,18 +3685,18 @@ EOF
 
 > **Controller ruling (replaces the drafted "every unconsumed event" rule).** events.jsonl is an audit trail that metrics and rollup read in full. An event that no unit `awaits` is therefore not a defect in itself. The drafted rule was estimated at about 150 keys, and it would have attributed all of them to AUD-027 wrongly. AUD-027 is narrower: prose says an event is *processed by* something that does not process it. So this task checks **named consumers** only. There is no `sinkEvents`.
 
-**Rule.**
-1. For each unit U that emits event E, scan U's prose lines. The contract block is excluded.
-2. Select the lines that mention E, backticked or bare, and also contain a consumer verb matching `/\b(process(es|ed)?|consume[sd]?|handle[sd]?|pick(s|ed)? up|applie[sd])\b/i`.
+**Rule** (tightened by the preflight scan: the first draft gave 14 false positives out of 15 on the real corpus).
+1. For each unit U that emits event E, scan U's body lines. Frontmatter and the contract block are excluded.
+2. On each line, first mask every backticked span and every event-like token (`[a-z]+(\.[a-z0-9-]+)+`), so that verbs inside event names such as `deps.applied` never match. Select the line if the original line mentions E, and the masked line contains a relative clause `\b(that|which)\b[^.;]*\b(process(es)?|consumes?|handles?|picks? up|applies)\b` that starts after E's first occurrence. Generic verbs ("Handle phase failure", "item processed", "filters applied") therefore never match.
 3. The named consumers on such a line are its `qa-[a-z0-9-]+` tokens that name an existing unit other than U.
 4. The line is satisfied if at least one named consumer lists E in `awaits`.
-5. Otherwise, report `EVENT:<E>:<U>:named-consumer-missing` at that line, once per (E, U). This also covers a line that names no unit at all (for example "an RTM updater processes").
+5. Otherwise, report `EVENT:<U>:<E>:named-consumer-missing` at that line. The subject is the emitter, the same shape as the existing `eventRule` keys, so the shrink guard maps it to U's file, once per (E, U). This also covers a line that names no unit at all (for example "an RTM updater processes").
 
 **Files:**
 - Modify: `packages/@qa/alignment/src/rules/dataflow.ts` (append), `packages/@qa/alignment/src/report.ts`, `__internal-tests__/alignment/rules-dataflow.test.ts`, `__internal-tests__/alignment/baseline.yaml`
 
 **Interfaces:**
-- Produces: `namedConsumerRule(m: Model): Violation[]`, which reports `EVENT:<event>:<emitter>:named-consumer-missing`.
+- Produces: `namedConsumerRule(m: Model): Violation[]`, which reports `EVENT:<emitter>:<event>:named-consumer-missing`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3713,12 +3713,12 @@ it('AH-11/AUD-027: an event whose prose names a consumer that does not await it 
       },
       'qa-b': { contract: ag('crosscutting', {}) },
       'qa-c': { contract: ag('crosscutting', { awaits: ['test.passed'] }) },
-      'qa-d': { body: body('Emits `bus.error`; an operator handles it.'), contract: ag('crosscutting', { emits: [{ event: 'bus.error', via: 'append' }] }) },
+      'qa-d': { body: body('Emits `bus.error`, which an operator handles.\nHandle `bus.error` failures; every item processed is logged; `deps.applied` is emitted too.'), contract: ag('crosscutting', { emits: [{ event: 'bus.error', via: 'append' }] }) },
     },
   });
   expect(keys(namedConsumerRule(loadModel(t.root))).sort()).toEqual([
-    'EVENT:bus.error:qa-d:named-consumer-missing',
-    'EVENT:rtm.append-link:qa-a:named-consumer-missing',
+    'EVENT:qa-a:rtm.append-link:named-consumer-missing',
+    'EVENT:qa-d:bus.error:named-consumer-missing',
   ]);
   t.cleanup();
 });
@@ -3736,7 +3736,8 @@ Expected: FAIL, because `namedConsumerRule` is not exported.
 Append to `packages/@qa/alignment/src/rules/dataflow.ts`:
 
 ```ts
-const CONSUMER_VERB = /\b(process(es|ed)?|consume[sd]?|handle[sd]?|pick(s|ed)? up|applie[sd])\b/i;
+const RELATIVE_CONSUMER = /\b(that|which)\b[^.;]*\b(process(es)?|consumes?|handles?|picks? up|applies)\b/i;
+const mask = (line: string) => line.replace(/`[^`]*`/g, (x) => " ".repeat(x.length)).replace(/[a-z]+(?:\.[a-z0-9-]+)+/g, (x) => " ".repeat(x.length));
 
 /** Spec §8 (narrowed by controller ruling): prose names a consumer for an emitted event that does not await it (AUD-027). */
 export function namedConsumerRule(m: Model): Violation[] {
@@ -3745,15 +3746,25 @@ export function namedConsumerRule(m: Model): Violation[] {
     const c = u.contract;
     if (c === null) continue;
     const lines = u.source.split("\n");
-    const end = u.contractLine > 0 ? u.contractLine - 1 : lines.length;
+    // Body only: skip frontmatter (--- … ---) and stop before the contract heading.
+    let start = 0;
+    if (lines[0]?.trim() === "---") {
+      const close = lines.findIndex((l, k) => k > 0 && l.trim() === "---");
+      start = close >= 0 ? close + 1 : 0;
+    }
+    const heading = lines.findIndex((l) => l.startsWith("## Contract (machine-checked)"));
+    const end = heading >= 0 ? heading : lines.length;
     for (const ev of new Set(c.emits.map((e) => e.event))) {
       const re = new RegExp(`(^|[^a-z0-9.-])${ev.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9-]|$)`);
-      for (let i = 0; i < end; i++) {
+      for (let i = start; i < end; i++) {
         const line = lines[i]!;
-        if (!re.test(line) || !CONSUMER_VERB.test(line)) continue;
+        const hit = re.exec(line);
+        if (hit === null) continue;
+        const rel = RELATIVE_CONSUMER.exec(mask(line));
+        if (rel === null || rel.index < hit.index) continue;
         const named = [...line.matchAll(/qa-[a-z0-9-]+/g)].map((x) => x[0]).filter((n) => n !== u.name && m.units.has(n));
         if (named.some((n) => m.units.get(n)?.contract?.awaits.includes(ev))) continue;
-        out.push(violation("EVENT", ev, u.name, "named-consumer-missing", u.file, i + 1, `${u.name} says ${ev} is processed by ${named.join(", ") || "an unnamed consumer"}, which does not await it`));
+        out.push(violation("EVENT", u.name, ev, "named-consumer-missing", u.file, i + 1, `${u.name} says ${ev} is processed by ${named.join(", ") || "an unnamed consumer"}, which does not await it`));
         break;
       }
     }
@@ -3762,7 +3773,7 @@ export function namedConsumerRule(m: Model): Violation[] {
 }
 ```
 
-Check `load.ts` for how the loader sets `Unit.contractLine`. If it is not the 1-based line of the heading, adjust `end` so that the scan stops before the `## Contract (machine-checked)` heading, and keep the test green.
+The scan bounds are computed from the source itself (frontmatter close, contract heading), so no dependency on `Unit.contractLine` semantics.
 
 In `report.ts`, import `namedConsumerRule` and insert it after `eventRule` in `ALL_RULES`.
 
@@ -3775,7 +3786,7 @@ Expected: PASS.
 
 Run: `pnpm build >/dev/null && node apps/cli/dist/index.js align --rule EVENT | grep named-consumer-missing`
 
-Expect a handful of keys, including `EVENT:rtm.append-link:qa-defect-manager:named-consumer-missing` (qa-defect-manager.md:121). Classify each key:
+Expect very few keys: the preflight scan found exactly one true hit, `EVENT:qa-defect-manager:rtm.append-link:named-consumer-missing` (qa-defect-manager.md:121). If any other key appears, it is a checker false positive until proven otherwise: tighten the rule and add a pinning test, never baseline it. Classify each key:
 - **Transcription error:** the named consumer's prose says it waits for or subscribes to the event, but its contract omits `awaits`. Add the event to `awaits` in that contract.
 - **Genuine:** baseline it with `ids: [AUD-027]`.
 
