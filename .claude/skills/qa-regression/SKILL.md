@@ -37,7 +37,7 @@ Runs the full regression suite — all test cases tagged for regression (via `re
 
 ## Example
 ```
-/qa-regression --priority=P0,P1 --module=BILLING --against=RUN-2026-05-20-003
+/qa-regression --priority=P0,P1 --module=BILLING --against=RUN-20260520-003
 ```
 Runs P0/P1 regression TCs for BILLING and compares results against run 003.
 

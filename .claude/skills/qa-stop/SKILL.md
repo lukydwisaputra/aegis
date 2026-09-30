@@ -35,7 +35,7 @@ Gracefully terminates an in-progress QA pipeline run. Signals all active sub-age
 
 ## Example
 ```
-/qa-stop --run=RUN-2026-05-24-001 --reason="hotfix deployed, restarting with new scope"
+/qa-stop --run=RUN-20260524-001 --reason="hotfix deployed, restarting with new scope"
 ```
 Cleanly aborts run 001 with a recorded reason, preserving all partial artifacts for later resume.
 

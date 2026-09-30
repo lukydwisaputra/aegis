@@ -16,7 +16,7 @@ Reads the execution results from a prior run and selectively re-dispatches only 
 ## Key flags
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--run` | last run | Run ID to pull failed TCs from (e.g. `RUN-2026-05-24-001`) |
+| `--run` | last run | Run ID to pull failed TCs from (e.g. `RUN-20260524-001`) |
 | `--child` | `false` | Treat this invocation as a child of the parent run (inherits lock) |
 | `--include-blocked` | `false` | Also re-execute TCs in `blocked` status, not just `fail` |
 
@@ -37,9 +37,9 @@ Reads the execution results from a prior run and selectively re-dispatches only 
 
 ## Example
 ```
-/qa-rerun-failed --run=RUN-2026-05-24-001 --include-blocked
+/qa-rerun-failed --run=RUN-20260524-001 --include-blocked
 ```
-Finds all failed and blocked TCs from run 001 and re-executes them, storing results in `RUN-2026-05-24-001/rerun-001/`.
+Finds all failed and blocked TCs from run 001 and re-executes them, storing results in `RUN-20260524-001/rerun-001/`.
 
 ## Contract (machine-checked)
 

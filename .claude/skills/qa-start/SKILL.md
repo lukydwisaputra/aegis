@@ -46,7 +46,7 @@ Kicks off a complete Software Testing Life Cycle run — requirements analysis, 
 ```
 /qa-start --module=AUTH --env=staging --type=Functional --apps=prospect --max-parallel=6
 ```
-Creates RUN-2026-05-24-001, runs full STLC for the AUTH module of the prospect app against staging.
+Creates RUN-20260524-001, runs full STLC for the AUTH module of the prospect app against staging.
 
 ## Contract (machine-checked)
 

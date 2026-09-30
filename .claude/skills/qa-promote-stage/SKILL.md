@@ -37,7 +37,7 @@ Formalises environment promotion by first running a quality gate check and, on p
 
 ## Example
 ```
-/qa-promote-stage --run=RUN-2026-05-24-001 --to-stage=staging
+/qa-promote-stage --run=RUN-20260524-001 --to-stage=staging
 ```
 Runs the staging gate check on run 001 and, on pass, promotes it to staging.
 

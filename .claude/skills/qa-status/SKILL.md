@@ -35,7 +35,7 @@ Provides a real-time or snapshot view of a QA pipeline run. Shows which STLC pha
 
 ## Example
 ```
-/qa-status --run=RUN-2026-05-24-001 --watch
+/qa-status --run=RUN-20260524-001 --watch
 ```
 Streams live status updates for run 001 until it finishes.
 

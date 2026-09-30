@@ -35,7 +35,7 @@ Recovers a run that was interrupted mid-cycle (e.g. agent crash, network loss, m
 
 ## Example
 ```
-/qa-resume --run=RUN-2026-05-24-002
+/qa-resume --run=RUN-20260524-002
 ```
 Detects that run 002 stalled mid-execution phase and resumes from the first unfinished specialist agent.
 

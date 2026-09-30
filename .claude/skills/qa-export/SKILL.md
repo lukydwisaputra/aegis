@@ -38,7 +38,7 @@ Synchronises artifacts from a completed or in-progress run to an external projec
 
 ## Example
 ```
-/qa-export --tracker=clickup --what=defects --since=RUN-2026-05-20-003
+/qa-export --tracker=clickup --what=defects --since=RUN-20260520-003
 ```
 Exports only defects created after run 003 to ClickUp.
 

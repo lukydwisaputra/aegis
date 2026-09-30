@@ -43,7 +43,7 @@ Reads a run's execution results and compares them against the quality gate thres
 
 ## Example
 ```
-/qa-gate-check --run=RUN-2026-05-24-001 --stage=staging --json
+/qa-gate-check --run=RUN-20260524-001 --stage=staging --json
 ```
 Evaluates the staging gate for run 001 and outputs JSON for CI consumption.
 
