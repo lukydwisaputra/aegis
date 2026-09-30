@@ -7,7 +7,7 @@
 
 **Goal:** Make the alignment ratchet mean what it promises — *gaps shrink only by fixing the prose or code they describe* — with a PR-level shrink guard (D1) and anchoring/consistency rules (D2) that turn contract-only edits into new violations, closing AH-01..17.
 
-**Architecture:** D1 is a pure `baselineShrink()` in `@qa/alignment` (new dependency-free modules `markdown.ts` and `shrink.ts`) driven by `scripts/check-baseline-growth.ts` from `git diff --unified=0` plus the base/head contract-block line ranges. D2 adds rule modules (`rules/escape.ts`, `rules/anchors.ts`, `rules/pipeline.ts`, `rules/reverse.ts`) and semantic fixes in `paths.ts`, `load.ts`, `rules/{structure,config,dataflow,prose}.ts`; `.claude/pipeline.yaml` gains `escapes`, `writePolicy` and `sinkEvents`. Every task baselines what its rule surfaces under an owning matrix ID and ends with `ratchet: ok`.
+**Architecture:** D1 is a pure `baselineShrink()` in `@qa/alignment` (new dependency-free modules `markdown.ts` and `shrink.ts`) driven by `scripts/check-baseline-growth.ts` from `git diff --unified=0` plus the base/head contract-block line ranges. D2 adds rule modules (`rules/escape.ts`, `rules/anchors.ts`, `rules/pipeline.ts`, `rules/reverse.ts`) and semantic fixes in `paths.ts`, `load.ts`, `rules/{structure,config,dataflow,prose}.ts`; `.claude/pipeline.yaml` gains `escapes` and `writePolicy`. Every task baselines what its rule surfaces under an owning matrix ID and ends with `ratchet: ok`.
 
 **Tech Stack:** TypeScript 5.5 (ESM, NodeNext, strict, exactOptionalPropertyTypes, noUncheckedIndexedAccess), zod 3, `yaml` (eemeli/yaml), commander 12, jest 29 + ts-jest (CJS, `@qa/*` → `src`), tsx (guard script), git ≥ 2.28, pnpm workspaces, GitHub Actions.
 
@@ -15,7 +15,7 @@
 
 ## Global Constraints
 
-- **Prose is frozen.** Nothing outside a `## Contract (machine-checked)` block in `.claude/agents/**` or `.claude/skills/**` changes. A contract block changes only for a transcription fix (the prose already says it) or the new `rmw` field. `.claude/pipeline.yaml` may change (`escapes`, `writePolicy`, `sinkEvents`, transcription fixes).
+- **Prose is frozen.** Nothing outside a `## Contract (machine-checked)` block in `.claude/agents/**` or `.claude/skills/**` changes. A contract block changes only for a transcription fix (the prose already says it) or the new `rmw` field. `.claude/pipeline.yaml` may change (`escapes`, `writePolicy`, transcription fixes).
 - **Test command:** `pnpm -F @aegis/internal-tests exec jest __internal-tests__/alignment` (the workspace package is `@aegis/internal-tests`; `-F aegis-internal-tests` matches no project). It runs every file under `__internal-tests__/alignment/` and the real-repo ratchet `__internal-tests__/alignment.test.ts`.
 - **Every task ends green:** the test command passes AND `pnpm build >/dev/null && node apps/cli/dist/index.js align` prints `ratchet: ok` (exit 0).
 - **Violation key** `RULE:subject:detail:reason`, no line numbers. `RULE_IDS` gains exactly one id, `ESCAPE` (15 ids). New reasons reuse existing rule ids as the spec names them.
@@ -48,7 +48,7 @@
 
 ## Deviations from spec outline
 
-- 11 tasks instead of §11's 10: reverse checks split into Task 8 (config keys, package/script names, counts) and Task 9 (unconsumed events) — a pre-plan corpus estimate gives ~150 `no-consumer` keys, so the 60-key stop must not block the other reverse checks.
+- 11 tasks instead of §11's 10: reverse checks split into Task 8 (config keys, package/script names, counts) and Task 9 (named event consumers). A pre-plan estimate for a blanket unconsumed-event rule gave about 150 keys, so the controller narrowed Task 9 to prose-named consumers (AUD-027) and dropped `sinkEvents`.
 - AH-14 items ride in the task that edits the same code (spec §9 intent): single frontmatter parser → Tasks 1/7; `_qa-init-project` HANDBOOK.md allowance → Task 5; `allSources` dedupe → Task 6; CRLF frontmatter, fenced headings, `**/qa-x**`/`[/qa-x]` lookbehinds, own Process-only paths, loader dead branch → Task 7; Task 10 keeps the rest.
 - Escapes-growth in the guard moves from Task 1 to Task 2 (no `escapes` exist before Task 2).
 - `baselineShrink(baseYaml, headYaml, changes, index)` takes a 4th argument `SubjectIndex` (unit name → file, tracked paths) — needed to map a subject to its file and to split keys whose subject contains `:`.
@@ -105,7 +105,7 @@
 | `packages/@qa/alignment/src/freshness.ts` (create) | `staleBuild` | 10 |
 | `packages/@qa/alignment/src/report.ts`, `index.ts`, `schema.ts` | wiring, slices, schemas | all |
 | `apps/cli/src/commands/align.ts` | `--by-slice`, stale-build | 10 |
-| `.claude/pipeline.yaml` | `escapes`, `writePolicy`, `sinkEvents` | 2, 5, 9 |
+| `.claude/pipeline.yaml` | `escapes`, `writePolicy` | 2, 5 |
 | `__internal-tests__/alignment/*.test.ts`, `helpers.ts` | tests | all |
 | `__internal-tests__/align-cli-smoke.test.ts` (create) | built CLI smoke | 10 |
 | `__internal-tests__/alignment/baseline.yaml` | ratchet baseline | all |
@@ -3681,113 +3681,126 @@ EOF
 
 ---
 
-### Task 9: Unconsumed events and `pipeline.yaml#sinkEvents` (AH-11 part 2)
+### Task 9: Named event consumers (AH-11 part 2, AUD-027)
+
+> **Controller ruling (replaces the drafted "every unconsumed event" rule).** events.jsonl is an audit trail that metrics and rollup read in full. An event that no unit `awaits` is therefore not a defect in itself. The drafted rule was estimated at about 150 keys, and it would have attributed all of them to AUD-027 wrongly. AUD-027 is narrower: prose says an event is *processed by* something that does not process it. So this task checks **named consumers** only. There is no `sinkEvents`.
+
+**Rule.**
+1. For each unit U that emits event E, scan U's prose lines. The contract block is excluded.
+2. Select the lines that mention E, backticked or bare, and also contain a consumer verb matching `/\b(process(es|ed)?|consume[sd]?|handle[sd]?|pick(s|ed)? up|applie[sd])\b/i`.
+3. The named consumers on such a line are its `qa-[a-z0-9-]+` tokens that name an existing unit other than U.
+4. The line is satisfied if at least one named consumer lists E in `awaits`.
+5. Otherwise, report `EVENT:<E>:<U>:named-consumer-missing` at that line, once per (E, U). This also covers a line that names no unit at all (for example "an RTM updater processes").
 
 **Files:**
-- Modify: `packages/@qa/alignment/src/schema.ts` (`sinkEvents`), `packages/@qa/alignment/src/rules/dataflow.ts` (append), `packages/@qa/alignment/src/report.ts`, `.claude/pipeline.yaml`, `__internal-tests__/alignment/rules-dataflow.test.ts`, `__internal-tests__/alignment/baseline.yaml`
+- Modify: `packages/@qa/alignment/src/rules/dataflow.ts` (append), `packages/@qa/alignment/src/report.ts`, `__internal-tests__/alignment/rules-dataflow.test.ts`, `__internal-tests__/alignment/baseline.yaml`
 
 **Interfaces:**
-- Produces: `Pipeline.sinkEvents: string[]` (default `[]`); `unconsumedEventRule(m: Model): Violation[]` — `EVENT:<event>:-:no-consumer`.
+- Produces: `namedConsumerRule(m: Model): Violation[]`, which reports `EVENT:<event>:<emitter>:named-consumer-missing`.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `__internal-tests__/alignment/rules-dataflow.test.ts` (add `unconsumedEventRule` to the import from `@qa/alignment`):
+Append the test below to `__internal-tests__/alignment/rules-dataflow.test.ts`, and add `namedConsumerRule` to the import from `@qa/alignment`:
 
 ```ts
-it('AH-11: an emitted event nobody awaits and no sink lists is unconsumed', () => {
+it('AH-11/AUD-027: an event whose prose names a consumer that does not await it is reported', () => {
+  const body = (s: string) => `# x\n\n## Your Role\n\n${s}\n`;
   const t = makeRepo({
     agents: {
-      'qa-a': { contract: ag('crosscutting', { emits: [{ event: 'defect.opened', via: 'append' }, { event: 'test.passed', via: 'append' }, { event: 'bus.error', via: 'append' }] }) },
-      'qa-b': { contract: ag('crosscutting', { awaits: ['test.passed'] }) },
+      'qa-a': {
+        body: body('Emits `rtm.append-link` events that qa-b or a post-design RTM updater processes.\nEmits `test.passed`, which qa-c consumes.\nEmits `defect.opened` for the audit trail.'),
+        contract: ag('crosscutting', { emits: [{ event: 'rtm.append-link', via: 'append' }, { event: 'test.passed', via: 'append' }, { event: 'defect.opened', via: 'append' }] }),
+      },
+      'qa-b': { contract: ag('crosscutting', {}) },
+      'qa-c': { contract: ag('crosscutting', { awaits: ['test.passed'] }) },
+      'qa-d': { body: body('Emits `bus.error`; an operator handles it.'), contract: ag('crosscutting', { emits: [{ event: 'bus.error', via: 'append' }] }) },
     },
-    pipeline: { ...MIN_PIPELINE, sinkEvents: ['bus.error'] },
   });
-  expect(keys(unconsumedEventRule(loadModel(t.root)))).toEqual(['EVENT:defect.opened:-:no-consumer']);
+  expect(keys(namedConsumerRule(loadModel(t.root))).sort()).toEqual([
+    'EVENT:bus.error:qa-d:named-consumer-missing',
+    'EVENT:rtm.append-link:qa-a:named-consumer-missing',
+  ]);
   t.cleanup();
 });
 ```
 
+`defect.opened` has no consumer verb, so it produces no key. `test.passed` is satisfied, because qa-c awaits it.
+
 - [ ] **Step 2: Run to verify it fails**
 
 Run: `pnpm -F @aegis/internal-tests exec jest __internal-tests__/alignment/rules-dataflow`
-Expected: FAIL — `unconsumedEventRule` not exported; `sinkEvents` rejected by the strict schema.
+Expected: FAIL, because `namedConsumerRule` is not exported.
 
 - [ ] **Step 3: Implement**
-
-In `schema.ts` add to `PipelineSchema` after `writePolicy`: `sinkEvents: z.array(z.string().min(1)).default([]),`.
 
 Append to `packages/@qa/alignment/src/rules/dataflow.ts`:
 
 ```ts
-/** Spec §8: an emitted event no unit awaits and `pipeline.yaml#sinkEvents` does not list (AUD-027). */
-export function unconsumedEventRule(m: Model): Violation[] {
-  const awaited = new Set([...m.units.values()].flatMap((u) => u.contract?.awaits ?? []));
-  const sinks = new Set(m.pipeline?.sinkEvents ?? []);
-  const first = new Map<string, Unit>();
-  for (const u of m.units.values()) for (const e of u.contract?.emits ?? []) if (!first.has(e.event)) first.set(e.event, u);
-  return [...first]
-    .filter(([ev]) => !awaited.has(ev) && !sinks.has(ev))
-    .map(([ev, u]) => violation("EVENT", ev, "-", "no-consumer", u.file, u.contractLine, `${ev} is emitted (first by ${u.name}) but no unit awaits it and pipeline.yaml#sinkEvents does not list it`));
+const CONSUMER_VERB = /\b(process(es|ed)?|consume[sd]?|handle[sd]?|pick(s|ed)? up|applie[sd])\b/i;
+
+/** Spec §8 (narrowed by controller ruling): prose names a consumer for an emitted event that does not await it (AUD-027). */
+export function namedConsumerRule(m: Model): Violation[] {
+  const out: Violation[] = [];
+  for (const u of m.units.values()) {
+    const c = u.contract;
+    if (c === null) continue;
+    const lines = u.source.split("\n");
+    const end = u.contractLine > 0 ? u.contractLine - 1 : lines.length;
+    for (const ev of new Set(c.emits.map((e) => e.event))) {
+      const re = new RegExp(`(^|[^a-z0-9.-])${ev.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9-]|$)`);
+      for (let i = 0; i < end; i++) {
+        const line = lines[i]!;
+        if (!re.test(line) || !CONSUMER_VERB.test(line)) continue;
+        const named = [...line.matchAll(/qa-[a-z0-9-]+/g)].map((x) => x[0]).filter((n) => n !== u.name && m.units.has(n));
+        if (named.some((n) => m.units.get(n)?.contract?.awaits.includes(ev))) continue;
+        out.push(violation("EVENT", ev, u.name, "named-consumer-missing", u.file, i + 1, `${u.name} says ${ev} is processed by ${named.join(", ") || "an unnamed consumer"}, which does not await it`));
+        break;
+      }
+    }
+  }
+  return out;
 }
 ```
 
-In `report.ts` import `unconsumedEventRule` and insert it after `eventRule` in `ALL_RULES`.
+Check `load.ts` for how the loader sets `Unit.contractLine`. If it is not the 1-based line of the heading, adjust `end` so that the scan stops before the `## Contract (machine-checked)` heading, and keep the test green.
 
-- [ ] **Step 4: Derive `sinkEvents` from package sources**
+In `report.ts`, import `namedConsumerRule` and insert it after `eventRule` in `ALL_RULES`.
 
-List candidate event types that package code (not the contracts package, not the checker) mentions:
+- [ ] **Step 4: Run the tests**
 
-```bash
-node --input-type=module -e "
-import { loadModel } from './packages/@qa/alignment/dist/index.js';
-import { execFileSync } from 'node:child_process';
-const m = loadModel(process.cwd());
-const awaited = new Set([...m.units.values()].flatMap((u) => u.contract?.awaits ?? []));
-const emitted = [...new Set([...m.units.values()].flatMap((u) => (u.contract?.emits ?? []).map((e) => e.event)))].filter((e) => !awaited.has(e));
-for (const e of emitted) { try { const f = execFileSync('git', ['grep', '-n', '-F', '\"' + e + '\"', '--', 'packages/*/src/**', 'packages/@qa/*/src/**', 'apps/*/src/**', ':!packages/@qa/contracts/**', ':!packages/@qa/alignment/**'], { encoding: 'utf-8' }); console.log(e + '\n' + f); } catch {} }"
-```
-
-Pre-plan candidates: `bus.error`, `run.created`, `run.blocked`, `review.passed`, `review.requested-changes`, `sandbox.experiment-completed`, `run.resumed`, `run.stop.requested`. Open each hit: include an event in `sinkEvents` only where the code READS it (a `type === "…"` / `case "…":` / filter / rollup on it), never where it only appends it (`@qa/run-state` appends `run.*` — that is a producer). Append the result to `.claude/pipeline.yaml`:
-
-```yaml
-# Events consumed by package code (rollup, metrics, dashboard) rather than by an awaiting agent or skill.
-# Each entry names the reading file in a comment.
-sinkEvents:
-  - <event>  # <package file:line that reads it>
-```
-
-(an empty list is written `sinkEvents: []`).
-
-- [ ] **Step 5: Run the tests**
-
-Run: `pnpm -F @aegis/internal-tests exec jest __internal-tests__/alignment/rules-dataflow __internal-tests__/alignment/schema`
+Run: `pnpm -F @aegis/internal-tests exec jest __internal-tests__/alignment/rules-dataflow`
 Expected: PASS.
 
-- [ ] **Step 6: Run align, count, and STOP if over 60 (Baseline procedure)**
+- [ ] **Step 5: Run align, classify and baseline (Baseline procedure; the 60-key stop applies)**
 
-Run: `pnpm build >/dev/null && node apps/cli/dist/index.js align --rule EVENT | grep -c ':no-consumer'`
-Pre-plan estimate: ~150 (168 emitted event types, few `awaits`). **If the count is above 60: STOP.** Do not baseline and do not commit. Report to the controller: the count, the full key list (`node apps/cli/dist/index.js align --rule EVENT | grep no-consumer`), the `sinkEvents` you derived with evidence, and these options for the owner: (a) baseline all under AUD-027 (the PR already carries `baseline-growth`); (b) narrow the rule (e.g. count an event consumed when a skill's prose or a package reads it); (c) defer — AH-11 closes as `wontfix — unconsumed-event check deferred by owner decision <date>` in Task 11. Resume per the decision.
-If 60 or fewer (or the owner chose (a)): classify each key (transcription error → the prose names a waiting/subscribing unit whose contract omitted `awaits` → add it; genuine → baseline with AUD-027; an event consumed only by package code → `sinkEvents`, not the baseline). Record the list in the report.
+Run: `pnpm build >/dev/null && node apps/cli/dist/index.js align --rule EVENT | grep named-consumer-missing`
 
-- [ ] **Step 7: Verify green**
+Expect a handful of keys, including `EVENT:rtm.append-link:qa-defect-manager:named-consumer-missing` (qa-defect-manager.md:121). Classify each key:
+- **Transcription error:** the named consumer's prose says it waits for or subscribes to the event, but its contract omits `awaits`. Add the event to `awaits` in that contract.
+- **Genuine:** baseline it with `ids: [AUD-027]`.
+
+Record the list in the report.
+
+- [ ] **Step 6: Verify green**
 
 Run: `pnpm -F @aegis/internal-tests exec jest __internal-tests__/alignment && pnpm build >/dev/null && node apps/cli/dist/index.js align | tail -1`
-Expected: PASS; `ratchet: ok`.
+Expected: tests PASS, and the last line reads `ratchet: ok`.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
+
+Stage the files below, plus any contract block you fixed for an `awaits` transcription, each by explicit path:
 
 ```bash
-git add packages/@qa/alignment/src/schema.ts packages/@qa/alignment/src/rules/dataflow.ts packages/@qa/alignment/src/report.ts \
-  .claude/pipeline.yaml __internal-tests__/alignment/rules-dataflow.test.ts __internal-tests__/alignment/baseline.yaml
-# plus, by explicit path, any contract block you fixed (awaits transcription)
-git commit -F - <<'EOF'
-feat(alignment): unconsumed events and pipeline.yaml#sinkEvents
+git add packages/@qa/alignment/src/rules/dataflow.ts packages/@qa/alignment/src/report.ts \
+  __internal-tests__/alignment/rules-dataflow.test.ts __internal-tests__/alignment/baseline.yaml
+git commit -F - <<'MSG'
+feat(alignment): named event consumers must await the event
 
-An emitted event that no unit awaits and no package consumes is reported
-(AUD-027) — AH-11 part 2.
+Prose that names a consumer for an emitted event is checked against that
+consumer's awaits (AUD-027) — AH-11 part 2.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-EOF
+MSG
 ```
 
 ---
@@ -4301,10 +4314,9 @@ In the touch-points table, after the `nonAgentNames` row (line 183) add:
 ```markdown
 | `escapes` | A contract gains or loses an escape hatch (see above) |
 | `writePolicy` → `writable` / `internalSkills` / `units` | CLAUDE.md's write table changes (`writable`), internal skills get a new framework area (`internalSkills`), or one unit needs a named exception (`units`, e.g. `_qa-build-toc: [HANDBOOK.md]`) |
-| `sinkEvents` | An emitted event is consumed by package code (rollup, metrics, dashboard) rather than by an awaiting agent or skill |
 ```
 
-(omit the `sinkEvents` row if Task 9 was deferred).
+Also state the named-consumer rule in one line: prose that says an event is processed, consumed or handled by a unit requires that unit to list the event in `awaits` (`EVENT:<event>:<emitter>:named-consumer-missing`).
 
 Before the **Workflow** paragraph add:
 
@@ -4375,7 +4387,7 @@ git add HANDBOOK/14-extending.md docs/superpowers/specs/2026-09-29-audit-remedia
 git commit -F - <<'EOF'
 docs(alignment): HANDBOOK 14.11, AH-01..17 statuses, final baseline review
 
-Documents ESCAPE, the prose anchors, escapes/writePolicy/sinkEvents, rmw, typed
+Documents ESCAPE, the prose anchors, escapes/writePolicy, rmw, typed
 ID placeholders, the shrink guard and its contract-only-fix label; marks the
 hardening items fixed (slice 1a-H).
 
