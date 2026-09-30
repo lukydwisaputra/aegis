@@ -65,7 +65,7 @@ reads:
   - "{run}/reports/work/qa-ui-specialist.json"
   - "{tests}/qa/specs/{url-path}/**"
   - "{tests}/qa/pages/{url-path}/**"
-  - "{tests}/qa/fixtures/auth.fixture"
+  - "{tests}/qa/fixtures/auth.fixture.ts"
   - "{tests}/qa/**"
   - "{run}/evidence/**"
   - "{run}/proposed-changes/**"
