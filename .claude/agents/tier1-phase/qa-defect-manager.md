@@ -132,3 +132,39 @@ Claims `task:defect-management` via taskmaster-client. Writes to `runs/{runId}/d
 `DEF-001-AUTH-UI` (SSO plus-aliased email, found by qa-ui-specialist): Title (61 chars): "SSO callback 500 when email contains '+'" — passes 65-char rule. MODULE=`AUTH` (functional area: authentication), TYPE=`UI` (found via E2E flow test TC-AUTH-031). Variation testing: Behaviour — `+` fails, `-` passes, `.` passes (localised to plus-sign encoding). State — fails on first and re-login. Environment — Chrome, Firefox, WebKit all fail; staging and dev both fail (server-side, not client-side). Severity: Sev2 (Critical) — core auth path broken for plus-aliased email users; workaround is to use a non-plus email (not acceptable for enterprise users). Priority proposed: P1 (Next release) — based on RISK-AUTH-007 HIGH rating.
 
 If a security scan later also surfaces the same root cause, it would be `DEF-AUTH-SEC-001` — a separate defect record linked to the UI one, not a duplicate, because the specialist type and evidence differ.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: triage
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-defect-manager-spv
+reads:
+  - "{run}/defects/*.json"
+  - "{run}/execution-summary.json"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "{run}/risk-register.json"
+  - "{run}/rtm.json"
+  - "agent-memory/qa-defect-manager/lessons.md"
+writes:
+  - "{run}/defects/{DEF-ID}.{md,json}"
+  - "{run}/rtm.json"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-defect-manager.json"
+  - "{run}/evidence/{DEF-ID}/**"
+emits:
+  - {event: defect.origin-confirmed, via: append}
+  - {event: defect.opened, via: append}
+  - {event: defect.duplicate, via: append}
+  - {event: defect.linked, via: append}
+  - {event: defect.management-complete, via: append}
+  - {event: rtm.append-link, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

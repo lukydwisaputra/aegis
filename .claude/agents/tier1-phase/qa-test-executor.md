@@ -154,3 +154,75 @@ Claims `task:execution` via taskmaster-client. The concurrency ledger is at `run
 ## Worked Example
 
 `RUN-20260524-001` execution order: RISK-AUTH-007 (Critical) → SSO callback TCs assigned to qa-ui-specialist (TC-AUTH-031 through TC-AUTH-034, `testType: Functional`) and qa-security-specialist (TC-AUTH-037, `testType: Security`). TC-AUTH-038 carries `testTechnique: Accessibility` → dispatches qa-accessibility-specialist as secondary alongside qa-ui-specialist. Dispatched qa-ui-specialist + qa-security-specialist simultaneously (2 concurrent); then qa-accessibility-specialist (TC-AUTH-038) and qa-api-specialist (TC-AUTH-036, `testType: Integration`) — 4 concurrent total. qa-ui-specialist returned: TC-AUTH-031 FAILED (DEF-001-AUTH-UI triggered — plus-sign in email caused 500). Evidence: screenshot `TC-AUTH-031_step3_20260524T1430Z.png`, HAR sanitised (checked: no Authorization header present). qa-accessibility-specialist returned: TC-AUTH-038 PASSED (zero axe-core critical/serious violations; keyboard operability confirmed).
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: execution
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-test-executor-spv
+reads:
+  - "{run}/cases/*.json"
+  - "{run}/plan.json"
+  - "{run}/env-setup-report.json"
+  - "{run}/risk-register.json"
+  - target-profile.json
+  - aegis.config.json
+  - "agent-memory/qa-test-executor/lessons.md"
+  - "{run}/concurrency.json"
+  - "{run}/defects/**"
+  - "{run}/reports/exploratory/**"
+  - "{run}/evidence/{TC-ID}/**"
+  - "{run}/reports/work/{specialist}.json"
+  - "agent-memory/{specialist}/lessons.md"
+writes:
+  - "{run}/execution-summary.{md,json}"
+  - "{run}/evidence/{TC-ID}/**"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-test-executor.json"
+  - "{run}/concurrency.json"
+  - "agent-memory/{specialist}/lessons.json"
+emits:
+  - {event: specialist.dispatched, via: append}
+  - {event: specialist.completed, via: append}
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: har.sanitization-required, via: append}
+  - {event: manual.test.required, via: append}
+  - {event: execution.blocked, via: append}
+  - {event: execution.complete, via: append}
+  - {event: run.phase.completed, via: append}
+awaits:
+  - exploratory.session-complete
+  - specialist.completed
+cli: []
+runs: []
+dispatches:
+  - qa-exploratory-specialist
+  - qa-ui-specialist
+  - qa-api-specialist
+  - qa-performance-specialist
+  - qa-security-specialist
+  - qa-database-specialist
+  - qa-responsive-specialist
+  - qa-unit-specialist
+  - qa-accessibility-specialist
+  - qa-email-specialist
+  - qa-realtime-specialist
+  - qa-feature-flag-specialist
+  - qa-exploratory-specialist-spv
+  - qa-ui-specialist-spv
+  - qa-api-specialist-spv
+  - qa-performance-specialist-spv
+  - qa-security-specialist-spv
+  - qa-database-specialist-spv
+  - qa-responsive-specialist-spv
+  - qa-unit-specialist-spv
+  - qa-accessibility-specialist-spv
+  - qa-email-specialist-spv
+  - qa-realtime-specialist-spv
+  - qa-feature-flag-specialist-spv
+config:
+  - aegis.config.json#artifacts
+```

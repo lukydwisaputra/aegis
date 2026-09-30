@@ -148,3 +148,77 @@ You hold the run-wide dispatch lock. Only one qa-orchestrator instance runs per 
 ## Worked Example
 
 Run `RUN-20260524-001`: dispatched qa-requirements-analyst first (mission: find important problems fast — ambiguity is a leading indicator). After run.phase.completed, emitted gate.opened for Gate 1; human approved with "expand security scope to include WSTG-AUTH-01." Captured condition in work report, dispatched qa-test-planner with condition pre-loaded. When qa-test-executor returned DEF-001-AUTH-UI, did not adjudicate severity — dispatched qa-defect-manager, emitted gate.opened for Gate 2. At Gate 3, refused to close because DEF-001-AUTH-UI fix was not yet verified; emitted run.blocked with structured reason; surfaced for human.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-start, qa-resume]
+reviewedBy: qa-orchestrator-spv
+reads:
+  - "{run}/taskmaster.json"
+  - aegis.config.json
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/*.json"
+  - "agent-memory/qa-orchestrator/lessons.md"
+  - "{run}/gates/gate-{N}-decision.json"
+  - target-profile.json
+  - "{run}/concurrency.json"
+  - "{run}/reports/closure/closure.json"
+  - "agent-memory/{worker}/lessons.md"
+writes:
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-orchestrator.json"
+  - "{run}/taskmaster.json"
+  - "{run}/COMPLETE"
+  - "agent-memory/{worker}/lessons.json"
+emits:
+  - {event: run.created, via: append}
+  - {event: run.phase.started, via: append}
+  - {event: gate.opened, via: append}
+  - {event: gate.closed, via: append}
+  - {event: budget.warning, via: append}
+  - {event: run.blocked, via: append}
+  - {event: run.completed, via: append}
+  - {event: preflight.failed, via: append}
+awaits:
+  - run.phase.completed
+  - discovery.step-complete
+  - execution.complete
+  - specialist.completed
+  - gate.closed
+cli: []
+runs: []
+dispatches:
+  - qa-metrics-collector
+  - qa-requirements-analyst
+  - qa-context-scanner
+  - qa-web-explorer
+  - qa-test-planner
+  - qa-test-designer
+  - qa-environment-engineer
+  - qa-test-executor
+  - qa-defect-manager
+  - qa-closure-reporter
+  - qa-executive-reporter
+  - qa-requirements-analyst-spv
+  - qa-test-planner-spv
+  - qa-test-designer-spv
+  - qa-environment-engineer-spv
+  - qa-test-executor-spv
+  - qa-defect-manager-spv
+  - qa-closure-reporter-spv
+  - qa-executive-reporter-spv
+  - qa-web-explorer-spv
+  - qa-compliance-iso25010
+  - qa-compliance-iso5055
+  - qa-compliance-istqb
+  - qa-compliance-cmmi
+  - qa-compliance-gdpr
+  - qa-compliance-pdpa
+  - qa-curator
+config:
+  - aegis.config.json#preCycleHealthCheck
+  - aegis.config.json#compliance
+```

@@ -134,3 +134,49 @@ Claims `task:env-setup` via taskmaster-client. Writes to `tests/qa/fixtures/`, `
 ## Worked Example
 
 For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-setup.ts` forged per-role JWTs using `SUPABASE_JWT_SECRET` + `qa-database-specialist`'s role mapping (pm_staff, bishan_staff, bishan_doctor, fit_staff). Each JWT saved to `tests/qa/state/{role}.json`. `global-teardown.ts` deleted all state files. Factories created: `user.factory.ts` (with `qa_` prefix), `appointment.factory.ts`. `playwright.config.ts` at the target root registered the `qa-e2e` project with `testDir: 'tests/qa'` (no top-level `testDir`); `test.config-written` emitted. Smoke-ping to `https://dev.<target-project>.local/` returned 200. env.ready emitted with all 4 roles active.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: environment
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-environment-engineer-spv
+reads:
+  - "{run}/plan.json"
+  - target-profile.json
+  - aegis.config.json
+  - "test-data/credentials/**"
+  - "{run}/cases/*.json"
+  - "agent-memory/qa-environment-engineer/lessons.md"
+  - "test-data/credentials/{role}.env.local"
+  - "secrets/.env.{env}"
+writes:
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{tests}/qa/global-setup.ts"
+  - "{tests}/qa/global-teardown.ts"
+  - "{target}/playwright.config.ts"
+  - "{tests}/qa/**"
+  - "{tests}/qa/factories/**"
+  - "{tests}/qa/state/{role}.json"
+  - "{run}/playwright-output/**"
+  - "{run}/env-setup-report.{md,json}"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-environment-engineer.json"
+emits:
+  - {event: env.ready, via: append}
+  - {event: env.setup-failed, via: append}
+  - {event: credentials.missing, via: append}
+  - {event: test.config-written, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: [npm, playwright-cli]
+dispatches: []
+config:
+  - aegis.config.json#browsers
+  - aegis.config.json#playwright.headed
+  - aegis.config.json#target.supabase.rolesToTest
+  - aegis.config.json#emailAdapter
+  - aegis.config.json#ports
+```
