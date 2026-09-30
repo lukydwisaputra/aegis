@@ -183,6 +183,33 @@ entries:
   - key: "CONFIG:_qa-init-project:templates/config/thresholds.yaml:missing"
     ids: [AUD-104]
     note: "templates/config/thresholds.yaml does not exist"
+  - key: "CONFIG:aegis.config.json:artifacts.evidenceStore:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#artifacts.evidenceStore is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:artifacts.inspectionScreenshots:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#artifacts.inspectionScreenshots is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:budgets:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#budgets is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:collector.remote:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#collector.remote is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:discovery.destructiveActionHeuristics:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#discovery.destructiveActionHeuristics is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:discovery.enabled:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#discovery.enabled is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:ports.k6Dashboard:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#ports.k6Dashboard is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
+  - key: "CONFIG:aegis.config.json:testing.manualCategoriesAllowed:unused"
+    ids: [AUD-007]
+    note: "aegis.config.json#testing.manualCategoriesAllowed is listed by no contract and read by no package source"
   - key: "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.secretsRef:missing"
     ids: [AUD-043]
     note: "aegis.config.json#environments.{env}.secretsRef does not exist"
@@ -367,15 +394,39 @@ entries:
   - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
     ids: [AUD-060]
     note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
+  - key: "DOC-REF:CLAUDE.md:63 agents:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md claims 63 agents; .claude/agents has 64 agent files"
+  - key: "DOC-REF:CLAUDE.md:crosscutting=4:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"Cross-cutting\" claims 4; .claude/agents/crosscutting has 5"
   - key: "DOC-REF:CLAUDE.md:qa-director:unknown"
     ids: [AUD-076]
     note: "qa-director is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:CLAUDE.md:qa-health:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   - key: "DOC-REF:CLAUDE.md:qa-planner:unknown"
     ids: [AUD-076]
     note: "qa-planner is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:CLAUDE.md:qa-specialist:unknown"
     ids: [AUD-076]
     note: "qa-specialist is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:CLAUDE.md:spv=25:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"3 \u2014 SPVs\" claims 25; .claude/agents/spv has 23"
+  - key: "DOC-REF:CLAUDE.md:tier2-5-devops=6:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"2.5 \u2014 DevOps\" claims 6; .claude/agents/tier2-5-devops has 7"
+  - key: "DOC-REF:CLAUDE.md:tier2-specialist=16:count-mismatch"
+    ids: [AUD-075]
+    note: "CLAUDE.md tier row \"2 \u2014 Specialists\" claims 16; .claude/agents/tier2-specialist has 14"
+  - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/agent-core:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/agent-core is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/taskmaster:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/taskmaster is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-defect-reporter:unknown"
     ids: [AUD-076]
     note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
@@ -457,6 +508,12 @@ entries:
   - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-reset-agent:unknown-command"
     ids: [AUD-107]
     note: "/qa-reset-agent is not a skill"
+  - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/cli is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/06-agents.md:63 agents:count-mismatch"
+    ids: [AUD-075]
+    note: "HANDBOOK/06-agents.md claims 63 agents; .claude/agents has 64 agent files"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-cicd-planner-spv:unknown"
     ids: [AUD-076]
     note: "qa-cicd-planner-spv is not an agent, skill, package or allowlisted name"
@@ -496,9 +553,39 @@ entries:
   - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:/qa-dash-export:unknown-command"
     ids: [AUD-107]
     note: "/qa-dash-export is not a skill"
+  - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/cli:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/cli is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/dashboard:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/dashboard is not a package in packages/@qa/"
+  - key: "DOC-REF:HANDBOOK/14-extending.md:@qa/templates:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/templates is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/16-glossary.md:qa-sandbox-manager:unknown"
     ids: [AUD-106]
     note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:docs/D02-teammate-onboarding.md:@qa/templates:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/templates is not a package in packages/@qa/"
+  - key: "DOC-REF:docs/D12-cicd-workflow.md:husky:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm husky is not a root or workspace script, bin or pnpm command"
+  - key: "DOC-REF:docs/D12-environments-overview.md:qa-smoke:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-smoke is not a root or workspace script, bin or pnpm command"
+  - key: "DOC-REF:docs/D12-environments-overview.md:qa-start:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-start is not a root or workspace script, bin or pnpm command"
+  - key: "DOC-REF:docs/D13-prompt-caching.md:@qa/agent-runner:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/agent-runner is not a package in packages/@qa/"
+  - key: "DOC-REF:docs/D14-extending-the-system.md:@qa/templates:unknown-package"
+    ids: [AUD-066]
+    note: "@qa/templates is not a package in packages/@qa/"
+  - key: "DOC-REF:docs/D14-extending-the-system.md:qa-health:unknown-script"
+    ids: [AUD-073]
+    note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   # --- DRIFT ---
   - key: "DRIFT:qa-database-specialist:aegis.config.json#environments.{env}.readOnly:config-not-in-prose"
     ids: [AUD-114]

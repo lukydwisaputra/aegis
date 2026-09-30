@@ -7,13 +7,14 @@ import { cliAnchorRule, configAnchorRule, runsAnchorRule, skillKindRule } from "
 import { escapeRule } from "./rules/escape.js";
 import { pipelineAnchorRule } from "./rules/pipeline.js";
 import { docRefRule, driftRule, skillRule } from "./rules/prose.js";
+import { countRule, docNameRule, unusedConfigRule } from "./rules/reverse.js";
 import { contractRule, dispatchRule, spvRule, toolRule } from "./rules/structure.js";
 import type { Model, Violation } from "./types.js";
 
 export const ALL_RULES: Array<(m: Model) => Violation[]> = [
-  contractRule, dispatchRule, spvRule, toolRule, cliRule, handoffRule, routeRule, envRule, configRule,
+  contractRule, dispatchRule, spvRule, toolRule, cliRule, handoffRule, routeRule, envRule, configRule, unusedConfigRule,
   producerRule, cycleRule, consumerRule, eventRule, emitterRule, writePolicyRule, skillRule, skillKindRule, driftRule,
-  cliAnchorRule, configAnchorRule, runsAnchorRule, pipelineAnchorRule, escapeRule, docRefRule,
+  cliAnchorRule, configAnchorRule, runsAnchorRule, pipelineAnchorRule, escapeRule, docRefRule, docNameRule, countRule,
 ];
 
 export interface AlignmentReport {
