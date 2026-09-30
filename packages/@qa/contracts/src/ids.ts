@@ -57,8 +57,8 @@ export const LessonIdSchema = z.string().regex(
   "Lesson ID format: L-{AGENT-INITIALS}-{NNN}"
 );
 
-/** A task id inside WR/RV ids: T-<n>, T-<phase>-<n> (phase != GATE) or T-GATE-G<N>. */
-const TASK_REF = "T-(?:\\d+|(?!GATE-)[A-Za-z][A-Za-z0-9]*-\\d+|GATE-G\\d+)";
+/** A task id inside WR/RV ids: T-<n>, T-<phase>-<n> (phase != GATE, any case) or T-GATE-G<N>. */
+const TASK_REF = "T-(?:\\d+|(?![Gg][Aa][Tt][Ee]-)[A-Za-z][A-Za-z0-9]*-\\d+|GATE-G\\d+)";
 export const TaskRefSchema = z.string().regex(new RegExp(`^${TASK_REF}$`), "Task ref format: T-{n} | T-{phase}-{n} | T-GATE-G{N}");
 export const WorkReportIdSchema = z.string().regex(new RegExp(`^WR-${TASK_REF}$`), "WorkReport ID format: WR-{taskRef}");
 export const ReviewIdSchema = z.string().regex(new RegExp(`^RV-[a-z-]+-${TASK_REF}$`), "Review ID format: RV-{agent-slug}-{taskRef}");

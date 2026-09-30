@@ -18,7 +18,7 @@ export const ExistingTestsSchema = z.object({
 export const TargetProfileCoreSchema = z.object({
   targetIsSingleProject: z.boolean(), sourceInventory: SourceInventorySchema, existingTests: ExistingTestsSchema,
 });
-/** runs/{runId}/target-profile.json as written by qa-context-scanner. Strict: an unlisted field is drift. */
+/** runs/{runId}/target-profile.json as written by qa-context-scanner. Top level is strict (an unlisted field is drift); nested objects strip unknown keys. */
 export const TargetProfileSchema = TargetProfileCoreSchema.extend({
   scannedAt: z.string().datetime({ offset: false }),
   packageManager: PackageManagerSchema,

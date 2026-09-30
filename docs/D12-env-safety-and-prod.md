@@ -39,7 +39,7 @@ Production smoke tests use `--read-only` flag:
 /qa-smoke --env=production --read-only
 ```
 
-The `--read-only` flag is enforced at the specialist dispatch level — any specialist that declares `mutates: true` in its manifest is skipped and a `specialist.skipped.readonly` event is emitted.
+The `--read-only` flag is enforced at the specialist dispatch level — the CLI refuses the claim of any specialist outside the production allowed list, and the executor marks those TCs `blocked`.
 
 ---
 
@@ -59,9 +59,8 @@ Configured in `aegis.config.json`:
 ```
 
 When a forbidden specialist is dispatched:
-1. `path-guard.assertEnvSafe` throws `EnvSpecialistBlocked`
-2. A `env.specialist-blocked` event is emitted with specialist name and environment
-3. The test executor logs the skip and continues — it is not a test failure
+1. The CLI refuses the claim at dispatch: PathGuardError `specialist-blocked` (or RunStateError `env-blocked` when the run may not target the environment)
+2. The test executor marks the affected TCs `blocked` and continues
 
 ---
 
@@ -74,7 +73,6 @@ Before `qa-smoke-prod.yml` triggers, the following must be true:
 - [ ] No `--force` flag on any specialist invocation
 - [ ] Mailpit adapter disabled (no email test infrastructure in prod)
 - [ ] No DB snapshot or migration steps in the workflow
-- [ ] ZAP passive scan only (no active scan) — `qa-security-specialist` uses `--passive-only` when not forbidden
 
 ---
 

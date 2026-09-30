@@ -207,7 +207,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-095 | Missing evidence on existing items: AUD-058 + qa-regression:24, qa-record-manual:25; AUD-057 + qa-help:20; AUD-060 + dashboard-api server.ts:44; gen-index.ts:222 reads `run.module` (RunState has `modules[]`) | as listed | LOW | P3 | open |
 | AUD-096 | Designer uses `BVA`/`EP`; schema uses `BoundaryValue`/`EquivalencePartition` | qa-test-designer.md:98 | LOW | P1 | fixed |
 | AUD-097 | Adoption-order risk: once the orchestrator uses `aegis run create`, any agent still hand-appending to events.jsonl breaks the chain and blocks the run → P0a-1 and P0a-2 must land together (or H1 first) | CLAUDE.md:100; chain verify | HIGH | P0a / P0b-2 sequencing | open |
-| AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | open |
+| AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | fixed — P1: all dashed run ids removed; run-id-docs.test.ts forbids them |
 | AUD-099 | Run statuses `initializing/aborted/resuming/interrupted` written by skills fail `RunStateSchema` | qa-start:31; qa-stop:22,27; qa-resume:19-22 | MED | P0a-1 (with AUD-023) | open |
 
 ## Classes found by the alignment checker (ALIGN)

@@ -40,7 +40,7 @@ You write the GitHub Actions workflow YAML files and configure secrets. You impl
 
 2. **Configure pnpm caching.** Use `actions/cache` with `~/.pnpm-store` and `pnpm-lock.yaml` cache key. Add Playwright browser cache step.
 
-3. **Configure secrets.** For each secret in `aegis.config.json.environments.{env}.secretsRef`:
+3. **Configure secrets.** For each secret under `aegis.config.json.environments.{env}.secretsRef` (`{type, prefix}`; each secret is named `{prefix}{NAME}`):
    ```bash
    gh secret set {SECRET_NAME} --body "$SECRET_VALUE"
    ```

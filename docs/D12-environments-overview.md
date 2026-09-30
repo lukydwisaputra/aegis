@@ -46,10 +46,10 @@ When Aegis finds a bug it does **not** fix it. It writes a defect record to `run
 
 | Capability | development | testing | staging | production |
 |-----------|-------------|---------|---------|-----------|
-| All specialists | ✓ | Subset | ✓ | Subset |
+| All specialists | ✓ | ✓ | ✓ | `ui` and `api` only (read-only smoke) |
 | Mutating test data | ✓ | ✓ | ✓ | ✗ |
 | Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit/Gmail) | ✗ |
-| Performance testing | ✓ | ✗ | ✓ | ✗ |
+| Performance testing | ✓ | ✓ | ✓ | ✗ |
 | Unit testing | ✓ | ✓ | ✓ | ✗ |
 | Read-only enforced | ✗ | ✗ | ✗ | ✓ |
 | Ephemeral | ✗ | ✓ | ✗ | ✗ |
@@ -66,9 +66,9 @@ This prevents PR-to-PR interference that plagues shared testing environments.
 ## Production environment — read-only enforcement
 
 Path-guard checks `environments.production.readOnly === true` before every mutating action.
-Any attempt to write data, submit forms, or modify state is rejected with a `env.write-blocked` event.
+Any attempt to write data, submit forms, or modify state is refused with a PathGuardError (`env-read-only`).
 
-Forbidden specialists in production: `email`, `performance`, `unit`.
+Production allows only the `ui` and `api` specialists, for read-only smoke. The CLI enforces this at claim: a disallowed specialist raises PathGuardError `specialist-blocked` (a run that may not target the environment raises RunStateError `env-blocked`), and the executor marks those TCs `blocked`.
 
 ## Configuration
 
