@@ -81,3 +81,34 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 - `test.passed` / `test.failed` — per TC per viewport
 - `breakpoint.defect-found` — includes viewport, element selector, defect type
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor]
+reviewedBy: qa-responsive-specialist-spv
+reads:
+  - aegis.config.json
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{target}/playwright.config.ts"
+  - agent-memory/qa-responsive-specialist/lessons.md
+writes:
+  - "{run}/cases/{TC-ID}-{viewport}-result.json"
+  - "{run}/evidence/{TC-ID}/{viewport}/**"
+  - "{run}/defects/{DEF-ID}.{md,json}"
+  - "{tests}/qa/specs/{url-path}/responsive.spec.ts"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: breakpoint.defect-found, via: append}
+  - {event: sandbox.explored, via: append}
+awaits: []
+cli: []
+runs: [playwright-cli]
+dispatches: []
+config:
+  - aegis.config.json
+```

@@ -57,3 +57,29 @@ You apply WCAG 2.2 AA to every component you build — not as an afterthought, b
 ## Events You Emit
 
 - `component.built` — one per new component; includes name, accessible role
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: tooling
+dispatchedBy: []
+reviewedBy: qa-ui-designer-spv
+reads:
+  - apps/dashboard/components.json
+  - apps/dashboard/tailwind.config.ts
+  - agent-memory/qa-ui-designer/lessons.md
+writes:
+  - apps/dashboard/src/components/ui/**
+  - apps/dashboard/src/components/domain/**
+  - apps/dashboard/src/components/layout/**
+  - apps/dashboard/src/styles/globals.css
+emits:
+  - {event: component.built, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - aegis.config.json#dashboard.projectName
+```
