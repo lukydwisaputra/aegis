@@ -84,14 +84,14 @@ When `proposeLesson(candidate)` is called:
 ```
 Worker: task.released event with work-report path
   ↓
-SPV (auto-triggered by orchestrator):
+SPV (dispatched by the dispatcher after task.released):
   1. Read work-report.json
   2. Read actual artifact files
   3. Read worker's lessons.md (what should the worker already know?)
   4. Read relevant knowledge synthesis files
   5. Write verdict: passed | passed-with-notes | requested-changes
-  6. If not clean pass: emit correctiveInstructions
-  7. @qa/agent-memory.proposeLesson(worker, instruction)
+  6. Submit the verdict with aegis review submit, including correctiveInstructions on a non-clean pass
+  7. The CLI appends the lesson through @qa/agent-memory; the SPV never writes lessons.json
   ↓
 Dispatcher (qa-orchestrator for phase agents, qa-test-executor for specialists):
   • passed: the task is done, advance

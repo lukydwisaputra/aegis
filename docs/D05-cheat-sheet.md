@@ -27,6 +27,13 @@ _Top 10 commands. Print this, stick it somewhere._
 | `/qa-triage` | Re-evaluate open defects |
 | `/qa-stop --reason="..."` | Abort cleanly |
 
+## Owner decisions (in addition to the top 10)
+
+| Command | What it does |
+|---------|-------------|
+| `/qa-gate-decide --gate=1 --decision=approved --note="..."` | Decide an open human gate (G1-G3) |
+| `/qa-escalation --task=T-... --decision=retry --reason="..."` | Decide a task rejected three times |
+
 ---
 
 ## Common flags

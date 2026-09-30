@@ -92,7 +92,7 @@ Workers MUST write this before emitting `task.released`:
 
 ## Auto-lesson pipeline
 
-When an SPV writes `correctiveInstructions` into its `review.json`, the **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads the verdict and calls `pipeCorrectiveInstruction()`, which invokes `@qa/agent-memory`. The SPV itself never touches `lessons.json`:
+When an SPV submits a verdict with `correctiveInstructions` through `aegis review submit`, the CLI calls `pipeCorrectiveInstruction()`, which invokes `@qa/agent-memory`. Neither the SPV nor the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) touches `lessons.json`:
 ```
 correctiveInstruction → proposeLesson(workerAgent, {
   polarity: "negative",

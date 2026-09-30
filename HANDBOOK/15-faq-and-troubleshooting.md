@@ -13,7 +13,7 @@
 5. If an agent is running but making no progress, check its token budget: `/qa-status --run=RUN-... --json | jq .tokenUsage`
 6. Still stuck? `/qa-stop --run=RUN-... --reason="diagnosing"` and re-examine artifacts
 
-**Most common cause:** a gate waiting for keyboard input (`[y/n]` prompt) that nobody answered. Check the terminal where `/qa-start` was invoked.
+**Most common cause:** an undecided gate. `AEGIS_AGENT=owner pnpm aegis run status` shows `next.kind: await-gate`; the owner decides it with `/qa-gate-decide`.
 
 ## 15.2 "Tests pass locally but fail in CI"
 

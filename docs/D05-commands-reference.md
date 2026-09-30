@@ -23,7 +23,7 @@ Options:
   --budget=<duration>   Token budget (e.g. 30m, 2h)
 ```
 
-Phases executed: Requirements → Discovery → Planning (Gate 1) → Design → Env Setup → Execution → Defects (Gate 2) → Closure (Gate 3) → Executive reports.
+Phases executed: Intake → Scan → Dev-test-review → Requirements → Env-auth → Explore → Planning (G1) → Design → Env-data → Execution → Triage (G2) → Closure-draft → Compliance → Closure-final (G3) → Executive → Curator.
 
 ### /qa-rerun-failed
 

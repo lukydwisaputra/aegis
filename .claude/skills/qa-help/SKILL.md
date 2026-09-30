@@ -21,7 +21,7 @@ Prints a concise, colour-formatted cheat sheet of the most commonly used QA pipe
 2. Select the top 10 most commonly used commands based on a curated priority ranking:
    - `/qa-start`, `/qa-smoke`, `/qa-status`, `/qa-stop`, `/qa-resume`
    - `/qa-rerun-failed`, `/qa-gate-check`, `/qa-health`, `/qa-compare`, `/qa-export`
-   - Owner decisions are listed under Core regardless of rank: `/qa-gate-decide` (decide an open human gate G1–G3) and `/qa-escalation` (decide a task rejected three times by its SPV).
+   - In addition to the top 10, always list the owner decisions under Core: `/qa-gate-decide` (decide an open human gate G1–G3) and `/qa-escalation` (decide a task rejected three times by its SPV).
 3. Group by category: Core, Workflow, Admin, CI/CD.
 4. For each command, print: name, one-line description, and key flags with short descriptions.
 5. Append a footer with links to: full HANDBOOK.md, GitHub repo, and the `/qa-doctor` diagnostic command.

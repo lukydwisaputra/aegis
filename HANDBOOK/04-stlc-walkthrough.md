@@ -87,7 +87,7 @@ For the Login/SSO feature in `RUN-20260523-001`, discovery found 12 auth-related
 
 The test case plan lists all planned cases with their provisional IDs, types, and priority.
 
-**Gate 1 — Plan Approval** fires here. The run pauses. In Claude Code chat you will see a summary of the plan and a prompt to approve or reject. Type `approve` to continue to Phase 3, or type feedback to request changes.
+**G1 — Plan approval** fires here. The orchestrator opens the gate and the run pauses (`next.kind: await-gate`). The owner reviews the plan and decides with `/qa-gate-decide --gate=1 --decision=approved --note="..."`, or rejects it with `--decision=rejected` and a reopen phase to request changes. The Design phase cannot start until G1 is approved.
 
 ---
 

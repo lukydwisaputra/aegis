@@ -46,7 +46,7 @@ Example:
 
 #### `/qa-smoke`
 
-Runs a fast smoke test: phases 1–3 only, reduced case set.
+Runs a fast smoke test: Intake, Scan, Env-auth, Env-data, Execution and Triage only, reduced case set. There is no human gate; G2 is auto-decided from `thresholds.yaml#smoke`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
