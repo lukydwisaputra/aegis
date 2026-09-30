@@ -9,6 +9,7 @@ export * from "./rules/structure.js";
 export * from "./rules/config.js";
 export * from "./rules/dataflow.js";
 export * from "./rules/prose.js";
+export * from "./rules/anchors.js";
 export * from "./rules/escape.js";
 export * from "./ratchet.js";
 export * from "./report.js";

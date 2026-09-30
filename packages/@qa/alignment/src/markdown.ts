@@ -36,3 +36,16 @@ export function contractRange(source: string): { start: number; end: number } | 
   const close = open === -1 ? -1 : lines.findIndex((x, j) => j > open && x.trim() === "```");
   return { start: heads[0]! + 1, end: close === -1 ? lines.length : close + 1 };
 }
+
+/** Lines outside the frontmatter and the contract block, 1-based, `\r` stripped. */
+export function proseLines(source: string): Array<{ text: string; line: number }> {
+  const lines = source.split("\n");
+  const range = contractRange(source);
+  const fmEnd = lines[0]?.trim() === "---" ? lines.findIndex((l, i) => i > 0 && l.trim() === "---") : -1;
+  return lines.flatMap((text, i) => {
+    const line = i + 1;
+    if (i <= fmEnd) return [];
+    if (range !== null && line >= range.start && line <= range.end) return [];
+    return [{ text: text.replace(/\r$/, ""), line }];
+  });
+}
