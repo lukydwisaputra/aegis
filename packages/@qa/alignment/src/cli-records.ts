@@ -11,6 +11,10 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "phase.start": ["run.phase.started"],
   "phase.complete": ["run.phase.completed", "run.phase.not-applicable", "preflight.failed", "integrity.violation", "run.blocked"],
   "run.complete": ["run.completed", "integrity.violation", "run.blocked"],
+  "gate.open": ["gate.opened", "integrity.violation", "run.blocked"],
+  "gate.decide": ["gate.decided"],
+  "gate.auto-decide": ["gate.auto-decided"],
+  "escalation.decide": ["escalation.decided"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {

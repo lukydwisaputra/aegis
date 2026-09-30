@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { addTask, busPath, claimTask, completePhase, completeRun, createRun, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { escalationDecision, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
 let t: TmpAegis;
 let runId: string;
@@ -80,9 +80,9 @@ describe('phase barrier (spec §6.1)', () => {
   it('an accept-with-risk escalation decision satisfies the review check for that attempt only', async () => {
     await toRequirements();
     await workTask(t.root, runId, 'T-requirements-1', RA, null);
-    writeRunFile(t.root, runId, `reports/review/${RA}.T-requirements-1.1.escalation.json`, { decision: 'rework' });
+    writeRunFile(t.root, runId, `reports/review/${RA}.T-requirements-1.1.escalation.json`, escalationDecision(RA, 'T-requirements-1', 1, 'retry'));
     await expect(completePhase(t.root, runId, 'requirements', ORCH)).rejects.toMatchObject({ message: expect.stringMatching(/attempt 1 of qa-requirements-analyst has no passing review/) });
-    writeRunFile(t.root, runId, `reports/review/${RA}.T-requirements-1.1.escalation.json`, { decision: 'accept-with-risk' });
+    writeRunFile(t.root, runId, `reports/review/${RA}.T-requirements-1.1.escalation.json`, escalationDecision(RA, 'T-requirements-1', 1, 'accept-with-risk'));
     expect((await completePhase(t.root, runId, 'requirements', ORCH)).phases.requirements).toMatchObject({ status: 'completed' });
   });
 
@@ -91,7 +91,7 @@ describe('phase barrier (spec §6.1)', () => {
     writeRunFile(t.root, runId, 'target-profile.json', PROFILE);
     await workTask(t.root, runId, 'T-scan-1', 'qa-context-scanner', null, 'passed', 'failed');
     await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/task T-scan-1 failed/) });
-    writeRunFile(t.root, runId, 'reports/review/qa-context-scanner.T-scan-1.1.escalation.json', { decision: 'accept-with-risk' });
+    writeRunFile(t.root, runId, 'reports/review/qa-context-scanner.T-scan-1.1.escalation.json', escalationDecision('qa-context-scanner', 'T-scan-1', 1, 'accept-with-risk'));
     expect((await completePhase(t.root, runId, 'scan', ORCH)).phases.scan).toMatchObject({ status: 'completed' });
   });
 

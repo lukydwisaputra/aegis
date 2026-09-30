@@ -15,3 +15,4 @@ export * from "./specialists.js";
 export * from "./phases.js";
 export * from "./gate-decision.js";
 export * from "./target-profile.js";
+export * from "./escalation-decision.js";

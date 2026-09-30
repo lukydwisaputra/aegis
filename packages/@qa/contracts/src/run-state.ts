@@ -56,6 +56,9 @@ export const RunStateSchema = z
       .strict()
       .optional(),
     integrityCheckpoint: z.object({ seq: z.number().int().positive(), lineHash: Sha256HexSchema }).strict().optional(),
+    // Gate rejections (spec §3.2): task id -> agent -> the highest work-report attempt the rejection superseded.
+    // The phase barrier and gate open accept only a later attempt, so a reopened task needs new work.
+    supersededAttempts: z.record(z.string().min(1), z.record(z.string().min(1), z.number().int().positive())).optional(),
     createdAt: Iso,
     updatedAt: Iso,
   })

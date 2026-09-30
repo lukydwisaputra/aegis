@@ -13,6 +13,13 @@
 #   CMMI-DEV v2.0       — Process maturity defect density targets
 # =============================================================================
 
+# ─── CYCLE: smoke (/qa-smoke) — auto-decided gate G2, no human gate ───────────
+# Read by `aegis gate auto-decide` (P0 spec §3.2). Pass rate is passed / (passed + failed + blocked).
+smoke:
+  passRateMin: 100   # percent of executed smoke test cases that must pass
+  openSev1Max: 0     # open Sev1 defects tolerated
+  openSev2Max: 0     # open Sev2 defects tolerated
+
 # ─── STAGE: testing (PR gate — fast feedback, ~10 min budget) ─────────────────
 testing:
 

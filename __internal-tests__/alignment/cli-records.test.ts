@@ -38,6 +38,10 @@ const ENTRY: Record<string, string> = {
   'phase.start': 'startPhase',
   'phase.complete': 'completePhase',
   'run.complete': 'completeRun',
+  'gate.open': 'openGate',
+  'gate.decide': 'decideGate',
+  'gate.auto-decide': 'autoDecideGate',
+  'escalation.decide': 'decideEscalation',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

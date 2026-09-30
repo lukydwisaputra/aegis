@@ -13,9 +13,10 @@ import {
 } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
-import { assertCallerAllowed } from "./caller.js";
+import { assertCallerAllowed, pairedSpv } from "./caller.js";
 import { readRunConfig } from "./config.js";
 import { RunStateError } from "./errors.js";
+import { readEscalationDecision } from "./escalation.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { OUTPUT_SCHEMAS, PHASE_OUTPUTS, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
@@ -131,16 +132,17 @@ export function notApplicableReason(root: string, runId: string, phase: PhaseId)
   return null;
 }
 
-function reviewPassed(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
+/** A passing review of `attempt` by the paired SPV of `agent`. */
+export function reviewPassed(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
   const file = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
   if (!existsSync(file)) return false;
   const review = ReviewSchema.safeParse(loadJson(file));
-  return review.success && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
+  return review.success && review.data.reviewer === pairedSpv(agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
 }
 
-function acceptedWithRisk(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
-  const file = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.escalation.json`);
-  return existsSync(file) && (loadJson(file) as { decision?: unknown }).decision === "accept-with-risk";
+/** The highest attempt of `agent` on `taskId` that a gate rejection superseded (0: none). Only a later attempt counts. */
+export function supersededAttempt(state: RunState, agent: string, taskId: string): number {
+  return state.supersededAttempts?.[taskId]?.[agent] ?? 0;
 }
 
 /** Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. */
@@ -164,8 +166,18 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       continue;
     }
     const latest = Math.max(...attempts);
+    // A gate rejection reopened this task: reviews and escalation decisions of the old attempts no longer count.
+    if (latest <= supersededAttempt(state, agent, t.id)) {
+      problems.push(`task ${t.id}: attempt ${latest} of ${agent} was superseded by a gate rejection; the reopened task needs a new work report`);
+      continue;
+    }
     // An accept-with-risk decision by the owner covers the latest attempt, failed or unreviewed.
-    if (acceptedWithRisk(root, runId, agent, t.id, latest)) continue;
+    const escalation = readEscalationDecision(root, runId, agent, t.id, latest);
+    if ("problem" in escalation) {
+      problems.push(`task ${t.id}: ${escalation.problem}`);
+      continue;
+    }
+    if (escalation.decision?.decision === "accept-with-risk") continue;
     if (t.status === "failed") {
       problems.push(`task ${t.id} failed (attempt ${latest} of ${agent}); only an accept-with-risk escalation decision lets the phase complete`);
       continue;

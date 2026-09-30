@@ -12,6 +12,8 @@ import { reviewCommand, workReportCommand } from "./commands/submit.js";
 import { integrityCommand } from "./commands/integrity.js";
 import { alignCommand } from "./commands/align.js";
 import { phaseCommand } from "./commands/phase.js";
+import { gateCommand } from "./commands/gate.js";
+import { escalationCommand } from "./commands/escalation.js";
 
 const program = new Command();
 
@@ -33,5 +35,7 @@ program.addCommand(reviewCommand());
 program.addCommand(integrityCommand());
 program.addCommand(alignCommand());
 program.addCommand(phaseCommand());
+program.addCommand(gateCommand());
+program.addCommand(escalationCommand());
 
 await program.parseAsync();

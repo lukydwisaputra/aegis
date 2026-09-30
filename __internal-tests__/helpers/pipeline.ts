@@ -43,6 +43,17 @@ export const review = (reviewer: string, agent: string, taskId: string, verdict:
   modelUsed: 'claude-opus-5-5',
 });
 
+/** A valid reports/review/{agent}.{taskId}.{attempt}.escalation.json body (EscalationDecisionSchema). */
+export const escalationDecision = (agent: string, taskId: string, attempt: number, decision: 'retry' | 'accept-with-risk' | 'abort') => ({
+  taskId,
+  agent,
+  attempt,
+  decision,
+  reason: `Owner decided ${decision} for the pipeline test.`,
+  decidedBy: 'owner',
+  decidedAt: TS,
+});
+
 /** One worker task through the SPV loop: add (orchestrator), claim + submit + release (worker), review (SPV, if any). */
 export async function workTask(
   root: string,
