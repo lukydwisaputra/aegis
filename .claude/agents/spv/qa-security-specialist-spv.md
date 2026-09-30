@@ -62,6 +62,7 @@ writes: []
 emits:
   - {event: review.passed, via: append}
   - {event: review.requested-changes, via: append}
+  - {event: secret.leak-detected, via: append}
 awaits: []
 cli: []
 runs: []

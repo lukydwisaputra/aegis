@@ -58,7 +58,6 @@ reads:
   - "{tests}/qa/contract/**"
   - "{run}/evidence/**"
   - "{run}/target-profile.json"
-  - "test-data/credentials/*.env.local"
   - "{tests}/qa/**"
   - "{run}/events.jsonl"
   - "agent-memory/qa-api-specialist/lessons.md"

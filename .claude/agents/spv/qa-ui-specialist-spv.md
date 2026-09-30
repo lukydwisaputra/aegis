@@ -69,6 +69,7 @@ reads:
   - "{tests}/qa/**"
   - "{run}/evidence/**"
   - "{run}/proposed-changes/**"
+  - "{run}/cases/*.json"
   - "{target}/playwright.config.ts"
   - "{run}/events.jsonl"
   - "agent-memory/qa-ui-specialist/lessons.md"
