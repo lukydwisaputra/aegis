@@ -41,7 +41,7 @@ branding, no ship/no-ship verdict outside the sign-off attestation block.
 - `runs/{runId}/reports/executive/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
 - `runs/{runId}/reports/executive/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
 - `runs/{runId}/reports/work/qa-executive-reporter.json` — work report (which deliverables produced, tone-check results, lessons applied)
-- Events emitted: `report.produced`, `tone.check-failed`, `brand.leak-detected`, `report.fallback` (if PDF skill fails), `run.phase.completed` (last)
+- Events emitted: `report.produced`, `tone.check-failed`, `brand.leak-detected`, `report.fallback` (if PDF skill fails)
 
 > **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process). If a PDF skill fails, write the `.md` equivalent to `reports/executive/` (NOT the root) and emit a `report.fallback` event naming the failed deliverable — `.md` in the root with no `report.fallback` event is the failure observed in real runs.
 
@@ -149,7 +149,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill with the tone-checked content (writes to `reports/executive/`). Same skill-first / `.md`-fallback-with-`report.fallback` rule.
 
-7. **Write work report, then emit `run.phase.completed`.** Record: three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied. Emit `run.phase.completed` last (orchestrator's phase-advance signal).
+7. **Write the work report, then stop.** Record: three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied; the orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -171,7 +171,6 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - `jargon.flagged` / `tone.check-failed` — one per sentence rewritten by tone-check; includes original + rewrite
 - `brand.leak-detected` — if an internal name slips into any deliverable (must be fixed before completion)
 - `report.fallback` — one per deliverable that fell back from PDF to `.md`; includes deliverable + reason
-- `run.phase.completed` — emitted last (orchestrator's phase-advance signal)
 
 ## Concurrency
 
@@ -228,7 +227,6 @@ emits:
   - {event: tone.check-failed, via: append}
   - {event: brand.leak-detected, via: append}
   - {event: report.fallback, via: append}
-  - {event: run.phase.completed, via: append}
 awaits: []
 cli: []
 runs: []

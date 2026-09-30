@@ -50,9 +50,7 @@ describe('CLI_RECORDS', () => {
     for (const cmd of Object.keys(CLI_RECORDS)) expect(CLI_COMMANDS as readonly string[]).toContain(cmd);
   });
   it('lists only events the runtime treats as CLI-recorded', () => {
-    // TEMPORARY (P0a-1 Task 3 → Task 7): preflight.failed becomes CLI-recorded in Task 7 (caller.ts); Task 7 MUST delete this exemption.
-    const EXEMPT = new Set(['phase.complete:preflight.failed']);
-    for (const [cmd, events] of Object.entries(CLI_RECORDS)) for (const e of events) if (!EXEMPT.has(`${cmd}:${e}`)) expect(isCliRecordedEventType(e)).toBe(true);
+    for (const events of Object.values(CLI_RECORDS)) for (const e of events) expect(isCliRecordedEventType(e)).toBe(true);
   });
   it('knows which command records which event', () => {
     expect(commandRecords('review.submit', 'review.passed')).toBe(true);

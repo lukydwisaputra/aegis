@@ -39,7 +39,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 
 - `runs/{runId}/reports/closure/closure.md` — ISTQB closure narrative (readable)
 - `runs/{runId}/reports/closure/closure.json` — ISTQB closure data (Zod-validated). **Both files are mandatory** — see Quality Standards.
-- `runs/{runId}/events.jsonl` — closure.report-drafted, then run.phase.completed
+- `runs/{runId}/events.jsonl` — closure.report-drafted
 - `runs/{runId}/reports/work/qa-closure-reporter.json` — work report for SPV
 
 > You no longer write the metric JSON files (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). Those are owned by `qa-metrics-collector` and live under `reports/metrics/`. You READ them (see Inputs) to populate your ISTQB sections.
@@ -108,7 +108,6 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 - `closure.report-drafted` — includes runId, coveragePercent, openDefectCount (by severity)
 - `blocking.dependency` — if a required `reports/metrics/*.json` file is missing when you start
-- `run.phase.completed` — emitted last, after both closure files are written and `closure.report-drafted` fired (orchestrator's phase-advance signal)
 
 ## Concurrency
 
@@ -154,7 +153,6 @@ writes:
 emits:
   - {event: closure.report-drafted, via: append}
   - {event: blocking.dependency, via: append}
-  - {event: run.phase.completed, via: append}
 awaits: []
 cli: []
 runs: []

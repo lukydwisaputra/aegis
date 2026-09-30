@@ -116,7 +116,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
 10. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `manual.test.required` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
 
-11. **Emit `execution.complete`.** After all specialists and their SPVs are done and the execution summary is written, emit `execution.complete` (the orchestrator's phase-advance signal) followed by `run.phase.completed`.
+11. **Emit `execution.complete`.** After all specialists and their SPVs are done and the execution summary is written, emit `execution.complete` as your last event; the orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -141,7 +141,6 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 - `manual.test.required` — one per manual TC; includes steps and automation blocker
 - `execution.blocked` — if env is FAILED or if > 4 parallel specialists would be needed
 - `execution.complete` — single event at end; includes overall pass rate
-- `run.phase.completed` — emitted immediately after `execution.complete`, as the orchestrator's phase-advance signal
 
 ## Concurrency
 
@@ -196,7 +195,6 @@ emits:
   - {event: manual.test.required, via: append}
   - {event: execution.blocked, via: append}
   - {event: execution.complete, via: append}
-  - {event: run.phase.completed, via: append}
 awaits:
   - exploratory.session-complete
   - specialist.completed

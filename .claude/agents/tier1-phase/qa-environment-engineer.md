@@ -89,7 +89,7 @@ You do not run tests. You prepare the runway.
 
 8. **Write env-setup-report.** Document: what was configured (browser matrix, roles, factories created, `@playwright/cli` version), what was skipped (role not found in credentials), health status (READY / PARTIAL / FAILED).
 
-9. **Emit `run.phase.completed`.** After the report is written and `env.ready` (or `env.setup-failed`) has fired, emit `run.phase.completed` as the final event — the orchestrator's signal to advance.
+9. **Stop after the work report.** `env.ready` (or `env.setup-failed`) is your last event; the orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -118,7 +118,6 @@ You do not run tests. You prepare the runway.
 - `env.setup-failed` — specific failure reason; blocks execution phase
 - `credentials.missing` — one per missing role credential file
 - `test.config-written` — carries `testDir` (must be `tests/qa`) and the QA project name
-- `run.phase.completed` — emitted last, after `env.ready`/`env.setup-failed` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 
@@ -169,7 +168,6 @@ emits:
   - {event: env.setup-failed, via: append}
   - {event: credentials.missing, via: append}
   - {event: test.config-written, via: append}
-  - {event: run.phase.completed, via: append}
 awaits: []
 cli: []
 runs: [npm, playwright-cli]

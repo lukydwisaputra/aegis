@@ -574,9 +574,6 @@ entries:
   - key: "EVENT:qa-closure-reporter:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-closure-reporter:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-compare:compare.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -643,9 +640,6 @@ entries:
   - key: "EVENT:qa-defect-manager:rtm.append-link:named-consumer-missing"
     ids: [AUD-027]
     note: "qa-defect-manager says rtm.append-link is processed by an unnamed consumer, which does not await it"
-  - key: "EVENT:qa-defect-manager:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-deps-update:deps.applied:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -685,9 +679,6 @@ entries:
   - key: "EVENT:qa-environment-engineer:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-environment-engineer:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-event-bus:-:appends-without-cli"
     ids: [AUD-048]
     note: "emits events without `aegis event append`"
@@ -703,9 +694,6 @@ entries:
   - key: "EVENT:qa-executive-reporter:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-executive-reporter:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-exploratory-specialist-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
@@ -883,9 +871,6 @@ entries:
   - key: "EVENT:qa-requirements-analyst:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-requirements-analyst:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-rerun-failed:rerun.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -1000,9 +985,6 @@ entries:
   - key: "EVENT:qa-test-designer:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-designer:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-test-executor-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
@@ -1015,9 +997,6 @@ entries:
   - key: "EVENT:qa-test-executor:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-executor:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-test-planner-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
@@ -1030,9 +1009,6 @@ entries:
   - key: "EVENT:qa-test-planner:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-planner:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-triage:defect.triaged:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"

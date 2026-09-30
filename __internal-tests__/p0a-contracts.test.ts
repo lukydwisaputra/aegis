@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { assertAppendableByAgent } from '@qa/run-state';
 import { AegisEventSchema, GATE_AFTER, GateDecisionSchema, PHASE_IDS, TargetProfileCoreSchema, gateNumber } from '@qa/contracts';
 
 const TS = '2026-09-30T08:00:00.000Z';
@@ -46,4 +47,10 @@ it('aegis.config.json has no gates switch and declares intake.sources (AUD-007, 
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'aegis.config.json'), 'utf8'));
   expect(cfg).not.toHaveProperty('gates');
   expect(cfg.intake).toEqual({ sources: [] });
+});
+
+it('new event families and preflight.failed are CLI-recorded', () => {
+  for (const type of ['escalation.decided', 'gate.decided', 'gate.auto-decided', 'run.phase.not-applicable', 'preflight.failed']) {
+    expect(() => assertAppendableByAgent(type)).toThrow(expect.objectContaining({ code: 'invalid-input' }));
+  }
 });

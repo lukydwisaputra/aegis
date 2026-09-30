@@ -93,7 +93,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
-9. **Emit `run.phase.completed`.** After the work report and `defect.management-complete` are written, emit `run.phase.completed` as the final event — the orchestrator's signal to advance.
+9. **Stop after the work report.** `defect.management-complete` is your last event; the orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -114,7 +114,6 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 - `defect.duplicate` — links new TC failure to existing defect
 - `defect.linked` — one per rtm.append-link; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
 - `defect.management-complete` — single event at end; includes total opened, duplicates, severity breakdown
-- `run.phase.completed` — emitted last, after `defect.management-complete` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 
@@ -162,7 +161,6 @@ emits:
   - {event: defect.linked, via: append}
   - {event: defect.management-complete, via: append}
   - {event: rtm.append-link, via: append}
-  - {event: run.phase.completed, via: append}
 awaits: []
 cli: []
 runs: []

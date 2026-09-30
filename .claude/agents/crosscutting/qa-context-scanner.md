@@ -43,7 +43,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
     - `exportedFunctions[]` — notable exported functions from `lib/`, `utils/`, domain modules (name + file)
     - `existingTestFiles[]` — already-present test files (path + type)
     Names and paths only — never file contents. This is the source-of-truth that `qa-requirements-analyst` and `qa-test-designer` cross-reference to flag requirements with no matching implementation.
-17. **Single-target detection.** Count nested `playwright.config.*` files under `targetProjectRoot` and check for a `package.json` at the resolved root. If more than one nested `playwright.config.*` is found, OR no `package.json` exists at the root, the target is a multi-project parent, not a single app repo. Record the result as `targetIsSingleProject: boolean`. This is consumed by the orchestrator's preflight assertion (Process step 1) before any phase is dispatched.
+17. **Single-target detection.** Count nested `playwright.config.*` files under `targetProjectRoot` and check for a `package.json` at the resolved root. If more than one nested `playwright.config.*` is found, OR no `package.json` exists at the root, the target is a multi-project parent, not a single app repo. Record the result as `targetIsSingleProject: boolean`. The Scan phase cannot complete unless it is `true`: the orchestrator's phase completion runs the preflight check and blocks the run otherwise.
 
 ## Outputs
 
@@ -107,8 +107,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 
 - `target.profiled` — always, includes `appCount`, `framework`, `packageManager` and `platform` (the event `ts` is the scan time)
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
-- `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }`; the orchestrator collects this as one half of the Discovery two-event barrier (the other half is `qa-web-explorer`'s `{ step: "explore" }`)
-- `preflight.failed` — emitted (in addition to `target.profiled`) when `targetIsSingleProject` resolves to `false`; the orchestrator halts before dispatching any phase
+- `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }` (informational; the phase advances through the orchestrator's phase barrier)
 
 ## Contract (machine-checked)
 
@@ -128,7 +127,6 @@ emits:
   - {event: target.profiled, via: append}
   - {event: target.changed, via: append}
   - {event: discovery.step-complete, via: append}
-  - {event: preflight.failed, via: append}
   - {event: scan.warning, via: append}
 awaits: []
 cli: []

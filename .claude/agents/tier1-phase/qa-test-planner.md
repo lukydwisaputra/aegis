@@ -67,7 +67,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 8. **Write the work report.** Summary: strategy rationale, top 3 risks, specialists to dispatch, lessons applied, uncertainties ("unclear whether the auth module's SSO path needs a dedicated specialist or can share the UI specialist slot").
 
-9. **Emit `run.phase.completed`.** After the work report is written and `test.plan-drafted` has fired, emit `run.phase.completed` as the final event — this is the orchestrator's signal to advance to the next phase.
+9. **Stop after the work report.** `test.plan-drafted` is your last event; the orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -84,7 +84,6 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 - `test.plan-drafted` — includes planId, riskCount, specialistsProposed
 - `risk.flagged` — one per Critical (C) risk entry in the register
 - `planning.blocked` — if BLOCK-level ambiguities prevent plan completion
-- `run.phase.completed` — emitted last, after `test.plan-drafted` and the work report (orchestrator's phase-advance signal)
 
 ## Concurrency
 
@@ -126,7 +125,6 @@ emits:
   - {event: test.plan-drafted, via: append}
   - {event: risk.flagged, via: append}
   - {event: planning.blocked, via: append}
-  - {event: run.phase.completed, via: append}
 awaits: []
 cli: []
 runs: []
