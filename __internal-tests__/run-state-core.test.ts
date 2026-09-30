@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+  AGENT_ID,
+  MODULE_CODE,
   assertAppendableByAgent,
   assertCallerAllowed,
   findAegisRoot,
@@ -124,6 +126,19 @@ describe('caller', () => {
     expect(isSpecialist('qa-ui-specialist')).toBe(true);
     expect(isSpecialist('qa-ui-specialist-spv')).toBe(false);
     expect(isSpecialist('qa-test-executor')).toBe(false);
+  });
+});
+
+describe('shared id patterns (R8)', () => {
+  it('MODULE_CODE accepts 2-8 uppercase letters only', () => {
+    expect(['AUTH', 'AB', 'ABCDEFGH'].every((m) => MODULE_CODE.test(m))).toBe(true);
+    expect(['au-th', 'A', 'ABCDEFGHI', 'AUTH1'].some((m) => MODULE_CODE.test(m))).toBe(false);
+  });
+
+  it('AGENT_ID accepts qa-* names only and is what resolveCaller enforces', () => {
+    expect(AGENT_ID.test('qa-ui-specialist')).toBe(true);
+    expect(['../evil', 'owner', 'qa-UI', 'general-purpose'].some((a) => AGENT_ID.test(a))).toBe(false);
+    expect(thrownCode(() => resolveCaller({ AEGIS_AGENT: 'qa-UI' }))).toBe('caller-unknown');
   });
 });
 

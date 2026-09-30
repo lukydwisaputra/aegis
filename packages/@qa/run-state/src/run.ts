@@ -13,7 +13,8 @@ import { atomicWrite, formatIssues, iso, withFileLock } from "./util.js";
 export const INTEGRITY_REASON_PREFIX = "integrity violation";
 export const ESCALATION_REASON_PREFIX = "escalation";
 
-const MODULE_CODE = /^[A-Z]{2,8}$/;
+/** A module code as registered in module-codes.md: 2-8 uppercase letters. */
+export const MODULE_CODE = /^[A-Z]{2,8}$/;
 const RUN_DIR_TRIES = 50;
 
 export interface CreateRunInput {

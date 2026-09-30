@@ -4,7 +4,7 @@ import { ReviewSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contract
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
-import { assertCallerAllowed, pairedSpv } from "./caller.js";
+import { AGENT_ID, assertCallerAllowed, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, ESCALATION_REASON_PREFIX } from "./run.js";
@@ -36,7 +36,6 @@ const reviewDir = (root: string, runId: string): string => join(runDir(root, run
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
 const ALLOC_TRIES = 5;
-const AGENT_ID = /^qa-[a-z0-9-]+$/;
 
 /** Ids become path segments (lock, marker, report files): validate before any fs call. */
 function assertSafeIds(agent: string, taskId: string): void {

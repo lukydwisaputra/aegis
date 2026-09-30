@@ -2,6 +2,9 @@ import { RunStateError } from "./errors.js";
 
 export const OWNER = "owner";
 
+/** An agent name: the only caller identity besides "owner". Also a path segment in lock and report files. */
+export const AGENT_ID = /^qa-[a-z0-9-]+$/;
+
 export type CliCommand =
   | "run.create"
   | "run.status"
@@ -33,7 +36,7 @@ export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
       "AEGIS_AGENT is not set: prefix the command with AEGIS_AGENT=<agent-name> (the main thread uses AEGIS_AGENT=owner)"
     );
   }
-  if (name !== OWNER && !/^qa-[a-z0-9-]+$/.test(name)) {
+  if (name !== OWNER && !AGENT_ID.test(name)) {
     throw new RunStateError("caller-unknown", `AEGIS_AGENT="${name}" is neither "owner" nor a qa-* agent`);
   }
   return name;

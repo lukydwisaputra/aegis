@@ -1,14 +1,14 @@
 import { Command, Option } from "commander";
 import { nextId, type AcCategory, type DefectType } from "@qa/ids";
 import { StoryIdSchema } from "@qa/contracts";
-import { assertCallerAllowed, RunStateError } from "@qa/run-state";
+import { assertCallerAllowed, MODULE_CODE, RunStateError } from "@qa/run-state";
 import { action, context } from "./_io.js";
 
 const DEFECT_TYPES = ["UI", "API", "A11Y", "SEC", "PERF", "DATA", "UNIT", "EXP"];
 
 function moduleCode(value: string | undefined, kind: string): string {
   const m = need(value, "module", kind);
-  if (!/^[A-Z]{2,8}$/.test(m)) throw new RunStateError("invalid-input", `--module must be 2-8 uppercase letters, got "${m}"`);
+  if (!MODULE_CODE.test(m)) throw new RunStateError("invalid-input", `--module must be 2-8 uppercase letters, got "${m}"`);
   return m;
 }
 
