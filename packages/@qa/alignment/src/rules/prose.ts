@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { existsWithContent } from "../load.js";
 import { CONTRACT_HEADING, frontmatterLite } from "../markdown.js";
+import { allSources } from "./dataflow.js";
 import { normalizePath, overlaps, staticPrefix } from "../paths.js";
 import { isAgentContract, isSkillContract, pathOf, violation, type Model, type Section, type Unit, type Violation } from "../types.js";
 
@@ -82,8 +83,7 @@ export function skillRule(m: Model): Violation[] {
   // Spec §4: a skill read resolves when it exists, an agent produces it, or it is in `sources`;
   // paths the skill itself writes are ignored. Other skills' writes do not count as producers.
   const agentWrites = [...m.units.values()].filter(isAgentContract).flatMap((u) => u.contract.writes.map(pathOf));
-  const s = m.pipeline?.sources;
-  const sources = s ? [...s.cli, ...s.owner, ...s.target, ...s.repo] : [];
+  const sources = allSources(m);
   for (const u of [...m.units.values()].filter(isSkillContract)) {
     const writes = [...agentWrites, ...u.contract.writes.map(pathOf)];
     if (u.contract.kind === "execution") {

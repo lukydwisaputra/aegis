@@ -127,7 +127,7 @@ describe('fix round 1', () => {
         'qa-plan': { contract: ag('crosscutting', { writes: ['{run}/plan.{md,json}'] }) },
         'qa-rdr': { contract: ag('crosscutting', { reads: ['{run}/plan.json'] }) },
       },
-      pipeline: phases,
+      pipeline: { ...phases, phases: [...phases.phases, { id: 'plan', agents: ['qa-plan'] }] },
     });
     expect(keys(producerRule(loadModel(t.root))).filter((k) => k.includes('plan.json'))).toEqual([]);
     t.cleanup();

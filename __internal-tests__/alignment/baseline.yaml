@@ -4,6 +4,169 @@
 # unless they belong to an open matrix item.
 baseline: 1
 entries:
+  # --- CLI ---
+  - key: "CLI:qa-accessibility-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-accessibility-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-accessibility-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-accessibility-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-api-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-api-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-api-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-api-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-cicd-implementer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-cicd-implementer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-cicd-planner:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-cicd-planner:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-closure-reporter:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-closure-reporter-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-closure-reporter:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-closure-reporter-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-database-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-database-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-database-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-database-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-defect-manager:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-defect-manager-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-defect-manager:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-defect-manager-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-email-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-email-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-email-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-email-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-environment-engineer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-environment-engineer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-executive-reporter:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-executive-reporter-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-executive-reporter:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-executive-reporter-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-exploratory-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-exploratory-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-feature-flag-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-feature-flag-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-feature-flag-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-feature-flag-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-github-implementer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-github-implementer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-github-planner:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-github-planner:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-orchestrator:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-orchestrator:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-performance-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-performance-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-realtime-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-realtime-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-realtime-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-realtime-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-requirements-analyst:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-requirements-analyst-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-requirements-analyst:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-requirements-analyst-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-responsive-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-responsive-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-responsive-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-responsive-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-security-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-security-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-security-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-security-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-test-designer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-test-designer:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-test-executor:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-test-executor:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-test-planner:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-test-planner-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-test-planner:work-report.submit:handoff-missing"
+    ids: [AUD-083, AUD-111]
+    note: "reviewed by qa-test-planner-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-ui-designer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-ui-designer:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-ui-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-ui-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-ui-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-ui-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-unit-specialist:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-unit-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-unit-specialist:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-unit-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
+  - key: "CLI:qa-web-explorer:task.claim:handoff-missing"
+    ids: [AUD-081]
+    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli task.claim)"
+  - key: "CLI:qa-web-explorer:work-report.submit:handoff-missing"
+    ids: [AUD-083]
+    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   # --- CONFIG ---
   - key: "CONFIG:_qa-build-agents:config/model-policy.yaml:missing"
     ids: [AUD-061, AUD-057]
@@ -1027,39 +1190,144 @@ entries:
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
   # --- PRODUCER ---
+  - key: "PRODUCER:qa-accessibility-specialist-spv:{run}/reports/work/qa-accessibility-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-accessibility-specialist.json is a work report, but no worker qa-accessibility-specialist-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-accessibility-specialist-spv:{tests}/qa/a11y/**:none"
     ids: [AUD-109]
     note: "nothing produces {tests}/qa/a11y/**"
+  - key: "PRODUCER:qa-api-specialist-spv:{run}/reports/work/qa-api-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-api-specialist.json is a work report, but no worker qa-api-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-cicd-evaluator:{run}/devops/github-results.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-cicd-implementer:templates/github-workflows/**:unreachable-producer"
+    ids: [AUD-046]
+    note: "templates/github-workflows/** is produced only by _qa-init-project, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-cicd-implementer:{run}/devops/cicd-plan.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/cicd-plan.json is produced only by qa-cicd-planner, which nothing reachable dispatches"
   - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
     ids: [AUD-074]
     note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist"
+  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-implementer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-cicd-implementer.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-planner.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-cicd-planner.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-closure-reporter-spv:{run}/reports/work/qa-closure-reporter.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-closure-reporter.json is a work report, but no worker qa-closure-reporter-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-closure-reporter:qa-compliance-cmmi:same-phase-cycle"
+    ids: [AUD-004]
+    note: "qa-closure-reporter and qa-compliance-cmmi run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
+  - key: "PRODUCER:qa-closure-reporter:qa-compliance-istqb:same-phase-cycle"
+    ids: [AUD-004]
+    note: "qa-closure-reporter and qa-compliance-istqb run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
   - key: "PRODUCER:qa-compliance-cmmi:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
   - key: "PRODUCER:qa-curator:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
+  - key: "PRODUCER:qa-database-specialist-spv:{run}/reports/work/qa-database-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-database-specialist.json is a work report, but no worker qa-database-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-defect-manager-spv:{run}/reports/work/qa-defect-manager.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-defect-manager.json is a work report, but no worker qa-defect-manager-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-email-specialist-spv:{run}/reports/work/qa-email-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-email-specialist.json is a work report, but no worker qa-email-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-environment-engineer-spv:{run}/reports/work/qa-environment-engineer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-environment-engineer.json is a work report, but no worker qa-environment-engineer-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-executive-reporter-spv:{run}/reports/work/qa-executive-reporter.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-executive-reporter.json is a work report, but no worker qa-executive-reporter-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-executive-reporter:{run}/gates/gate-{1,2,3}-decision.json:none"
     ids: [AUD-009]
     note: "nothing produces {run}/gates/gate-{1,2,3}-decision.json"
+  - key: "PRODUCER:qa-exploratory-specialist-spv:{run}/reports/work/qa-exploratory-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-exploratory-specialist.json is a work report, but no worker qa-exploratory-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-feature-flag-specialist-spv:{run}/reports/work/qa-feature-flag-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-feature-flag-specialist.json is a work report, but no worker qa-feature-flag-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-github-implementer:{run}/devops/github-plan.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
   - key: "PRODUCER:qa-github-spv:agent-memory/qa-github-spv/lessons.md:missing-source"
     ids: [AUD-074]
     note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist"
+  - key: "PRODUCER:qa-github-spv:{run}/devops/github-plan.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-github-spv:{run}/devops/github-results.json:unreachable-producer"
+    ids: [AUD-046]
+    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
+  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-implementer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-github-implementer.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-planner.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-github-planner.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-orchestrator-spv:{run}/reports/work/qa-orchestrator.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-orchestrator.json is a work report, but no worker qa-orchestrator-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-orchestrator:{run}/gates/gate-{N}-decision.json:none"
     ids: [AUD-009]
     note: "nothing produces {run}/gates/gate-{N}-decision.json"
   - key: "PRODUCER:qa-orchestrator:{run}/taskmaster.json:none"
     ids: [AUD-006]
     note: "nothing produces {run}/taskmaster.json"
+  - key: "PRODUCER:qa-performance-specialist-spv:{run}/reports/work/qa-performance-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-performance-specialist.json is a work report, but no worker qa-performance-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-realtime-specialist-spv:{run}/reports/work/qa-realtime-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-realtime-specialist.json is a work report, but no worker qa-realtime-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-requirements-analyst-spv:{run}/reports/work/qa-requirements-analyst.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-requirements-analyst.json is a work report, but no worker qa-requirements-analyst-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-requirements-analyst:{run}/intake/requirements/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/requirements/**"
   - key: "PRODUCER:qa-requirements-analyst:{run}/target-profile.json:later-phase"
     ids: [AUD-001]
     note: "{run}/target-profile.json is only produced in a later phase"
+  - key: "PRODUCER:qa-responsive-specialist-spv:{run}/reports/work/qa-responsive-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-responsive-specialist.json is a work report, but no worker qa-responsive-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-security-specialist-spv:{run}/reports/work/qa-security-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-security-specialist.json is a work report, but no worker qa-security-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-test-designer-spv:{run}/reports/work/qa-test-designer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-test-designer.json is a work report, but no worker qa-test-designer-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-test-executor-spv:{run}/reports/work/qa-test-executor.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-test-executor.json is a work report, but no worker qa-test-executor-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-test-planner-spv:{run}/reports/work/qa-test-planner.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-test-planner.json is a work report, but no worker qa-test-planner-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-test-planner:{run}/intake/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/**"
+  - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-ui-specialist-spv:{run}/reports/work/qa-ui-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-ui-specialist.json is a work report, but no worker qa-ui-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-unit-specialist-spv:{run}/reports/work/qa-unit-specialist.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-unit-specialist.json is a work report, but no worker qa-unit-specialist-spv reviews lists work-report.submit"
+  - key: "PRODUCER:qa-web-explorer-spv:{run}/reports/work/qa-web-explorer.json:no-submitter"
+    ids: [AUD-083]
+    note: "{run}/reports/work/qa-web-explorer.json is a work report, but no worker qa-web-explorer-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-web-explorer:{run}/intake/requirements/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/requirements/**"

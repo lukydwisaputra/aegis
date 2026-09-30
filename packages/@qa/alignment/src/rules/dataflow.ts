@@ -2,9 +2,10 @@ import { join } from "node:path";
 import { existsWithContent } from "../load.js";
 import { isCliRecordedEventType } from "@qa/run-state";
 import { CLI_RECORDS, commandRecords } from "../cli-records.js";
+import { proseLines } from "../markdown.js";
 import { isTooBroad, matches, normalizePath, overlaps } from "../paths.js";
-import type { PathEntry } from "../schema.js";
-import { isAgentContract, pathOf, violation, type Model, type Unit, type Violation } from "../types.js";
+import type { AgentContract, PathEntry } from "../schema.js";
+import { isAgentContract, isSkillContract, pathOf, SPECIAL_PHASES, violation, type Model, type Unit, type Violation } from "../types.js";
 
 function phaseIndex(m: Model): Map<string, number> {
   const idx = new Map<string, number>();
@@ -12,13 +13,70 @@ function phaseIndex(m: Model): Map<string, number> {
   return idx;
 }
 
-function unitPhase(m: Model, u: Unit, idx: Map<string, number>): number | undefined {
-  return u.contract !== null && "phase" in u.contract ? idx.get(u.contract.phase) : undefined;
+function unitPhase(m: Model, u: Unit, idx: Map<string, number>, eff: Map<string, string> = new Map()): number | undefined {
+  if (u.contract === null || !("phase" in u.contract)) return undefined;
+  return idx.get(eff.get(u.name) ?? u.contract.phase);
 }
 
-function allSources(m: Model): string[] {
+export function allSources(m: Model): string[] {
   const s = m.pipeline?.sources;
   return s ? [...s.cli, ...s.owner, ...s.target, ...s.repo] : [];
+}
+
+/** Units reachable from a pipeline phase or an execution skill through `dispatches` (spec §6 AH-06). */
+export function reachableUnits(m: Model): Set<string> {
+  const seen = new Set<string>();
+  const queue = [
+    ...(m.pipeline?.phases ?? []).flatMap((p) => p.agents),
+    ...[...m.units.values()].filter((u) => isSkillContract(u) && u.contract.kind === "execution").map((u) => u.name),
+  ];
+  while (queue.length > 0) {
+    const n = queue.shift()!;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    queue.push(...(m.units.get(n)?.contract?.dispatches ?? []));
+  }
+  return seen;
+}
+
+const DURING = /\bduring (?:the )?([A-Z][A-Za-z]*)(?: phase)?\b/;
+
+function expandBraces(token: string): string[] {
+  const b = /^(.*)\{([^}]+)\}(.*)$/.exec(token);
+  return b === null ? [token] : b[2]!.split(",").map((alt) => `${b[1]}${alt.trim()}${b[3]}`);
+}
+
+/**
+ * Spec §6 AH-08: an agent with a special phase that qa-orchestrator dispatches "during <Phase>" belongs
+ * to that pipeline phase for PRODUCER ordering. `lines` are the orchestrator prose lines used.
+ */
+export function effectivePhases(m: Model): { phaseOf: Map<string, string>; lines: number[] } {
+  const phaseOf = new Map<string, string>();
+  const lines: number[] = [];
+  const orch = m.units.get("qa-orchestrator");
+  if (orch === undefined || orch.contract === null) return { phaseOf, lines };
+  const ids = new Set((m.pipeline?.phases ?? []).map((p) => p.id));
+  const dispatched = new Set(orch.contract.dispatches);
+  for (const { text, line } of proseLines(orch.source)) {
+    const d = DURING.exec(text);
+    if (d === null || !ids.has(d[1]!.toLowerCase())) continue;
+    const phase = d[1]!.toLowerCase();
+    let used = false;
+    for (const t of text.matchAll(/qa-[a-z0-9-]*\{[^}]+\}[a-z0-9-]*|qa-[a-z0-9-]+/g)) {
+      for (const n of expandBraces(t[0])) {
+        const u = m.units.get(n);
+        if (!dispatched.has(n) || u === undefined || u.contract === null || !("phase" in u.contract) || !SPECIAL_PHASES.has(u.contract.phase)) continue;
+        phaseOf.set(n, phase);
+        used = true;
+      }
+    }
+    if (used) lines.push(line);
+  }
+  return { phaseOf, lines };
+}
+
+function reviewedBy(m: Model, spv: string): Array<Unit & { contract: AgentContract }> {
+  return [...m.units.values()].filter(isAgentContract).filter((w) => w.contract.reviewedBy === spv);
 }
 
 /** Non-repo sources (CLI, owner, target): pattern membership is enough. */
@@ -46,6 +104,8 @@ const rmw = (e: PathEntry) => typeof e !== "string" && e.rmw === true;
 export function producerRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const idx = phaseIndex(m);
+  const { phaseOf } = effectivePhases(m);
+  const reachable = reachableUnits(m);
   const sources = allSources(m);
   const hasTarget = (m.pipeline?.sources.target.length ?? 0) > 0;
   const writers = [...m.units.values()].flatMap((u) => (u.contract?.writes ?? []).map((w) => ({ u, path: pathOf(w) })));
@@ -56,11 +116,17 @@ export function producerRule(m: Model): Violation[] {
   }
   const indexed = writers.filter((w) => !isTooBroad(w.path));
   for (const r of [...m.units.values()].filter(isAgentContract)) {
-    const rp = unitPhase(m, r, idx);
+    const rp = unitPhase(m, r, idx, phaseOf);
     for (const e of r.contract.reads) {
       if (optional(e)) continue;
       if (isTooBroad(pathOf(e))) continue;
       const p = normalizePath(pathOf(e));
+      // AH-10: an SPV's work-report read is produced by `aegis work-report submit` of a worker it reviews.
+      if (r.contract.phase === "spv" && overlaps("{run}/reports/work/**", p)) {
+        const submitters = reviewedBy(m, r.name).filter((w) => w.contract.cli.includes("work-report.submit") && overlaps(`{run}/reports/work/${w.name}.json`, p));
+        if (submitters.length === 0) out.push(violation("PRODUCER", r.name, p, "no-submitter", r.file, r.contractLine, `${p} is a work report, but no worker ${r.name} reviews lists work-report.submit`));
+        continue;
+      }
       const prods = indexed.filter((w) => (w.u.name !== r.name || rmw(e)) && overlaps(w.path, p));
       if (prods.length === 0 && missingRepoSource(m, p)) {
         out.push(violation("PRODUCER", r.name, p, "missing-source", r.file, r.contractLine, `${p} is a repo source but does not exist`));
@@ -72,9 +138,15 @@ export function producerRule(m: Model): Violation[] {
         out.push(violation("PRODUCER", r.name, p, "none", r.file, r.contractLine, `nothing produces ${p}`));
         continue;
       }
+      const live = prods.filter((w) => reachable.has(w.u.name));
+      if (live.length === 0) {
+        const names = [...new Set(prods.map((w) => w.u.name))].join(", ");
+        out.push(violation("PRODUCER", r.name, p, "unreachable-producer", r.file, r.contractLine, `${p} is produced only by ${names}, which nothing reachable dispatches`));
+        continue;
+      }
       if (rp === undefined) continue;
-      const earlyOrUnbound = prods.some((w) => {
-        const wp = unitPhase(m, w.u, idx);
+      const earlyOrUnbound = live.some((w) => {
+        const wp = unitPhase(m, w.u, idx, phaseOf);
         return wp === undefined || wp <= rp;
       });
       if (!earlyOrUnbound) out.push(violation("PRODUCER", r.name, p, "later-phase", r.file, r.contractLine, `${p} is only produced in a later phase`));
@@ -89,6 +161,31 @@ export function producerRule(m: Model): Violation[] {
       const p = normalizePath(pathOf(e));
       if (agentWrites.some((w) => overlaps(w.path, p)) || own.some((w) => overlaps(w, p))) continue;
       if (missingRepoSource(m, p)) out.push(violation("PRODUCER", u.name, p, "missing-source", u.file, u.contractLine, `${p} is a repo source but does not exist`));
+    }
+  }
+  return out;
+}
+
+/** Spec §6 AH-08: two units in the same pipeline phase that read each other's writes (CLI-owned files excluded). */
+export function cycleRule(m: Model): Violation[] {
+  const out: Violation[] = [];
+  const idx = phaseIndex(m);
+  const { phaseOf, lines } = effectivePhases(m);
+  const cli = m.pipeline?.sources.cli ?? [];
+  const handoff = (p: string) => !isTooBroad(p) && !cli.some((s) => overlaps(s, p));
+  const phased = [...m.units.values()]
+    .filter(isAgentContract)
+    .map((u) => ({ u, phase: unitPhase(m, u, idx, phaseOf), reads: u.contract.reads.map(pathOf).filter(handoff), writes: u.contract.writes.map(pathOf).filter(handoff) }))
+    .filter((x) => x.phase !== undefined)
+    .sort((a, b) => (a.u.name < b.u.name ? -1 : a.u.name > b.u.name ? 1 : 0));
+  const feeds = (from: (typeof phased)[number], to: (typeof phased)[number]) => from.writes.some((w) => to.reads.some((r) => overlaps(w, r)));
+  const where = lines.length > 0 ? ` (phase from qa-orchestrator prose lines ${lines.join(", ")})` : "";
+  for (let i = 0; i < phased.length; i++) {
+    for (let j = i + 1; j < phased.length; j++) {
+      const a = phased[i]!;
+      const b = phased[j]!;
+      if (a.phase !== b.phase || !feeds(a, b) || !feeds(b, a)) continue;
+      out.push(violation("PRODUCER", a.u.name, b.u.name, "same-phase-cycle", a.u.file, a.u.contractLine, `${a.u.name} and ${b.u.name} run in the same phase and read each other's writes${where}`));
     }
   }
   return out;

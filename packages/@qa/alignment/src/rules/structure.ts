@@ -142,3 +142,18 @@ export function spvRule(m: Model): Violation[] {
   }
   return out;
 }
+
+/** Spec §6 AH-05: dispatching agents needs Agent, dispatching skills needs Skill, writing needs Write or Edit. Skills have no tools frontmatter. */
+export function toolRule(m: Model): Violation[] {
+  const out: Violation[] = [];
+  for (const u of agents(m)) {
+    const c = u.contract;
+    const has = (t: string) => u.tools.includes(t);
+    const agentTargets = c.dispatches.filter((d) => m.units.get(d)?.kind === "agent");
+    const skillTargets = c.dispatches.filter((d) => m.units.get(d)?.kind === "skill");
+    if (agentTargets.length > 0 && !has("Agent")) out.push(violation("CONTRACT", u.name, "Agent", "missing-tool", u.file, u.contractLine, `dispatches ${agentTargets.join(", ")} but frontmatter tools lack Agent`));
+    if (skillTargets.length > 0 && !has("Skill")) out.push(violation("CONTRACT", u.name, "Skill", "missing-tool", u.file, u.contractLine, `dispatches ${skillTargets.join(", ")} but frontmatter tools lack Skill`));
+    if (c.writes.length > 0 && !has("Write") && !has("Edit")) out.push(violation("CONTRACT", u.name, "Write", "missing-tool", u.file, u.contractLine, "writes files but frontmatter tools lack Write and Edit"));
+  }
+  return out;
+}

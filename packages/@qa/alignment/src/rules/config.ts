@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { join } from "node:path";
 import { TestTechniqueSchema, TestTypeSchema } from "@qa/contracts";
 import { CLI_COMMANDS, OWNER_COMMANDS, OWNER_ONLY, type CliCommand } from "@qa/run-state";
-import { violation, type Model, type Violation } from "../types.js";
+import { isAgentContract, violation, type Model, type Violation } from "../types.js";
 
 const COMMANDS: ReadonlySet<string> = new Set(CLI_COMMANDS);
 
@@ -123,6 +123,19 @@ export function configRule(m: Model): Violation[] {
       else if (file === "thresholds.yaml") ok = hasPath(m.thresholds, key);
       else ok = hasPath(readStructured(m.root, file), key);
       if (!ok) out.push(violation("CONFIG", u.name, ref, "missing", u.file, u.contractLine, `${ref} does not exist`));
+    }
+  }
+  return out;
+}
+
+/** Spec §6 AH-10: a worker with an SPV claims its task and submits its work report through the CLI. */
+export function handoffRule(m: Model): Violation[] {
+  const out: Violation[] = [];
+  for (const w of [...m.units.values()].filter(isAgentContract)) {
+    const spv = w.contract.reviewedBy;
+    if (w.contract.phase === "spv" || typeof spv !== "string") continue;
+    for (const cmd of ["task.claim", "work-report.submit"]) {
+      if (!w.contract.cli.includes(cmd)) out.push(violation("CLI", w.name, cmd, "handoff-missing", w.file, w.contractLine, `reviewed by ${spv}, so it must claim its task and submit its work report (cli ${cmd})`));
     }
   }
   return out;
