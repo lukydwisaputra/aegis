@@ -109,7 +109,7 @@ reads:
   - "{run}/intake/requirements/**"
   - path: "{run}/intake/prd.md"
     optional: true
-  - target-profile.json
+  - "{run}/target-profile.json"
   - aegis.config.json
   - "agent-memory/qa-requirements-analyst/lessons.md"
 writes:

@@ -130,9 +130,9 @@ export function staticPrefix(p: string): string {
   return out.join("/");
 }
 
-/** Token-rooted pattern with no literal-only segment after the token (e.g. `{run}/**`, `{run}/{phase}/**`). */
+/** Token-rooted pattern whose remaining segments are all pure wildcards: exactly `**`, `*`, or one `{X}` placeholder (e.g. `{run}/**`, `{run}/{phase}/**`). */
 export function isTooBroad(raw: string): boolean {
   const segs = normalizePath(raw).split("/");
   if (!TOKENS.has(segs[0]!)) return false;
-  return segs.slice(1).every((s) => /[{*]/.test(s));
+  return segs.slice(1).every((s) => s === "**" || s === "*" || /^\{[^{},]+\}$/.test(s));
 }

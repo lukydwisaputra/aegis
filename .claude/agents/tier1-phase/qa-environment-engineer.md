@@ -144,7 +144,7 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-environment-engineer-spv
 reads:
   - "{run}/plan.json"
-  - target-profile.json
+  - "{run}/target-profile.json"
   - aegis.config.json
   - "test-data/credentials/**"
   - "{run}/cases/*.json"

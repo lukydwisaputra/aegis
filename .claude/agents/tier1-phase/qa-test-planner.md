@@ -113,7 +113,7 @@ reads:
   - "{run}/requirements/ambiguity-report.json"
   - "{run}/requirements/testability-scores.json"
   - "{run}/intake/**"
-  - target-profile.json
+  - "{run}/target-profile.json"
   - aegis.config.json
   - "agent-memory/qa-test-planner/lessons.md"
 writes:

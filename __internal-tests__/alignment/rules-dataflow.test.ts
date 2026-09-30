@@ -121,6 +121,18 @@ describe('fix round 1', () => {
     t.cleanup();
   });
 
+  it('brace-alternation writes count as producers for a concrete read', () => {
+    const t = makeRepo({
+      agents: {
+        'qa-plan': { contract: ag('crosscutting', { writes: ['{run}/plan.{md,json}'] }) },
+        'qa-rdr': { contract: ag('crosscutting', { reads: ['{run}/plan.json'] }) },
+      },
+      pipeline: phases,
+    });
+    expect(keys(producerRule(loadModel(t.root))).filter((k) => k.includes('plan.json'))).toEqual([]);
+    t.cleanup();
+  });
+
   it('awaits of CLI-recorded events are satisfied by a unit listing the command', () => {
     const t = makeRepo({
       agents: {

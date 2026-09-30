@@ -163,7 +163,7 @@ reads:
   - "{run}/reports/work/*.json"
   - "agent-memory/qa-orchestrator/lessons.md"
   - "{run}/gates/gate-{N}-decision.json"
-  - target-profile.json
+  - "{run}/target-profile.json"
   - "{run}/concurrency.json"
   - "agent-memory/{worker}/lessons.md"
 writes:

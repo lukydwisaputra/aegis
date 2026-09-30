@@ -71,5 +71,8 @@ describe('normalizePath roots and isTooBroad', () => {
     expect(isTooBroad('{run}/{phase}/**')).toBe(true);
     expect(isTooBroad('{run}/cases/{TC}.json')).toBe(false);
     expect(isTooBroad('knowledge/**')).toBe(false);
+    expect(isTooBroad('{run}/plan.{md,json}')).toBe(false);
+    expect(isTooBroad('{run}/*')).toBe(true);
+    expect(isTooBroad('{run}/cases/*.json')).toBe(false);
   });
 });

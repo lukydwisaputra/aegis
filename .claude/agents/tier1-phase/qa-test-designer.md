@@ -156,7 +156,7 @@ reads:
   - "{run}/requirements/ambiguity-report.json"
   - "{run}/requirements/testability-scores.json"
   - "{run}/discovery-report.json"
-  - target-profile.json
+  - "{run}/target-profile.json"
   - aegis.config.json
   - "agent-memory/qa-test-designer/lessons.md"
 writes:

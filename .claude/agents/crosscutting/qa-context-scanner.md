@@ -120,7 +120,7 @@ reviewedBy: {none: "(no SPV — cross-cutting profiler)"}
 reads:
   - aegis.config.json
   - "{target}/**"
-  - "{run}/target-profile.json"
+  - {path: "{run}/target-profile.json", optional: true}
 writes:
   - "{run}/target-profile.json"
 emits:

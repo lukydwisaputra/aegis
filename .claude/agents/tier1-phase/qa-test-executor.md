@@ -167,7 +167,7 @@ reads:
   - "{run}/plan.json"
   - "{run}/env-setup-report.json"
   - "{run}/risk-register.json"
-  - target-profile.json
+  - "{run}/target-profile.json"
   - aegis.config.json
   - "agent-memory/qa-test-executor/lessons.md"
   - "{run}/concurrency.json"
