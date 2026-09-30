@@ -34,8 +34,10 @@ jobs:
           ALLOW_BASELINE_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'baseline-growth') }}
           BASE_REF: ${{ github.base_ref }}
         run: pnpm exec tsx scripts/check-baseline-growth.ts --base "origin/$BASE_REF"
+      # Workspace packages resolve each other's types from dist/, so build (topological tsc) must
+      # run before typecheck on a fresh clone.
+      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
       - run: pnpm test:smoke
       - run: pnpm aegis align

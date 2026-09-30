@@ -13,7 +13,7 @@ that stops the alignment baseline from growing silently. Fresh clones install an
 | C2 | Inline workflow, adapted from the `/align-cicd` reference `ci.yml` | the reference is the blessed shape; Aegis is a personal repo outside the WerkDone org | a later move to a `shared-ci` caller |
 | C3 | Drop the Postgres service, migrations, `test:rls` and `test:invariants` steps | Aegis has no database and no such scripts | none |
 | C4 | Drop `pnpm lint` from CI; no package defines `lint`, so `pnpm lint` fails today. Tracked as CI-01 | adding ESLint is its own change with its own findings | the lint floor is missing until CI-01 lands |
-| C5 | Security gates are called, not implemented: `.github/workflows/owasp-security-gates.yml` is a thin caller of `WerkDone-Pte-Ltd/shared-ci/.github/workflows/owasp-security-gates.yml@main`, with `run_rls_audit: false` because there is no Supabase | the `/align-cicd` checklist; a separate file keeps `CI / build` independent of whether a personal repo may call it | if the call is refused, it is reported as COULD NOT RUN (access), not as a finding |
+| C5 | **Superseded by the first PR run (CI-02):** the call was refused, so the caller was removed from this PR. Original decision — security gates are called, not implemented: `.github/workflows/owasp-security-gates.yml` is a thin caller of `WerkDone-Pte-Ltd/shared-ci/.github/workflows/owasp-security-gates.yml@main`, with `run_rls_audit: false` because there is no Supabase | the `/align-cicd` checklist; a separate file keeps `CI / build` independent of whether a personal repo may call it | if the call is refused, it is reported as COULD NOT RUN (access), not as a finding |
 | C6 | `pnpm-workspace.yaml` `allowBuilds.esbuild: true` | tsx and vite need esbuild; the unfilled placeholder breaks `pnpm install` on pnpm 11 | esbuild's postinstall runs; it is a well-known package |
 | C7 | `package.json` `"packageManager": "pnpm@11.5.2"`; `pnpm/action-setup@v4` reads it, with no `version:` input | no double-pin | none |
 | C8 | Baseline-growth guard: the PR fails when `baseline.yaml` gains keys versus the base branch, unless the PR carries the label `baseline-growth` | the ALIGN final review, Important #5 | labelled growth still depends on the reviewer |
@@ -30,9 +30,9 @@ Steps, in order:
 3. `actions/setup-node@v4`, Node `22`, `cache: pnpm`.
 4. `pnpm install --frozen-lockfile`.
 5. Baseline-growth guard. PR events only; runs early for fast failure.
-6. `pnpm typecheck`.
-7. `pnpm test`.
-8. `pnpm build`.
+6. `pnpm build`. Workspace packages resolve each other's types from `dist/`, so this must run first; the first CI run showed typecheck failing on a fresh clone without it.
+7. `pnpm typecheck`.
+8. `pnpm test`.
 9. `pnpm test:smoke`, which needs `apps/cli/dist`.
 10. `pnpm aegis align`, which also proves the built CLI works.
 

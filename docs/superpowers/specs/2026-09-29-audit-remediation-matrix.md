@@ -231,6 +231,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
 | AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
 | CI-01 | Lint floor missing: no package defines a `lint` script, so `pnpm lint` fails and CI omits it; adding ESLint is its own change (see AUD-072) | pnpm output | MED | P5 | open |
+| CI-02 | OWASP security gates not running: this personal repo cannot call `WerkDone-Pte-Ltd/shared-ci` (PR #5 run 36682513226: "workflow file issue", 0 referenced workflows) — owner decides: move repo into the WerkDone org, or accept no OWASP gates; inlining the gates is forbidden by the CI standard | PR #5 | MED | owner | open |
 
 Known detection gaps (open items the checker cannot see; their slices close them by review, not by
 deleting baseline lines):
