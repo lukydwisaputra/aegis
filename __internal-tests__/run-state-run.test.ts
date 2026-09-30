@@ -103,12 +103,19 @@ describe('stop / resume', () => {
     await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'run-not-active' });
   });
 
-  it('a non-integrity block resumes without acknowledgement and drops the reason', async () => {
+  it('a preflight block resumes without acknowledgement and clears the cause', async () => {
     const { runId } = await create();
-    await blockRun(t.root, runId, 'escalation: task T-1', 'qa-ui-specialist-spv');
+    await blockRun(t.root, runId, { kind: 'preflight', reason: 'preflight: multi-project parent' }, 'qa-orchestrator');
     const resumed = await resumeRun(t.root, runId, 'owner');
     expect(resumed.status).toBe('running');
-    expect(resumed.blockedReason).toBeUndefined();
+    expect(resumed.blockedBy).toEqual([]);
+  });
+
+  it('an escalation block is not resumable until /qa-escalation decides it (CO-07)', async () => {
+    const { runId } = await create();
+    await blockRun(t.root, runId, { kind: 'escalation', reason: 'escalation: task T-1', taskId: 'T-1', agent: 'qa-ui-specialist' }, 'qa-ui-specialist-spv');
+    await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'escalation-pending' });
+    expect(readRun(t.root, runId).status).toBe('blocked');
   });
 
   it('status returns the stored state', async () => {
@@ -124,7 +131,7 @@ it('run.json never contains unknown statuses', async () => {
 });
 
 describe('integrity block', () => {
-  const INTEGRITY = 'integrity violation: test';
+  const INTEGRITY = { kind: 'integrity' as const, reason: 'integrity violation: test' };
 
   it('requires a real acknowledgement and records throughLine', async () => {
     const { runId } = await create();
@@ -147,14 +154,12 @@ describe('integrity block', () => {
 });
 
 describe('block stacking', () => {
-  it('keeps the integrity block when a later non-integrity block is recorded', async () => {
+  it('keeps every cause as its own entry (CO-06)', async () => {
     const { runId } = await create();
-    await blockRun(t.root, runId, 'integrity violation: test', 'qa-orchestrator');
-    await blockRun(t.root, runId, 'escalation: task T-1', 'qa-ui-specialist-spv');
-    const reason = readRun(t.root, runId).blockedReason ?? '';
-    expect(reason.startsWith('integrity violation')).toBe(true);
-    expect(reason).toContain('escalation: task T-1');
-    expect(last(events(runId))).toMatchObject({ type: 'run.blocked', reason: 'escalation: task T-1' });
+    await blockRun(t.root, runId, { kind: 'integrity', reason: 'integrity violation: test' }, 'qa-orchestrator');
+    await blockRun(t.root, runId, { kind: 'preflight', reason: 'preflight: health check failed' }, 'qa-orchestrator');
+    expect(readRun(t.root, runId).blockedBy.map((c) => c.kind)).toEqual(['integrity', 'preflight']);
+    expect(last(events(runId))).toMatchObject({ type: 'run.blocked', reason: 'preflight: health check failed' });
     await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
     const resumed = await resumeRun(t.root, runId, 'owner', { acknowledgeIntegrity: { reason: 'reviewed' } });
     expect(resumed.status).toBe('running');
@@ -165,12 +170,12 @@ describe('concurrency and missing runs', () => {
   it('concurrent block and stop keep both updates', async () => {
     const { runId } = await create();
     await Promise.all([
-      blockRun(t.root, runId, 'escalation: x', 'qa-ui-specialist-spv'),
+      blockRun(t.root, runId, { kind: 'escalation', reason: 'escalation: x', taskId: 'T-1' }, 'qa-ui-specialist-spv'),
       requestStop(t.root, runId, 'pause', 'owner'),
     ]);
     const final = readRun(t.root, runId);
     expect(final.stopRequested).toBe(true);
-    expect(final.blockedReason).toBe('escalation: x');
+    expect(final.blockedBy).toEqual([expect.objectContaining({ kind: 'escalation', reason: 'escalation: x' })]);
   });
 
   it('readRun on a run.json that is not JSON is invalid-input', async () => {

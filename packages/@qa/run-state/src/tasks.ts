@@ -6,6 +6,7 @@ import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-cl
 import { assertCallerAllowed, isSpecialist } from "./caller.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
+import { withSubmitLock } from "./locks.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun, withRunLock } from "./run.js";
 import { iso, withFileLock } from "./util.js";
@@ -16,12 +17,20 @@ function client(root: string, runId: string) {
   return createTaskmasterClient(taskmasterDir(root, runId));
 }
 
-function assertRunAcceptsWork(state: RunState): void {
+/** CO-08: work is added and claimed only while the run is running with a phase in progress. */
+function assertRunAcceptsWork(state: RunState, taskPhase?: string): void {
   if (state.stopRequested) {
     throw new RunStateError("stop-requested", `run ${state.runId} has a stop request; no new work may start`);
   }
-  if (state.status === "blocked" || state.status === "completed" || state.status === "stopped") {
-    throw new RunStateError("run-not-active", `run ${state.runId} is "${state.status}"`);
+  if (state.status !== "running") {
+    throw new RunStateError("run-not-active", `run ${state.runId} is "${state.status}"; work starts only while it is running`);
+  }
+  const phase = state.currentPhase;
+  if (phase === null || state.phases[phase]?.status !== "in-progress") {
+    throw new RunStateError("run-not-active", `run ${state.runId} has no phase in progress; the orchestrator starts one with aegis phase start`);
+  }
+  if (taskPhase !== undefined && taskPhase !== phase) {
+    throw new RunStateError("run-not-active", `the task belongs to phase ${taskPhase}, but phase ${phase} is in progress`);
   }
 }
 
@@ -45,11 +54,14 @@ async function appendOrRollback(
   try {
     await append();
   } catch (e) {
+    let restored: boolean;
     try {
-      await c.restore(before, { ifStatus });
+      restored = await c.restore(before, { ifStatus });
     } catch (r) {
       throw new Error(`${(e as Error).message}; rolling back task ${before.id} also failed: ${(r as Error).message}`);
     }
+    // CO-12: never report a clean refusal when the task file kept the unrecorded change.
+    if (!restored) throw new Error(`${(e as Error).message}; rollback of task ${before.id} skipped: the task changed meanwhile`);
     throw e;
   }
 }
@@ -67,19 +79,19 @@ export async function addTask(
   caller: string
 ): Promise<Task> {
   assertCallerAllowed(caller, "task.add");
-  assertRunAcceptsWork(readRun(root, runId));
   assertTaskId(input.id);
-  try {
-    await client(root, runId).addRootTask({
-      id: input.id,
-      title: input.title,
-      ...(input.description !== undefined ? { description: input.description } : {}),
-    });
-  } catch (e) {
-    if (e instanceof Error && /already exists/.test(e.message)) throw new RunStateError("invalid-input", e.message);
-    throw e;
-  }
-  return mustGet(root, runId, input.id);
+  // run.lock: a phase cannot complete between the check and the add. The task is tagged with the phase in progress.
+  return withRunLock(root, runId, async () => {
+    const state = readRun(root, runId);
+    assertRunAcceptsWork(state);
+    try {
+      await client(root, runId).addRootTask({ id: input.id, title: input.title, phase: state.currentPhase!, ...(input.description !== undefined ? { description: input.description } : {}) });
+    } catch (e) {
+      if (e instanceof Error && /already exists/.test(e.message)) throw new RunStateError("invalid-input", e.message);
+      throw e;
+    }
+    return mustGet(root, runId, input.id);
+  });
 }
 
 function withClaimsLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
@@ -106,15 +118,14 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
 export async function claimTask(root: string, runId: string, taskId: string, caller: string, now?: Date): Promise<Task> {
   assertCallerAllowed(caller, "task.claim");
   assertTaskId(taskId);
-  assertRunAcceptsWork(readRun(root, runId));
-  await mustGet(root, runId, taskId);
+  assertRunAcceptsWork(readRun(root, runId), (await mustGet(root, runId, taskId)).phase);
 
   // Serialise "count running specialists + claim" so two agents cannot both take the last slot.
   return withClaimsLock(root, runId, () =>
     withRunLock(root, runId, async () => {
       // A stop or block may have landed after the early check; run.lock now excludes it.
-      assertRunAcceptsWork(readRun(root, runId));
       const c = client(root, runId);
+      assertRunAcceptsWork(readRun(root, runId), (await mustGet(root, runId, taskId)).phase);
       if (isSpecialist(caller)) {
         await assertEnvAllows(root, readRun(root, runId), caller, now);
         const { maxSpecialists } = readSettings(root);
@@ -154,7 +165,8 @@ export async function releaseTask(
   assertCallerAllowed(caller, "task.release");
   assertTaskId(taskId);
   await mustGet(root, runId, taskId);
-  return withClaimsLock(root, runId, async () => {
+  // CO-12: the submit lock excludes a concurrent reopen by review submit, so a rollback is never skipped silently.
+  return withSubmitLock(root, runId, caller, taskId, () => withClaimsLock(root, runId, async () => {
     const task = await mustGet(root, runId, taskId);
     if (task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${taskId} is not in progress under ${caller}`);
@@ -165,5 +177,5 @@ export async function releaseTask(
       appendChained({ type: "task.released", ts: iso(now), taskId, agent: caller, result }, busPath(root, runId), { emittedBy: caller, runId })
     );
     return mustGet(root, runId, taskId);
-  });
+  }));
 }

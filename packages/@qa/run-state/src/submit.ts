@@ -6,10 +6,11 @@ import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
+import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
-import { blockRun, ESCALATION_REASON_PREFIX } from "./run.js";
+import { blockRun, readRun } from "./run.js";
 import { TASK_ID } from "./tasks.js";
-import { atomicWrite, formatIssues, iso, loadJson, withFileLock } from "./util.js";
+import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -28,11 +29,12 @@ export interface ReviewResult extends SubmitResult {
   rejections: number;
   escalated: boolean;
   reopened: boolean;
+  reopenError?: string; // CO-12: review recorded, reopen failed; resubmitting the same review retries it
   lessons: LessonOutcome[];
 }
 
-const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
-const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
+export const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
+export const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
 const ALLOC_TRIES = 5;
@@ -43,17 +45,7 @@ function assertSafeIds(agent: string, taskId: string): void {
   if (!TASK_ID.test(taskId)) throw new RunStateError("invalid-input", `task id "${taskId}" must match ${TASK_ID.source}`);
 }
 
-/**
- * Serialises every submission for one agent/task. Lock order (outermost first):
- * submit.lock -> run.lock -> task-file lock -> event-bus lock.
- */
-function withSubmitLock<T>(root: string, runId: string, agent: string, taskId: string, fn: () => Promise<T>): Promise<T> {
-  const dir = join(runDir(root, runId), "reports", ".locks");
-  fs.mkdirSync(dir, { recursive: true });
-  return withFileLock(join(dir, `${agent}.${taskId}.lock`), fn);
-}
-
-function attemptsIn(dir: string, agent: string, taskId: string): number[] {
+export function attemptsIn(dir: string, agent: string, taskId: string): number[] {
   if (!fs.existsSync(dir)) return [];
   const re = new RegExp(`^${escapeRe(agent)}\\.${escapeRe(taskId)}\\.(\\d+)\\.json$`);
   return fs.readdirSync(dir).flatMap((f) => {
@@ -149,7 +141,7 @@ async function escalateOnce(
     await blockRun(
       root,
       runId,
-      `${ESCALATION_REASON_PREFIX}: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`,
+      { kind: "escalation", reason: `escalation: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`, taskId, agent },
       caller,
       now
     );
@@ -179,6 +171,8 @@ export async function submitReview(root: string, runId: string, file: string, ca
 
   const { agent, taskId } = review.target;
   assertSafeIds(agent, taskId);
+  // CO-07: a completed run takes no more reviews, so no review is recorded whose escalation or lessons would be lost.
+  if (readRun(root, runId).status === "completed") throw new RunStateError("run-not-active", `run ${runId} is completed`);
   const expected = pairedSpv(agent);
   if (caller !== expected) {
     throw new RunStateError("caller-forbidden", `"${caller}" is not the paired SPV of ${agent}; only ${expected} may review it`);
@@ -213,9 +207,15 @@ export async function submitReview(root: string, runId: string, file: string, ca
         throw already;
       }
       const marker = join(dir, `${agent}.${taskId}.escalated`);
-      if (!existing.success || existing.data.verdict !== "requested-changes" || fs.existsSync(marker)) throw already;
+      const decided = join(dir, `${agent}.${taskId}.${attempt}.escalation.json`);
+      if (!existing.success || existing.data.verdict !== "requested-changes" || fs.existsSync(marker) || fs.existsSync(decided)) throw already;
       const total = rejectionsSoFar(dir, agent, taskId);
-      if (total < MAX_ATTEMPTS) throw already;
+      if (total < MAX_ATTEMPTS) {
+        // CO-12: re-drive a reopen that failed after this rejection was recorded.
+        if (task?.status !== "done" && task?.status !== "failed") throw already;
+        await client.reopen(taskId);
+        return { path: relative(runDir(root, runId), out), attempt, verdict: existing.data.verdict, rejections: total, escalated: false, reopened: true, lessons: [] };
+      }
       const escalated = await escalateOnce(root, runId, agent, taskId, total, caller, now);
       if (!escalated) throw already;
       return {
@@ -253,11 +253,16 @@ export async function submitReview(root: string, runId: string, file: string, ca
 
     let escalated = false;
     let reopened = false;
+    let reopenError: string | undefined;
     if (rejected && rejections >= MAX_ATTEMPTS) {
       escalated = await escalateOnce(root, runId, agent, taskId, rejections, caller, now);
     } else if (rejected && (task?.status === "done" || task?.status === "failed")) {
-      await client.reopen(taskId);
-      reopened = true;
+      try {
+        await client.reopen(taskId);
+        reopened = true;
+      } catch (e) {
+        reopenError = (e as Error).message;
+      }
     }
 
     // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission.
@@ -274,6 +279,6 @@ export async function submitReview(root: string, runId: string, file: string, ca
       }
     }
 
-    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, lessons };
+    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons };
   });
 }

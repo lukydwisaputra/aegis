@@ -1,17 +1,18 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RunIdSchema, RunStateSchema, type CycleType, type RunState } from "@qa/contracts";
+import { PHASE_IDS, RunIdSchema, RunStateSchema, type BlockCause, type BlockKind, type CycleType, type PhaseRecord, type RunState } from "@qa/contracts";
 import { appendChained, readCommittedLines } from "@qa/event-bus";
 import { nextId } from "@qa/ids";
 import { assertCallerAllowed, OWNER } from "./caller.js";
-import { readSettings } from "./config.js";
+import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
+import { copyIntake } from "./intake.js";
 import { acknowledgementOf, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
+import { CYCLE_PHASES } from "./phase-map.js";
 import { busPath, runDir, runJsonPath, runsDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { atomicWrite, formatIssues, iso, withFileLock } from "./util.js";
 
 export const INTEGRITY_REASON_PREFIX = "integrity violation";
-export const ESCALATION_REASON_PREFIX = "escalation";
 
 /** A module code as registered in module-codes.md: 2-8 uppercase letters. */
 export const MODULE_CODE = /^[A-Z]{2,8}$/;
@@ -21,17 +22,31 @@ export interface CreateRunInput {
   environment: string;
   modules: string[];
   cycleType: CycleType;
+  health?: "passed" | "failed" | "not-run";
+  intake?: string[];
   now?: Date;
 }
+
+export type BlockInput = { kind: BlockKind; reason: string; taskId?: string; agent?: string };
 
 export interface ResumeOptions {
   acknowledgeIntegrity?: { reason: string };
   now?: Date;
 }
 
-/** The one rule for "blocked by integrity": the reason prefix, whatever the status (a stop keeps it). */
 export function isIntegrityBlocked(state: RunState): boolean {
-  return (state.blockedReason ?? "").startsWith(INTEGRITY_REASON_PREFIX);
+  return state.blockedBy.some((c) => c.kind === "integrity");
+}
+
+/** Initial phase records: the cycle's phases pending, the others not-applicable. */
+export function initialPhases(cycleType: CycleType): RunState["phases"] {
+  const inCycle = new Set(CYCLE_PHASES[cycleType]);
+  const phases: RunState["phases"] = {};
+  for (const id of PHASE_IDS) {
+    const record: PhaseRecord = inCycle.has(id) ? { status: "pending" } : { status: "not-applicable", reason: `not part of a ${cycleType} cycle` };
+    phases[id] = record;
+  }
+  return phases;
 }
 
 export function readRun(root: string, runId: string): RunState {
@@ -55,7 +70,7 @@ export function readRun(root: string, runId: string): RunState {
   return parsed.data;
 }
 
-function writeRun(root: string, state: RunState): void {
+export function writeRun(root: string, state: RunState): void {
   const valid = RunStateSchema.parse(state);
   atomicWrite(runJsonPath(root, valid.runId), JSON.stringify(valid, null, 2) + "\n");
 }
@@ -67,6 +82,8 @@ function writeRun(root: string, state: RunState): void {
  *   claims.lock -> run.lock -> (task-file lock) -> event-bus lock.
  *   Nothing may take claims.lock while holding run.lock.
  *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).
+ *   submit.lock -> claims.lock -> task-file lock -> event-bus lock (releaseTask).
+ *   Phase, gate and run-complete commands verify integrity first (integrity.lock -> run.lock), then take run.lock alone.
  */
 export async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
   if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
@@ -113,9 +130,11 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
     throw new RunStateError("invalid-input", `invalid module code(s): ${bad.join(", ") || "(none given)"} — expected 2-8 uppercase letters`);
   }
 
+  const config = readRunConfig(root);
   const ts = iso(input.now);
   const runId = await allocateRunDir(root, ts.slice(0, 10).replace(/-/g, ""));
   mkdirSync(taskmasterDir(root, runId), { recursive: true });
+  copyIntake(root, config.targetProjectRoot, input.intake ?? config.intakeSources, join(runDir(root, runId), "intake"));
 
   const state: RunState = {
     runId,
@@ -125,7 +144,11 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
     modules: input.modules,
     status: "created",
     currentPhase: null,
+    phases: initialPhases(input.cycleType),
+    gates: {},
     stopRequested: false,
+    blockedBy: [],
+    preflight: { health: input.health ?? "not-run" },
     createdAt: ts,
     updatedAt: ts,
   };
@@ -166,19 +189,17 @@ export async function recordIntegrityCheckpoint(root: string, runId: string, che
   });
 }
 
-/** Rule-driven block (escalation, integrity). Not a CLI command, so no caller check. */
-export async function blockRun(root: string, runId: string, reason: string, caller: string, now?: Date): Promise<RunState> {
+/** Rule-driven block (escalation, integrity, preflight). Not a CLI command, so no caller check. Causes accumulate (CO-06). */
+export async function blockRun(root: string, runId: string, cause: BlockInput, caller: string, now?: Date): Promise<RunState> {
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     if (state.status === "completed") throw new RunStateError("run-not-active", `run ${runId} is completed`);
     const ts = iso(now);
-    const current = state.blockedReason ?? "";
-    const keepIntegrity = current.startsWith(INTEGRITY_REASON_PREFIX) && !reason.startsWith(INTEGRITY_REASON_PREFIX);
-    const stored = keepIntegrity ? `${current}; also blocked: ${reason}` : reason;
-    const next: RunState = { ...state, status: "blocked", blockedReason: stored, updatedAt: ts };
+    const entry: BlockCause = { ...cause, since: ts };
+    const next: RunState = { ...state, status: "blocked", blockedBy: [...state.blockedBy, entry], updatedAt: ts };
     writeRun(root, next);
     await appendChained(
-      { type: "run.blocked", ts, runId, reason, ...(state.currentPhase !== null ? { phase: state.currentPhase } : {}) },
+      { type: "run.blocked", ts, runId, reason: cause.reason, ...(state.currentPhase !== null ? { phase: state.currentPhase } : {}) },
       busPath(root, runId),
       { emittedBy: caller, runId }
     );
@@ -205,6 +226,10 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
     if (state.status !== "stopped" && state.status !== "blocked") {
       throw new RunStateError("run-not-active", `run ${runId} is "${state.status}"; only stopped or blocked runs can be resumed`);
     }
+    const escalations = state.blockedBy.filter((c) => c.kind === "escalation");
+    if (escalations.length > 0) {
+      throw new RunStateError("escalation-pending", `run is blocked by an escalation (${escalations.map((c) => c.taskId ?? "?").join(", ")}); decide it with /qa-escalation first`);
+    }
     const integrityBlocked = isIntegrityBlocked(state);
     if (integrityBlocked && opts.acknowledgeIntegrity === undefined) {
       throw new RunStateError(
@@ -228,10 +253,12 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
       await appendChained({ type: "integrity.acknowledged", ts, runId, ...acknowledged, reason }, bus, { emittedBy: caller, runId });
     }
 
-    const { blockedReason: _dropped, ...rest } = state;
+    // Scan stays in progress after a preflight block: the orchestrator re-dispatches the scanner and completes it again.
+    const gateOpen = Object.values(state.gates).some((g) => g?.status === "open");
     const next: RunState = {
-      ...rest,
-      status: "running",
+      ...state,
+      status: gateOpen ? "awaiting-gate" : "running",
+      blockedBy: [],
       stopRequested: false,
       ...(acknowledged !== undefined ? { integrityAcknowledged: acknowledged } : {}),
       updatedAt: ts,

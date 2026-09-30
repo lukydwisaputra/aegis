@@ -31,3 +31,34 @@ export function readSettings(root: string): AegisSettings {
     environments: Object.keys(raw.environments ?? {}),
   };
 }
+
+export interface RunConfig {
+  targetProjectRoot: string;
+  compliance: string[];
+  preCycleHealthCheck: boolean;
+  intakeSources: string[];
+}
+
+function stringList(value: unknown, key: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
+    throw new RunStateError("invalid-input", `aegis.config.json#${key} must be a list of strings`);
+  }
+  return value as string[];
+}
+
+export function readRunConfig(root: string): RunConfig {
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as Record<string, unknown>;
+  } catch (e) {
+    throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
+  }
+  const intake = raw["intake"];
+  return {
+    targetProjectRoot: typeof raw["targetProjectRoot"] === "string" ? raw["targetProjectRoot"] : "..",
+    compliance: stringList(raw["compliance"], "compliance"),
+    preCycleHealthCheck: raw["preCycleHealthCheck"] === true,
+    intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
+  };
+}

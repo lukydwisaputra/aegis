@@ -65,7 +65,7 @@ export async function verifyRunIntegrity(root: string, runId: string, caller: st
         errors.push(`cannot record integrity.violation: ${(e as Error).message}`);
       }
       try {
-        await blockRun(root, runId, `${INTEGRITY_REASON_PREFIX}: ${violationErrors.length} error(s); run \`aegis integrity verify\` for details`, caller, now);
+        await blockRun(root, runId, { kind: "integrity", reason: `${INTEGRITY_REASON_PREFIX}: ${violationErrors.length} error(s); run \`aegis integrity verify\` for details` }, caller, now);
       } catch (e) {
         errors.push(`cannot record run.blocked: ${(e as Error).message}`);
       }

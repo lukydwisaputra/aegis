@@ -18,6 +18,7 @@ export interface Task {
   parentId?: string;
   title: string;
   description?: string;
+  phase?: string; // pipeline phase, set by aegis task add; read by the phase barrier
   status: TaskStatus;
   claimedBy?: string;
   claimedAt?: string;

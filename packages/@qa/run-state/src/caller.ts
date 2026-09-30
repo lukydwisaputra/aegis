@@ -18,6 +18,13 @@ export const CLI_COMMANDS = [
   "work-report.submit",
   "review.submit",
   "integrity.verify",
+  "phase.start",
+  "phase.complete",
+  "gate.open",
+  "gate.decide",
+  "gate.auto-decide",
+  "run.complete",
+  "escalation.decide",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -29,6 +36,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.stop",
   "run.resume",
   "integrity.verify",
+  "gate.decide",
+  "escalation.decide",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -46,7 +55,12 @@ export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 // Commands only the main thread may run; agents reach them through the matching /qa-* skill.
-export const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["run.create", "run.stop", "run.resume"]);
+export const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["run.create", "run.stop", "run.resume", "gate.decide", "escalation.decide"]);
+
+export const ORCHESTRATOR = "qa-orchestrator";
+
+// Commands that advance the run; only the orchestrator runs them (spec §3.6).
+export const ORCHESTRATOR_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["phase.start", "phase.complete", "gate.open", "gate.auto-decide", "run.complete"]);
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller === OWNER && !OWNER_COMMANDS.has(command)) {
@@ -55,10 +69,13 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller !== OWNER && OWNER_ONLY.has(command)) {
     throw new RunStateError("caller-forbidden", `${command} is owner-only; run it through its /qa-* command`);
   }
+  if (caller !== OWNER && caller !== ORCHESTRATOR && ORCHESTRATOR_ONLY.has(command)) {
+    throw new RunStateError("caller-forbidden", `${command} is run only by ${ORCHESTRATOR}`);
+  }
 }
 
 // Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
-export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity."];
+export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity.", "escalation."];
 export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked"]);
 
 export function isCliRecordedEventType(type: string): boolean {

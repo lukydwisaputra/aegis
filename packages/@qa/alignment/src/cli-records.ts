@@ -8,6 +8,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "work-report.submit": ["artifact.created"],
   "review.submit": ["review.passed", "review.passed-with-notes", "review.requested-changes", "task.escalated", "run.blocked"],
   "integrity.verify": ["integrity.violation", "run.blocked"],
+  "phase.start": ["run.phase.started"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {

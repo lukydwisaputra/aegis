@@ -20,6 +20,7 @@ c.parallelism=c.parallelism||{};c.parallelism.maxSpecialists=2;fs.writeFileSync(
 cd "$TMP"
 
 AEGIS_AGENT=owner node "$AEGIS" run create --env development --module AUTH >/dev/null
+AEGIS_AGENT=qa-orchestrator node "$AEGIS" phase start --phase intake >/dev/null
 for t in T-A T-B T-C T-D; do
   AEGIS_AGENT=qa-test-executor node "$AEGIS" task add --id "$t" --title "task $t" >/dev/null
 done
@@ -62,8 +63,8 @@ cat "$TMP/verify.out"
 [ "$vrc" = 0 ] || fail "integrity verify rc=$vrc $(cat "$TMP/verify.err")"
 node -e '
 const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
-if(r.ok!==true||r.chainedLines!==8||r.pendingTail!==false){console.error("bad report",JSON.stringify(r));process.exit(1)}' "$TMP/verify.out" \
-  || fail "integrity report: expected ok=true chainedLines=8 pendingTail=false"
+if(r.ok!==true||r.chainedLines!==9||r.pendingTail!==false){console.error("bad report",JSON.stringify(r));process.exit(1)}' "$TMP/verify.out" \
+  || fail "integrity report: expected ok=true chainedLines=9 pendingTail=false"
 
 # exit-code contract (all refusals; none append to the log)
 expect_refusal() { # <label> <code> <agent-or-empty> args...

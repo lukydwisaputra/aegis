@@ -5,7 +5,6 @@ import {
   addTask,
   busPath,
   claimTask,
-  createRun,
   readRun,
   releaseTask,
   resumeRun,
@@ -14,7 +13,7 @@ import {
   submitWorkReport,
 } from '@qa/run-state';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
-import { last, makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+import { last, makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 const TS = '2026-09-29T08:00:00.000Z';
 const WORKER = 'qa-ui-specialist';
@@ -63,7 +62,7 @@ const events = () => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l))
 
 beforeEach(async () => {
   t = makeAegisRoot();
-  runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+  runId = await startedRun(t.root);
   await addTask(t.root, runId, { id: 'T-1', title: 'login scripts' }, 'qa-test-executor');
   await claimTask(t.root, runId, 'T-1', WORKER);
 });
@@ -134,7 +133,7 @@ describe('submitReview', () => {
     expect(events().map((e) => e.type)).toContain('task.escalated');
     const run = readRun(t.root, runId);
     expect(run.status).toBe('blocked');
-    expect(run.blockedReason).toMatch(/^escalation: task T-1 \(qa-ui-specialist\) rejected 3 times/);
+    expect(run.blockedBy).toEqual([expect.objectContaining({ kind: 'escalation', taskId: 'T-1', agent: WORKER, reason: expect.stringMatching(/^escalation: task T-1 \(qa-ui-specialist\) rejected 3 times/) })]);
   });
 });
 
@@ -170,20 +169,14 @@ describe('submitReview extras', () => {
     await expect(submitReview(t.root, runId, writeJson('r.json', review('passed')), SPV)).rejects.toThrow(/corrupt review file/);
   });
 
-  it('after escalation a further rejection does not escalate again', async () => {
+  it('without an owner decision the escalated run cannot be resumed (CO-07)', async () => {
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (attempt > 1) await claimTask(t.root, runId, 'T-1', WORKER);
       await submitWorkReport(t.root, runId, writeJson(`wr${attempt}.json`, workReport()), WORKER);
       await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
       await submitReview(t.root, runId, writeJson(`r${attempt}.json`, review('requested-changes')), SPV);
     }
-    await resumeRun(t.root, runId, 'owner');
-    await createTaskmasterClient(path.join(runDir(t.root, runId), 'taskmaster')).reopen('T-1');
-    await claimTask(t.root, runId, 'T-1', WORKER);
-    await submitWorkReport(t.root, runId, writeJson('wr4.json', workReport()), WORKER);
-    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
-    const res = await submitReview(t.root, runId, writeJson('r4.json', review('requested-changes')), SPV);
-    expect(res).toMatchObject({ attempt: 4, rejections: 4, escalated: false });
+    await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'escalation-pending' });
     expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(1);
   });
 
@@ -192,6 +185,25 @@ describe('submitReview extras', () => {
     await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     const res = await submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV);
     expect(res.lessons).toEqual([{ outcome: 'appended' }]);
+  });
+
+  it('refuses a review on a completed run before recording anything (CO-07)', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+    fs.writeFileSync(path.join(runDir(t.root, runId), 'run.json'), JSON.stringify({ ...readRun(t.root, runId), status: 'completed' }));
+    await expect(submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV)).rejects.toMatchObject({ code: 'run-not-active' });
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'review', `${WORKER}.T-1.1.json`))).toBe(false);
+  });
+
+  it('a reopen that failed after the rejection was recorded is re-driven by resubmitting (CO-12)', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+    const dir = path.join(runDir(t.root, runId), 'reports', 'review');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${WORKER}.T-1.1.json`), JSON.stringify(review('requested-changes')));
+    const res = await submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV);
+    expect(res).toMatchObject({ attempt: 1, rejections: 1, escalated: false, reopened: true });
+    expect((await createTaskmasterClient(path.join(runDir(t.root, runId), 'taskmaster')).get('T-1'))?.status).toBe('pending');
   });
 });
 
@@ -267,7 +279,6 @@ describe('submission robustness', () => {
 
 describe('escalation re-drive and id validation', () => {
   it('a failed escalation is re-driven by resubmitting the same review', async () => {
-    const runJson = path.join(runDir(t.root, runId), 'run.json');
     let res;
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (attempt > 1) await claimTask(t.root, runId, 'T-1', WORKER);
@@ -278,16 +289,13 @@ describe('escalation re-drive and id validation', () => {
         await submitReview(t.root, runId, file, SPV);
         continue;
       }
-      const good = fs.readFileSync(runJson, 'utf8');
-      fs.writeFileSync(runJson, '{not json');
-      await expect(submitReview(t.root, runId, file, SPV)).rejects.toThrow();
+      fs.writeFileSync(path.join(runDir(t.root, runId), 'reports', 'review', `${WORKER}.T-1.3.json`), JSON.stringify(review('requested-changes')));
       expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(0);
-      fs.writeFileSync(runJson, good);
       res = await submitReview(t.root, runId, file, SPV);
     }
     expect(res).toMatchObject({ attempt: 3, rejections: 3, escalated: true, reopened: false, lessons: [] });
     expect(events().filter((e) => e.type === 'task.escalated')).toHaveLength(1);
-    expect(events().filter((e) => e.type === 'review.requested-changes')).toHaveLength(3);
+    expect(events().filter((e) => e.type === 'review.requested-changes')).toHaveLength(2);
     expect(readRun(t.root, runId).status).toBe('blocked');
     // a further resubmission of the same review does not re-escalate
     await expect(submitReview(t.root, runId, path.join(t.root, 'r3.json'), SPV)).rejects.toMatchObject({ code: 'invalid-input' });

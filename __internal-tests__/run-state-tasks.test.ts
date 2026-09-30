@@ -2,15 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
-import { addTask, blockRun, busPath, claimTask, createRun, releaseTask, requestStop, taskmasterDir } from '@qa/run-state';
-import { last, makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+import { addTask, blockRun, busPath, claimTask, releaseTask, requestStop, taskmasterDir } from '@qa/run-state';
+import { last, makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 let t: TmpAegis;
 let runId: string;
 
 async function setup(maxSpecialists: number) {
   t = makeAegisRoot({ maxSpecialists });
-  runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+  runId = await startedRun(t.root);
   for (const id of ['T-1', 'T-2', 'T-3']) await addTask(t.root, runId, { id, title: `task ${id}` }, 'qa-test-executor');
 }
 
@@ -72,7 +72,7 @@ describe('claimTask', () => {
   it('a concurrent block and claim never lets a claim land after the block', async () => {
     const [claim] = await Promise.allSettled([
       claimTask(t.root, runId, 'T-1', 'qa-ui-specialist'),
-      blockRun(t.root, runId, 'escalation: x', 'qa-ui-specialist-spv'),
+      blockRun(t.root, runId, { kind: 'escalation', reason: 'escalation: x', taskId: 'T-9' }, 'qa-ui-specialist-spv'),
     ]);
     const types = readLines(busPath(t.root, runId)).map((l) => JSON.parse(l).type as string);
     if (claim.status === 'fulfilled') {
@@ -176,7 +176,7 @@ describe('task id validation on claim and release', () => {
   });
 
   it('cannot reach a task in another run through a traversal id', async () => {
-    const other = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    const other = await startedRun(t.root);
     await addTask(t.root, other, { id: 'T-B', title: 'other' }, 'qa-test-executor');
     const evil = `../../../${other}/taskmaster/tasks/T-B`;
     await expect(claimTask(t.root, runId, evil, 'qa-ui-specialist')).rejects.toMatchObject({ message: expect.stringContaining('must match') });

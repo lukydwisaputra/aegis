@@ -11,6 +11,7 @@ import { taskCommand } from "./commands/task.js";
 import { reviewCommand, workReportCommand } from "./commands/submit.js";
 import { integrityCommand } from "./commands/integrity.js";
 import { alignCommand } from "./commands/align.js";
+import { phaseCommand } from "./commands/phase.js";
 
 const program = new Command();
 
@@ -31,5 +32,6 @@ program.addCommand(workReportCommand());
 program.addCommand(reviewCommand());
 program.addCommand(integrityCommand());
 program.addCommand(alignCommand());
+program.addCommand(phaseCommand());
 
 await program.parseAsync();
