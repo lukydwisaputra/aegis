@@ -1,43 +1,39 @@
 ---
 name: qa-resume
-description: Continue an interrupted QA cycle from the last successfully completed task
+description: Resume a stopped or blocked QA cycle through the CLI and hand it back to the orchestrator at the first unfinished phase
 ---
 
 # /qa-resume
 
 ## Purpose
-Recovers a run that was interrupted mid-cycle (e.g. agent crash, network loss, manual stop). Detects orphaned lock files, determines the last completed STLC phase and task via `events.jsonl`, and re-dispatches the orchestrator starting from the next pending task. Already-completed artifacts are preserved and not regenerated.
+Continues a run that was stopped (`/qa-stop`, agent crash, network loss) or blocked. The CLI resumes only a `stopped` or `blocked` run, and only after its block causes are resolved: an escalation needs `/qa-escalation` first, an integrity violation needs an explicit owner acknowledgement. The orchestrator then re-dispatches the metrics collector, re-checks the gates and continues from the first phase that is not completed. Completed artefacts are kept.
 
 ## Usage
 ```
-/qa-resume [--run=RUN-...]
+/qa-resume [--run=RUN-...] [--acknowledge-integrity --reason="<what was reviewed>"]
 ```
 
 ## Key flags
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--run` | last incomplete run | Run ID to resume (must have status `running` or `interrupted`) |
+| `--run` | active run | Run to resume (status `stopped` or `blocked`) |
+| `--acknowledge-integrity` | `false` | Accept a recorded integrity violation after reviewing it; needs `--reason` |
+| `--reason` | *(none)* | Required with `--acknowledge-integrity` |
 
 ## Behaviour
-1. Resolve `--run`; default to the most recent run with status not `completed` or `aborted`.
-2. Check for orphan lock: if `.lock` exists but no active process holds it, remove the stale lock.
-3. Read `events.jsonl` and reconstruct the completed task set.
-4. Identify the first task in the STLC sequence that has no `completed` event.
-5. Validate that all prerequisite artifacts for that task exist (e.g. test cases file before execution).
-6. Re-acquire the run lock and update `run.json` status to `resuming`.
-7. Dispatch qa-orchestrator with `--resume-from={phase}:{task}` so it skips already-done work.
-8. Orchestrator continues from the identified checkpoint; events append to existing `events.jsonl`.
+1. Run `AEGIS_AGENT=owner pnpm aegis run status`. Continue only for `stopped` or `blocked`; show the block causes.
+2. An escalation cause: stop and tell the owner to decide it with `/qa-escalation` — resume refuses until then. An integrity cause: show `AEGIS_AGENT=owner pnpm aegis integrity verify` and continue only when the owner passed `--acknowledge-integrity` with a reason. A preflight cause: the owner fixes the target or reruns `/qa-health` first; the orchestrator then repeats Scan.
+3. Run `AEGIS_AGENT=owner pnpm aegis run resume` (with `--acknowledge-integrity --reason "<reason>"` when given). The CLI clears the stop request and the resolved causes, sets the run to running (or awaiting-gate while a gate is open) and records `run.resumed`.
+4. Dispatch `qa-orchestrator` in resume mode. It re-dispatches the metrics collector, re-checks the gates and continues from the next step the run status reports.
 
 ## Events emitted
-- `run.resumed` — includes the resume checkpoint (phase + task)
-- `run.lock.stale.cleared` — if an orphan lock was removed
-- `run.completed` — on successful finish (same as a normal run)
+- `run.resumed` and, with an acknowledgement, `integrity.acknowledged` — recorded by the CLI, never appended by this skill
 
 ## Example
 ```
 /qa-resume --run=RUN-20260524-002
 ```
-Detects that run 002 stalled mid-execution phase and resumes from the first unfinished specialist agent.
+Resumes run 002 at the phase it stopped in.
 
 ## Contract (machine-checked)
 
@@ -47,17 +43,13 @@ contract: 1
 kind: execution
 dispatchedBy: []
 reads:
-  - "{run}/events.jsonl"
-  - "{run}/.lock"
-writes:
-  - "{run}/.lock"
   - "{run}/run.json"
+writes: []
 emits:
-  - {event: run.resumed, via: append}
-  - {event: run.lock.stale.cleared, via: append}
-  - {event: run.completed, via: append}
+  - {event: run.resumed, via: "cli:run.resume"}
+  - {event: integrity.acknowledged, via: "cli:run.resume"}
 awaits: []
-cli: []
+cli: [run.status, run.resume, integrity.verify]
 runs: []
 dispatches: [qa-orchestrator]
 config: []

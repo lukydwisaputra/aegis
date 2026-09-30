@@ -892,15 +892,6 @@ entries:
   - key: "EVENT:qa-responsive-specialist:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-resume:run.completed:owner-cannot-append"
-    ids: [AUD-100, AUD-024, AUD-025]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-resume:run.lock.stale.cleared:owner-cannot-append"
-    ids: [AUD-100, AUD-024]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-resume:run.resumed:owner-cannot-append"
-    ids: [AUD-100, AUD-024]
-    note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-rollback:incident.defect.created:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -948,30 +939,6 @@ entries:
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-smoke:smoke.started:owner-cannot-append"
     ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:preflight.failed:owner-cannot-append"
-    ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.aborted:owner-cannot-append"
-    ids: [AUD-100, AUD-023]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.completed:owner-cannot-append"
-    ids: [AUD-100, AUD-025]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.created:owner-cannot-append"
-    ids: [AUD-100, AUD-025]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.phase.completed:owner-cannot-append"
-    ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.phase.started:owner-cannot-append"
-    ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-stop:run.aborted:owner-cannot-append"
-    ids: [AUD-100, AUD-023]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-stop:run.stop.requested:owner-cannot-append"
-    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-test-designer-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
@@ -1491,9 +1458,6 @@ entries:
   - key: "WRITE-POLICY:qa-impact:reports/impact-{REQ-id}.md:not-writable"
     ids: [AUD-068]
     note: "write to reports/impact-{REQ-id}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-promote-stage:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-promote:memory/**:not-writable"
     ids: [AUD-059, AUD-068]
     note: "write to memory/** violates the write policy (not-writable)"
@@ -1512,27 +1476,18 @@ entries:
   - key: "WRITE-POLICY:qa-regenerate-report:{run}/reports/**:cli-only"
     ids: [AUD-111, CO-05]
     note: "write to {run}/reports/** violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-regenerate-report:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-requirements-analyst:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-requirements-analyst:{run}/reports/work/qa-requirements-analyst.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-requirements-analyst.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-resume:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-rollback:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-rollback:postmortems/{date}-rollback.md:not-writable"
     ids: [AUD-068]
     note: "write to postmortems/{date}-rollback.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-run-phase:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-run-phase:{run}/{phase}/**:cli-only"
     ids: [AUD-062]
     note: "write to {run}/{phase}/** violates the write policy (cli-only)"
@@ -1545,12 +1500,6 @@ entries:
   - key: "WRITE-POLICY:qa-security-specialist:{tests}/security/{surface}.security.spec.ts:outside-tests-qa"
     ids: [AUD-086]
     note: "write to {tests}/security/{surface}.security.spec.ts violates the write policy (outside-tests-qa)"
-  - key: "WRITE-POLICY:qa-start:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-stop:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-test-designer:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"

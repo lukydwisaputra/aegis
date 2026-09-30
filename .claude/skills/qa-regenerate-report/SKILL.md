@@ -26,7 +26,7 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 3. For each requested report type, invoke the corresponding reporter sub-agent with the events log as input.
 4. Reporter agents write output files to `runs/{run}/reports/` (overwriting existing files).
 5. If `--rerun-tests` is set, first dispatch the execution phase agents for the run before regenerating.
-6. Update `runs/{run}/run.json` with `reports.regeneratedAt` timestamp.
+6. Print the regenerated report paths; run state is owned by the CLI and is not edited here.
 7. Print a summary of which report files were written and their sizes.
 
 ## Events emitted
@@ -52,7 +52,6 @@ reads:
   - "templates/reports/**"
 writes:
   - "{run}/reports/**"
-  - "{run}/run.json"
 emits:
   - {event: report.regeneration.started, via: append}
   - {event: report.generated, via: append}
