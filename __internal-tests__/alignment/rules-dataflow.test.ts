@@ -124,7 +124,7 @@ describe('fix round 1', () => {
   it('brace-alternation writes count as producers for a concrete read', () => {
     const t = makeRepo({
       agents: {
-        'qa-plan': { contract: ag('crosscutting', { writes: ['{run}/plan.{md,json}'] }) },
+        'qa-plan': { contract: ag('plan', { writes: ['{run}/plan.{md,json}'] }) },
         'qa-rdr': { contract: ag('crosscutting', { reads: ['{run}/plan.json'] }) },
       },
       pipeline: { ...phases, phases: [...phases.phases, { id: 'plan', agents: ['qa-plan'] }] },

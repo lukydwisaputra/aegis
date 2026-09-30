@@ -1,4 +1,4 @@
-import { cycleRule, effectivePhases, handoffRule, loadModel, producerRule, reachableUnits, toolRule } from '@qa/alignment';
+import { cycleRule, effectivePhases, emitterRule, handoffRule, loadModel, producerRule, reachableUnits, toolRule } from '@qa/alignment';
 import { makeRepo, MIN_PIPELINE } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
@@ -71,4 +71,41 @@ it('AH-10: an SPV work-report read needs work-report.submit from a worker it rev
   });
   expect(keys(producerRule(loadModel(t.root)))).toEqual(['PRODUCER:qa-b-spv:{run}/reports/work/qa-b.json:no-submitter']);
   t.cleanup();
+});
+
+it('AH-11: a reachable awaiter whose only emitters are unreachable is unreachable-emitter', () => {
+  const build = (extra: Record<string, unknown>) => makeRepo({
+    agents: {
+      'qa-req': { contract: ag('req', { awaits: ['task.released'], dispatches: [] }) },
+      'qa-orphan': { contract: ag('crosscutting', { emits: [{ event: 'task.released', via: 'append' }], cli: ['event.append'] }) },
+      ...extra,
+    },
+    pipeline: { ...MIN_PIPELINE, phases: [{ id: 'req', agents: ['qa-req'] }] },
+  });
+  const t1 = build({});
+  expect(keys(emitterRule(loadModel(t1.root)))).toEqual(['EVENT:qa-req:task.released:unreachable-emitter']);
+  t1.cleanup();
+  const t2 = build({ 'qa-live': { contract: ag('crosscutting', { emits: [{ event: 'task.released', via: 'append' }], cli: ['event.append'] }) } });
+  const m2 = loadModel(t2.root);
+  m2.units.get('qa-req')!.contract!.dispatches.push('qa-live');
+  expect(keys(emitterRule(m2))).toEqual([]);
+  t2.cleanup();
+});
+
+it('AH-08: matching is case-insensitive; a reworded "during" line is an anchor-missing violation', () => {
+  const mk = (line: string) => makeRepo({
+    agents: {
+      'qa-orchestrator': { tools: ['Read', 'Agent'], body: `# qa-orchestrator\n\n## Process\n\n${line}\n`, contract: ag('crosscutting', { dispatches: ['qa-c-a'] }) },
+      'qa-c-a': { contract: ag('crosscutting') },
+    },
+    pipeline: { ...MIN_PIPELINE, phases: [{ id: 'closure', agents: [] }] },
+  });
+  const ok = mk('7. Run `qa-c-a`. During the Closure phase it runs.');
+  expect(effectivePhases(loadModel(ok.root)).phaseOf.get('qa-c-a')).toBe('closure');
+  expect(keys(cycleRule(loadModel(ok.root)))).toEqual([]);
+  ok.cleanup();
+  const bad = mk('7. Run `qa-c-a` when closing the cycle.');
+  expect(effectivePhases(loadModel(bad.root)).phaseOf.size).toBe(0);
+  expect(keys(cycleRule(loadModel(bad.root)))).toEqual(['CONTRACT:qa-orchestrator:during-phase:anchor-missing']);
+  bad.cleanup();
 });

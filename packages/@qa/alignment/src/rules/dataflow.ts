@@ -39,7 +39,7 @@ export function reachableUnits(m: Model): Set<string> {
   return seen;
 }
 
-const DURING = /\bduring (?:the )?([A-Z][A-Za-z]*)(?: phase)?\b/;
+const DURING = /\bduring (?:the )?([a-z]+)(?: phase)?\b/gi;
 
 function expandBraces(token: string): string[] {
   const b = /^(.*)\{([^}]+)\}(.*)$/.exec(token);
@@ -58,9 +58,9 @@ export function effectivePhases(m: Model): { phaseOf: Map<string, string>; lines
   const ids = new Set((m.pipeline?.phases ?? []).map((p) => p.id));
   const dispatched = new Set(orch.contract.dispatches);
   for (const { text, line } of proseLines(orch.source)) {
-    const d = DURING.exec(text);
-    if (d === null || !ids.has(d[1]!.toLowerCase())) continue;
+    for (const d of text.matchAll(DURING)) {
     const phase = d[1]!.toLowerCase();
+    if (!ids.has(phase)) continue;
     let used = false;
     for (const t of text.matchAll(/qa-[a-z0-9-]*\{[^}]+\}[a-z0-9-]*|qa-[a-z0-9-]+/g)) {
       for (const n of expandBraces(t[0])) {
@@ -70,7 +70,8 @@ export function effectivePhases(m: Model): { phaseOf: Map<string, string>; lines
         used = true;
       }
     }
-    if (used) lines.push(line);
+    if (used && !lines.includes(line)) lines.push(line);
+    }
   }
   return { phaseOf, lines };
 }
@@ -179,6 +180,14 @@ export function cycleRule(m: Model): Violation[] {
     .filter((x) => x.phase !== undefined)
     .sort((a, b) => (a.u.name < b.u.name ? -1 : a.u.name > b.u.name ? 1 : 0));
   const feeds = (from: (typeof phased)[number], to: (typeof phased)[number]) => from.writes.some((w) => to.reads.some((r) => overlaps(w, r)));
+  const orch = m.units.get("qa-orchestrator");
+  if (orch !== undefined && orch.contract !== null && phaseOf.size === 0) {
+    const special = orch.contract.dispatches.filter((d) => {
+      const c = m.units.get(d)?.contract;
+      return c !== undefined && c !== null && "phase" in c && SPECIAL_PHASES.has(c.phase) && c.phase !== "spv";
+    });
+    if (special.length > 0) out.push(violation("CONTRACT", "qa-orchestrator", "during-phase", "anchor-missing", orch.file, orch.contractLine, `qa-orchestrator dispatches ${special.join(", ")} but no prose line says "during <Phase>"`));
+  }
   const where = lines.length > 0 ? ` (phase from qa-orchestrator prose lines ${lines.join(", ")})` : "";
   for (let i = 0; i < phased.length; i++) {
     for (let j = i + 1; j < phased.length; j++) {
@@ -269,6 +278,30 @@ export function writePolicyRule(m: Model): Violation[] {
       else if (p.startsWith("{target}/")) reason = "target-source";
       else if (!writable.some((w) => matches(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
       if (reason !== null) out.push(violation("WRITE-POLICY", u.name, p, reason, u.file, u.contractLine, `write to ${p} violates the write policy (${reason})`));
+    }
+  }
+  return out;
+}
+
+/** Spec §6 AH-11 (AUD-011): a reachable unit awaits an event whose every emitter is unreachable. Events with no emitter are `no-emitter`. */
+export function emitterRule(m: Model): Violation[] {
+  const out: Violation[] = [];
+  const reachable = reachableUnits(m);
+  const emitters = new Map<string, Set<string>>();
+  for (const u of m.units.values()) {
+    const c = u.contract;
+    if (c === null) continue;
+    for (const ev of [...c.emits.map((e) => e.event), ...c.cli.flatMap((cmd) => CLI_RECORDS[cmd] ?? [])]) {
+      if (!emitters.has(ev)) emitters.set(ev, new Set());
+      emitters.get(ev)!.add(u.name);
+    }
+  }
+  for (const u of m.units.values()) {
+    if (u.contract === null || !reachable.has(u.name)) continue;
+    for (const ev of new Set(u.contract.awaits)) {
+      const es = emitters.get(ev);
+      if (es === undefined || es.size === 0 || [...es].some((n) => reachable.has(n))) continue;
+      out.push(violation("EVENT", u.name, ev, "unreachable-emitter", u.file, u.contractLine, `${ev} is emitted only by ${[...es].join(", ")}, which nothing reachable dispatches`));
     }
   }
   return out;
