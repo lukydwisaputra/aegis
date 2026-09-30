@@ -1138,7 +1138,7 @@ entries:
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
   - key: "SKILL:_qa-report-technical-pdf:{run}/evidence/screenshots/**:unresolved"
-    ids: [AUD-115]
+    ids: [AUD-060]
     note: "{run}/evidence/screenshots/** does not exist and nothing produces it"
   - key: "SKILL:_qa-report-technical-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
