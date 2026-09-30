@@ -41,6 +41,7 @@ function deriveWriteAllowlist(aegisRoot: string, config: AegisConfig): string[] 
     resolve(aegisRoot, "packages"),
     resolve(aegisRoot, "apps"),
     resolve(aegisRoot, "agent-memory"),
+    resolve(aegisRoot, "sandbox"),
     resolve(aegisRoot, ".aegis"),
     resolve(aegisRoot, "knowledge"),
     resolve(aegisRoot, "docs"),

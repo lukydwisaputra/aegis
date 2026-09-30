@@ -35,6 +35,11 @@ describe('@qa/path-guard', () => {
       expect(() => assertWritable(p, aegisRoot)).not.toThrow();
     });
 
+    it('passes for absolute paths inside sandbox/', () => {
+      const p = path.join(aegisRoot, 'sandbox', '2026-09-30-login-flow', 'probe.ts');
+      expect(() => assertWritable(p, aegisRoot)).not.toThrow();
+    });
+
     it('throws PathGuardError for absolute paths outside aegis', () => {
       expect(() => assertWritable('/etc/passwd', aegisRoot)).toThrow(PathGuardError);
     });
