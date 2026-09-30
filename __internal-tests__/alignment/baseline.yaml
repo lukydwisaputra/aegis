@@ -135,43 +135,6 @@ entries:
   - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
     ids: [NEW-01]
     note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
-  # --- CONTRACT ---
-  - key: "CONTRACT:qa-ci-bootstrap:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits ci.bootstrap.started, ci.file.written, ci.bootstrap.completed"
-  - key: "CONTRACT:qa-compare:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits compare.started, compare.completed"
-  - key: "CONTRACT:qa-dashboard:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits dashboard.started, dashboard.stopped, dashboard.built"
-  - key: "CONTRACT:qa-deps-update:dispatches:query-side-effect"
-    ids: [AUD-012]
-    note: "query skill dispatches qa-smoke"
-  - key: "CONTRACT:qa-deps-update:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits deps.update.started, deps.applied, deps.smoke.passed, deps.smoke.failed, deps.update.completed"
-  - key: "CONTRACT:qa-export:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits export.started, export.item.created, export.completed"
-  - key: "CONTRACT:qa-gate-check:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits gate.evaluation.started, gate.threshold.evaluated, gate.passed, gate.failed"
-  - key: "CONTRACT:qa-gate-check:writes:query-side-effect"
-    ids: [AUD-009]
-    note: "query skill writes run state: {run}/gates/{stage}-gate.json"
-  - key: "CONTRACT:qa-health:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits health.check.started, health.issue.found, health.check.completed"
-  - key: "CONTRACT:qa-health:writes:query-side-effect"
-    ids: [AUD-065]
-    note: "query skill writes run state: runs/**"
-  - key: "CONTRACT:qa-ingest-book:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits book.ingest.started, book.chunk.written, book.ingest.completed"
-  - key: "CONTRACT:qa-promote:emits:query-side-effect"
-    ids: [AUD-100]
-    note: "query skill emits promotion.review.started, promotion.approved, promotion.rejected, promotion.review.completed"
   # --- DISPATCH ---
   - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
     ids: [AUD-046]
@@ -373,18 +336,9 @@ entries:
   - key: "DRIFT:qa-database-specialist:aegis.config.json#environments.{env}.readOnly:config-not-in-prose"
     ids: [AUD-114]
     note: "contract config lists aegis.config.json#environments.{env}.readOnly; prose never names it"
-  - key: "DRIFT:qa-database-specialist:aegis.config.json#target.supabase.rolesToTest:config-not-in-prose"
-    ids: [AUD-043]
-    note: "contract config lists aegis.config.json#target.supabase.rolesToTest; prose never names it"
   - key: "DRIFT:qa-email-specialist-spv:aegis.config.json#environments.production.forbiddenSpecialists:config-not-in-prose"
     ids: [AUD-114]
     note: "contract config lists aegis.config.json#environments.production.forbiddenSpecialists; prose never names it"
-  - key: "DRIFT:qa-email-specialist:aegis.config.json#ports.mailpit.http:config-not-in-prose"
-    ids: [AUD-114]
-    note: "contract config lists aegis.config.json#ports.mailpit.http; prose never names it"
-  - key: "DRIFT:qa-web-explorer:aegis.config.json#discovery.allowedDestructive:config-not-in-prose"
-    ids: [AUD-114]
-    note: "contract config lists aegis.config.json#discovery.allowedDestructive; prose never names it"
   # --- ENV ---
   - key: "ENV:testing:functional:unmapped"
     ids: [AUD-036]
@@ -1167,6 +1121,9 @@ entries:
   - key: "SKILL:qa-compare:{run}/execution/results.json:unresolved"
     ids: [AUD-056b]
     note: "{run}/execution/results.json does not exist and nothing produces it"
+  - key: "SKILL:qa-deps-update:qa-smoke:direct-dispatch"
+    ids: [AUD-110]
+    note: "execution skill dispatches qa-smoke directly"
   - key: "SKILL:qa-doctor:artifacts/**:unresolved"
     ids: [AUD-058]
     note: "artifacts/** does not exist and nothing produces it"

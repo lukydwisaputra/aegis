@@ -60,3 +60,12 @@ it('skill kind: _ names are internal; query skills have no side effects (mutatio
   ]);
   t.cleanup();
 });
+
+it('config: a full dotted key written verbatim anywhere in prose counts as mentioned ({x} matches any segment)', () => {
+  const body = ['# qa-a', '## Process', '1. For each role in target.supabase.rolesToTest do x.', '2. Use http://localhost:{ports.mailpit.http}.', '3. Check environments[env].readOnly.'].join('\n') + '\n';
+  const config = ['aegis.config.json#target.supabase.rolesToTest', 'aegis.config.json#ports.{svc}.http', 'aegis.config.json#environments.{env}.readOnly', 'aegis.config.json#target.supabase.other'];
+  expect(one(body, { config }, configAnchorRule)).toEqual([
+    'DRIFT:qa-a:aegis.config.json#environments.{env}.readOnly:config-not-in-prose',
+    'DRIFT:qa-a:aegis.config.json#target.supabase.other:config-not-in-prose',
+  ]);
+});

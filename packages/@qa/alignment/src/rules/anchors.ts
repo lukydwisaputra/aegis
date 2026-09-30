@@ -51,9 +51,17 @@ function sameRef(a: string, b: string): boolean {
   return x.length === y.length && x.every((s, i) => s === y[i] || isPlaceholder(s) || isPlaceholder(y[i]!));
 }
 
+/** Full dotted key (2+ segments) written verbatim in prose; `{x}` segments match any segment. */
+function dottedPathMentioned(key: string, lines: Array<{ text: string }>): boolean {
+  const seg = (x: string) => (isPlaceholder(x) ? "[A-Za-z0-9_-]+|\\{[^{}]+\\}" : escapeRe(x));
+  const re = new RegExp(`(^|[^A-Za-z0-9_.])(?:${key.split(".").map((x) => `(?:${seg(x)})`).join("\\.")})(?![A-Za-z0-9_]|\\.[A-Za-z0-9_])`);
+  return lines.some((l) => re.test(l.text));
+}
+
 function configMentioned(entry: string, lines: Array<{ text: string }>, refs: Array<{ ref: string }>): boolean {
   if (refs.some((r) => sameRef(entry, r.ref))) return true;
   const [file, key] = entry.split("#") as [string, string | undefined];
+  if (key !== undefined && key.includes(".") && dottedPathMentioned(key, lines)) return true;
   const names = [file, file.split("/").pop()!];
   const namesFile = (t: string) => names.some((n) => t.includes(n));
   if (key === undefined) return lines.some((l) => namesFile(l.text));
