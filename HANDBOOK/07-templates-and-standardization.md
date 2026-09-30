@@ -380,7 +380,7 @@ Fixture files follow the naming convention `<module>-<type>.json` (e.g., `auth-u
 
 2. **Setting Severity = Priority** — they are different axes. Setting them identically every time usually means one of them is wrong. Review the definitions and assign them independently.
 
-3. **Omitting the teardown field** — agents are instructed to flag missing teardown as a blocking SPV finding. This is intentional: flaky tests often stem from unclean state between runs.
+3. **Omitting `postconditions` for tests that create data** — record the clean-up state in `postconditions`; the strict schema has no `teardown` field. SPVs treat a missing clean-up postcondition on a data-creating UI/API test as a blocking finding, because flaky tests often stem from unclean state between runs.
 
 4. **Using `not-covered` status as a permanent state** — `not-covered` requirements should either have test cases authored for them or be formally descoped with a justification. They should not remain in this state across multiple runs.
 

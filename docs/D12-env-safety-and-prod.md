@@ -13,7 +13,7 @@ See [D11-secrets-handling.md](D11-secrets-handling.md) for secrets management.
 | `development` (local) | Yes | None |
 | `testing` (ephemeral per PR) | Yes | Full specialist roster |
 | `staging` (prod mirror) | Yes | Full specialist roster |
-| `production` | **No** | All mutating specialists forbidden |
+| `production` | **No** | Only `ui` and `api` read-only smoke; every other specialist forbidden |
 
 ---
 
