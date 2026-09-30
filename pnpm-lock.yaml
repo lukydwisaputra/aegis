@@ -40,7 +40,11 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
-  __internal-tests__: {}
+  __internal-tests__:
+    devDependencies:
+      yaml:
+        specifier: ^2.5.0
+        version: 2.9.1
 
   apps/cli:
     dependencies:

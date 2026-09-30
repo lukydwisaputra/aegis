@@ -267,3 +267,9 @@ it('AUD-027 controls: frontmatter, contract block, masked verbs and an earlier c
   expect(keys(namedConsumerRule(loadModel(t.root)))).toEqual(['EVENT:qa-l:late.event:named-consumer-missing']);
   t.cleanup();
 });
+
+it('EVENT: via none skips the channel checks', () => {
+  const t = makeRepo({ agents: { 'qa-a': { contract: ag('crosscutting', { emits: [{ event: 'review.passed', via: 'none' }] }) } } });
+  expect(keys(eventRule(loadModel(t.root)))).toEqual([]);
+  t.cleanup();
+});

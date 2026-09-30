@@ -169,6 +169,34 @@ export function matrixRows(text: string): Array<[string, string]> {
   return out;
 }
 
+/** Matrix rows as [ID, owning slice]: the Owner or Slice cell's first token, else the section heading's first word (`## P3 — …` → P3). */
+export function matrixOwners(text: string): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  let section = "";
+  let ownerCol = -1;
+  for (const line of text.split("\n")) {
+    const h = /^## (\S+)/.exec(line);
+    if (h !== null) {
+      section = h[1]!;
+      continue;
+    }
+    if (!line.startsWith("|")) {
+      ownerCol = -1;
+      continue;
+    }
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells[0] === "ID") {
+      ownerCol = cells.findIndex((c) => c === "Owner" || c === "Slice");
+      continue;
+    }
+    const m = MATRIX_ROW.exec(line);
+    if (m === null) continue;
+    const cell = ownerCol >= 0 ? (cells[ownerCol] ?? "") : "";
+    out.push([m[1]!, /^[A-Za-z0-9'-]+/.exec(cell)?.[0] ?? section]);
+  }
+  return out;
+}
+
 function readJson(file: string): Record<string, unknown> {
   try {
     return JSON.parse(readFileSync(file, "utf-8")) as Record<string, unknown>;
@@ -242,6 +270,7 @@ export function loadModel(root: string): Model {
 
   const matrixIds = new Set<string>();
   const matrixStatus = new Map<string, string>();
+  const matrixOwner = new Map<string, string>();
   for (const f of walk(join(root, "docs", "superpowers", "specs"), (p) => p.endsWith("-audit-remediation-matrix.md"))) {
     const text = tryRead(f);
     if (typeof text !== "string") continue;
@@ -249,6 +278,7 @@ export function loadModel(root: string): Model {
       matrixIds.add(id);
       matrixStatus.set(id, status);
     }
+    for (const [id, owner] of matrixOwners(text)) matrixOwner.set(id, owner);
   }
 
   const declaredEvents = new Set<string>(
@@ -283,6 +313,7 @@ export function loadModel(root: string): Model {
     thresholds,
     matrixIds,
     matrixStatus,
+    matrixOwner,
     declaredEvents,
     docs,
     loadErrors: errors,

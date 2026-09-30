@@ -16,3 +16,4 @@ export * from "./rules/reverse.js";
 export * from "./ratchet.js";
 export * from "./report.js";
 export * from "./growth.js";
+export * from "./freshness.js";

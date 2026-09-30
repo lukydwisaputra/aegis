@@ -144,7 +144,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-071 | No internal tests for: every agent dispatched, every worker has SPV, skill paths/config keys exist, `run.mjs` imports resolve, target-profile schema conformance | __internal-tests__ | HIGH | open |
 | AUD-072 | `pnpm typecheck` covers only apps; `pnpm lint` has no script; `@qa/eslint-plugin` rules unwired | pnpm output | MED | open |
 | AUD-073 | CLAUDE.md commands wrong: `pnpm -F aegis-internal-tests`, `pnpm qa-health`; `qa-check-onboarding-sync` points to missing script | CLAUDE.md; package.json | MED | open |
-| AUD-074 | 5 SPVs reference missing lessons files; no SPV has a lessons stub | agent-memory/ | LOW | open |
+| AUD-074 | 5 SPVs reference missing lessons files; no SPV has a lessons stub; agents read `lessons.md` while the CLAUDE.md stub creates `lessons.json` — decide one name | agent-memory/ | LOW | open |
 | AUD-075 | Agent counts drift (63 / 64 files / tier table sums 66) | CLAUDE.md:67; README.md:5; HANDBOOK/06:3,202; HANDBOOK/01:67 | LOW | open |
 | AUD-076 | HANDBOOK drift: nonexistent agent names, wrong model column, PDPA "Thailand", discovery paths, 04:41/83 errors, CLAUDE.md `qa-planner`/`qa-director`, closure-spv brand grep uses `qa-executor`, HANDBOOK/17 4-phase taxonomy vs 9-phase | HANDBOOK/03,04,06,08,17; qa-closure-reporter-spv.md:37 | LOW | open |
 | AUD-077 | Budget warning threshold 90% (orchestrator) vs 80% (SPV) | qa-orchestrator.md:97; qa-orchestrator-spv.md:34 | LOW | open |
@@ -242,6 +242,13 @@ deleting baseline lines):
   only the HANDBOOK/08 `qa-compliance-gdpr-spv` reference is tracked (DOC-REF).
 - AUD-056a — the SKILL rule ignores reads of paths the skill itself writes (spec §4 narrowing), so an
   execution skill reading its own stale `execution/results.json` is not flagged.
+
+Owner overlaps (one violation class, two IDs — close them together):
+
+- AUD-105 ↔ AUD-043 — a config key read at the wrong location (`target.sourceDirs` vs top-level
+  `sourceDirs`) is also a key missing at that location; CONFIG entries carry both IDs where both apply.
+- AUD-101 / AUD-103 ↔ CO-05 — SPVs and the orchestrator that emit CLI-recorded `review.*`, `run.*`
+  and `gate.*` types need the CLI commands CO-05 adds before their prose can move to the CLI.
 
 ## Alignment checker hardening (slice 1a-H, from the ALIGN final review)
 

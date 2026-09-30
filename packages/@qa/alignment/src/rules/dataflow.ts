@@ -239,6 +239,7 @@ export function eventRule(m: Model): Violation[] {
     }
     let appends = false;
     for (const e of c.emits) {
+      if (e.via === "none") continue; // documented, no channel to check
       const cmd = e.via === "append" ? "event.append" : e.via.slice("cli:".length);
       if (e.via !== "append" && !c.cli.includes(cmd)) out.push(violation("EVENT", u.name, e.event, "command-not-in-cli", u.file, u.contractLine, `${cmd} is not listed in this unit's cli`));
       if (e.via === "append" || cmd === "event.append") {

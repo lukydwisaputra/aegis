@@ -40,6 +40,7 @@ export interface Model {
   aegisConfig: Record<string, unknown>;
   thresholds: Record<string, unknown>;
   matrixIds: Set<string>;
+  matrixOwner: Map<string, string>; // ID → owning slice (Owner/Slice column or section)
   matrixStatus: Map<string, string>; // ID → Status cell ("open" when the table has no Status column)
   declaredEvents: Set<string>;
   docs: Array<{ file: string; source: string }>; // HANDBOOK/**, HANDBOOK.md, CLAUDE.md, README.md, docs/*.md — tracked only

@@ -26,6 +26,9 @@ describe('AgentContractSchema', () => {
   it('accepts reviewedBy none with a reason and dispatch none', () => {
     expect(AgentContractSchema.safeParse({ ...agent, reviewedBy: { none: 'infra agent' }, dispatchedBy: [], dispatch: { none: 'library only' } }).success).toBe(true);
   });
+  it('accepts via: none (documented, no channel)', () => {
+    expect(AgentContractSchema.safeParse({ ...agent, emits: [{ event: 'x.y', via: 'none' }] }).success).toBe(true);
+  });
 });
 
 describe('SkillContractSchema', () => {

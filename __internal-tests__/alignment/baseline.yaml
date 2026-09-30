@@ -824,7 +824,7 @@ entries:
     ids: [CO-05]
     note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-event-bus:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
+    ids: [AUD-048]
     note: "emits events without `aegis event append`"
   - key: "EVENT:qa-executive-reporter-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
@@ -1079,13 +1079,13 @@ entries:
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
   - key: "EVENT:qa-resume:run.completed:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-024, AUD-025]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-resume:run.lock.stale.cleared:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-024]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-resume:run.resumed:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-024]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-rollback:incident.defect.created:owner-cannot-append"
     ids: [AUD-100]
@@ -1139,13 +1139,13 @@ entries:
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.aborted:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.completed:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-025]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.created:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-025]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-start:run.phase.completed:owner-cannot-append"
     ids: [AUD-100]
@@ -1154,10 +1154,10 @@ entries:
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-stop:run.aborted:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-stop:run.stop.requested:owner-cannot-append"
-    ids: [AUD-100]
+    ids: [AUD-100, AUD-023]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-test-designer-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
@@ -1294,7 +1294,7 @@ entries:
     note: "{run}/devops/cicd-plan.json is produced only by qa-cicd-planner, which nothing reachable dispatches"
   - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
     ids: [AUD-074]
-    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist"
+    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
   - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-implementer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-cicd-implementer.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
@@ -1345,7 +1345,7 @@ entries:
     note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
   - key: "PRODUCER:qa-github-spv:agent-memory/qa-github-spv/lessons.md:missing-source"
     ids: [AUD-074]
-    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist"
+    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
   - key: "PRODUCER:qa-github-spv:{run}/devops/github-plan.json:unreachable-producer"
     ids: [AUD-046]
     note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"

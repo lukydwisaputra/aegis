@@ -8,7 +8,7 @@ const PathEntrySchema = z.union([
   z.object({ path: z.string().min(1), optional: z.boolean().optional(), terminal: z.boolean().optional(), rmw: z.boolean().optional() }).strict(),
 ]);
 const EmitSchema = z
-  .object({ event: z.string().min(1), via: z.union([z.literal("append"), z.string().regex(/^cli:[a-z-]+\.[a-z-]+$/)]) })
+  .object({ event: z.string().min(1), via: z.union([z.literal("append"), z.literal("none"), z.string().regex(/^cli:[a-z-]+\.[a-z-]+$/)]) })
   .strict();
 
 export const ESCAPE_FIELDS = ["reviewedBy.none", "dispatch.none", "optional", "terminal", "rmw"] as const;
