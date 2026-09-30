@@ -257,5 +257,12 @@ output by owning slice with `pnpm aegis align --by-slice`. `aegis align` refuses
    skill file; the doc file for a DOC-REF key; the executor, designer or orchestrator prose for
    `pipeline` and ROUTE keys, and also `aegis.config.json` for ENV keys), or the deletion of that
    file. Otherwise the PR needs the reviewer label `contract-only-fix`.
+   When a key is genuinely fixed in the *other* unit of a pair (PRODUCER/CONSUMER, DISPATCH-reciprocal
+   or EVENT), or by a transcription fix, the PR takes `contract-only-fix` and its body cites the prose
+   line that justifies the removal.
+   The guard exits 0 (pass), 1 (an unlabelled growth or shrink) or 2 (`COULD NOT RUN`: no base ref,
+   or git failed; fix the environment, it is never a pass). `ALLOW_BASELINE_GROWTH=true` and
+   `ALLOW_CONTRACT_ONLY_FIX=true` reproduce the two labels locally, as ci.yml sets them from the PR labels:
+   `ALLOW_BASELINE_GROWTH=true pnpm tsx scripts/check-baseline-growth.ts --base origin/main`.
 3. An entry that names a `fixed` or `wontfix` matrix ID fails as `closed-id`; an ID missing from
    the matrix fails as an unknown id.

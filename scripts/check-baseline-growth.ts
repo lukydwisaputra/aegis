@@ -117,7 +117,7 @@ else {
     console.log(`::warning title=Baseline shrank without a prose change::label contract-only-fix present; ${shrunk.length} key(s): ${list}`);
   } else {
     console.log(
-      `::error title=Baseline shrank without a prose change::${shrunk.length} removed key(s) with no change outside the contract block of their subject file; fix the prose or add the contract-only-fix label: ${list}`,
+      `::error title=Baseline shrank without a prose change::${shrunk.length} removed key(s) with no change outside the contract block of their subject file; fix the prose, or add the contract-only-fix label if the key is genuinely fixed in the other unit of a pair or by a transcription fix (cite the justifying prose line in the PR body): ${list}`,
     );
     fail = true;
   }
