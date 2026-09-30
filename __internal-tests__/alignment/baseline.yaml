@@ -1010,6 +1010,9 @@ entries:
   - key: "PRODUCER:qa-accessibility-specialist-spv:{tests}/qa/a11y/**:none"
     ids: [AUD-109]
     note: "nothing produces {tests}/qa/a11y/**"
+  - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
+    ids: [AUD-074]
+    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist"
   - key: "PRODUCER:qa-compliance-cmmi:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
@@ -1019,6 +1022,9 @@ entries:
   - key: "PRODUCER:qa-executive-reporter:{run}/gates/gate-{1,2,3}-decision.json:none"
     ids: [AUD-009]
     note: "nothing produces {run}/gates/gate-{1,2,3}-decision.json"
+  - key: "PRODUCER:qa-github-spv:agent-memory/qa-github-spv/lessons.md:missing-source"
+    ids: [AUD-074]
+    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist"
   - key: "PRODUCER:qa-orchestrator:{run}/gates/gate-{N}-decision.json:none"
     ids: [AUD-009]
     note: "nothing produces {run}/gates/gate-{N}-decision.json"
@@ -1156,6 +1162,9 @@ entries:
   - key: "SKILL:qa-record-manual:artifacts/test-cases/**:unresolved"
     ids: [AUD-058, AUD-095]
     note: "artifacts/test-cases/** does not exist and nothing produces it"
+  - key: "SKILL:qa-regenerate-report:templates/reports/**:unresolved"
+    ids: [AUD-064]
+    note: "templates/reports/** does not exist and nothing produces it"
   - key: "SKILL:qa-regression:artifacts/test-cases/**:unresolved"
     ids: [AUD-058, AUD-095]
     note: "artifacts/test-cases/** does not exist and nothing produces it"
@@ -1275,6 +1284,9 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:reports/**:not-writable"
     ids: [AUD-068]
     note: "write to reports/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:_qa-init-project:templates/**:not-writable"
+    ids: [AUD-068]
+    note: "write to templates/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"

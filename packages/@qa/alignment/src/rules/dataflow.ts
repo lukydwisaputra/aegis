@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { isCliRecordedEventType } from "@qa/run-state";
 import { CLI_RECORDS, commandRecords } from "../cli-records.js";
 import { isTooBroad, matches, normalizePath, overlaps } from "../paths.js";
@@ -22,6 +24,24 @@ function allSources(m: Model): string[] {
   return s ? [...s.cli, ...s.owner, ...s.target, ...s.repo] : [];
 }
 
+/** Non-repo sources (CLI, owner, target): pattern membership is enough. */
+function patternSources(m: Model): string[] {
+  const s = m.pipeline?.sources;
+  return s ? [...s.cli, ...s.owner, ...s.target] : [];
+}
+
+const hasPlaceholder = (p: string) => /[{*]/.test(p.startsWith("{aegis}/") ? p.slice("{aegis}/".length) : p);
+
+/**
+ * A concrete (placeholder-free) read that only a `sources.repo` glob satisfies must exist on disk;
+ * glob membership alone would hide a missing file. Returns true when the read is repo-only and missing.
+ */
+export function missingRepoSource(m: Model, p: string): boolean {
+  const repo = m.pipeline?.sources.repo ?? [];
+  if (hasPlaceholder(p) || !repo.some((s) => overlaps(s, p)) || patternSources(m).some((s) => overlaps(s, p))) return false;
+  return !existsSync(join(m.root, p.startsWith("{aegis}/") ? p.slice("{aegis}/".length) : p));
+}
+
 const optional = (e: PathEntry) => typeof e !== "string" && e.optional === true;
 const terminal = (e: PathEntry) => typeof e !== "string" && e.terminal === true;
 
@@ -43,9 +63,13 @@ export function producerRule(m: Model): Violation[] {
       if (optional(e)) continue;
       if (isTooBroad(pathOf(e))) continue;
       const p = normalizePath(pathOf(e));
+      const prods = indexed.filter((w) => w.u.name !== r.name && overlaps(w.path, p));
+      if (prods.length === 0 && missingRepoSource(m, p)) {
+        out.push(violation("PRODUCER", r.name, p, "missing-source", r.file, r.contractLine, `${p} is a repo source but does not exist`));
+        continue;
+      }
       if (sources.some((s) => overlaps(s, p))) continue;
       if (hasTarget && matches("{tests}/**", p) && !overlaps("{tests}/qa/**", p)) continue;
-      const prods = indexed.filter((w) => w.u.name !== r.name && overlaps(w.path, p));
       if (prods.length === 0) {
         out.push(violation("PRODUCER", r.name, p, "none", r.file, r.contractLine, `nothing produces ${p}`));
         continue;
@@ -56,6 +80,17 @@ export function producerRule(m: Model): Violation[] {
         return wp === undefined || wp <= rp;
       });
       if (!earlyOrUnbound) out.push(violation("PRODUCER", r.name, p, "later-phase", r.file, r.contractLine, `${p} is only produced in a later phase`));
+    }
+  }
+  // Skills: same rule for concrete repo-source reads (their other reads are checked by the SKILL rule).
+  const agentWrites = indexed.filter((w) => w.u.kind === "agent");
+  for (const u of [...m.units.values()].filter((x) => x.kind === "skill" && x.contract !== null)) {
+    const own = (u.contract?.writes ?? []).map(pathOf);
+    for (const e of u.contract?.reads ?? []) {
+      if (optional(e)) continue;
+      const p = normalizePath(pathOf(e));
+      if (agentWrites.some((w) => overlaps(w.path, p)) || own.some((w) => overlaps(w, p))) continue;
+      if (missingRepoSource(m, p)) out.push(violation("PRODUCER", u.name, p, "missing-source", u.file, u.contractLine, `${p} is a repo source but does not exist`));
     }
   }
   return out;

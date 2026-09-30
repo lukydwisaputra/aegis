@@ -72,7 +72,14 @@ sources:
     - ".claude/**"
     - module-codes.md
     - "test-data/**"
-    - "templates/**"
+    - "templates/github-workflows/**"
+    - "templates/husky/**"
+    - "templates/jest/**"
+    - "templates/k6/**"
+    - "templates/nextjs-jsx-tsx/**"
+    - "templates/playwright/**"
+    - "templates/postman/**"
+    - "templates/vite-react/**"
     - "secrets/**"
     - "apps/dashboard/**"
 nonAgentNames:

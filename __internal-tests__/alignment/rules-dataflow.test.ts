@@ -1,4 +1,4 @@
-import { consumerRule, eventRule, loadModel, producerRule, writePolicyRule } from '@qa/alignment';
+import { consumerRule, eventRule, loadModel, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
 import { makeRepo, MIN_PIPELINE } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
@@ -173,5 +173,27 @@ it('WRITE-POLICY: runs/** is writable (CLAUDE.md aegis/runs/**); internal skills
     'WRITE-POLICY:qa-q:HANDBOOK.md:not-writable',
     'WRITE-POLICY:qa-q:{run}/run.json:cli-only',
   ]);
+  t.cleanup();
+});
+
+it('PRODUCER: a placeholder-free read satisfied only by sources.repo must exist on disk', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-req': {
+        contract: ag('req', {
+          reads: ['agent-memory/qa-req/lessons.json', 'agent-memory/qa-gone/lessons.json', 'agent-memory/{agent}/lessons.json', 'agent-memory/qa-gone/**', { path: 'agent-memory/qa-maybe/lessons.json', optional: true }],
+        }),
+      },
+    },
+    skills: { 'qa-s': { contract: { contract: 1, kind: 'query', reads: ['agent-memory/qa-skill/lessons.json', 'agent-memory/qa-req/lessons.json'] } } },
+    pipeline: { ...phases, sources: { ...phases.sources, repo: ['agent-memory/**'] } },
+    files: { 'agent-memory/qa-req/lessons.json': '{}' },
+  });
+  const m = loadModel(t.root);
+  expect(keys(producerRule(m))).toEqual([
+    'PRODUCER:qa-req:agent-memory/qa-gone/lessons.json:missing-source',
+    'PRODUCER:qa-s:agent-memory/qa-skill/lessons.json:missing-source',
+  ]);
+  expect(keys(skillRule(m))).toEqual([]);
   t.cleanup();
 });
