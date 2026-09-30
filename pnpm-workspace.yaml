@@ -3,7 +3,7 @@ packages:
   - 'apps/*'
   - '__internal-tests__'
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
   msw: false
 overrides:
   typescript: "^5.5.0"
