@@ -298,9 +298,6 @@ entries:
   - key: "CONSUMER:qa-curator:{run}/pending-promotions/skill-{name}.json:unread"
     ids: [AUD-059]
     note: "no one reads {run}/pending-promotions/skill-{name}.json"
-  - key: "CONSUMER:qa-database-specialist-spv:{tests}/**:too-broad"
-    ids: [AUD-109]
-    note: "{tests}/** is too broad to index as a reader"
   - key: "CONSUMER:qa-environment-engineer:{run}/playwright-output/**:unread"
     ids: [AUD-108]
     note: "no one reads {run}/playwright-output/**"
@@ -316,9 +313,6 @@ entries:
   - key: "CONSUMER:qa-orchestrator:{run}/taskmaster.json:unread"
     ids: [AUD-006]
     note: "no one reads {run}/taskmaster.json"
-  - key: "CONSUMER:qa-realtime-specialist-spv:{tests}/**:too-broad"
-    ids: [AUD-109]
-    note: "{tests}/** is too broad to index as a reader"
   - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
     ids: [NEW-01]
     note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
@@ -445,66 +439,6 @@ entries:
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-worktree-manager:unknown"
     ids: [AUD-076]
     note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-books:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-books is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-evaluate:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-evaluate is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-implement:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-implement is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-plan:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-plan is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-status:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-status is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-close:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-close is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash-export:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-export is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash-open:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-open is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash-refresh:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-refresh is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-close:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-close is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-list:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-list is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-report:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-report is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-triage:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-triage is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-update:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-update is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-forget:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-forget is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ingest:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ingest is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-lessons:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-lessons is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-reset-agent:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-reset-agent is not a skill"
   - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
@@ -541,15 +475,9 @@ entries:
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-worktree-manager:unknown"
     ids: [AUD-076]
     note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/07-templates-and-standardization.md:qa-defect-reporter:unknown"
-    ids: [AUD-106]
-    note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/08-compliance.md:qa-compliance-gdpr-spv:unknown"
     ids: [AUD-052]
     note: "qa-compliance-gdpr-spv is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:/qa-dash-export:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-export is not a skill"
   - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
@@ -559,9 +487,6 @@ entries:
   - key: "DOC-REF:HANDBOOK/14-extending.md:@qa/templates:unknown-package"
     ids: [AUD-066]
     note: "@qa/templates is not a package in packages/@qa/"
-  - key: "DOC-REF:HANDBOOK/16-glossary.md:qa-sandbox-manager:unknown"
-    ids: [AUD-106]
-    note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:docs/D02-teammate-onboarding.md:@qa/templates:unknown-package"
     ids: [AUD-066]
     note: "@qa/templates is not a package in packages/@qa/"
@@ -581,9 +506,6 @@ entries:
     ids: [AUD-073]
     note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   # --- DRIFT ---
-  - key: "DRIFT:qa-database-specialist:aegis.config.json#environments.{env}.readOnly:config-not-in-prose"
-    ids: [AUD-114]
-    note: "contract config lists aegis.config.json#environments.{env}.readOnly; prose never names it"
   # --- ENV ---
   - key: "ENV:testing:functional:unmapped"
     ids: [AUD-036]
@@ -1277,9 +1199,6 @@ entries:
   - key: "PRODUCER:qa-accessibility-specialist-spv:{run}/reports/work/qa-accessibility-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-accessibility-specialist.json is a work report, but no worker qa-accessibility-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-accessibility-specialist-spv:{tests}/qa/a11y/**:none"
-    ids: [AUD-109]
-    note: "nothing produces {tests}/qa/a11y/**"
   - key: "PRODUCER:qa-api-specialist-spv:{run}/reports/work/qa-api-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-api-specialist.json is a work report, but no worker qa-api-specialist-spv reviews lists work-report.submit"
@@ -1695,12 +1614,6 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-accessibility-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-api-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-gate.yml:not-writable"
     ids: [AUD-112, AUD-065]
     note: "write to .github/workflows/qa-gate.yml violates the write policy (not-writable)"
@@ -1746,9 +1659,6 @@ entries:
   - key: "WRITE-POLICY:qa-dashboard:dashboard/dist/**:not-writable"
     ids: [AUD-065]
     note: "write to dashboard/dist/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-database-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-defect-manager:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -1761,9 +1671,6 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-email-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-environment-engineer:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -1779,9 +1686,6 @@ entries:
   - key: "WRITE-POLICY:qa-executive-reporter:{run}/reports/work/qa-executive-reporter.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-executive-reporter.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-exploratory-specialist:sandbox/{YYYY-MM-DD}-{session-slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{YYYY-MM-DD}-{session-slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"
@@ -1803,9 +1707,6 @@ entries:
   - key: "WRITE-POLICY:qa-orchestrator:{run}/reports/work/qa-orchestrator.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-orchestrator.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-performance-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-promote-stage:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1821,9 +1722,6 @@ entries:
   - key: "WRITE-POLICY:qa-promote:skills/**:not-writable"
     ids: [AUD-059, AUD-068]
     note: "write to skills/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-realtime-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-record-manual:manual-{date}/**:not-writable"
     ids: [AUD-068]
     note: "write to manual-{date}/** violates the write policy (not-writable)"
@@ -1839,9 +1737,6 @@ entries:
   - key: "WRITE-POLICY:qa-requirements-analyst:{run}/reports/work/qa-requirements-analyst.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-requirements-analyst.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-responsive-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-resume:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1863,9 +1758,6 @@ entries:
   - key: "WRITE-POLICY:qa-run-specialist:spot/{specialist}/{timestamp}/run.json:not-writable"
     ids: [AUD-068]
     note: "write to spot/{specialist}/{timestamp}/run.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-security-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-security-specialist:{tests}/security/{surface}.security.spec.ts:outside-tests-qa"
     ids: [AUD-086]
     note: "write to {tests}/security/{surface}.security.spec.ts violates the write policy (outside-tests-qa)"
@@ -1896,9 +1788,3 @@ entries:
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ui-specialist:sandbox/{date}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-web-explorer:sandbox/{YYYY-MM-DD}-{slug}/**:not-writable"
-    ids: [AUD-113]
-    note: "write to sandbox/{YYYY-MM-DD}-{slug}/** violates the write policy (not-writable)"

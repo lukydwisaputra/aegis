@@ -54,6 +54,7 @@ The allowlist is derived from `aegis.config.json` at runtime:
 - `aegis/packages/@qa/**`
 - `aegis/apps/**`
 - `aegis/agent-memory/**`
+- `aegis/sandbox/**` (sandbox-first exploration, gitignored)
 
 Territory rule — `assertAegisOwnership(agent, path)`:
 - If path is under `aegis/` AND agent name does not start with `qa-` → throw `AegisTerritoryViolation`

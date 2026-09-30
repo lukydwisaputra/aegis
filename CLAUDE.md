@@ -188,6 +188,7 @@ treat `aegis/` as read-only except for the explicitly permitted paths below.
 | `aegis/packages/@qa/**` | WRITE allowed |
 | `aegis/apps/**` | WRITE allowed |
 | `aegis/agent-memory/**` | WRITE allowed |
+| `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |
 
 Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report.
 

@@ -146,10 +146,9 @@ escapes:
   - {unit: qa-web-explorer-spv, field: reviewedBy.none, reason: "not stated in prose"}
 
 # The write table (AH-13: single copy). writable mirrors CLAUDE.md "Read / write policy": aegis/runs/**,
-# ../tests/** limited to tests/qa/** by HANDBOOK/17, aegis/packages/@qa/**, aegis/apps/**, aegis/agent-memory/**.
-# CLAUDE.md has no sandbox/** row, so sandbox writes are reported (AUD-113).
+# ../tests/** limited to tests/qa/** by HANDBOOK/17, aegis/packages/@qa/**, aegis/apps/**, aegis/agent-memory/**, aegis/sandbox/** (gitignored scratch for sandbox-first exploration).
 writePolicy:
-  writable: ["{run}/**", "runs/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**"]
+  writable: ["{run}/**", "runs/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**", "sandbox/**"]
   # Internal (_qa-*) skills maintain the framework itself.
   internalSkills: [".claude/**", "HANDBOOK/**", "docs/**"]
   # Named exceptions: _qa-build-toc regenerates the HANDBOOK.md table of contents.

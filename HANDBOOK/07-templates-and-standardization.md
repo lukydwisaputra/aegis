@@ -86,7 +86,7 @@ Full field reference for files at `runs/<RUN-ID>/defects/<DEF-ID>.json`:
   "screenshots":  ["runs/RUN-20260523-001/evidence/DEF-001-AUTH-UI/01.png"],
   "complianceTags": ["GDPR-SESSION", "ISO25010-REL"],
   "reportedAt":   "2026-05-23T14:32:00Z",
-  "reportedBy":   "qa-defect-reporter",
+  "reportedBy":   "QA team",
   "spvScore":     93,
   "notes":        ""
 }

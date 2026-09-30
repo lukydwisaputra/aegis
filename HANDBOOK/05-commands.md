@@ -1,6 +1,6 @@
 ## Chapter 5 — Commands
 
-> _All 28 user commands in 6 groups: each with purpose, flags table, and a worked example._
+> _The core user commands in 6 groups: each with purpose, flags table, and a worked example._
 
 ---
 
@@ -8,12 +8,12 @@
 
 | Group | Prefix | Commands |
 |---|---|---|
-| Run lifecycle | `/qa-*` | start, smoke, resume, stop, status, close |
-| Defect management | `/qa-defect-*` | report, triage, list, update, close |
-| Knowledge | `/qa-*` | ingest, books, forget |
-| CI/CD | `/qa-ci-*` | plan, implement, evaluate, status |
-| Dashboard | `/qa-dash-*` | open, refresh, export |
-| Improvement | `/qa-*` | promote, lessons, reset-agent |
+| Run lifecycle | `/qa-*` | start, smoke, resume, stop, status |
+| Defect management | `/qa-*` | triage, export, impact |
+| Knowledge | `/qa-*` | ingest-book |
+| CI/CD | `/qa-ci-*` | bootstrap |
+| Dashboard | `/qa-dashboard` | start, stop, status, build, preview |
+| Improvement | `/qa-*` | promote |
 
 All commands are invoked through the Claude Code slash-command interface or from a CI workflow via the `@qa/cli` package.
 
@@ -102,185 +102,105 @@ Open defects: 1 Critical, 0 High
 
 ---
 
-#### `/qa-close`
-
-Manually closes a run at Gate 3 (overrides the recommendation).
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--run` | string | latest | Run ID |
-| `--verdict` | string | — | `release-approved` or `release-blocked` |
-| `--note` | string | — | Justification for override |
-
----
-
 ### 5.3 Group 2 — Defect Management
 
-#### `/qa-defect-report`
+Defects are raised during a run and managed by `qa-defect-manager`; apart from `/qa-rollback`'s incident defect, no command files, lists, updates or closes one by hand.
 
-Manually files a defect outside of an automated run.
+#### `/qa-triage`
+
+Re-evaluates open defects against the latest codebase and updates their status, severity and fix recommendation.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--title` | string | required | Defect title |
-| `--severity` | string | required | `critical/high/medium/low` |
-| `--run` | string | latest | Run to attach to |
-| `--tc` | string | — | Linked test case ID |
+| `--severity` | string | `Sev1,Sev2,Sev3,Sev4` | Severities to re-evaluate |
+| `--module` | string | `ALL` | Module code filter |
+| `--age` | string | — | Defect age filter, e.g. `>7d` |
 
 Example:
 ```bash
-/qa-defect-report --title "SSO redirect fails" --severity critical --tc TC-AUTH-031
-# Creates DEF-001-AUTH-UI
+/qa-triage --severity=Sev1,Sev2 --age=>7d
 ```
 
 ---
 
-#### `/qa-defect-triage`
+#### `/qa-export`
 
-Opens the triage UI for all untriaged defects in the current run.
+Pushes defects and test cases from a run into Jira, Linear or ClickUp.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--tracker` | string | required | `jira`, `linear` or `clickup` |
+| `--what` | string | `defects` | `defects`, `test-cases`, or both, comma-separated |
+| `--since` | string | — | Only items newer than this run |
 | `--run` | string | latest | Run ID |
-| `--filter` | string | `untriaged` | `all`, `critical`, `open` |
 
 ---
 
-#### `/qa-defect-list`
+#### `/qa-impact`
 
-Lists defects with optional filters.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--run` | string | latest | Run ID |
-| `--severity` | string | — | Filter by severity |
-| `--status` | string | — | Filter by status |
-| `--json` | boolean | `false` | JSON output |
-
----
-
-#### `/qa-defect-update`
-
-Updates a defect field.
+Traces a requirement ID to its test cases, defects and RTM rows.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--id` | string | required | Defect ID (e.g., `DEF-001-AUTH-UI`) |
-| `--status` | string | — | New status |
-| `--severity` | string | — | New severity |
-| `--note` | string | — | Triage note |
-
----
-
-#### `/qa-defect-close`
-
-Closes a defect as fixed, duplicate, or won't-fix.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--id` | string | required | Defect ID |
-| `--resolution` | string | required | `fixed/duplicate/wont-fix/not-a-bug` |
+| `<REQ-id>` | string | required | Requirement ID, e.g. `REQ-AUTH-007` |
+| `--module` | string | auto | Module code |
 
 ---
 
 ### 5.4 Group 3 — Knowledge
 
-#### `/qa-ingest`
+#### `/qa-ingest-book`
 
-Ingests a product document (PRD, spec, API contract) into the knowledge base.
+Chunks a QA reference book or document into `knowledge/` for the librarian to serve.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--file` | filepath | required | Path to document |
-| `--type` | string | auto | `prd/api-spec/design/other` |
-| `--book` | string | — | Name the book |
+| `--book` | filepath | required | Path to the book or document |
+| `--auto-chapters` | boolean | `false` | Detect chapter boundaries automatically |
 
 Example:
 ```bash
-/qa-ingest --file docs/auth-spec.md --type prd --book auth-v2
+/qa-ingest-book --book=books/raw/istqb-foundation.pdf --auto-chapters
 ```
 
----
-
-#### `/qa-books`
-
-Lists all ingested books with status and token cost.
-
----
-
-#### `/qa-forget`
-
-Removes a book from the knowledge base.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--book` | string | required | Book name |
-| `--confirm` | boolean | `false` | Required to prevent accidental deletion |
+No command lists or removes an ingested book; each book is a directory under `knowledge/`.
 
 ---
 
 ### 5.5 Group 4 — CI/CD
 
-#### `/qa-ci-plan`
+#### `/qa-ci-bootstrap`
 
-Generates a CI/CD strategy document without implementing it.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--platform` | string | `github` | `github/gitlab/bitbucket` |
-| `--environments` | string | from config | Comma-separated environment names |
-
----
-
-#### `/qa-ci-implement`
-
-Generates and writes workflow files based on the CI plan.
+Generates the GitHub Actions workflows, Husky hook and secrets guide for the target repo.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--approve-plan` | boolean | `false` | Auto-approve the plan before implementing |
-| `--dry-run` | boolean | `false` | Print files without writing |
+| `--provider` | string | `github-actions` | CI provider (only value supported) |
+| `--dry-run` | boolean | `false` | Preview without writing files |
 
----
-
-#### `/qa-ci-evaluate`
-
-Reviews existing workflow files and reports issues.
-
----
-
-#### `/qa-ci-status`
-
-Reports the status of the last N CI pipeline runs.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--count` | number | 5 | Number of recent runs to show |
-| `--workflow` | string | all | Filter by workflow name |
+CI planning, implementation and evaluation are agents, not commands: `qa-cicd-planner`, `qa-cicd-implementer` and `qa-cicd-evaluator` (Chapter 11). For recent CI runs use `gh run list`.
 
 ---
 
 ### 5.6 Group 5 — Dashboard
 
-#### `/qa-dash-open`
+#### `/qa-dashboard`
 
-Opens the dashboard at `http://localhost:3030` in the default browser.
+Starts, stops and builds the dashboard (UI on port 3030, API on port 3031).
 
----
-
-#### `/qa-dash-refresh`
-
-Forces a dashboard data refresh without restarting the server.
-
----
-
-#### `/qa-dash-export`
-
-Exports dashboard data to a static HTML file.
-
-| Flag | Type | Default | Description |
+| Argument / flag | Type | Default | Description |
 |---|---|---|---|
-| `--out` | filepath | `./qa-dashboard.html` | Output path |
+| `start` / `stop` / `status` | subcommand | — | Run, stop or check the dev server; `start` opens the browser |
+| `build` / `preview` | subcommand | — | Build a static export and serve it |
+| `--port` | number | `3030` | Dashboard port |
+| `--api-port` | number | `3031` | Dashboard API port |
+| `--no-open` | boolean | `false` | Do not open the browser |
+| `--host` | string | `localhost` | Bind host |
+
+Example:
+```bash
+/qa-dashboard start --no-open
+```
 
 ---
 
@@ -301,27 +221,7 @@ Example:
 # Applies lesson: "always include teardown step in UI test cases"
 ```
 
----
-
-#### `/qa-lessons`
-
-Lists pending lessons awaiting promotion.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--agent` | string | all | Filter by agent |
-| `--status` | string | `pending` | `pending/promoted/rejected` |
-
----
-
-#### `/qa-reset-agent`
-
-Resets an agent's memory and lessons to factory defaults.
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--agent` | string | required | Agent name |
-| `--confirm` | boolean | `false` | Required safety flag |
+Lessons live under `agent-memory/<agent>/`; no command lists or resets them. The curator queues proposals, and `/qa-promote` reviews them (Chapter 10).
 
 ---
 
@@ -331,16 +231,11 @@ Resets an agent's memory and lessons to factory defaults.
 
 2. **Running `/qa-start` without `--feature` on a large app** — without scoping, the framework tests everything it can discover. This is expensive and slow for daily use; reserve full-scope runs for nightly builds.
 
-3. **Calling `/qa-close` with `--verdict release-approved` when Critical defects are open** — the system will warn but comply. The note becomes part of the audit trail. Make sure the justification is defensible.
-
-4. **Forgetting `--confirm` with `/qa-reset-agent`** — this is intentional friction. Resetting an agent deletes accumulated lessons; it should be a deliberate, documented decision.
-
-5. **Using `/qa-ingest` with untrimmed PDFs** — large raw PDFs consume significant tokens during ingestion. Pre-process documents to remove boilerplate, legal appendices, and changelog sections before ingesting.
+3. **Using `/qa-ingest-book` with untrimmed PDFs** — large raw PDFs consume significant tokens during ingestion. Pre-process documents to remove boilerplate, legal appendices, and changelog sections before ingesting.
 
 ---
 
 ### Further Reading
 
-- `docs/D05-command-reference.md` — full CLI reference with all exit codes
-- `docs/D05-ci-commands.md` — CI/CD command integration guide
-- `docs/D05-knowledge-ingestion.md` — book ingestion pipeline and token budgets
+- `docs/D05-commands-reference.md` — full reference for every user command
+- `docs/D05-cheat-sheet.md` — one-page cheat sheet

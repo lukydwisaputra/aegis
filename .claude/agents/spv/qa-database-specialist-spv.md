@@ -18,7 +18,7 @@ You review database test results from `qa-database-specialist`. You verify that 
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-database-specialist.json` — work report
-- DB test files at `tests/` relevant paths
+- DB test files at `tests/qa/integration/db/{feature}.db.test.ts`
 - Migration runner output from the work report
 - `agent-memory/qa-database-specialist/lessons.md`
 
@@ -55,7 +55,8 @@ reviewedBy: {none: "not stated in prose"}
 reviews: [qa-database-specialist]
 reads:
   - "{run}/reports/work/qa-database-specialist.json"
-  - "{tests}/**"
+  - "{tests}/qa/integration/db/{feature}.db.test.ts"
+  - "{tests}/qa/**"
   - "{run}/events.jsonl"
   - "agent-memory/qa-database-specialist/lessons.md"
 writes: []

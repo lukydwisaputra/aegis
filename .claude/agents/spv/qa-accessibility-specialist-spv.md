@@ -18,7 +18,7 @@ You review accessibility test files and reports from `qa-accessibility-specialis
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-accessibility-specialist.json` — work report
-- A11y test files at `tests/qa/a11y/`
+- A11y specs at `tests/qa/specs/{url-path}/a11y.spec.ts`
 - axe-core results (from work report or evidence)
 - `runs/{runId}/defects/*.json` — a11y defects
 - `agent-memory/qa-accessibility-specialist/lessons.md`
@@ -56,7 +56,7 @@ reviewedBy: {none: "not stated in prose"}
 reviews: [qa-accessibility-specialist]
 reads:
   - "{run}/reports/work/qa-accessibility-specialist.json"
-  - "{tests}/qa/a11y/**"
+  - "{tests}/qa/specs/{url-path}/a11y.spec.ts"
   - "{run}/evidence/**"
   - "{run}/defects/*.json"
   - "{tests}/qa/**"
