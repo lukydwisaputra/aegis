@@ -27,7 +27,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 4. **Monorepo.** Detect `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`. Record `monorepoTool` and `workspaces[]`.
 5. **Apps list.** For pnpm monorepos: read `pnpm-workspace.yaml` and enumerate actual `apps/*` directories. For each app: detect `name`, `path`, `framework` (vite-react-ts / vite-react-jsx / nextjs-app / nextjs-pages), `language` (ts/jsx).
 6. **Supabase detection.** Check `package.json` for `@supabase/supabase-js`. If found, read `supabase/config.toml` or `.env.example` for `SUPABASE_PROJECT_REF`. Count migration files in `supabase/migrations/` or `services/auth/migrations/`. Set `platform: "supabase"` and record `projectRef`, `migrationCount`, `migrationDir`.
-7. **Existing tests.** Scan for `jest.config.*`, `vitest.config.*`, `playwright.config.*`. Count test files by type (`*.test.{ts,tsx}`, `*.spec.ts`, `*.api.test.ts`, etc.). Detect co-located vs mirror layout. Record `unitTestStyle` (colocated / tests-dir / mixed / none).
+7. **Existing tests.** Scan for `jest.config.*`, `vitest.config.*`, `playwright.config.*`. Count test files by type (`*.test.{ts,tsx}`, `*.spec.ts`, `*.api.test.ts`, etc.). Detect co-located vs mirror layout. Record `unitTestStyle` (colocated / tests-dir / mixed / none) and every test file path in `existingTests.files[]`.
 8. **CI provider.** Check for `.github/workflows/` (GitHub Actions), `.gitlab-ci.yml` (GitLab CI), `circle.yml` / `.circleci/` (CircleCI). Record `ciProvider` and `workflowFiles[]`.
 9. **API surface.** For Next.js: list files under `app/api/` or `pages/api/`. For Vite: check for Express/Fastify configs. Record route paths (names only, not content).
 10. **Env var names.** Read all `.env.example` files across all apps. Extract variable names (never values). Record `envVarNames[]`.
@@ -51,7 +51,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 
 ```jsonc
 {
-  "scannedAt": "ISO-8601",
+  "scannedAt": "2026-09-30T00:00:00.000Z",
   "targetIsSingleProject": true,
   "packageManager": "pnpm",
   "framework": { "name": "vite-react", "version": "5.x", "appRouter": null },
@@ -69,7 +69,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
   },
   "roles": ["pm_staff", "bishan_staff", "bishan_doctor", "fit_staff"],
   "existingTests": {
-    "frameworks": [], "locations": [], "count": 0, "unitTestStyle": "none"
+    "files": [], "frameworks": [], "locations": [], "count": 0, "unitTestStyle": "none"
   },
   "ci": { "provider": "github-actions", "workflowFiles": [] },
   "apiSurface": [],
