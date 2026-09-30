@@ -40,3 +40,24 @@ Performs forward and backward traceability analysis for a given requirement. Giv
 /qa-impact REQ-AUTH-007 --module=AUTH
 ```
 Shows all TCs, defects, and RTM rows linked to requirement AUTH-007.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "artifacts/requirements/**"
+  - "artifacts/rtm/rtm.json"
+  - "artifacts/test-cases/**"
+  - "artifacts/defects/**"
+writes:
+  - "reports/impact-{REQ-id}.md"
+emits: []
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

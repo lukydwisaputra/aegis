@@ -41,3 +41,26 @@ Synchronises artifacts from a completed or in-progress run to an external projec
 /qa-export --tracker=clickup --what=defects --since=RUN-2026-05-20-003
 ```
 Exports only defects created after run 003 to ClickUp.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "config/integrations.yaml"
+  - "exports/{tracker}/id-map.json"
+writes:
+  - "exports/{tracker}/id-map.json"
+emits:
+  - {event: export.started, via: append}
+  - {event: export.item.created, via: append}
+  - {event: export.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/integrations.yaml
+```

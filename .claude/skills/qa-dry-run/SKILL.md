@@ -43,3 +43,21 @@ Accepts all the same scope flags as `/qa-start` — see that skill for details.
 /qa-dry-run --module=AUTH --type=Functional --max-parallel=6
 ```
 Prints the task tree and cost estimate for a Functional-only AUTH run with 6-way parallelism.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "config/cost-estimates.yaml"
+writes: []
+emits: []
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/cost-estimates.yaml
+```

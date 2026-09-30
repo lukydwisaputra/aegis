@@ -83,3 +83,29 @@ node aegis/.claude/skills/_qa-report-executive-slides/run.mjs --run=$RUN_ID
 ```
 
 Renders the executive deck after auto-rewriting jargon (p95 → "slowest 5% of requests", CVE → "known security vulnerability", etc.).
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: internal
+dispatchedBy: [qa-executive-reporter]
+reads:
+  - "{run}/reports/closure.json"
+  - "{run}/gates/gate-3-decision.json"
+  - "{run}/plan.json"
+writes:
+  - path: "{run}/reports/executive-deck.pdf"
+    terminal: true
+emits:
+  - {event: report.slides.started, via: append}
+  - {event: report.slides.tone-check.applied, via: append}
+  - {event: report.slides.completed, via: append}
+  - {event: report.slides.failed, via: append}
+awaits: []
+cli: []
+runs:
+  - node
+dispatches: []
+config: []
+```

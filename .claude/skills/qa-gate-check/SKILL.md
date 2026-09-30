@@ -46,3 +46,27 @@ Reads a run's execution results and compares them against the quality gate thres
 /qa-gate-check --run=RUN-2026-05-24-001 --stage=staging --json
 ```
 Evaluates the staging gate for run 001 and outputs JSON for CI consumption.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "{run}/execution/results.json"
+  - "{run}/defects.json"
+writes:
+  - "{run}/gates/{stage}-gate.json"
+emits:
+  - {event: gate.evaluation.started, via: append}
+  - {event: gate.threshold.evaluated, via: append}
+  - {event: gate.passed, via: append}
+  - {event: gate.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/thresholds.yaml
+```

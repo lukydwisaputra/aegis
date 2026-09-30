@@ -45,3 +45,23 @@ CORE
 
 Run /qa-doctor for diagnostics | See HANDBOOK.md for full reference
 ```
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - path: "config/commands.yaml"
+    optional: true
+  - "HANDBOOK.md"
+writes: []
+emits: []
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/commands.yaml
+```

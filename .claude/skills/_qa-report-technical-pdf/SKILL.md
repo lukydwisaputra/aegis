@@ -79,3 +79,34 @@ node aegis/.claude/skills/_qa-report-technical-pdf/run.mjs --run=$RUN_ID
 ```
 
 Renders `runs/RUN-20260524-001/reports/technical-report.pdf` from that run's closure artefacts.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: internal
+dispatchedBy: [qa-executive-reporter]
+reads:
+  - "{run}/reports/closure.json"
+  - "{run}/defects/*.json"
+  - "{run}/rtm.json"
+  - "{run}/reports/compliance/*.json"
+  - "{run}/plan.json"
+  - "{run}/reports/metrics/cycle.json"
+  - path: "{run}/evidence/screenshots/**"
+    optional: true
+writes:
+  - path: "{run}/reports/technical-report.pdf"
+    terminal: true
+emits:
+  - {event: report.technical.started, via: append}
+  - {event: report.technical.completed, via: append}
+  - {event: report.technical.failed, via: append}
+awaits: []
+cli: []
+runs:
+  - node
+dispatches: []
+config:
+  - aegis.config.json#dashboard.projectName
+```

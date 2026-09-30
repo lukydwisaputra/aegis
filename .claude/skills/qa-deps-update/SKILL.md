@@ -41,3 +41,29 @@ Automates dependency maintenance using a risk-tiered strategy. Patch updates are
 /qa-deps-update --security-only
 ```
 Applies only packages with active security advisories and runs a smoke test to validate.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "package.json"
+writes:
+  - "package.json"
+  - "reports/deps-update-{date}.md"
+emits:
+  - {event: deps.update.started, via: append}
+  - {event: deps.applied, via: append}
+  - {event: deps.smoke.passed, via: append}
+  - {event: deps.smoke.failed, via: append}
+  - {event: deps.update.completed, via: append}
+awaits: []
+cli: []
+runs:
+  - pnpm
+dispatches:
+  - qa-smoke
+config: []
+```

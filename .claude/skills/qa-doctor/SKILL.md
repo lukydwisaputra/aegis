@@ -48,3 +48,26 @@ Sample output (abridged):
 
 Result: 4/5 checks passed — DEGRADED
 ```
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "config/requirements.yaml"
+  - "config/environments.yaml"
+  - "config/thresholds.yaml"
+  - ".gitignore"
+writes: []
+emits: []
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/requirements.yaml
+  - config/environments.yaml
+  - config/thresholds.yaml
+```

@@ -43,3 +43,38 @@ aegis init --template=default
 # Which internally dispatches:
 /qa-init-project --project-root=/path/to/project --template=default
 ```
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: internal
+dispatchedBy: []
+reads:
+  - "package.json"
+  - "pnpm-workspace.yaml"
+  - "templates/config/**"
+writes:
+  - "runs/**"
+  - "artifacts/**"
+  - "config/**"
+  - "knowledge/**"
+  - "templates/**"
+  - "reports/**"
+  - "promotions/**"
+  - "HANDBOOK.md"
+  - ".gitignore"
+  - "~/.aegis/workspace-index.json"
+emits:
+  - {event: project.initialized, via: append}
+  - {event: project.init.file.written, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/environments.yaml
+  - thresholds.yaml
+  - config/model-policy.yaml
+  - config/cost-estimates.yaml
+```
