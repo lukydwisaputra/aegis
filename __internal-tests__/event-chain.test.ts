@@ -109,13 +109,13 @@ describe('verifyChain', () => {
     expect(verifyChain(bus).ok).toBe(true);
   });
 
-  it('ignores errors at or before ignoreThroughLine', async () => {
+  it('has no option that hides errors (acknowledgement is run-state only)', async () => {
     for (const r of ['a', 'b', 'c']) await appendChained(blocked(r), bus, ctx);
     const lines = readLines(bus);
     lines[0] = lines[0]!.replace('"reason":"a"', '"reason":"A"');
     fs.writeFileSync(bus, lines.join('\n') + '\n');
-    expect(verifyChain(bus).ok).toBe(false);
-    expect(verifyChain(bus, { ignoreThroughLine: 2 }).ok).toBe(true);
+    // @ts-expect-error verifyChain takes only the bus path
+    expect(verifyChain(bus, { ignoreThroughLine: 2 }).ok).toBe(false);
   });
 
   it('treats an unterminated final segment as a pending tail, not an error', async () => {

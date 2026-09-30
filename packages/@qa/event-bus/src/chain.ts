@@ -134,15 +134,12 @@ export function readCommittedLines(busPath: string): CommittedLines {
 }
 
 /** Recompute the chain and validate every chained line. Pure read; never writes. */
-export function verifyChain(busPath: string, opts: { ignoreThroughLine?: number } = {}): ChainVerifyResult {
-  return verifyCommittedLines(readCommittedLines(busPath), opts);
+export function verifyChain(busPath: string): ChainVerifyResult {
+  return verifyCommittedLines(readCommittedLines(busPath));
 }
 
 /** verifyChain over an already-read snapshot, so callers can verify and hash the same bytes. */
-export function verifyCommittedLines(
-  { lines, pendingTail }: CommittedLines,
-  opts: { ignoreThroughLine?: number } = {}
-): ChainVerifyResult {
+export function verifyCommittedLines({ lines, pendingTail }: CommittedLines): ChainVerifyResult {
   const errors: Array<{ line: number; message: string }> = [];
   let legacyLines = 0;
   let chainedLines = 0;
@@ -193,7 +190,6 @@ export function verifyCommittedLines(
     }
   });
 
-  const cutoff = opts.ignoreThroughLine ?? 0;
-  const kept = errors.filter((e) => e.line > cutoff).map((e) => `line ${e.line}: ${e.message}`);
-  return { ok: kept.length === 0, legacyLines, chainedLines, pendingTail, errors: kept };
+  const messages = errors.map((e) => `line ${e.line}: ${e.message}`);
+  return { ok: messages.length === 0, legacyLines, chainedLines, pendingTail, errors: messages };
 }
