@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { createRun, nextStep, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
+import { completeRun, createRun, nextStep, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function runCommand(): Command {
@@ -35,6 +35,15 @@ export function runCommand(): Command {
         return { ...state, next: nextStep(state) };
       })
     );
+
+  run
+    .command("complete")
+    .description("Complete the run once every phase and gate is done (orchestrator only)")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(action((o: { run?: string }) => {
+      const ctx = context();
+      return completeRun(ctx.root, runIdFor(ctx, o.run), ctx.caller);
+    }));
 
   run
     .command("stop")

@@ -36,6 +36,8 @@ const ENTRY: Record<string, string> = {
   'review.submit': 'submitReview',
   'integrity.verify': 'verifyRunIntegrity',
   'phase.start': 'startPhase',
+  'phase.complete': 'completePhase',
+  'run.complete': 'completeRun',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {
