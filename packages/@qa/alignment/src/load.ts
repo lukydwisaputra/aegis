@@ -66,7 +66,7 @@ function loadUnit(root: string, file: string, kind: "agent" | "skill", name: str
   const unit: Unit = { kind, name, file: rel, tools: frontmatterLite(source).tools, source, sections: parseSections(source), contract: null, contractLine: 0 };
   const found = extractContract(source);
   if (typeof found === "string") {
-    errors.push(violation("CONTRACT", name, `-:${found}`, rel, 1, `contract block ${found}`));
+    errors.push(violation("CONTRACT", name, "-", found, rel, 1, `contract block ${found}`));
     return unit;
   }
   unit.contractLine = found.line;
@@ -74,13 +74,13 @@ function loadUnit(root: string, file: string, kind: "agent" | "skill", name: str
   try {
     raw = parseYaml(found.yaml);
   } catch (e) {
-    errors.push(violation("CONTRACT", name, "-:invalid-yaml", rel, found.line, (e as Error).message));
+    errors.push(violation("CONTRACT", name, "-", "invalid-yaml", rel, found.line, (e as Error).message));
     return unit;
   }
   const parsed = (kind === "agent" ? AgentContractSchema : SkillContractSchema).safeParse(raw);
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    errors.push(violation("CONTRACT", name, "-:invalid", rel, found.line, detail));
+    errors.push(violation("CONTRACT", name, "-", "invalid", rel, found.line, detail));
     return unit;
   }
   unit.contract = parsed.data;
@@ -117,14 +117,14 @@ export function loadModel(root: string): Model {
   let pipeline: Pipeline | null = null;
   const pipelineFile = join(root, ".claude", "pipeline.yaml");
   if (!existsSync(pipelineFile)) {
-    errors.push(violation("CONTRACT", "pipeline", "-:missing", ".claude/pipeline.yaml", 1, "pipeline.yaml missing"));
+    errors.push(violation("CONTRACT", "pipeline", "-", "missing", ".claude/pipeline.yaml", 1, "pipeline.yaml missing"));
   } else {
     try {
       const parsed = PipelineSchema.safeParse(parseYaml(readFileSync(pipelineFile, "utf-8")));
       if (parsed.success) pipeline = parsed.data;
-      else errors.push(violation("CONTRACT", "pipeline", "-:invalid", ".claude/pipeline.yaml", 1, parsed.error.message));
+      else errors.push(violation("CONTRACT", "pipeline", "-", "invalid", ".claude/pipeline.yaml", 1, parsed.error.message));
     } catch (e) {
-      errors.push(violation("CONTRACT", "pipeline", "-:invalid", ".claude/pipeline.yaml", 1, (e as Error).message));
+      errors.push(violation("CONTRACT", "pipeline", "-", "invalid", ".claude/pipeline.yaml", 1, (e as Error).message));
     }
   }
 

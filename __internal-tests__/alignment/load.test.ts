@@ -53,7 +53,10 @@ describe('loadModel', () => {
       },
       pipeline: null,
     });
-    const keys = loadModel(t.root).loadErrors.map((v) => v.key).sort();
+    const errs = loadModel(t.root).loadErrors;
+    const first = errs.find((v) => v.key === 'CONTRACT:qa-missing:-:missing');
+    expect([first?.detail, first?.reason]).toEqual(['-', 'missing']);
+    const keys = errs.map((v) => v.key).sort();
     expect(keys).toEqual(['CONTRACT:pipeline:-:missing', 'CONTRACT:qa-invalid:-:invalid', 'CONTRACT:qa-missing:-:missing']);
     t.cleanup();
   });

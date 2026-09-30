@@ -41,14 +41,15 @@ export interface Violation {
   rule: RuleId;
   subject: string;
   detail: string;
+  reason: string;
   key: string;
   file: string;
   line: number;
   message: string;
 }
 
-export function violation(rule: RuleId, subject: string, detail: string, file: string, line: number, message: string): Violation {
-  return { rule, subject, detail, key: `${rule}:${subject}:${detail}`, file, line, message };
+export function violation(rule: RuleId, subject: string, detail: string, reason: string, file: string, line: number, message: string): Violation {
+  return { rule, subject, detail, reason, key: `${rule}:${subject}:${detail}:${reason}`, file, line, message };
 }
 
 export function pathOf(entry: PathEntry): string {
