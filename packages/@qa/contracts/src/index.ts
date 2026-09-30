@@ -10,3 +10,6 @@ export * from "./work-report.js";
 export * from "./gate.js";
 export * from "./chain.js";
 export * from "./run-state.js";
+export * from "./routing.js";
+export * from "./specialists.js";
+export * from "./target-profile.js";

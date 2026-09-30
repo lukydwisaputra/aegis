@@ -6,6 +6,7 @@ export type RunStateErrorCode =
   | "caller-forbidden"
   | "stop-requested"
   | "cap-reached"
+  | "env-blocked"
   | "not-claimed"
   | "invalid-input"
   | "run-not-active"

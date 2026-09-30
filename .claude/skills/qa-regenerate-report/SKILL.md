@@ -36,7 +36,7 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 
 ## Example
 ```
-/qa-regenerate-report --run=RUN-2026-05-24-001 --reports=closure,token-usage
+/qa-regenerate-report --run=RUN-20260524-001 --reports=closure,token-usage
 ```
 Replays events from run 001 and rewrites only the closure and token-usage reports.
 

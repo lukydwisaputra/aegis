@@ -123,53 +123,93 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
 
 ```jsonc
 {
-  "id":           "TC-AUTH-031",
-  "title":        "Verify redirect after successful SSO login",
-  "story":        "STORY-AUTH-204",
-  "scenarioId":   "SCN-AUTH-012",  // required — every TC belongs to exactly one scenario
-  "requirement":  "REQ-AUTH-04",
-  "testType":     "UI",           // Functional | UI | Integration | API | Security | Database | Performance | Compatibility | Usability
-  "testTechnique": ["Accessibility", "Regression"],  // optional — technique metadata + secondary specialist dispatch
-  "priority":     "P1",
-  "automationStatus": "auto",     // auto | manual | blocked
-  "order":        1,              // position within the scenario's runnable sequence
+  "id":            "TC-AUTH-031",
+  "title":         "Verify redirect after successful SSO login",   // 10-200 chars
+  "module":        "AUTH",
+  "feature":       "SSO login",
+  "testLevel":     "System",          // Unit | Integration | System | Acceptance
+  "testType":      ["UI"],            // array, min 1; each value routes
+  "testTechnique": ["Accessibility", "Regression"],  // optional
+  "priority":      { "code": "P1", "name": "Next release" },
+  "automationStatus": "Automated",    // Automated | Manual | Candidate | NotAutomatable
+  "viewportScope": "all",             // desktop | mobile | tablet | all (default all)
+  "requiresManual": false,            // default false
   "preconditions": [
     "Valid Google account linked to app",
     "App running on testing environment"
   ],
   "steps": [
-    "Navigate to /login",
-    "Click 'Sign in with Google'",
-    "Complete Google OAuth flow in popup",
-    "Observe redirect destination"
+    { "step": 1, "action": "Navigate to /login", "expected": "Login page renders" },
+    { "step": 2, "action": "Click 'Sign in with Google' and complete the OAuth flow", "expected": "Browser URL = /dashboard; user session cookie set" }
   ],
-  "gherkin": {                    // optional — required only when testType is Functional|E2E AND testTechnique includes Flow
-    "given": ["A user with a linked Google account is on the login page"],
-    "when":  ["The user clicks 'Sign in with Google' and completes the OAuth flow"],
-    "then":  ["The browser URL is /dashboard and a session cookie is set"]
+  "postconditions": ["Log out via /auth/signout", "Clear session storage"],
+  "traceability": {
+    "userStoryId":   "STORY-AUTH-204",
+    "requirementId": "REQ-AUTH-04"
   },
-  "expected":     "Browser URL = /dashboard; user session cookie set",
-  "teardown":     ["Log out via /auth/signout", "Clear session storage"],
-  "tags":         ["smoke", "auth", "sso"],
-  "complianceTags": ["ISO25010-SEC", "GDPR-SESSION"],
-  "spvScore":     91,
-  "run":          "RUN-20260523-001",
-  "authoredBy":   "qa-ui-specialist"
+  "compliance":    ["ISO25010-Security-Authenticity", "GDPR-Art32"],
+  "author":        "qa-test-designer",
+  "createdAt":     "2026-05-23T09:00:00Z",
+  "lastUpdatedAt": "2026-05-23T09:00:00Z",
+  "scenarioId":    "SCN-AUTH-012",    // every TC belongs to exactly one scenario
+  "order":         1                  // positive integer; position within the scenario's runnable sequence
 }
 ```
 
-The `teardown` field is required for all UI and API tests. Its absence is a common SPV finding.
+`TestCaseSchema` is strict: an unlisted field (for example `teardown`, `tags`, `story`, `expected` at the top level) is refused. Required: `id`, `title`, `module`, `feature`, `testLevel`, `testType`, `priority`, `automationStatus`, `steps`, `traceability` (an object, its three ids optional), `author`, `createdAt`, `lastUpdatedAt`, `scenarioId`, `order`. Optional or defaulted: `testTechnique`, `automationBlocker`, `automatedTestRef`, `viewportScope`, `requiresManual`, `manualReason`, `manualJustification`, `preconditions`, `testData`, `postconditions`, `compliance`, `reviewer`, `gherkin`.
 
-Technique-derived cases (BVA, EP, decision-table) keep the `steps[]` format — `gherkin` is never forced on them. Only flow cases (`testType: Functional | E2E` AND `testTechnique` includes `Flow`) require the `gherkin` block.
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | `TC-{MODULE}-{NNN}` |
+| `title` | string | 10-200 chars |
+| `module` | string | 2-8 capital letters |
+| `feature` | string | |
+| `testLevel` | enum | `Unit`, `Integration`, `System`, `Acceptance` |
+| `testType` | enum[] | at least one; see below |
+| `testTechnique` | enum[] | optional; see below |
+| `priority` | object | `{code, name}` — `P0` Hotfix, `P1` Next release, `P2` This quarter, `P3` Backlog, `P4` Won't fix |
+| `automationStatus` | enum | `Automated`, `Manual`, `Candidate`, `NotAutomatable` |
+| `viewportScope` | enum | `desktop`, `mobile`, `tablet`, `all` (default `all`) |
+| `requiresManual` | boolean | default `false` |
+| `preconditions` | string[] | default empty |
+| `testData` | record | optional |
+| `steps` | object[] | each `{step (positive integer), action, expected}` |
+| `postconditions` | string[] | default empty; cleanup after the test (there is no `teardown` field) |
+| `traceability` | object | `{userStoryId?, requirementId?, riskId?}` |
+| `compliance` | string[] | validated compliance tags; default empty |
+| `author`, `reviewer` | string | `reviewer` optional |
+| `createdAt`, `lastUpdatedAt` | string | ISO timestamp without offset, ending in `Z` |
+| `scenarioId` | string | `SCN-{MODULE}-{NNN}` |
+| `order` | integer | positive |
+| `gherkin` | object | optional; `{given[], when[], then[]}`, each a non-empty list of non-empty strings; required when `testTechnique` includes `Flow` |
+
+Technique-derived cases (BVA, EP, decision-table) keep the `steps[]` format; `gherkin` is never forced on them. Only cases whose `testTechnique` includes `Flow` require the `gherkin` block, and `Flow` needs a `testType` of `Functional` or `E2E`.
 
 **`testType` vs `testTechnique`**
 
-| Field | Role | Drives routing? | Example values |
-|---|---|---|---|
-| `testType` | Primary classification — which specialist runs this TC | **Yes** — determines the primary specialist dispatched by qa-test-executor | `Functional`, `Security`, `Database`, `Performance`, `Compatibility`, `Usability`, `UI`, `Integration`, `API` |
-| `testTechnique` | Descriptive metadata — how the test is conducted; triggers a secondary specialist when applicable | **Conditionally** — `Unit`, `Accessibility`, `Email`, `Realtime`, `FeatureFlag` each dispatch a dedicated secondary specialist in addition to the primary | `Unit`, `Accessibility`, `Email`, `Realtime`, `FeatureFlag`, `Regression`, `Smoke`, `Exploratory`, `BoundaryValue`, `EquivalencePartition`, `StateTransition`, `DecisionTable`, `Pairwise` |
+Routing lives in `TEST_ROUTING` (`@qa/contracts`), mirrored by `.claude/pipeline.yaml#routing`. The executor dispatches every `testType` value's specialist and every routed technique's specialist, each distinct specialist once.
 
-Example: a functional login flow that must also pass accessibility checks would carry `testType: "Functional"` (routes to qa-ui-specialist) and `testTechnique: ["Accessibility"]` (also dispatches qa-accessibility-specialist).
+| `testType` | Specialist |
+|---|---|
+| `Functional`, `UI`, `E2E` | qa-ui-specialist |
+| `API`, `Integration` | qa-api-specialist |
+| `Security` | qa-security-specialist |
+| `Database` | qa-database-specialist |
+| `Performance` | qa-performance-specialist |
+| `Compatibility` | qa-responsive-specialist |
+| `Usability` | qa-exploratory-specialist |
+
+| `testTechnique` | Effect |
+|---|---|
+| `Unit` | also dispatches qa-unit-specialist |
+| `Accessibility` | also dispatches qa-accessibility-specialist |
+| `Email` | also dispatches qa-email-specialist |
+| `Realtime` | also dispatches qa-realtime-specialist |
+| `FeatureFlag` | also dispatches qa-feature-flag-specialist |
+| `Exploratory` | also dispatches qa-exploratory-specialist |
+| `BoundaryValue`, `EquivalencePartition`, `StateTransition`, `DecisionTable`, `Pairwise`, `Regression`, `Smoke`, `Flow`, `Visual`, `Contract`, `Load`, `Migration` | documentation only; dispatch nothing |
+
+Example: a functional login flow that must also pass accessibility checks carries `testType: ["Functional"]` (qa-ui-specialist) and `testTechnique: ["Accessibility"]` (also qa-accessibility-specialist).
 
 ---
 
@@ -340,7 +380,7 @@ Fixture files follow the naming convention `<module>-<type>.json` (e.g., `auth-u
 
 2. **Setting Severity = Priority** — they are different axes. Setting them identically every time usually means one of them is wrong. Review the definitions and assign them independently.
 
-3. **Omitting the teardown field** — agents are instructed to flag missing teardown as a blocking SPV finding. This is intentional: flaky tests often stem from unclean state between runs.
+3. **Omitting `postconditions` for tests that create data** — record the clean-up state in `postconditions`; the strict schema has no `teardown` field. SPVs treat a missing clean-up postcondition on a data-creating UI/API test as a blocking finding, because flaky tests often stem from unclean state between runs.
 
 4. **Using `not-covered` status as a permanent state** — `not-covered` requirements should either have test cases authored for them or be formally descoped with a justification. They should not remain in this state across multiple runs.
 

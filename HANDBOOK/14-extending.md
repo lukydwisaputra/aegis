@@ -54,7 +54,7 @@ Example: adding a Billing module:
 A specialist is a Tier-2 agent invoked by the test executor for a specific testing domain.
 
 1. Follow §14.2 for the agent definition
-2. Add the specialist name to `aegis.config.json.environments.{env}.allowedSpecialists` for each env where it should run
+2. Add its short name and `mutates` flag to `SPECIALISTS` in `packages/@qa/contracts/src/specialists.ts`, then list the short name in `aegis.config.json.environments.{env}.allowedSpecialists` where it should run (read-only environments refuse mutating specialists)
 3. Add a `/qa-run-specialist --specialist={name}` path to the skill
 4. Wire it into `qa-test-executor.md`'s dispatch table
 5. If the specialist uses worktree isolation (rare for non-DevOps specialists), add the `isolation: "worktree"` annotation

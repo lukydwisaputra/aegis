@@ -32,17 +32,18 @@ it('ROUTE', () => {
       routing: {
         byType: { Functional: 'qa-ui-specialist', API: 'qa-api-specialist' },
         byTechnique: { Accessibility: 'qa-ui-specialist' },
-        designerEmits: { testType: ['Functional', 'E2E', 'Security'], testTechnique: ['Flow', 'Accessibility', 'BoundaryValue'] },
+        designerEmits: { testType: ['Functional', 'Smoke', 'Security'], testTechnique: ['BVA', 'Accessibility', 'BoundaryValue'] },
         techniqueWithoutSpecialist: ['BoundaryValue', 'EquivalencePartition', 'StateTransition', 'DecisionTable', 'Pairwise', 'Regression', 'Smoke', 'Unit', 'Email', 'Realtime', 'FeatureFlag', 'Exploratory', 'Contract', 'E2E', 'Load', 'Migration'],
       },
     },
   });
   expect(keys(routeRule(loadModel(t.root)))).toEqual([
     'ROUTE:target:qa-api-specialist:missing',
-    'ROUTE:testTechnique:Flow:not-in-schema',
+    'ROUTE:testTechnique:BVA:not-in-schema',
+    'ROUTE:testTechnique:Flow:schema-unrouted',
     'ROUTE:testTechnique:Visual:schema-unrouted',
-    'ROUTE:testType:E2E:not-in-schema',
     'ROUTE:testType:Security:unrouted',
+    'ROUTE:testType:Smoke:not-in-schema',
   ]);
   t.cleanup();
 });

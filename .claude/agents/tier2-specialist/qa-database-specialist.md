@@ -47,7 +47,7 @@ You are a read-write agent against the test database. You never touch the produc
    - Verify rollback (down migration) is idempotent
    - Verify the schema after each migration matches expected state
 
-4. **RLS policy testing (Supabase).** For each role in `target.supabase.rolesToTest`:
+4. **RLS policy testing (Supabase).** For each role in `target.supabase.rolesToTest` (or target-profile.json `roles[]` when empty):
    - Forge a role-scoped JWT using `@qa/supabase.forgeJWT(role, SUPABASE_JWT_SECRET)`
    - Execute SELECT, INSERT, UPDATE, DELETE against each table
    - Verify that roles can only access what the RLS policy permits

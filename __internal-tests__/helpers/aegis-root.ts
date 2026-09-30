@@ -8,14 +8,14 @@ export interface TmpAegis {
 }
 
 /** A throwaway aegis root with a minimal config and isolated ID counters. */
-export function makeAegisRoot(opts: { maxSpecialists?: number } = {}): TmpAegis {
+export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Record<string, unknown> } = {}): TmpAegis {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rs-'));
   fs.writeFileSync(
     path.join(root, 'aegis.config.json'),
     JSON.stringify({
       profile: 'full',
       parallelism: { maxSpecialists: opts.maxSpecialists ?? 2 },
-      environments: {
+      environments: opts.environments ?? {
         development: { url: 'http://localhost:5173', mutating: true },
         production: { url: 'https://example.com', mutating: false },
       },

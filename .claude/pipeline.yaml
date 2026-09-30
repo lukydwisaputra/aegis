@@ -25,6 +25,7 @@ routing:
   byType:
     Functional: qa-ui-specialist
     UI: qa-ui-specialist
+    E2E: qa-ui-specialist
     API: qa-api-specialist
     Integration: qa-api-specialist
     Performance: qa-performance-specialist
@@ -38,10 +39,11 @@ routing:
     Email: qa-email-specialist
     Realtime: qa-realtime-specialist
     FeatureFlag: qa-feature-flag-specialist
+    Exploratory: qa-exploratory-specialist
   designerEmits:
-    testType: [Functional, UI, E2E, Security, Database]
-    testTechnique: [EP, BVA, Flow, Accessibility, Unit, Email, Regression, BoundaryValue, StateTransition, DecisionTable, Pairwise, Smoke]
-  techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke]
+    testType: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]
+    testTechnique: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
+  techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
 spvPairs:
   qa-cicd-planner: qa-cicd-spv
   qa-cicd-implementer: qa-cicd-spv
@@ -54,6 +56,13 @@ envSpecialists:
   security: qa-security-specialist
   database: qa-database-specialist
   performance: qa-performance-specialist
+  responsive: qa-responsive-specialist
+  exploratory: qa-exploratory-specialist
+  accessibility: qa-accessibility-specialist
+  email: qa-email-specialist
+  realtime: qa-realtime-specialist
+  feature-flag: qa-feature-flag-specialist
+  unit: qa-unit-specialist
 sources:
   cli:
     - "{run}/run.json"

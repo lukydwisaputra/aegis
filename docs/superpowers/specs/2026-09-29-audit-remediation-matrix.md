@@ -11,9 +11,9 @@ owning sub-project. A sub-project spec must list and close every ID it owns.
 Status values: `open` · `in-spec` · `fixed` · `wontfix` (with reason).
 
 IDs AUD-029 and AUD-030 are intentionally unused (merged into AUD-014 and AUD-077 during dedup).
-AUD-040, 062, 063, 064 moved to P0 and AUD-056 split into 056a (P0) / 056b (P3) when the P0 spec was written.
+AUD-040, 062, 063, 064 moved to P0 and AUD-056 split into 056a (P0) / 056b (P3) when the P0 spec was written. AUD-042 split into 042 (P1, consumer) / 042b (P0b-2, emitter) by the P1 spec.
 
-Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
+Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`; P1 → `2026-09-30-p1-contracts-vocab-design.md`.
 
 ## Sub-projects
 
@@ -75,24 +75,25 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report; templates/ absent from git (only empty untracked dirs) — _qa-init-project/qa-ci-bootstrap template reads unresolved | MED | P0c | in-spec |
 | AUD-056a | Execution skills read stale `execution/results.json` (qa-rerun-failed, qa-regression, qa-record-manual) | qa-rerun-failed:25; qa-regression:28; qa-record-manual:29 | HIGH | P0c | in-spec |
 | AUD-045 | Gate naming inconsistent: camelCase (config), kebab (events.ts:888), numbered (files) | aegis.config.json:15; events.ts:888 | LOW | P0a-1 | in-spec |
+| AUD-042b | `token.used` has no emitter: record per-subagent token usage from a SubagentStop hook (transcript usage) through the CLI; split from AUD-042 by the P1 spec | qa-metrics-collector.md:28 | LOW | P0b-2 | open |
 
 ## P1 — Contracts & vocabulary
 
 | ID | Finding | Evidence | Sev | Status |
 |----|---------|----------|-----|--------|
-| AUD-031 | No `TargetProfileSchema` in contracts; scanner-written fields diverge from `target-scanner` interface; `packageManager` enum lacks bun | contracts/src/events.ts:171; target-scanner/src/index.ts:9; qa-context-scanner.md | MED | open |
-| AUD-032 | Designer emits `testType: E2E` and `testTechnique: Flow`; neither in schema nor router | qa-test-designer.md:89,119; contracts/src/artefacts.ts:35-44 | HIGH | open |
-| AUD-033 | Designer never emits `Realtime`, `FeatureFlag`, `Compatibility`, `Usability` → realtime/feature-flag/responsive specialists unreachable | qa-test-designer.md:96; qa-test-executor.md:68-76 | HIGH | open |
-| AUD-034 | Schema techniques `Visual`, `Contract`, `Load`, `Migration`, `Exploratory`, `E2E` have no route | contracts/src/artefacts.ts:39-44 | MED | open |
-| AUD-035 | `testType` is an array but routed as single value; qa-regression routes on nonexistent `specialistType` | artefacts.ts:58; qa-test-executor.md:62-69; qa-regression:27 | MED | open |
-| AUD-036 | `allowedSpecialists` short names have no canonical map; `functional`/`integration` map to no agent; 3 competing vocabularies | aegis.config.json:42; apps/cli/src/commands/init.ts:212; qa-run-specialist:19 | MED | open |
-| AUD-037 | `assertEnvSafe` never called; env rules unenforced; `testing` excludes mandatory exploratory; production allows security (ZAP active scan) | path-guard/src/index.ts:113,193; aegis.config.json:56-58 | HIGH | open |
-| AUD-038 | email-spv claims email is production-forbidden; config does not list it | qa-email-specialist-spv.md:30; aegis.config.json:59 | LOW | open |
-| AUD-039 | Event bus writes Zod-parsed output, silently stripping undeclared fields (`brief`, `agent`, `runId`); `discovery.step-complete.step` rejects `explore-live` | event-bus/src/index.ts:50; events.ts:481-485,776 | MED | open |
-| AUD-041 | Run ID regex `RUN-\d{8}-\d{3}` rejects documented examples `RUN-2026-05-24-001` | ids.ts:45; qa-start:48; qa-resume:38 | MED | open |
-| AUD-042 | `token.used` emitted by nobody → token/cost metrics empty | qa-metrics-collector.md | LOW | open |
-| AUD-043 | Config keys read by agents but absent: `target.supabase.rolesToTest`, `github.defaultReviewers`, `target.sourceDirs`, `modelOverrides` | qa-context-scanner.md:35; qa-environment-engineer.md:64; qa-github-planner.md:41 | MED | open |
-| AUD-044 | Metrics collector subscribes to legacy `PhaseCompleted` | qa-metrics-collector.md:33 | LOW | open |
+| AUD-031 | No `TargetProfileSchema` in contracts; scanner-written fields diverge from `target-scanner` interface; `packageManager` enum lacks bun | contracts/src/events.ts:171; target-scanner/src/index.ts:9; qa-context-scanner.md | MED | fixed |
+| AUD-032 | Designer emits `testType: E2E` and `testTechnique: Flow`; neither in schema nor router | qa-test-designer.md:89,119; contracts/src/artefacts.ts:35-44 | HIGH | fixed |
+| AUD-033 | Designer never emits `Realtime`, `FeatureFlag`, `Compatibility`, `Usability` → realtime/feature-flag/responsive specialists unreachable | qa-test-designer.md:96; qa-test-executor.md:68-76 | HIGH | fixed |
+| AUD-034 | Schema techniques `Visual`, `Contract`, `Load`, `Migration`, `Exploratory`, `E2E` have no route | contracts/src/artefacts.ts:39-44 | MED | fixed |
+| AUD-035 | `testType` is an array but routed as single value; qa-regression routes on nonexistent `specialistType` | artefacts.ts:58; qa-test-executor.md:62-69; qa-regression:27 | MED | fixed |
+| AUD-036 | `allowedSpecialists` short names have no canonical map; `functional`/`integration` map to no agent; 3 competing vocabularies | aegis.config.json:42; apps/cli/src/commands/init.ts:212; qa-run-specialist:19 | MED | fixed |
+| AUD-037 | `assertEnvSafe` never called; env rules unenforced; `testing` excludes mandatory exploratory; production allows security (ZAP active scan) | path-guard/src/index.ts:113,193; aegis.config.json:56-58 | HIGH | fixed |
+| AUD-038 | email-spv claims email is production-forbidden; config does not list it | qa-email-specialist-spv.md:30; aegis.config.json:59 | LOW | fixed |
+| AUD-039 | Event bus writes Zod-parsed output, silently stripping undeclared fields (`brief`, `agent`, `runId`); `discovery.step-complete.step` rejects `explore-live` | event-bus/src/index.ts:50; events.ts:481-485,776 | MED | fixed |
+| AUD-041 | Run ID regex `RUN-\d{8}-\d{3}` rejects documented examples `RUN-2026-05-24-001` | ids.ts:45; qa-start:48; qa-resume:38 | MED | fixed |
+| AUD-042 | `token.used` emitted by nobody → token/cost metrics empty | qa-metrics-collector.md | LOW | fixed |
+| AUD-043 | Config keys read by agents but absent: `target.supabase.rolesToTest`, `github.defaultReviewers`, `target.sourceDirs`, `modelOverrides` | qa-context-scanner.md:35; qa-environment-engineer.md:64; qa-github-planner.md:41 | MED | fixed |
+| AUD-044 | Metrics collector subscribes to legacy `PhaseCompleted` | qa-metrics-collector.md:33 | LOW | fixed |
 
 ## P2 — Roster: orphans, SPV coverage, profiles, unused packages
 
@@ -193,7 +194,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-082 | 8 agents lack Bash (6 compliance, qa-curator, qa-cicd-planner) so they cannot call `pnpm aegis`; phases 12/15 can never complete | qa-compliance-istqb.md:6; qa-curator.md:6 | HIGH | P0a-2 / P2 | open |
 | AUD-083 | Specialists never write a work report; all specialist SPVs and the executor expect one | tier2-specialist/*.md Outputs; qa-api-specialist-spv.md:20; qa-test-executor.md:107 | HIGH | P0a-2 | open |
 | AUD-084 | Defects filed directly by web-explorer, responsive and exploratory specialists without origin confirmation; defect-manager only ingests EXP defects | qa-web-explorer.md:65,105; qa-responsive-specialist.md:45; qa-exploratory-specialist.md:75,96; qa-defect-manager.md:25; HANDBOOK/17:84 | MED | P0a-2 | open |
-| AUD-085 | `TestCaseSchema` lacks `gherkin`, `order`, `scenarioId` (non-strict → silently stripped) though designer and HANDBOOK/17 require them | artefacts.ts:53-85; qa-test-designer.md:89,119 | MED | P1 | open |
+| AUD-085 | `TestCaseSchema` lacks `gherkin`, `order`, `scenarioId` (non-strict → silently stripped) though designer and HANDBOOK/17 require them | artefacts.ts:53-85; qa-test-designer.md:89,119 | MED | P1 | fixed |
 | AUD-086 | Security specialist writes `tests/security/` (outside the `tests/qa/` boundary) | qa-security-specialist.md:30; its SPV :21; HANDBOOK/17:71 | MED | P0a-2 | open |
 | AUD-087 | Responsive results named `cases/{TC}-{viewport}-result.json`; rollup/trace expect `{TC}-result.json` | qa-responsive-specialist.md:43 | MED | P0c | open |
 | AUD-088 | Tier-1 agents use task ids like `task:env-setup`, rejected by the CLI `TASK_ID` (no `:`) — agents move to `T-*` ids | qa-environment-engineer.md:125; qa-test-executor.md:145; tasks.ts:12 | MED | P0a-2 | open |
@@ -204,9 +205,9 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-093 | `isSpecialist` excludes web-explorer/compliance, orchestrator says compliance counts against the cap — decide one rule | caller.ts:77; qa-orchestrator.md:65,88 | LOW | P0a-1 | open |
 | AUD-094 | HANDBOOK/17 sandbox-first list omits feature-flag, security, unit | HANDBOOK/17:36 | LOW | P5 | open |
 | AUD-095 | Missing evidence on existing items: AUD-058 + qa-regression:24, qa-record-manual:25; AUD-057 + qa-help:20; AUD-060 + dashboard-api server.ts:44; gen-index.ts:222 reads `run.module` (RunState has `modules[]`) | as listed | LOW | P3 | open |
-| AUD-096 | Designer uses `BVA`/`EP`; schema uses `BoundaryValue`/`EquivalencePartition` | qa-test-designer.md:98 | LOW | P1 | open |
+| AUD-096 | Designer uses `BVA`/`EP`; schema uses `BoundaryValue`/`EquivalencePartition` | qa-test-designer.md:98 | LOW | P1 | fixed |
 | AUD-097 | Adoption-order risk: once the orchestrator uses `aegis run create`, any agent still hand-appending to events.jsonl breaks the chain and blocks the run → P0a-1 and P0a-2 must land together (or H1 first) | CLAUDE.md:100; chain verify | HIGH | P0a / P0b-2 sequencing | open |
-| AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | open |
+| AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | fixed — P1: all dashed run ids removed; run-id-docs.test.ts forbids them |
 | AUD-099 | Run statuses `initializing/aborted/resuming/interrupted` written by skills fail `RunStateSchema` | qa-start:31; qa-stop:22,27; qa-resume:19-22 | MED | P0a-1 (with AUD-023) | open |
 
 ## Classes found by the alignment checker (ALIGN)
@@ -222,7 +223,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-102 | Events awaited with no emitter (`defect.closed`, `defect.reopened`) | qa-metrics-collector.md:45 | MED | P0c | open |
 | AUD-103 | Orchestrator emits CLI-recorded `run.*` / `gate.*` types directly | qa-orchestrator.md:34,120 | HIGH | P0a-1 | open |
 | AUD-104 | Skills reference nonexistent paths not covered by AUD-056…059/060/065 (`templates/config/`, `runs/{run}/defects.json`, hardcoded sibling-project paths) | _qa-init-project SKILL:28; qa-gate-check SKILL:25; qa-push-reports SKILL:9 | MED | P3 / QW | open |
-| AUD-105 | Config keys read at the wrong location (`target.sourceDirs` vs top-level `sourceDirs`) | qa-security-specialist.md:39; aegis.config.json `sourceDirs` | LOW | QW | open |
+| AUD-105 | Config keys read at the wrong location (`target.sourceDirs` vs top-level `sourceDirs`) | qa-security-specialist.md:39; aegis.config.json `sourceDirs` | LOW | QW | fixed — by P1 (security prose) |
 | AUD-106 | Docs name non-agents as agents, outside the files AUD-076 covers | HANDBOOK/07:89 `qa-defect-reporter`; HANDBOOK/16:127 `qa-sandbox-manager` | LOW | QW | fixed |
 | AUD-107 | Docs reference nonexistent slash commands (`/qa-defect-*`, `/qa-dash-*`, `/qa-ci-*`, `/qa-close`, `/qa-books`, `/qa-forget`, `/qa-ingest`, `/qa-lessons`, `/qa-reset-agent`) | HANDBOOK/05:119,265; HANDBOOK/09:79 | LOW | QW | fixed |
 | AUD-108 | Artefact written that no agent reads and that is not marked terminal | qa-environment-engineer.md:56 `runs/{runId}/playwright-output` | LOW | P0c | open |
@@ -231,7 +232,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
 | AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
 | AUD-113 | Specialists and the web explorer write `sandbox/**` (HANDBOOK/17 sandbox-first) but CLAUDE.md's read/write table has no `sandbox/**` row — add the row or move the writes | qa-ui-specialist.md contract `sandbox/{date}-{slug}/**`; CLAUDE.md "Read / write policy" | LOW | QW | fixed |
-| AUD-114 | Prose names a config key without its file, so the contract `config` entry has no anchor | qa-database-specialist.md:40 `environments[env].readOnly`; qa-email-specialist-spv.md:30 `forbiddenSpecialists` | LOW | QW | open — qa-database-specialist half fixed (QW); qa-email-specialist-spv half closes with AUD-038 (P1) |
+| AUD-114 | Prose names a config key without its file, so the contract `config` entry has no anchor | qa-database-specialist.md:40 `environments[env].readOnly`; qa-email-specialist-spv.md:30 `forbiddenSpecialists` | LOW | QW | fixed |
 | CI-01 | Lint floor missing: no package defines a `lint` script, so `pnpm lint` fails and CI omits it; adding ESLint is its own change (see AUD-072) | pnpm output | MED | P5 | open |
 | CI-02 | OWASP security gates not running: this personal repo cannot call `WerkDone-Pte-Ltd/shared-ci` (PR #5 run 36682513226: "workflow file issue", 0 referenced workflows) — owner decides: move repo into the WerkDone org, or accept no OWASP gates; inlining the gates is forbidden by the CI standard | PR #5 | MED | owner | wontfix — owner decision 2026-09-30: accept no OWASP gates for this personal repo |
 

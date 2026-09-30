@@ -10,6 +10,7 @@ import {
   RiskIdSchema,
   TestPlanIdSchema,
 } from "./ids.js";
+import { PackageManagerSchema } from "./target-profile.js";
 import { SeveritySchema } from "./severity.js";
 import { Sha256HexSchema } from "./chain.js";
 
@@ -173,7 +174,8 @@ export const TargetProfiledEventSchema = EventBase.extend({
   type: z.literal("target.profiled"),
   appCount: z.number().int().nonnegative(),
   framework: z.string(),
-  packageManager: z.enum(["pnpm", "npm", "yarn"]),
+  packageManager: PackageManagerSchema,
+  platform: z.enum(["supabase", "generic"]).optional(),
 });
 
 export const TargetChangedEventSchema = EventBase.extend({
@@ -605,11 +607,18 @@ export const SpecialistCompletedEventSchema = EventBase.extend({
   durationMs: z.number().int().nonnegative().optional(),
 });
 
+/** The enriched dispatch brief qa-test-executor-spv checks (Winteringham Pattern 5). */
+export const DispatchBriefSchema = z.object({
+  missionGoal: z.string().min(1), lessonsRef: z.string().min(1), riskContext: z.string().optional(),
+  environmentNotes: z.string().optional(), exploratoryFindings: z.array(z.string()).default([]),
+}).strict();
+
 export const SpecialistDispatchedEventSchema = EventBase.extend({
   type: z.literal("specialist.dispatched"),
   specialistName: z.string(),
   tcIds: z.array(TestCaseIdSchema).default([]),
   environment: z.string(),
+  brief: DispatchBriefSchema.optional(),
 });
 
 export const SpecialistFailedEventSchema = EventBase.extend({

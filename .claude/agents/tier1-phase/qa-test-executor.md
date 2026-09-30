@@ -61,6 +61,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
 
    **By `testType`** (primary routing — determines the specialist for every TC):
    - `Functional`, `UI` → qa-ui-specialist
+   - `E2E` → qa-ui-specialist
    - `API`, `Integration` → qa-api-specialist
    - `Performance` → qa-performance-specialist
    - `Security` → qa-security-specialist
@@ -74,8 +75,9 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
    - `Email` → qa-email-specialist
    - `Realtime` → qa-realtime-specialist
    - `FeatureFlag` → qa-feature-flag-specialist
+   - `Exploratory` → qa-exploratory-specialist
 
-   A TC with `testType: Functional` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass.
+   `testType` is an array: route every value, then every routed `testTechnique`, and dispatch each distinct specialist once for the TC. Documentation-only techniques (BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration) dispatch nothing; the primary specialist carries them. A TC with `testType: ["Functional"]` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass. `Exploratory` TCs join the exploratory-first sessions of step 3.
 
 5. **Dispatch specialists in parallel (max 4 concurrently).** Use the `Agent` tool. For each specialist dispatch, include the enriched brief:
    - The test cases assigned to this specialist (IDs + schema)
@@ -87,6 +89,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
    - The exploratory findings from step 3 (uncovered defects + notes) relevant to this specialist's scope
    
    Monitor `runs/{runId}/concurrency.json`. Do not dispatch if 4 specialists are already active.
+   A specialist's task claim is refused when the run's environment does not allow it (`aegis.config.json#environments.{env}.allowedSpecialists` / `aegis.config.json#environments.{env}.forbiddenSpecialists`, matched by short name; read-only environments also refuse mutating specialists). Do not dispatch such a specialist: mark its TCs `blocked` in the execution summary with the reason.
 
 6. **Validate evidence quality.** As specialists complete and emit `specialist.completed`, spot-check their evidence in `runs/{runId}/evidence/{TC-ID}/`:
    - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `har.sanitization-required`)
@@ -226,4 +229,6 @@ dispatches:
   - qa-feature-flag-specialist-spv
 config:
   - aegis.config.json#artifacts
+  - aegis.config.json#environments.{env}.allowedSpecialists
+  - aegis.config.json#environments.{env}.forbiddenSpecialists
 ```

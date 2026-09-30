@@ -61,9 +61,11 @@ Territory rule — `assertAegisOwnership(agent, path)`:
 - Emit `aegis.territory.violated` event
 - SPV auto-fails the work-report
 
-**Env-safety extension — `assertEnvSafe(env, action)`:**
-- If `env.readOnly === true` AND `action.mutates === true` → throw, emit `env.write-blocked`
-- If specialist is in `env.forbiddenSpecialists` → throw, emit `env.specialist-blocked`
+**Env-safety extension — `assertEnvSafe(env, action)`** (called by the CLI whenever a specialist claims a task):
+- Names match by short name (`SPECIALISTS` in `@qa/contracts`); agent names are normalised
+- If the env is read-only (`readOnly: true` or `mutating: false`) AND the specialist's `mutates` flag is set → throw
+- If the specialist is in `forbiddenSpecialists`, or `allowedSpecialists` lacks both `*` and the specialist → throw
+- On any refusal the CLI records `env.specialist-blocked` and the claim fails with `env-blocked`
 
 ## 13.4 Agent-memory dedup algorithm
 

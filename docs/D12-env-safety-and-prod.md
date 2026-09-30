@@ -11,9 +11,9 @@ See [D11-secrets-handling.md](D11-secrets-handling.md) for secrets management.
 | Environment | Mutating writes allowed | Specialist restrictions |
 |-------------|------------------------|------------------------|
 | `development` (local) | Yes | None |
-| `testing` (ephemeral per PR) | Yes | `qa-performance-specialist` limited to baseline-only |
+| `testing` (ephemeral per PR) | Yes | Full specialist roster |
 | `staging` (prod mirror) | Yes | Full specialist roster |
-| `production` | **No** | All mutating specialists forbidden |
+| `production` | **No** | Only `ui` and `api` read-only smoke; every other specialist forbidden |
 
 ---
 
@@ -39,7 +39,7 @@ Production smoke tests use `--read-only` flag:
 /qa-smoke --env=production --read-only
 ```
 
-The `--read-only` flag is enforced at the specialist dispatch level — any specialist that declares `mutates: true` in its manifest is skipped and a `specialist.skipped.readonly` event is emitted.
+The `--read-only` flag is enforced at the specialist dispatch level — the CLI refuses the claim of any specialist outside the production allowed list, and the executor marks those TCs `blocked`.
 
 ---
 
@@ -51,20 +51,16 @@ Configured in `aegis.config.json`:
 "environments": {
   "production": {
     "readOnly": true,
-    "forbiddenSpecialists": [
-      "qa-performance-specialist",   // k6 load tests would hammer prod
-      "qa-security-specialist",      // ZAP active scan mutates state
-      "qa-database-specialist",      // migration tests are destructive
-      "qa-email-specialist"          // no real email sends in prod
-    ]
+    "allowedSpecialists": ["ui", "api"],  // read-only smoke
+    // destructive migrations, k6 load, ZAP active scan, real email sends, flag-override writes:
+    "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"]
   }
 }
 ```
 
 When a forbidden specialist is dispatched:
-1. `path-guard.assertEnvSafe` throws `EnvSpecialistBlocked`
-2. A `env.specialist-blocked` event is emitted with specialist name and environment
-3. The test executor logs the skip and continues — it is not a test failure
+1. The CLI refuses the claim at dispatch: PathGuardError `specialist-blocked` (or RunStateError `env-blocked` when the run may not target the environment)
+2. The test executor marks the affected TCs `blocked` and continues
 
 ---
 
@@ -77,7 +73,6 @@ Before `qa-smoke-prod.yml` triggers, the following must be true:
 - [ ] No `--force` flag on any specialist invocation
 - [ ] Mailpit adapter disabled (no email test infrastructure in prod)
 - [ ] No DB snapshot or migration steps in the workflow
-- [ ] ZAP passive scan only (no active scan) — `qa-security-specialist` uses `--passive-only` when not forbidden
 
 ---
 

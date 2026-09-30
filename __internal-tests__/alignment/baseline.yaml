@@ -207,18 +207,6 @@ entries:
   - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
     ids: [AUD-007]
     note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
-  - key: "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.secretsRef:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#environments.{env}.secretsRef does not exist"
-  - key: "CONFIG:qa-context-scanner:aegis.config.json#target.supabase.rolesToTest:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase.rolesToTest does not exist"
-  - key: "CONFIG:qa-database-specialist:aegis.config.json#target.supabase.rolesToTest:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase.rolesToTest does not exist"
-  - key: "CONFIG:qa-database-specialist:aegis.config.json#target.supabase:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase does not exist"
   - key: "CONFIG:qa-doctor:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
@@ -231,24 +219,12 @@ entries:
   - key: "CONFIG:qa-dry-run:config/cost-estimates.yaml:missing"
     ids: [AUD-057]
     note: "config/cost-estimates.yaml does not exist"
-  - key: "CONFIG:qa-environment-engineer:aegis.config.json#target.supabase.rolesToTest:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase.rolesToTest does not exist"
   - key: "CONFIG:qa-export:config/integrations.yaml:missing"
     ids: [AUD-057]
     note: "config/integrations.yaml does not exist"
   - key: "CONFIG:qa-gate-check:config/thresholds.yaml:missing"
     ids: [AUD-057]
     note: "config/thresholds.yaml does not exist"
-  - key: "CONFIG:qa-github-implementer:aegis.config.json#github.defaultReviewers:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#github.defaultReviewers does not exist"
-  - key: "CONFIG:qa-github-implementer:aegis.config.json#github.labels:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#github.labels does not exist"
-  - key: "CONFIG:qa-github-planner:aegis.config.json#github.defaultReviewers:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#github.defaultReviewers does not exist"
   - key: "CONFIG:qa-help:config/commands.yaml:missing"
     ids: [AUD-057, AUD-095]
     note: "config/commands.yaml does not exist"
@@ -264,18 +240,12 @@ entries:
   - key: "CONFIG:qa-run-specialist:config/model-policy.yaml:missing"
     ids: [AUD-057]
     note: "config/model-policy.yaml does not exist"
-  - key: "CONFIG:qa-security-specialist:aegis.config.json#target.sourceDirs:missing"
-    ids: [AUD-043, AUD-105]
-    note: "aegis.config.json#target.sourceDirs does not exist"
   - key: "CONFIG:qa-smoke:config/thresholds.yaml:missing"
     ids: [AUD-057]
     note: "config/thresholds.yaml does not exist"
   - key: "CONFIG:qa-start:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
-  - key: "CONFIG:qa-web-explorer:aegis.config.json#discovery.allowedDestructive:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#discovery.allowedDestructive does not exist"
   # --- CONSUMER ---
   - key: "CONSUMER:qa-cicd-evaluator:{run}/devops/ci-summary.json:unread"
     ids: [AUD-046]
@@ -304,9 +274,6 @@ entries:
   - key: "CONSUMER:qa-event-bus:{run}/events.jsonl.lock:unread"
     ids: [AUD-048]
     note: "no one reads {run}/events.jsonl.lock"
-  - key: "CONSUMER:qa-metrics-collector:{run}/reports/metrics/token-usage.jsonl:unread"
-    ids: [AUD-042]
-    note: "no one reads {run}/reports/metrics/token-usage.jsonl"
   - key: "CONSUMER:qa-orchestrator:{run}/COMPLETE:unread"
     ids: [AUD-028]
     note: "no one reads {run}/COMPLETE"
@@ -412,9 +379,6 @@ entries:
   - key: "DOC-REF:CLAUDE.md:tier2-specialist=16:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"2 \u2014 Specialists\" claims 16; .claude/agents/tier2-specialist has 14"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/agent-core:unknown-package"
-    ids: [AUD-066]
-    note: "@qa/agent-core is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/taskmaster:unknown-package"
     ids: [AUD-066]
     note: "@qa/taskmaster is not a package in packages/@qa/"
@@ -507,12 +471,6 @@ entries:
     note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   # --- DRIFT ---
   # --- ENV ---
-  - key: "ENV:testing:functional:unmapped"
-    ids: [AUD-036]
-    note: "functional maps to no agent"
-  - key: "ENV:testing:integration:unmapped"
-    ids: [AUD-036]
-    note: "integration maps to no agent"
   # --- EVENT ---
   - key: "EVENT:_qa-build-agents:agent.model.resolved:owner-cannot-append"
     ids: [AUD-100]
@@ -847,12 +805,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-metrics-collector:PhaseCompleted:no-emitter"
-    ids: [AUD-044]
-    note: "nobody emits PhaseCompleted"
-  - key: "EVENT:qa-metrics-collector:PhaseCompleted:undeclared"
-    ids: [AUD-044]
-    note: "PhaseCompleted is not a declared event"
   - key: "EVENT:qa-metrics-collector:defect.closed:no-emitter"
     ids: [AUD-102]
     note: "nobody emits defect.closed"
@@ -863,7 +815,7 @@ entries:
     ids: [AUD-011]
     note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
   - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
-    ids: [AUD-042]
+    ids: [AUD-042b]
     note: "nobody emits token.used"
   - key: "EVENT:qa-orchestrator-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
@@ -1338,60 +1290,6 @@ entries:
     ids: [AUD-003]
     note: "{tests}/qa/fixtures/auth.fixture.ts is only produced in a later phase"
   # --- ROUTE ---
-  - key: "ROUTE:pipeline:API:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byType API → qa-api-specialist is unreachable: the designer never emits testType API"
-  - key: "ROUTE:pipeline:Compatibility:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byType Compatibility → qa-responsive-specialist is unreachable: the designer never emits testType Compatibility"
-  - key: "ROUTE:pipeline:E2E:unroutable-type"
-    ids: [AUD-032]
-    note: "the designer emits testType E2E; routing.byType has no route for it"
-  - key: "ROUTE:pipeline:FeatureFlag:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byTechnique FeatureFlag → qa-feature-flag-specialist is unreachable: the designer never emits testTechnique FeatureFlag"
-  - key: "ROUTE:pipeline:Integration:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byType Integration → qa-api-specialist is unreachable: the designer never emits testType Integration"
-  - key: "ROUTE:pipeline:Performance:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byType Performance → qa-performance-specialist is unreachable: the designer never emits testType Performance"
-  - key: "ROUTE:pipeline:Realtime:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byTechnique Realtime → qa-realtime-specialist is unreachable: the designer never emits testTechnique Realtime"
-  - key: "ROUTE:pipeline:Usability:unreachable-route"
-    ids: [AUD-033]
-    note: "routing.byType Usability → qa-exploratory-specialist is unreachable: the designer never emits testType Usability"
-  - key: "ROUTE:testTechnique:BVA:not-in-schema"
-    ids: [AUD-096]
-    note: "BVA is not a TestTechnique"
-  - key: "ROUTE:testTechnique:Contract:schema-unrouted"
-    ids: [AUD-034]
-    note: "Contract is in the schema but never routed"
-  - key: "ROUTE:testTechnique:E2E:schema-unrouted"
-    ids: [AUD-034]
-    note: "E2E is in the schema but never routed"
-  - key: "ROUTE:testTechnique:EP:not-in-schema"
-    ids: [AUD-096]
-    note: "EP is not a TestTechnique"
-  - key: "ROUTE:testTechnique:Exploratory:schema-unrouted"
-    ids: [AUD-034]
-    note: "Exploratory is in the schema but never routed"
-  - key: "ROUTE:testTechnique:Flow:not-in-schema"
-    ids: [AUD-032]
-    note: "Flow is not a TestTechnique"
-  - key: "ROUTE:testTechnique:Load:schema-unrouted"
-    ids: [AUD-034]
-    note: "Load is in the schema but never routed"
-  - key: "ROUTE:testTechnique:Migration:schema-unrouted"
-    ids: [AUD-034]
-    note: "Migration is in the schema but never routed"
-  - key: "ROUTE:testTechnique:Visual:schema-unrouted"
-    ids: [AUD-034]
-    note: "Visual is in the schema but never routed"
-  - key: "ROUTE:testType:E2E:not-in-schema"
-    ids: [AUD-032]
-    note: "E2E is not a TestType"
   # --- SKILL ---
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
     ids: [AUD-061, AUD-057]

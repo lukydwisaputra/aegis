@@ -1,5 +1,6 @@
 import { resolve, normalize } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { checkEnvironmentSpecialists, isReadOnlyEnvironment, specialistShortName } from "@qa/contracts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ export class PathGuardError extends Error {
 
 export interface EnvConfig {
   readOnly?: boolean;
+  mutating?: boolean;
   allowedSpecialists?: string[];
   forbiddenSpecialists?: string[];
 }
@@ -107,6 +109,8 @@ export function assertWritable(path: string, aegisRoot: string): void {
   }
 }
 
+const canonical = (name: string): string => specialistShortName(name) ?? name;
+
 /**
  * Assert that a mutating action is safe to perform against the given environment.
  * Reads environment config from aegis.config.json.
@@ -119,31 +123,18 @@ export function assertEnvSafe(
   const config = loadConfig(aegisRoot);
   const envConfig: EnvConfig = config.environments?.[env] ?? {};
 
-  if (action.mutates && envConfig.readOnly) {
-    throw new PathGuardError(
-      `Env safety: environment "${env}" is read-only. Mutating action blocked.`,
-      env,
-      "env-read-only"
-    );
+  if (action.mutates && isReadOnlyEnvironment(envConfig)) {
+    throw new PathGuardError(`Env safety: environment "${env}" is read-only. Mutating action blocked.`, env, "env-read-only");
   }
 
   if (action.specialist) {
-    const forbidden = envConfig.forbiddenSpecialists ?? [];
-    if (forbidden.includes(action.specialist)) {
-      throw new PathGuardError(
-        `Env safety: specialist "${action.specialist}" is forbidden in environment "${env}".`,
-        env,
-        "specialist-blocked"
-      );
+    const name = canonical(action.specialist);
+    if ((envConfig.forbiddenSpecialists ?? []).map(canonical).includes(name)) {
+      throw new PathGuardError(`Env safety: specialist "${action.specialist}" is forbidden in environment "${env}".`, env, "specialist-blocked");
     }
-
-    const allowed = envConfig.allowedSpecialists;
-    if (allowed && !allowed.includes("*") && !allowed.includes(action.specialist)) {
-      throw new PathGuardError(
-        `Env safety: specialist "${action.specialist}" is not in the allowed list for environment "${env}".`,
-        env,
-        "specialist-blocked"
-      );
+    const allowed = envConfig.allowedSpecialists?.map(canonical);
+    if (allowed && !allowed.includes("*") && !allowed.includes(name)) {
+      throw new PathGuardError(`Env safety: specialist "${action.specialist}" is not in the allowed list for environment "${env}".`, env, "specialist-blocked");
     }
   }
 }
@@ -241,6 +232,7 @@ export function validateConfig(aegisRoot: string): ConfigValidationResult {
     if (config.environments["production"] && !config.environments["production"].readOnly) {
       errors.push('aegis.config.json: production environment must have readOnly: true');
     }
+    errors.push(...checkEnvironmentSpecialists(config.environments).map((p) => `aegis.config.json ${p}`));
   }
 
   return { valid: errors.length === 0, errors };

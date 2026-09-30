@@ -1,6 +1,7 @@
 import { join } from "node:path";
-import type { RunState } from "@qa/contracts";
+import { SPECIALISTS, specialistShortName, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
+import { PathGuardError, assertEnvSafe } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { assertCallerAllowed, isSpecialist } from "./caller.js";
 import { readSettings } from "./config.js";
@@ -85,6 +86,23 @@ function withClaimsLock<T>(root: string, runId: string, fn: () => Promise<T>): P
   return withFileLock(join(taskmasterDir(root, runId), "claims.lock"), fn);
 }
 
+/** AUD-037: the run's environment must allow this specialist; a refusal is recorded, then thrown. */
+async function assertEnvAllows(root: string, state: RunState, caller: string, now?: Date): Promise<void> {
+  const short = specialistShortName(caller);
+  const mutates = short === null ? true : SPECIALISTS[short].mutates;
+  try {
+    assertEnvSafe(state.environment, { mutates, specialist: caller }, root);
+  } catch (e) {
+    if (!(e instanceof PathGuardError)) throw e;
+    await appendChained(
+      { type: "env.specialist-blocked", ts: iso(now), env: state.environment, specialist: caller },
+      busPath(root, state.runId),
+      { emittedBy: caller, runId: state.runId }
+    );
+    throw new RunStateError("env-blocked", e.message);
+  }
+}
+
 export async function claimTask(root: string, runId: string, taskId: string, caller: string, now?: Date): Promise<Task> {
   assertCallerAllowed(caller, "task.claim");
   assertTaskId(taskId);
@@ -98,6 +116,7 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
       assertRunAcceptsWork(readRun(root, runId));
       const c = client(root, runId);
       if (isSpecialist(caller)) {
+        await assertEnvAllows(root, readRun(root, runId), caller, now);
         const { maxSpecialists } = readSettings(root);
         const running = (await c.list({ status: "in-progress" })).filter(
           (t) => t.claimedBy !== undefined && isSpecialist(t.claimedBy)

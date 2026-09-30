@@ -37,7 +37,7 @@ Produces a structured comparison between two runs, highlighting what changed bet
 
 ## Example
 ```
-/qa-compare RUN-2026-05-20-003 RUN-2026-05-24-001 --focus=defects,coverage
+/qa-compare RUN-20260520-003 RUN-20260524-001 --focus=defects,coverage
 ```
 Compares the two runs and reports new/resolved defects and coverage changes.
 

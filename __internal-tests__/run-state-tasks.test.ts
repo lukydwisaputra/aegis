@@ -237,3 +237,28 @@ describe('claim/release rollback when the bus refuses (R3)', () => {
     expect(await c.get('T-1')).toEqual(pending);
   });
 });
+
+describe('claimTask environment safety (AUD-037)', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 1, environments: {
+      development: { url: 'http://localhost:5173', mutating: true },
+      production: { url: 'https://example.com', mutating: false, readOnly: true, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['database'] },
+    } });
+    runId = (await createRun(t.root, { environment: 'production', modules: ['AUTH'], cycleType: 'smoke' }, 'owner')).runId;
+    await addTask(t.root, runId, { id: 'T-1', title: 'task T-1' }, 'qa-test-executor');
+  });
+  it('refuses a forbidden specialist, records env.specialist-blocked, leaves the task unclaimed', async () => {
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-database-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
+    expect(lastEvent()).toMatchObject({ type: 'env.specialist-blocked', env: 'production', specialist: 'qa-database-specialist' });
+    expect((await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-1'))?.status).not.toBe('in-progress');
+  });
+  it('refuses a specialist missing from allowedSpecialists; a refusal uses no cap slot', async () => {
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-exploratory-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+  });
+  it('lets an allowed specialist and a non-specialist claim', async () => {
+    await addTask(t.root, runId, { id: 'T-2', title: 'task T-2' }, 'qa-test-executor');
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+    await expect(claimTask(t.root, runId, 'T-2', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
+  });
+});

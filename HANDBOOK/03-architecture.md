@@ -55,7 +55,7 @@ Different tasks have different cost/quality trade-offs. The framework assigns mo
 | **Tier-C** | Small (Haiku-class) | Path validation, event routing, simple transformations |
 | **Tier-D** | Embedded/rule | Deterministic checks: JSON schema validation, threshold math |
 
-Model assignment is in `aegis/packages/@qa/agent-core/model-policy.ts`. The policy can be overridden per agent via `aegis.config.json#modelOverrides`.
+Model assignment is in `.claude/model-policy.yaml` (stamped into agent frontmatter by the `_qa-build-agents` skill); there is no per-agent override key in `aegis.config.json`.
 
 ---
 

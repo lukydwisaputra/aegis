@@ -36,7 +36,7 @@ Allows surgical execution of one STLC phase without running the full pipeline. U
 
 ## Example
 ```
-/qa-run-phase --phase=closure --run=RUN-2026-05-24-001 --inputs-from=RUN-2026-05-24-001
+/qa-run-phase --phase=closure --run=RUN-20260524-001 --inputs-from=RUN-20260524-001
 ```
 Re-runs only the closure phase for run 001, regenerating the closure report from its existing execution results.
 
