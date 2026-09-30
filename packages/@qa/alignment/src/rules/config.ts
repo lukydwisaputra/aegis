@@ -85,13 +85,20 @@ export function envRule(m: Model): Violation[] {
   return out;
 }
 
+/** A `{x}` segment (e.g. `environments.{env}.readOnly`) matches any child key. */
+const PLACEHOLDER = /^\{[^{}]+\}$/;
+
+function hasKeys(cur: unknown, keys: readonly string[]): boolean {
+  if (keys.length === 0) return true;
+  if (cur === null || typeof cur !== "object") return false;
+  const [k, ...rest] = keys as [string, ...string[]];
+  const obj = cur as Record<string, unknown>;
+  if (PLACEHOLDER.test(k)) return Object.keys(obj).some((child) => hasKeys(obj[child], rest));
+  return Object.hasOwn(obj, k) && hasKeys(obj[k], rest);
+}
+
 function hasPath(obj: unknown, dotted: string): boolean {
-  let cur: unknown = obj;
-  for (const k of dotted.split(".")) {
-    if (cur === null || typeof cur !== "object" || !Object.hasOwn(cur as object, k)) return false;
-    cur = (cur as Record<string, unknown>)[k];
-  }
-  return true;
+  return hasKeys(obj, dotted.split("."));
 }
 
 function readStructured(root: string, file: string): unknown {

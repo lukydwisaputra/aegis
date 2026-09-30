@@ -63,3 +63,30 @@ it('ENV and CONFIG', () => {
   ]);
   t.cleanup();
 });
+
+it('CONFIG: a {x} key segment matches any child', () => {
+  const t = makeRepo({
+    config: { environments: { dev: { url: 'x' }, staging: { readOnly: true } } },
+    thresholds: 'gates:\n  staging:\n    performance:\n      lcp: 2500\n',
+    agents: {
+      'qa-a': {
+        contract: ag({
+          config: [
+            'aegis.config.json#environments.{env}.readOnly',
+            'aegis.config.json#environments.{env}.secretsRef',
+            'aegis.config.json#environments.{env}',
+            'aegis.config.json#target.{x}',
+            'thresholds.yaml#gates.{stage}.performance',
+            'thresholds.yaml#gates.{stage}.coverage',
+          ],
+        }),
+      },
+    },
+  });
+  expect(keys(configRule(loadModel(t.root)))).toEqual([
+    'CONFIG:qa-a:aegis.config.json#environments.{env}.secretsRef:missing',
+    'CONFIG:qa-a:aegis.config.json#target.{x}:missing',
+    'CONFIG:qa-a:thresholds.yaml#gates.{stage}.coverage:missing',
+  ]);
+  t.cleanup();
+});
