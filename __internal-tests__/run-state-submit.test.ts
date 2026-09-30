@@ -98,6 +98,7 @@ describe('submitReview', () => {
 
   it('a passed review is stored next to its attempt and emits review.passed', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     const res = await submitReview(t.root, runId, writeJson('r.json', review('passed')), SPV);
     expect(res).toMatchObject({ path: 'reports/review/qa-ui-specialist.T-1.1.json', attempt: 1, verdict: 'passed', escalated: false });
     expect(last(events())).toMatchObject({ type: 'review.passed', target: { agent: WORKER, taskId: 'T-1' }, emittedBy: SPV });
@@ -105,6 +106,7 @@ describe('submitReview', () => {
 
   it('refuses reviewing the same attempt twice', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     await submitReview(t.root, runId, writeJson('r.json', review('passed')), SPV);
     await expect(submitReview(t.root, runId, writeJson('r.json', review('passed')), SPV)).rejects.toMatchObject({ code: 'invalid-input' });
   });
@@ -137,10 +139,15 @@ describe('submitReview', () => {
 });
 
 describe('submitReview extras', () => {
-  it('requested-changes without a release leaves the task untouched', async () => {
+  it('refuses a review while the task is still in progress (R4)', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
-    const res = await submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV);
-    expect(res).toMatchObject({ verdict: 'requested-changes', escalated: false, reopened: false });
+    const before = events().length;
+    await expect(submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV)).rejects.toMatchObject({
+      code: 'invalid-input',
+      message: 'task T-1 is still in progress; release it before review',
+    });
+    expect(events()).toHaveLength(before);
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'review', `${WORKER}.T-1.1.json`))).toBe(false);
     const task = await createTaskmasterClient(path.join(runDir(t.root, runId), 'taskmaster')).get('T-1');
     expect(task?.status).toBe('in-progress');
     expect(task?.claimedBy).toBe(WORKER);
@@ -148,6 +155,7 @@ describe('submitReview extras', () => {
 
   it('reviewing the same attempt twice: second rejects, one review event', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     await submitReview(t.root, runId, writeJson('r1.json', review('passed')), SPV);
     await expect(submitReview(t.root, runId, writeJson('r2.json', review('passed')), SPV)).rejects.toMatchObject({ code: 'invalid-input' });
     expect(events().filter((e) => String(e.type).startsWith('review.'))).toHaveLength(1);
@@ -155,6 +163,7 @@ describe('submitReview extras', () => {
 
   it('a corrupt sibling review file is refused', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     const dir = path.join(runDir(t.root, runId), 'reports', 'review');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${WORKER}.T-1.7.json`), '{"trunc');
@@ -180,6 +189,7 @@ describe('submitReview extras', () => {
 
   it('reports lesson outcomes without failing the review', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     const res = await submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV);
     expect(res.lessons).toEqual([{ outcome: 'appended' }]);
   });

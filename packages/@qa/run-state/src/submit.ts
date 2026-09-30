@@ -185,6 +185,12 @@ export async function submitReview(root: string, runId: string, file: string, ca
     if (worked.length === 0) {
       throw new RunStateError("no-work-report", `no work report from ${agent} for task ${taskId}; the worker must submit first`);
     }
+    // Review the released attempt only: the worker's state can no longer change under the review.
+    const client = createTaskmasterClient(taskmasterDir(root, runId));
+    const task = await client.get(taskId);
+    if (task?.status === "in-progress") {
+      throw new RunStateError("invalid-input", `task ${taskId} is still in progress; release it before review`);
+    }
     const attempt = Math.max(...worked);
     const dir = reviewDir(root, runId);
     fs.mkdirSync(dir, { recursive: true });
@@ -246,17 +252,9 @@ export async function submitReview(root: string, runId: string, file: string, ca
     let reopened = false;
     if (rejected && rejections >= MAX_ATTEMPTS) {
       escalated = await escalateOnce(root, runId, agent, taskId, rejections, caller, now);
-    } else if (rejected) {
-      const client = createTaskmasterClient(taskmasterDir(root, runId));
-      const current = await client.get(taskId);
-      if (current !== null && (current.status === "done" || current.status === "failed")) {
-        try {
-          await client.reopen(taskId);
-          reopened = true;
-        } catch {
-          reopened = false; // status changed under us
-        }
-      }
+    } else if (rejected && (task?.status === "done" || task?.status === "failed")) {
+      await client.reopen(taskId);
+      reopened = true;
     }
 
     // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission.
