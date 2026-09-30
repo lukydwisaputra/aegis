@@ -156,7 +156,6 @@ writes:
   - "{tests}/qa/global-setup.ts"
   - "{tests}/qa/global-teardown.ts"
   - "{target}/playwright.config.ts"
-  - "{tests}/qa/**"
   - "{tests}/qa/factories/**"
   - "{tests}/qa/state/{role}.json"
   - "{run}/playwright-output/**"

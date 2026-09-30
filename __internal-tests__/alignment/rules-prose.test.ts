@@ -99,3 +99,10 @@ it('DOC-REF: families, slash commands and {aegis}/ reads', () => {
   expect(keys(skillRule(m))).toEqual([]);
   t.cleanup();
 });
+
+it('DRIFT paths: lines naming testDir or testMatch are config values, not paths', () => {
+  const body = '# A\n## Outputs\n- `playwright.config.ts` (its `testDir` points at `tests/qa`)\n- `{run}/w.json`\n';
+  expect(driftKeys({ 'qa-a': { body, contract: ag({}) } })).toEqual(['DRIFT:qa-a:{run}/w.json:path-not-in-contract']);
+  const outputs = '# A\n## Outputs\n- `testMatch`: `tests/qa/**`\n';
+  expect(driftKeys({ 'qa-a': { body: outputs, contract: ag({}) } })).toEqual([]);
+});

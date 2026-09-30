@@ -197,6 +197,8 @@ reviewedBy: qa-executive-reporter-spv
 reads:
   - "{run}/reports/closure/closure.json"
   - "{run}/rtm.json"
+  - "{run}/risk-register.json"
+  - "{run}/execution-summary.json"
   - "{run}/defects/*.json"
   - "{run}/cases/*.json"
   - "{run}/events.jsonl"

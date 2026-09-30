@@ -165,7 +165,6 @@ reads:
   - "{run}/gates/gate-{N}-decision.json"
   - target-profile.json
   - "{run}/concurrency.json"
-  - "{run}/reports/closure/closure.json"
   - "agent-memory/{worker}/lessons.md"
 writes:
   - "{run}/events.jsonl"

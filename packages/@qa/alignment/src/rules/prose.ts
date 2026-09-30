@@ -31,6 +31,7 @@ export function prosePaths(u: Unit, names: Set<string> = new Set()): Array<{ pat
     const narrow = u.kind === "skill" || /^Process/.test(sec.heading);
     sec.text.split("\n").forEach((text, i) => {
       if (narrow && skipPathLine(text, u.name, names)) return;
+      if (/\b(testDir|testMatch)\b/.test(text)) return;
       for (const m of text.matchAll(/`([^`\n]+)`/g)) {
         const p = normalizePath(m[1]!);
         if (p.startsWith("{run}/") || p.startsWith("{tests}/") || p.startsWith("{target}/")) out.push({ path: p, line: sec.startLine + 1 + i });
