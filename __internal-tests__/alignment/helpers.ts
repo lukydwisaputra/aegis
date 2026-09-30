@@ -24,6 +24,11 @@ export const MIN_PIPELINE = {
   phases: [{ id: 'design', agents: [] as string[] }],
   routing: { byType: {}, byTechnique: {}, designerEmits: { testType: [], testTechnique: [] } },
   sources: {},
+  writePolicy: {
+    writable: ['{run}/**', 'runs/**', '{tests}/qa/**', 'packages/@qa/**', 'apps/**', 'agent-memory/**'],
+    internalSkills: ['.claude/**', 'HANDBOOK/**', 'docs/**'],
+    units: { '_qa-build-toc': ['HANDBOOK.md'] } as Record<string, string[]>,
+  },
 };
 
 export function makeRepo(spec: RepoSpec): { root: string; cleanup(): void } {

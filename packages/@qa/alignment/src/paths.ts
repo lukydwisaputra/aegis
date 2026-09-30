@@ -1,5 +1,9 @@
 const TOKENS = new Set(["{run}", "{target}", "{tests}", "{aegis}"]);
 
+/** Placeholder names that stand for exactly one artefact ID (`TC-AUTH-031`, `RUN-20260524-001`) — spec §5 AH-04. */
+export const ID_PLACEHOLDERS: ReadonlySet<string> = new Set(["TC", "TC-ID", "DEF", "DEF-ID", "REQ", "REQ-id", "US", "AC", "SCN", "SCN-ID", "RISK", "runId", "runA", "runB"]);
+const ID_SOURCE = "[A-Z]+(?:-[A-Z0-9]+)+";
+
 /** Canonical spelling of a path pattern taken from a contract or from prose. */
 export function normalizePath(raw: string): string {
   let p = (raw.trim().split(/\s+/)[0] ?? "").replace(/^`+/, "").replace(/[`,;:.)]+$/, "");
@@ -20,7 +24,7 @@ function segmentRegex(seg: string): RegExp {
     if (c === "{") {
       const end = seg.indexOf("}", i);
       if (end !== -1) {
-        out += "[^/]+";
+        out += ID_PLACEHOLDERS.has(seg.slice(i + 1, end)) ? `(?:${ID_SOURCE}|\\{[^/{}]+\\})` : "[^/]+";
         i = end;
         continue;
       }
@@ -53,17 +57,39 @@ export function matches(pattern: string, concrete: string): boolean {
   return go(0, 0);
 }
 
-type Tok = { k: "c"; c: string } | { k: "any" } | { k: "star" };
+/** One character from `set` (null = any character), or zero or more of them. */
+type Tok = { k: "one" | "star"; set: string | null };
+
+const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const UPPER_DIGIT = UPPER + "0123456789";
+const ID_TAIL = UPPER_DIGIT + "-";
+
+function meet(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return true;
+  if (a.length === 1) return b.includes(a);
+  if (b.length === 1) return a.includes(b);
+  for (const ch of a) if (b.includes(ch)) return true;
+  return false;
+}
+
+/** A star absorbs one character of the other side; an ID star never absorbs an untyped placeholder's character. */
+const fits = (star: Tok, one: Tok) => !(star.set !== null && one.set === null) && meet(star.set, one.set);
 
 function tokens(seg: string): Tok[] {
   const out: Tok[] = [];
   for (let i = 0; i < seg.length; i++) {
     const c = seg[i]!;
-    if (c === "{" && !TOKENS.has(seg) && seg.indexOf("}", i) !== -1) {
-      i = seg.indexOf("}", i);
-      out.push({ k: "any" }, { k: "star" }); // a placeholder is one or more characters
-    } else if (c === "*") out.push({ k: "star" });
-    else out.push({ k: "c", c });
+    const end = c === "{" && !TOKENS.has(seg) ? seg.indexOf("}", i) : -1;
+    if (end !== -1) {
+      if (ID_PLACEHOLDERS.has(seg.slice(i + 1, end))) {
+        // [A-Z]+(-[A-Z0-9]+)+, approximated as [A-Z][A-Z]*-[A-Z0-9][A-Z0-9-]*
+        out.push({ k: "one", set: UPPER }, { k: "star", set: UPPER }, { k: "one", set: "-" }, { k: "one", set: UPPER_DIGIT }, { k: "star", set: ID_TAIL });
+      } else {
+        out.push({ k: "one", set: null }, { k: "star", set: null }); // a placeholder is one or more characters
+      }
+      i = end;
+    } else if (c === "*") out.push({ k: "star", set: null });
+    else out.push({ k: "one", set: c });
   }
   return out;
 }
@@ -80,15 +106,11 @@ function segmentsOverlap(a: string, b: string): boolean {
     let r = false;
     if (i === x.length && j === y.length) r = true;
     else {
-      if (i < x.length && x[i]!.k === "star") r = go(i + 1, j) || (j < y.length && go(i, j + 1));
-      if (!r && j < y.length && y[j]!.k === "star") r = go(i, j + 1) || (i < x.length && go(i + 1, j));
-      if (!r && i < x.length && j < y.length) {
-        const p = x[i]!;
-        const q = y[j]!;
-        if (p.k !== "star" && q.k !== "star" && (p.k === "any" || q.k === "any" || (p.k === "c" && q.k === "c" && p.c === q.c))) {
-          r = go(i + 1, j + 1);
-        }
-      }
+      const p = x[i];
+      const q = y[j];
+      if (p?.k === "star") r = go(i + 1, j) || (q?.k === "one" && fits(p, q) && go(i, j + 1));
+      if (!r && q?.k === "star") r = go(i, j + 1) || (p?.k === "one" && fits(q, p) && go(i + 1, j));
+      if (!r && p?.k === "one" && q?.k === "one" && meet(p.set, q.set)) r = go(i + 1, j + 1);
     }
     memo.set(key, r);
     return r;

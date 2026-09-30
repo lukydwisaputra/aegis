@@ -5,13 +5,13 @@ const None = z.object({ none: z.string().min(3) }).strict();
 
 const PathEntrySchema = z.union([
   z.string().min(1),
-  z.object({ path: z.string().min(1), optional: z.boolean().optional(), terminal: z.boolean().optional() }).strict(),
+  z.object({ path: z.string().min(1), optional: z.boolean().optional(), terminal: z.boolean().optional(), rmw: z.boolean().optional() }).strict(),
 ]);
 const EmitSchema = z
   .object({ event: z.string().min(1), via: z.union([z.literal("append"), z.string().regex(/^cli:[a-z-]+\.[a-z-]+$/)]) })
   .strict();
 
-export const ESCAPE_FIELDS = ["reviewedBy.none", "dispatch.none", "optional", "terminal"] as const;
+export const ESCAPE_FIELDS = ["reviewedBy.none", "dispatch.none", "optional", "terminal", "rmw"] as const;
 
 const base = {
   contract: z.literal(1),
@@ -63,6 +63,14 @@ export const PipelineSchema = z
           .strict(),
       )
       .default([]),
+    writePolicy: z
+      .object({
+        writable: z.array(z.string().min(1)).min(1),
+        internalSkills: z.array(z.string().min(1)).default([]),
+        units: z.record(z.string(), z.array(z.string().min(1))).default({}),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

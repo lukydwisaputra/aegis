@@ -76,3 +76,23 @@ describe('normalizePath roots and isTooBroad', () => {
     expect(isTooBroad('{run}/cases/*.json')).toBe(false);
   });
 });
+
+describe('typed ID placeholders (AH-04)', () => {
+  it('an ID placeholder never absorbs a following literal or placeholder', () => {
+    expect(overlaps('{run}/cases/{TC}.json', '{run}/cases/{TC}-result.json')).toBe(false);
+    expect(overlaps('{run}/cases/{TC}.json', '{run}/cases/{TC}-{viewport}-result.json')).toBe(false);
+    expect(overlaps('{run}/cases/{TC}-result.json', '{run}/cases/{TC}-{viewport}-result.json')).toBe(false);
+  });
+  it('an ID placeholder still overlaps IDs, stars and untyped placeholders', () => {
+    expect(overlaps('{run}/cases/{TC}-result.json', '{run}/cases/{TC-ID}-result.json')).toBe(true);
+    expect(overlaps('{run}/cases/{TC}.json', '{run}/cases/*.json')).toBe(true);
+    expect(overlaps('{run}/cases/{TC}.json', '{run}/cases/{name}.json')).toBe(true);
+    expect(overlaps('{run}/cases/{TC}-{viewport}-result.json', '{run}/cases/{name}-result.json')).toBe(true);
+    expect(overlaps('{run}/cases/{TC}-result.json', '{run}/cases/TC-AUTH-031-result.json')).toBe(true);
+  });
+  it('matches: an ID placeholder matches one ID, not an ID plus a suffix', () => {
+    expect(matches('{run}/cases/{TC}.json', '{run}/cases/TC-AUTH-031.json')).toBe(true);
+    expect(matches('{run}/cases/{TC}.json', '{run}/cases/TC-AUTH-031-result.json')).toBe(false);
+    expect(matches('{run}/cmp/{runA}-vs-{runB}.md', '{run}/cmp/RUN-20260524-001-vs-RUN-20260525-002.md')).toBe(true);
+  });
+});

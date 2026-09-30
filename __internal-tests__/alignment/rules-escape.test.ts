@@ -46,3 +46,11 @@ it('an escapes entry for a unit that failed to load is not reported stale', () =
   expect(keys(escapeRule(loadModel(t.root)))).toEqual([]);
   t.cleanup();
 });
+
+it('rmw is an escape hatch too', () => {
+  const t = makeRepo({
+    agents: { 'qa-a': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], reviewedBy: 'qa-a-spv', reads: [{ path: '{run}/l.json', rmw: true }], writes: ['{run}/l.json'] } } },
+  });
+  expect(keys(escapeRule(loadModel(t.root)))).toEqual(['ESCAPE:qa-a:rmw:{run}/l.json:unlisted']);
+  t.cleanup();
+});

@@ -171,7 +171,7 @@ reads:
   - "{run}/target-profile.json"
   - aegis.config.json
   - "agent-memory/qa-test-executor/lessons.md"
-  - "{run}/concurrency.json"
+  - {path: "{run}/concurrency.json", rmw: true}
   - "{run}/defects/**"
   - "{run}/reports/exploratory/**"
   - "{run}/evidence/{TC-ID}/**"

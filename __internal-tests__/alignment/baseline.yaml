@@ -1057,9 +1057,6 @@ entries:
   - key: "PRODUCER:qa-requirements-analyst:{run}/target-profile.json:later-phase"
     ids: [AUD-001]
     note: "{run}/target-profile.json is only produced in a later phase"
-  - key: "PRODUCER:qa-test-executor:{run}/concurrency.json:none"
-    ids: [AUD-017]
-    note: "nothing produces {run}/concurrency.json"
   - key: "PRODUCER:qa-test-planner:{run}/intake/**:none"
     ids: [AUD-005]
     note: "nothing produces {run}/intake/**"
@@ -1140,6 +1137,9 @@ entries:
   - key: "SKILL:_qa-report-signoff-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
+  - key: "SKILL:_qa-report-technical-pdf:{run}/evidence/screenshots/**:unresolved"
+    ids: [AUD-115]
+    note: "{run}/evidence/screenshots/** does not exist and nothing produces it"
   - key: "SKILL:_qa-report-technical-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
@@ -1322,6 +1322,9 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:.gitignore:not-writable"
     ids: [AUD-068]
     note: "write to .gitignore violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:_qa-init-project:HANDBOOK.md:not-writable"
+    ids: [AUD-104]
+    note: "write to HANDBOOK.md violates the write policy (not-writable)"
   - key: "WRITE-POLICY:_qa-init-project:artifacts/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/** violates the write policy (not-writable)"
@@ -1340,6 +1343,12 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-accessibility-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-api-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-gate.yml:not-writable"
     ids: [AUD-112, AUD-065]
     note: "write to .github/workflows/qa-gate.yml violates the write policy (not-writable)"
@@ -1385,6 +1394,9 @@ entries:
   - key: "WRITE-POLICY:qa-dashboard:dashboard/dist/**:not-writable"
     ids: [AUD-065]
     note: "write to dashboard/dist/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-database-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-defect-manager:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -1397,6 +1409,9 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-email-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-environment-engineer:{run}/events.jsonl:cli-only"
     ids: [AUD-018, CO-11]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -1412,6 +1427,9 @@ entries:
   - key: "WRITE-POLICY:qa-executive-reporter:{run}/reports/work/qa-executive-reporter.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-executive-reporter.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-exploratory-specialist:sandbox/{YYYY-MM-DD}-{session-slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{YYYY-MM-DD}-{session-slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"
@@ -1433,6 +1451,9 @@ entries:
   - key: "WRITE-POLICY:qa-orchestrator:{run}/reports/work/qa-orchestrator.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-orchestrator.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-performance-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-promote-stage:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1448,9 +1469,15 @@ entries:
   - key: "WRITE-POLICY:qa-promote:skills/**:not-writable"
     ids: [AUD-059, AUD-068]
     note: "write to skills/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-realtime-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-record-manual:manual-{date}/**:not-writable"
     ids: [AUD-068]
     note: "write to manual-{date}/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-regenerate-report:{run}/reports/**:cli-only"
+    ids: [AUD-111, CO-05]
+    note: "write to {run}/reports/** violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-regenerate-report:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1460,6 +1487,9 @@ entries:
   - key: "WRITE-POLICY:qa-requirements-analyst:{run}/reports/work/qa-requirements-analyst.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-requirements-analyst.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-responsive-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-resume:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
@@ -1472,12 +1502,18 @@ entries:
   - key: "WRITE-POLICY:qa-run-phase:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"
+  - key: "WRITE-POLICY:qa-run-phase:{run}/{phase}/**:cli-only"
+    ids: [AUD-062]
+    note: "write to {run}/{phase}/** violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-run-specialist:spot/{specialist}/{timestamp}/results.json:not-writable"
     ids: [AUD-068]
     note: "write to spot/{specialist}/{timestamp}/results.json violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-run-specialist:spot/{specialist}/{timestamp}/run.json:not-writable"
     ids: [AUD-068]
     note: "write to spot/{specialist}/{timestamp}/run.json violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-security-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-security-specialist:{tests}/security/{surface}.security.spec.ts:outside-tests-qa"
     ids: [AUD-086]
     note: "write to {tests}/security/{surface}.security.spec.ts violates the write policy (outside-tests-qa)"
@@ -1508,3 +1544,9 @@ entries:
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-ui-specialist:sandbox/{date}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{date}-{slug}/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-web-explorer:sandbox/{YYYY-MM-DD}-{slug}/**:not-writable"
+    ids: [AUD-113]
+    note: "write to sandbox/{YYYY-MM-DD}-{slug}/** violates the write policy (not-writable)"

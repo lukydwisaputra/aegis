@@ -6,9 +6,6 @@ import { isTooBroad, matches, normalizePath, overlaps } from "../paths.js";
 import type { PathEntry } from "../schema.js";
 import { isAgentContract, pathOf, violation, type Model, type Unit, type Violation } from "../types.js";
 
-// CLAUDE.md write table: aegis/runs/** (not only a single run), ../tests/** limited to tests/qa/** (HANDBOOK/17).
-const WRITABLE = ["{run}/**", "runs/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**", "sandbox/**"];
-
 function phaseIndex(m: Model): Map<string, number> {
   const idx = new Map<string, number>();
   (m.pipeline?.phases ?? []).forEach((p, i) => idx.set(p.id, i));
@@ -44,6 +41,7 @@ export function missingRepoSource(m: Model, p: string): boolean {
 
 const optional = (e: PathEntry) => typeof e !== "string" && e.optional === true;
 const terminal = (e: PathEntry) => typeof e !== "string" && e.terminal === true;
+const rmw = (e: PathEntry) => typeof e !== "string" && e.rmw === true;
 
 export function producerRule(m: Model): Violation[] {
   const out: Violation[] = [];
@@ -63,7 +61,7 @@ export function producerRule(m: Model): Violation[] {
       if (optional(e)) continue;
       if (isTooBroad(pathOf(e))) continue;
       const p = normalizePath(pathOf(e));
-      const prods = indexed.filter((w) => w.u.name !== r.name && overlaps(w.path, p));
+      const prods = indexed.filter((w) => (w.u.name !== r.name || rmw(e)) && overlaps(w.path, p));
       if (prods.length === 0 && missingRepoSource(m, p)) {
         out.push(violation("PRODUCER", r.name, p, "missing-source", r.file, r.contractLine, `${p} is a repo source but does not exist`));
         continue;
@@ -155,21 +153,24 @@ export function eventRule(m: Model): Violation[] {
 
 export function writePolicyRule(m: Model): Violation[] {
   const out: Violation[] = [];
-  const cliOnly = m.pipeline?.sources.cli ?? [];
   const src = m.pipeline?.sources;
+  const cliOnly = src?.cli ?? [];
+  const policy = m.pipeline?.writePolicy;
+  const writable = policy?.writable ?? [];
   for (const u of m.units.values()) {
-    const extra: string[] = [];
+    const extra: string[] = [...(policy?.units[u.name] ?? [])];
     if (u.kind === "skill") {
       extra.push(...(src?.repo ?? []), ...(src?.owner ?? []));
-      if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(".claude/**", "HANDBOOK/**", "HANDBOOK.md", "docs/**");
+      if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(...(policy?.internalSkills ?? []));
     }
     for (const e of u.contract?.writes ?? []) {
       const p = normalizePath(pathOf(e));
       let reason: string | null = null;
-      if (cliOnly.some((s) => matches(s, p))) reason = "cli-only";
-      else if (matches("{tests}/**", p) && !overlaps("{tests}/qa/**", p)) reason = "outside-tests-qa";
+      // AH-15: a write that can land in a CLI-only file or outside tests/qa is flagged (overlaps, not matches).
+      if (cliOnly.some((s) => overlaps(s, p))) reason = "cli-only";
+      else if (p.startsWith("{tests}/") && !matches("{tests}/qa/**", p)) reason = "outside-tests-qa";
       else if (p.startsWith("{target}/")) reason = "target-source";
-      else if (!WRITABLE.some((w) => matches(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
+      else if (!writable.some((w) => matches(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
       if (reason !== null) out.push(violation("WRITE-POLICY", u.name, p, reason, u.file, u.contractLine, `write to ${p} violates the write policy (${reason})`));
     }
   }

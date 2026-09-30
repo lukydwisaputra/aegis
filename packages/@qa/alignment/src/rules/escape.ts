@@ -23,6 +23,7 @@ export function contractEscapes(m: Model): Map<string, { unit: Unit; detail: str
       if (typeof e === "string") continue;
       if (e.optional === true) add(u, "optional", e.path);
       if (e.terminal === true) add(u, "terminal", e.path);
+      if (e.rmw === true) add(u, "rmw", e.path);
     }
   }
   return out;

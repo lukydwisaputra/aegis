@@ -72,12 +72,12 @@ const ppl = (sources: object) => ({ ...MIN_PIPELINE, phases: [{ id: 'req', agent
 const wp = (t: { root: string }) => keys(writePolicyRule(loadModel(t.root)));
 
 describe('fix round 1', () => {
-  it('cli-only requires the write to fall inside a CLI-only pattern', () => {
+  it('cli-only uses overlaps: a write that can land in a CLI-only path is flagged (AH-15)', () => {
     const t = makeRepo({
-      agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/reports/**', '{run}/reports/work/{agent}.json'] }) } },
+      agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/reports/**', '{run}/reports/work/{agent}.json', '{run}/plan.json'] }) } },
       pipeline: ppl({ cli: ['{run}/reports/work/**'] }),
     });
-    expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/reports/work/{agent}.json:cli-only']);
+    expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/reports/**:cli-only', 'WRITE-POLICY:qa-a:{run}/reports/work/{agent}.json:cli-only']);
     t.cleanup();
   });
 
@@ -159,20 +159,50 @@ describe('fix round 1', () => {
   });
 });
 
-it('WRITE-POLICY: runs/** is writable (CLAUDE.md aegis/runs/**); internal skills may write HANDBOOK.md', () => {
+it('WRITE-POLICY: runs/** is writable; only _qa-build-toc may write HANDBOOK.md (writePolicy.units)', () => {
   const sk = (kind: string, writes: string[]) => ({ contract: { contract: 1, kind, writes } });
   const t = makeRepo({
     skills: {
       'qa-q': sk('query', ['runs/**', 'runs/{runId}/run.json', 'HANDBOOK.md']),
       'qa-i': sk('internal', ['HANDBOOK.md', 'README.md']),
+      '_qa-build-toc': sk('internal', ['HANDBOOK.md']),
     },
     pipeline: ppl({ cli: ['{run}/run.json'] }),
   });
   expect(wp(t)).toEqual([
+    'WRITE-POLICY:qa-i:HANDBOOK.md:not-writable',
     'WRITE-POLICY:qa-i:README.md:not-writable',
     'WRITE-POLICY:qa-q:HANDBOOK.md:not-writable',
     'WRITE-POLICY:qa-q:{run}/run.json:cli-only',
   ]);
+  t.cleanup();
+});
+
+it('AH-15: {run}/events*.jsonl is cli-only and {tests}/{kind}/** is outside tests/qa', () => {
+  const t = makeRepo({
+    agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/events*.jsonl', '{tests}/{kind}/x.ts', '{tests}/qa/{kind}/x.ts'] }) } },
+    pipeline: ppl({ cli: ['{run}/events.jsonl'] }),
+  });
+  expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/events*.jsonl:cli-only', 'WRITE-POLICY:qa-a:{tests}/{kind}/x.ts:outside-tests-qa']);
+  t.cleanup();
+});
+
+it('AH-13: sandbox/** is writable only when pipeline.yaml#writePolicy lists it', () => {
+  const agents = { 'qa-a': { contract: ag('crosscutting', { writes: ['sandbox/{date}-{slug}/**'] }) } };
+  const a = makeRepo({ agents, pipeline: ppl({}) });
+  expect(wp(a)).toEqual(['WRITE-POLICY:qa-a:sandbox/{date}-{slug}/**:not-writable']);
+  a.cleanup();
+  const b = makeRepo({ agents, pipeline: { ...ppl({}), writePolicy: { ...MIN_PIPELINE.writePolicy, writable: [...MIN_PIPELINE.writePolicy.writable, 'sandbox/**'] } } });
+  expect(wp(b)).toEqual([]);
+  b.cleanup();
+});
+
+it('AH-07: own writes satisfy an own read only when the read is marked rmw', () => {
+  const t = makeRepo({
+    agents: { 'qa-req': { contract: ag('req', { reads: [{ path: '{run}/ledger.json', rmw: true }, '{run}/own.json'], writes: ['{run}/ledger.json', '{run}/own.json'] }) } },
+    pipeline: ppl({}),
+  });
+  expect(keys(producerRule(loadModel(t.root)))).toEqual(['PRODUCER:qa-req:{run}/own.json:none']);
   t.cleanup();
 });
 

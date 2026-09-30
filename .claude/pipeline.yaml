@@ -131,9 +131,21 @@ escapes:
   - {unit: qa-responsive-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-security-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-test-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-executor, field: rmw, value: "{run}/concurrency.json", reason: "qa-test-executor.md:145 sole writer of the ledger; increments on dispatch, decrements on specialist.completed"}
   - {unit: qa-test-executor-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-test-planner-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-unit-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-web-explorer-spv, field: reviewedBy.none, reason: "not stated in prose"}
+
+# The write table (AH-13: single copy). writable mirrors CLAUDE.md "Read / write policy": aegis/runs/**,
+# ../tests/** limited to tests/qa/** by HANDBOOK/17, aegis/packages/@qa/**, aegis/apps/**, aegis/agent-memory/**.
+# CLAUDE.md has no sandbox/** row, so sandbox writes are reported (AUD-113).
+writePolicy:
+  writable: ["{run}/**", "runs/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**"]
+  # Internal (_qa-*) skills maintain the framework itself.
+  internalSkills: [".claude/**", "HANDBOOK/**", "docs/**"]
+  # Named exceptions: _qa-build-toc regenerates the HANDBOOK.md table of contents.
+  units:
+    _qa-build-toc: [HANDBOOK.md]
