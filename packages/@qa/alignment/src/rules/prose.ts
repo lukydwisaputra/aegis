@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { CONTRACT_HEADING } from "../load.js";
 import { normalizePath, overlaps, staticPrefix } from "../paths.js";
-import { isSkillContract, pathOf, violation, type Model, type Section, type Unit, type Violation } from "../types.js";
+import { isAgentContract, isSkillContract, pathOf, violation, type Model, type Section, type Unit, type Violation } from "../types.js";
 
 const CONTRACT_TITLE = CONTRACT_HEADING.slice(3);
 
@@ -68,10 +68,13 @@ export function proseDispatches(u: Unit, agents: Set<string>): Array<{ agent: st
 
 export function skillRule(m: Model): Violation[] {
   const out: Violation[] = [];
-  const writes = [...m.units.values()].flatMap((u) => (u.contract?.writes ?? []).map(pathOf));
+  // Spec §4: a skill read resolves when it exists, an agent produces it, or it is in `sources`;
+  // paths the skill itself writes are ignored. Other skills' writes do not count as producers.
+  const agentWrites = [...m.units.values()].filter(isAgentContract).flatMap((u) => u.contract.writes.map(pathOf));
   const s = m.pipeline?.sources;
   const sources = s ? [...s.cli, ...s.owner, ...s.target, ...s.repo] : [];
   for (const u of [...m.units.values()].filter(isSkillContract)) {
+    const writes = [...agentWrites, ...u.contract.writes.map(pathOf)];
     if (u.contract.kind === "execution") {
       for (const d of u.contract.dispatches) {
         if (d !== "qa-orchestrator") out.push(violation("SKILL", u.name, d, "direct-dispatch", u.file, u.contractLine, `execution skill dispatches ${d} directly`));

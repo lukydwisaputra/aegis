@@ -106,3 +106,18 @@ it('DRIFT paths: lines naming testDir or testMatch are config values, not paths'
   const outputs = '# A\n## Outputs\n- `testMatch`: `tests/qa/**`\n';
   expect(driftKeys({ 'qa-a': { body: outputs, contract: ag({}) } })).toEqual([]);
 });
+
+it('SKILL: a read resolves only against agent writes or the skill’s own writes', () => {
+  const t = makeRepo({
+    agents: { 'qa-orchestrator': { contract: ag({ writes: ['{run}/plan.json'] }) } },
+    skills: {
+      'qa-writer': { contract: { contract: 1, kind: 'execution', reads: ['{run}/execution/results.json'], writes: ['{run}/execution/results.json', 'artifacts/**'] } },
+      'qa-reader': { contract: { contract: 1, kind: 'query', reads: ['{run}/execution/results.json', 'artifacts/defects/**', '{run}/plan.json'] } },
+    },
+  });
+  expect(keys(skillRule(loadModel(t.root)))).toEqual([
+    'SKILL:qa-reader:artifacts/defects/**:unresolved',
+    'SKILL:qa-reader:{run}/execution/results.json:unresolved',
+  ]);
+  t.cleanup();
+});
