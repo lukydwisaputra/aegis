@@ -55,7 +55,6 @@ dispatchedBy: []
 reads:
   - path: "config/commands.yaml"
     optional: true
-  - "HANDBOOK.md"
 writes: []
 emits: []
 awaits: []

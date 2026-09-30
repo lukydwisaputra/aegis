@@ -87,10 +87,12 @@ contract: 1
 kind: internal
 dispatchedBy: [qa-executive-reporter]
 reads:
+  - "aegis.config.json"
   - "{run}/reports/closure.json"
   - "{run}/defects/*.json"
   - "{run}/rtm.json"
-  - "{run}/reports/compliance/*.json"
+  - path: "{run}/reports/compliance/*.json"
+    optional: true
   - "{run}/plan.json"
   - "{run}/reports/metrics/cycle.json"
   - path: "{run}/evidence/screenshots/**"

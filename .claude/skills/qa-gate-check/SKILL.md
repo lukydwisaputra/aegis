@@ -52,7 +52,7 @@ Evaluates the staging gate for run 001 and outputs JSON for CI consumption.
 ```yaml
 contract: 1
 kind: query
-dispatchedBy: []
+dispatchedBy: [qa-promote-stage]
 reads:
   - "{run}/execution/results.json"
   - "{run}/defects.json"

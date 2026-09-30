@@ -48,7 +48,7 @@ Runs all health checks, auto-fixes safe issues, and audits the `.gitignore`.
 ```yaml
 contract: 1
 kind: query
-dispatchedBy: []
+dispatchedBy: [qa-start]
 reads:
   - "runs/**"
   - ".gitignore"

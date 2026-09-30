@@ -46,7 +46,7 @@ Compares the two runs and reports new/resolved defects and coverage changes.
 ```yaml
 contract: 1
 kind: query
-dispatchedBy: []
+dispatchedBy: [qa-regression]
 reads:
   - "runs/{runA}/run.json"
   - "runs/{runA}/execution/results.json"

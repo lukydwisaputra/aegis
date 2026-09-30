@@ -60,6 +60,11 @@ reads:
   - "config/environments.yaml"
   - "config/thresholds.yaml"
   - ".gitignore"
+  - "runs/**"
+  - "artifacts/**"
+  - "knowledge/**"
+  - "templates/**"
+  - "config/**"
 writes: []
 emits: []
 awaits: []

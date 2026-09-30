@@ -53,7 +53,10 @@ dispatchedBy: []
 reads:
   - "package.json"
   - "pnpm-workspace.yaml"
-  - "templates/config/**"
+  - "templates/config/environments.yaml"
+  - "templates/config/thresholds.yaml"
+  - "templates/config/model-policy.yaml"
+  - "templates/config/cost-estimates.yaml"
 writes:
   - "runs/**"
   - "artifacts/**"
@@ -73,8 +76,8 @@ cli: []
 runs: []
 dispatches: []
 config:
-  - config/environments.yaml
-  - thresholds.yaml
-  - config/model-policy.yaml
-  - config/cost-estimates.yaml
+  - templates/config/environments.yaml
+  - templates/config/thresholds.yaml
+  - templates/config/model-policy.yaml
+  - templates/config/cost-estimates.yaml
 ```

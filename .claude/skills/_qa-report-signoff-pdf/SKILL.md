@@ -89,6 +89,7 @@ contract: 1
 kind: internal
 dispatchedBy: [qa-executive-reporter]
 reads:
+  - "aegis.config.json"
   - "{run}/gates/gate-3-decision.json"
   - "{run}/reports/closure.json"
   - "{run}/risk-register.json"

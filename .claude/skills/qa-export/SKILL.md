@@ -49,7 +49,8 @@ contract: 1
 kind: query
 dispatchedBy: []
 reads:
-  - "config/integrations.yaml"
+  - path: "config/integrations.yaml"
+    optional: true
   - "exports/{tracker}/id-map.json"
 writes:
   - "exports/{tracker}/id-map.json"
