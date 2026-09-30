@@ -102,16 +102,23 @@ it('DISPATCH: unloaded dispatcher does not cause undispatched', () => {
 });
 
 it('SPV: shared SPV via spvPairs is consistent', () => {
-  const ws = ['qa-w1', 'qa-w2', 'qa-w3'];
+  const ws = ['qa-cicd-planner', 'qa-cicd-implementer', 'qa-cicd-evaluator'];
   const agents: Record<string, any> = {
-    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-shared-spv'] }),
-    'qa-shared-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
+    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-cicd-spv'] }),
+    'qa-cicd-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
   };
-  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'design', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-shared-spv' } };
-  const t = makeRepo({ agents, pipeline: { ...pipe(ws), spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-shared-spv'])) } });
-  const got = keys(spvRule(loadModel(t.root)));
-  // pairedSpv is the runtime rule; any pair-mismatch is the only tolerated output
-  expect(got.filter((k) => !k.startsWith('SPV:pipeline:'))).toEqual([]);
+  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'devops', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-cicd-spv' } };
+  const t = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-cicd-spv'])) } });
+  expect(keys(spvRule(loadModel(t.root)))).toEqual([]);
+  t.cleanup();
+});
+
+it('DISPATCH: skill alias (dir _qa-x, name qa-x) resolves', () => {
+  const t = makeRepo({
+    skills: { '_qa-x': { name: 'qa-x', contract: { contract: 1, kind: 'internal', dispatches: ['qa-a'] } } },
+    agents: { 'qa-a': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-x'], reviewedBy: none } } },
+  });
+  expect(keys(dispatchRule(loadModel(t.root)))).toEqual([]);
   t.cleanup();
 });
 
