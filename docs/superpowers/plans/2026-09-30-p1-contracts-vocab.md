@@ -2,14 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Settle the test vocabulary, specialist names, environment rules, event fields, TargetProfile
-schema and missing config keys. P1's 34 alignment-baseline entries go to 0: 33 deleted, 1 re-owned
-to P0b-2.
+**Goal:** Settle the test vocabulary, specialist names, environment rules, event fields, TargetProfile schema, WR/RV
+task-ref ids and missing config keys. P1's 34 alignment-baseline entries go to 0: 33 deleted, 1 re-owned to P0b-2.
 
-**Architecture:** `@qa/contracts` gets the single copy of each vocabulary: `routing.ts`,
-`specialists.ts` and `target-profile.ts`. `.claude/pipeline.yaml` and the agent prose mirror it.
-Internal tests pin the mirror; the alignment checker pins pipeline ↔ prose. The CLI's `claimTask`
-enforces the environment rules through `@qa/path-guard.assertEnvSafe`.
+**Architecture:** `@qa/contracts` gets the single copy of each vocabulary: `routing.ts`, `specialists.ts` and
+`target-profile.ts`. `.claude/pipeline.yaml` and the agent prose mirror it. Internal tests pin the mirror; the alignment
+checker pins pipeline ↔ prose. The CLI's `claimTask` enforces the environment rules through `@qa/path-guard.assertEnvSafe`.
 
 **Tech Stack:** TypeScript 5.5, zod 3.23, jest + ts-jest (`__internal-tests__`), pnpm 11 workspaces, `yaml`.
 
@@ -19,12 +17,10 @@ enforces the environment rules through `@qa/path-guard.assertEnvSafe`.
 
 - Work on branch `feat/p1-contracts-vocab`. One commit per task. Every commit message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Green** = all three pass: `pnpm -F @aegis/internal-tests exec jest __internal-tests__/alignment` · `pnpm test` · `pnpm build && node apps/cli/dist/index.js align`, which must print `ratchet: ok`.
-- `git add` new files before running `align`: its existence checks read git-tracked files (HANDBOOK 14.11).
-- Delete a baseline entry only in the commit that fixes it. The ratchet fails on stale entries.
+- `git add` new files before running `align`: its existence checks read git-tracked files (HANDBOOK 14.11). Delete a baseline entry only in the commit that fixes it. The ratchet fails on stale entries.
 - Do not edit `packages/@qa/alignment/**`, `qa-orchestrator.md`, or the gate/phase/run regions of `events.ts` (P0a-1). In qa-start, qa-resume and qa-stop, edit only the run-id example lines.
 - New `packages/**/src` code must not contain the words `enabled`, `remote`, `budgets`, `evidenceStore`, `inspectionScreenshots`, `destructiveActionHeuristics`, `k6Dashboard` or `playwrightUI`. The unused-config rule counts such a word as a read, which would make P0a-1's baseline entries stale.
-- No `Object.hasOwn` / `Array.prototype.at` (lib < ES2022). Use `Object.prototype.hasOwnProperty.call`.
-- "old → new" diff blocks show whole lines or unique substrings of one line. Apply each one with an exact-string edit.
+- No `Object.hasOwn` / `Array.prototype.at` (lib < ES2022); use `Object.prototype.hasOwnProperty.call`. "old → new" diff blocks show whole lines or unique substrings of one line. Apply each one with an exact-string edit.
 - Baseline deletion helper (define once per shell):
 
 ```bash
@@ -69,8 +65,9 @@ describe('test vocabulary and routing (P1)', () => {
     expect(routed.filter((t) => doc.includes(t))).toEqual([]);
     expect(sorted([...routed, ...doc])).toEqual(sorted(TestTechniqueSchema.options));
   });
-  it('drops E2E and the BVA/EP abbreviations, adds Flow', () => {
-    expect(TestTypeSchema.safeParse('E2E').success).toBe(false);
+  it('E2E is a type routed to qa-ui-specialist; the E2E technique and BVA/EP are gone; Flow is added', () => {
+    expect(TestTypeSchema.safeParse('E2E').success).toBe(true);
+    expect(routeTestCase({ testType: ['E2E'], testTechnique: ['Flow'] })).toEqual(['qa-ui-specialist']);
     for (const v of ['E2E', 'BVA', 'EP']) expect(TestTechniqueSchema.safeParse(v).success).toBe(false);
     expect(TestTechniqueSchema.safeParse('Flow').success).toBe(true);
   });
@@ -82,8 +79,10 @@ describe('test vocabulary and routing (P1)', () => {
   });
 });
 ```
-- [ ] **Step 2: Implement.** `artefacts.ts` technique enum:
+- [ ] **Step 2: Implement.** `artefacts.ts`: add the E2E *type*, and drop the E2E *technique* (it duplicates the type):
 ```diff
+-  "Functional", "UI", "Integration", "API",
++  "Functional", "UI", "E2E", "Integration", "API",
 -  "E2E", "Load", "Migration",
 +  "Flow", "Load", "Migration",
 ```
@@ -93,7 +92,7 @@ import type { TestTechnique, TestType } from "./artefacts.js";
 /** The single routing table. Mirrored by .claude/pipeline.yaml#routing and the qa-test-executor route lines. */
 export const TEST_ROUTING = {
   byType: {
-    Functional: "qa-ui-specialist", UI: "qa-ui-specialist",
+    Functional: "qa-ui-specialist", UI: "qa-ui-specialist", E2E: "qa-ui-specialist",
     API: "qa-api-specialist", Integration: "qa-api-specialist",
     Performance: "qa-performance-specialist", Security: "qa-security-specialist",
     Database: "qa-database-specialist", Compatibility: "qa-responsive-specialist",
@@ -111,7 +110,7 @@ export const TEST_ROUTING = {
 };
 /** A documentation-only technique is executed by the TC's primary specialist, so it needs one of these types. */
 export const TECHNIQUE_COMPANION_TYPES: Readonly<Partial<Record<TestTechnique, readonly TestType[]>>> = {
-  Flow: ["Functional"], Visual: ["UI", "Compatibility"], Contract: ["API", "Integration"],
+  Flow: ["Functional", "E2E"], Visual: ["UI", "Compatibility"], Contract: ["API", "Integration"],
   Load: ["Performance"], Migration: ["Database"],
 };
 const BY_TECHNIQUE: Readonly<Partial<Record<TestTechnique, string>>> = TEST_ROUTING.byTechnique;
@@ -127,15 +126,17 @@ export function routeTestCase(tc: { testType: readonly TestType[]; testTechnique
 }
 ```
 Append `export * from "./routing.js";` to `contracts/src/index.ts`.
-- [ ] **Step 3: `.claude/pipeline.yaml` routing:**
+- [ ] **Step 3: `.claude/pipeline.yaml` routing** (`E2E` after `UI` in `byType`; `Exploratory` after `FeatureFlag` in `byTechnique`):
 ```diff
+     UI: qa-ui-specialist
++    E2E: qa-ui-specialist
      FeatureFlag: qa-feature-flag-specialist
 +    Exploratory: qa-exploratory-specialist
    designerEmits:
 -    testType: [Functional, UI, E2E, Security, Database]
 -    testTechnique: [EP, BVA, Flow, Accessibility, Unit, Email, Regression, BoundaryValue, StateTransition, DecisionTable, Pairwise, Smoke]
 -  techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke]
-+    testType: [Functional, UI, API, Integration, Performance, Security, Database, Compatibility, Usability]
++    testType: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]
 +    testTechnique: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
 +  techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
 ```
@@ -143,17 +144,17 @@ Append `export * from "./routing.js";` to `contracts/src/index.ts`.
 ```diff
 -   - `testType` — required; determines which primary specialist the executor routes this TC to (e.g. `Security`, `Functional`, `Database`)
 -   - `testTechnique` — optional metadata array; describes *how* the test is conducted and triggers secondary specialist dispatch (e.g. `["Accessibility"]` on a `Functional` TC also dispatches qa-accessibility-specialist; `["Unit"]` dispatches qa-unit-specialist; `["Email"]` dispatches qa-email-specialist; `["Regression", "BoundaryValue"]` are documentation-only techniques with no specialist dispatch)
-+   - `testType` — required array; every value routes to its primary specialist, and the executor dispatches each distinct specialist once. Values: [Functional, UI, API, Integration, Performance, Security, Database, Compatibility, Usability]. E2E is a test level here, not a test type: a multi-page journey is Functional + `testLevel: System` + Flow.
++   - `testType` — required array; every value routes to its primary specialist, and the executor dispatches each distinct specialist once. Values: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]. A multi-page journey is `E2E` (the stakeholder term) with technique `Flow`.
 +   - `testTechnique` — optional array. Routed techniques add a specialist alongside the primary: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory]. Documentation-only techniques record how the case was designed and dispatch nothing: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration].
-+   - Companion types (schema-enforced): `Flow` needs `Functional`; `Visual` needs `UI` or `Compatibility`; `Contract` needs `API` or `Integration`; `Load` needs `Performance`; `Migration` needs `Database`.
++   - Companion types (schema-enforced): `Flow` needs `Functional` or `E2E`; `Visual` needs `UI` or `Compatibility`; `Contract` needs `API` or `Integration`; `Load` needs `Performance`; `Migration` needs `Database`.
 +   - When to emit: `Realtime` when target-profile.json `hasRealtimeFeatures` is true and the requirement involves live updates; `FeatureFlag` when `hasFeatureFlags` is true and the behaviour is flag-gated; `Compatibility` (with `viewportScope`) for layout and breakpoint requirements; `Usability` for human-judgment charters; `Unit` only to review developer unit-test coverage — unit testing is developer scope.
-```
-```diff
 -(BVA, EP, StateTransition, DecisionTable, Pairwise, Regression, Smoke).
 +(BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow).
 ```
-- [ ] **Step 5: Executor prose** (`qa-test-executor.md`: a route line after line 76, and line 78 replaced):
+- [ ] **Step 5: Executor prose** (`qa-test-executor.md`: an `E2E` route line after line 63, a technique route line after line 76, and line 78 replaced):
 ```diff
+    - `Functional`, `UI` → qa-ui-specialist
++   - `E2E` → qa-ui-specialist
     - `FeatureFlag` → qa-feature-flag-specialist
 +   - `Exploratory` → qa-exploratory-specialist
 -   A TC with `testType: Functional` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass.
@@ -167,13 +168,9 @@ Append `export * from "./routing.js";` to `contracts/src/index.ts`.
 - [ ] **Step 7: Checker fixture** `__internal-tests__/alignment/rules-config.test.ts`. It reads the real enum, which now contains `Flow`:
 ```diff
 -        designerEmits: { testType: ['Functional', 'E2E', 'Security'], testTechnique: ['Flow', 'Accessibility', 'BoundaryValue'] },
-+        designerEmits: { testType: ['Functional', 'E2E', 'Security'], testTechnique: ['BVA', 'Accessibility', 'BoundaryValue'] },
++        designerEmits: { testType: ['Functional', 'Smoke', 'Security'], testTechnique: ['BVA', 'Accessibility', 'BoundaryValue'] },
 ```
-```diff
--    'ROUTE:testTechnique:Flow:not-in-schema',
-+    'ROUTE:testTechnique:BVA:not-in-schema',
-+    'ROUTE:testTechnique:Flow:schema-unrouted',
-```
+The expected list becomes (sorted; `E2E` is now a real type, so `Smoke` keeps the not-in-schema case): `ROUTE:` + `target:qa-api-specialist:missing`, `testTechnique:BVA:not-in-schema`, `testTechnique:Flow:schema-unrouted`, `testTechnique:Visual:schema-unrouted`, `testType:Security:unrouted`, `testType:Smoke:not-in-schema`.
 - [ ] **Step 8: Delete the 18 ROUTE entries:**
 ```bash
 drop_baseline ROUTE:pipeline:{API,Compatibility,FeatureFlag,Integration,Performance,Realtime,Usability}:unreachable-route \
@@ -182,12 +179,12 @@ drop_baseline ROUTE:pipeline:{API,Compatibility,FeatureFlag,Integration,Performa
 ```
 - [ ] **Step 9:** `git add` the new files. `jest routing-vocab` → PASS; then **Green**. **Commit:**
 ```bash
-git add packages/@qa/contracts/src/{routing.ts,artefacts.ts,index.ts} .claude/pipeline.yaml .claude/agents/tier1-phase/qa-test-{designer,executor}.md  .claude/skills/qa-regression/SKILL.md __internal-tests__/routing-vocab.test.ts __internal-tests__/alignment/{rules-config.test.ts,baseline.yaml} && git commit -m "feat(contracts): single test routing table; E2E→Flow; full designer vocabulary (P1 AUD-032..035, 096)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add packages/@qa/contracts/src/{routing.ts,artefacts.ts,index.ts} .claude/pipeline.yaml .claude/agents/tier1-phase/qa-test-{designer,executor}.md  .claude/skills/qa-regression/SKILL.md __internal-tests__/routing-vocab.test.ts __internal-tests__/alignment/{rules-config.test.ts,baseline.yaml} && git commit -m "feat(contracts): single test routing table; E2E type routed; full designer vocabulary (P1 AUD-032..035, 096)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ### Task 2: TestCase schema fields and companion rules (AUD-085; AUD-034 enforcement)
 
-**Files:** Create `__internal-tests__/test-case-schema.test.ts`. Modify `contracts/src/artefacts.ts:52-86`, `HANDBOOK/17-operating-ruleset.md:49,100`, `HANDBOOK/07-templates-and-standardization.md:131,146,163`, `HANDBOOK/04-stlc-walkthrough.md:97`, `qa-test-designer.md:89,119`, `spv/qa-test-designer-spv.md:37`, `spv/qa-ui-specialist-spv.md:40`.
+**Files:** Create `__internal-tests__/test-case-schema.test.ts`. Modify `contracts/src/artefacts.ts:52-86`, `HANDBOOK/07-templates-and-standardization.md:131`, `qa-test-designer.md:89`.
 **Consumes:** `TECHNIQUE_COMPANION_TYPES` (Task 1). **Produces:** `GherkinSchema`; `TestCaseObjectSchema` (strict object, can be `.extend`ed); `TestCaseSchema` (= that object + `superRefine`); `type TestCase`.
 
 - [ ] **Step 1: Failing test** `__internal-tests__/test-case-schema.test.ts` — after writing it, `pnpm -F @aegis/internal-tests exec jest test-case-schema` → FAIL (every case except the positive parses):
@@ -204,18 +201,16 @@ const gherkin = { given: ['a linked Google account'], when: ['the user signs in'
 const ok = (x: object) => TestCaseSchema.safeParse(x).success;
 describe('TestCaseSchema (AUD-085)', () => {
   it('parses a TC with scenarioId and order, and requires both', () => {
-    const { scenarioId: _s, ...noScenario } = base;
-    const { order: _o, ...noOrder } = base;
+    const { scenarioId: _s, ...noScenario } = base; const { order: _o, ...noOrder } = base;
     expect([ok(base), ok(noScenario), ok(noOrder)]).toEqual([true, false, false]);
   });
   it('rejects undeclared fields instead of stripping them', () => expect(ok({ ...base, specialistType: 'ui' })).toBe(false));
-  it('keeps gherkin and manualJustification', () => {
-    const r = TestCaseSchema.parse({ ...base, testTechnique: ['Flow'], gherkin, manualJustification: 'x' });
-    expect([r.gherkin, r.manualJustification]).toEqual([gherkin, 'x']);
-  });
-  it('a Flow TC needs gherkin and testType Functional', () => {
+  it('keeps gherkin and manualJustification', () =>
+    expect(TestCaseSchema.parse({ ...base, testTechnique: ['Flow'], gherkin, manualJustification: 'x' })).toMatchObject({ gherkin, manualJustification: 'x' }));
+  it('a Flow TC needs gherkin and testType Functional or E2E (HANDBOOK/17)', () => {
     expect(ok({ ...base, testTechnique: ['Flow'] })).toBe(false);
     expect(ok({ ...base, testType: ['UI'], testTechnique: ['Flow'], gherkin })).toBe(false);
+    expect(ok({ ...base, testType: ['E2E'], testTechnique: ['Flow'], gherkin })).toBe(true);
   });
   it('documentation-only techniques need their companion type', () => {
     expect(ok({ ...base, testType: ['API'], testTechnique: ['Visual'] })).toBe(false);
@@ -258,50 +253,23 @@ Rename `export const TestCaseSchema = z.object({` to `export const TestCaseObjec
 +export type TestCase = z.infer<typeof TestCaseSchema>;
 ```
 - [ ] **Step 3:** `jest test-case-schema` → PASS.
-- [ ] **Step 4: Gherkin/E2E prose.** Vocabulary only; the owner ruleset keeps its meaning.
+- [ ] **Step 4: Vocabulary prose.** HANDBOOK/17 and every "Functional or E2E" Gherkin sentence stay as they are (owner decision).
 ```diff
-# HANDBOOK/17-operating-ruleset.md:49 (substring)
--When `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`, the TC must carry
-+When `testType` includes `Functional` AND `testTechnique` includes `Flow`, the TC must carry
-# HANDBOOK/17-operating-ruleset.md:100 (substring)
--Only flow cases (`testType` Functional/E2E + `testTechnique` Flow) require `gherkin`.
-+Only flow cases (`testType` Functional + `testTechnique` Flow) require `gherkin`.
 # HANDBOOK/07-templates-and-standardization.md:131
 -  "testType":     "UI",           // Functional | UI | Integration | API | Security | Database | Performance | Compatibility | Usability
-+  "testType":     ["UI"],         // array, each value routes: Functional | UI | Integration | API | Security | Database | Performance | Compatibility | Usability
-# HANDBOOK/07…:146 (substring)
--required only when testType is Functional|E2E AND testTechnique includes Flow
-+required only when testType includes Functional AND testTechnique includes Flow
-# HANDBOOK/07…:163 (substring)
--Only flow cases (`testType: Functional | E2E` AND `testTechnique` includes `Flow`) require the `gherkin` block.
-+Only flow cases (`testType` includes `Functional` AND `testTechnique` includes `Flow`) require the `gherkin` block.
-# HANDBOOK/04-stlc-walkthrough.md:97
--Type:         UI / E2E
-+Type:         Functional (technique: Flow)
-# qa-test-designer.md:89 (two substrings)
--when `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`
-+when `testType` includes `Functional` AND `testTechnique` includes `Flow`
++  "testType":     ["UI"],         // array, each value routes: Functional | UI | E2E | Integration | API | Security | Database | Performance | Compatibility | Usability
+# qa-test-designer.md:89 (substring)
 -Technique-derived cases (BVA/EP/decision-table) keep
 +Technique-derived cases (BoundaryValue/EquivalencePartition/DecisionTable) keep
-# qa-test-designer.md:119
--- A flow TC (`testType` Functional/E2E + `testTechnique` Flow) missing its `gherkin` block
-+- A flow TC (`testType` Functional + `testTechnique` Flow) missing its `gherkin` block
-# spv/qa-test-designer-spv.md:37 (substring)
--Any flow TC (`testType` Functional/E2E + `testTechnique` includes Flow)
-+Any flow TC (`testType` Functional + `testTechnique` includes Flow)
-# spv/qa-ui-specialist-spv.md:40 (substring)
--File suffix must match the TC's declared `testType`: multi-page E2E journeys → `*.e2e.ts`;
-+File suffix must match the TC's declared `testType`/`testTechnique`: multi-page journeys (`Flow`) → `*.e2e.ts`;
 ```
-Check: `git grep -nE 'Functional/E2E|Functional \| E2E|Functional\|E2E|or .E2E.' -- ':!docs/superpowers'` is empty.
 - [ ] **Step 5:** **Green** (no baseline change expected). **Commit:**
 ```bash
-git add packages/@qa/contracts/src/artefacts.ts __internal-tests__/test-case-schema.test.ts HANDBOOK/{17-operating-ruleset,07-templates-and-standardization,04-stlc-walkthrough}.md  .claude/agents/tier1-phase/qa-test-designer.md .claude/agents/spv/qa-{test-designer,ui-specialist}-spv.md && git commit -m "feat(contracts): strict TestCase with scenarioId/order/gherkin and companion-type rules (P1 AUD-085)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add packages/@qa/contracts/src/artefacts.ts __internal-tests__/test-case-schema.test.ts HANDBOOK/07-templates-and-standardization.md .claude/agents/tier1-phase/qa-test-designer.md && git commit -m "feat(contracts): strict TestCase with scenarioId/order/gherkin and companion-type rules (P1 AUD-085)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ### Task 3: Specialist canonical map and environment lists (AUD-036, 038; 037 config)
 
-**Files:** Create `packages/@qa/contracts/src/specialists.ts` and `__internal-tests__/env-specialists.test.ts`. Modify `contracts/src/index.ts`, `.claude/pipeline.yaml` (envSpecialists), `aegis.config.json:42,58-59`, `apps/cli/src/commands/init.ts:200-227`, `qa-run-specialist/SKILL.md:19`, `HANDBOOK/14-extending.md:57`, `docs/D12-env-safety-and-prod.md:14,54-59`, `docs/D12-environments-overview.md:83-84`, `docs/D12-monorepo-multi-app.md:229-230`, and the baseline.
+**Files:** Create `packages/@qa/contracts/src/specialists.ts` and `__internal-tests__/env-specialists.test.ts`. Modify `contracts/src/index.ts`, `.claude/pipeline.yaml` (envSpecialists), `aegis.config.json:42,58-59`, `apps/cli/src/commands/init.ts:200-227`, `qa-run-specialist/SKILL.md:19`, `HANDBOOK/14-extending.md:57`, `spv/qa-email-specialist-spv.md:30`, `docs/D12-env-safety-and-prod.md:14,54-59`, `docs/D12-environments-overview.md:83-84`, `docs/D12-monorepo-multi-app.md:229-230`, and the baseline.
 **Produces:** `SPECIALISTS: {[short]: {agent, mutates}}`, `type SpecialistShortName`, `specialistShortName(name): SpecialistShortName | null`, `interface EnvironmentSpecialistConfig {readOnly?; mutating?; allowedSpecialists?; forbiddenSpecialists?}`, `isReadOnlyEnvironment(env): boolean`, `DEFAULT_ENVIRONMENT_SPECIALISTS`, `checkEnvironmentSpecialists(envs): string[]`.
 
 - [ ] **Step 1: Failing test** `__internal-tests__/env-specialists.test.ts` — after writing it, `jest env-specialists` → FAIL (imports undefined):
@@ -319,10 +287,8 @@ describe('specialist short names and environments (AUD-036/037/038)', () => {
     expect(new Set(Object.values(SPECIALISTS).map((s) => s.agent))).toEqual(routed);
   });
   it('aegis.config.json uses the default lists and has no problems', () => {
-    for (const [env, lists] of Object.entries(DEFAULT_ENVIRONMENT_SPECIALISTS)) {
-      const cfg = config.environments[env];
-      expect({ allowedSpecialists: cfg.allowedSpecialists, forbiddenSpecialists: cfg.forbiddenSpecialists }).toEqual(lists);
-    }
+    for (const [env, lists] of Object.entries(DEFAULT_ENVIRONMENT_SPECIALISTS))
+      expect({ allowedSpecialists: config.environments[env].allowedSpecialists, forbiddenSpecialists: config.environments[env].forbiddenSpecialists }).toEqual(lists);
     expect(checkEnvironmentSpecialists(config.environments)).toEqual([]);
   });
   it('production is read-only and forbids email (AUD-038)', () =>
@@ -385,12 +351,10 @@ export function checkEnvironmentSpecialists(envs: Record<string, EnvironmentSpec
         if (s === "*") {
           if (field === "forbiddenSpecialists") out.push(`${at}: "*" is only valid in allowedSpecialists`);
           else if (readOnly) out.push(`${at}: "*" on a read-only environment`);
-          continue;
-        }
-        const short = specialistShortName(s);
-        if (short === null) out.push(`${at}: unknown specialist "${s}"`);
-        else if (field === "allowedSpecialists" && readOnly && SPECIALISTS[short].mutates) {
-          out.push(`${at}: mutating specialist "${s}" on a read-only environment`);
+        } else {
+          const short = specialistShortName(s);
+          if (short === null) out.push(`${at}: unknown specialist "${s}"`);
+          else if (field === "allowedSpecialists" && readOnly && SPECIALISTS[short].mutates) out.push(`${at}: mutating specialist "${s}" on a read-only environment`);
         }
       }
     }
@@ -434,6 +398,9 @@ In `apps/cli/src/commands/init.ts`, add `import { DEFAULT_ENVIRONMENT_SPECIALIST
 +    "allowedSpecialists": ["ui", "api"],  // read-only smoke
 +    // destructive migrations, k6 load, ZAP active scan, real email sends, flag-override writes:
 +    "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"]
+# spv/qa-email-specialist-spv.md:30 (substring) — AUD-038, and the AUD-114 half QW handed to P1
+-Work report confirms tests ran against `development` or `testing` environment only. The email specialist is in `forbiddenSpecialists` for production.
++Work report confirms tests ran against `development`, `testing` or `staging` only. The email specialist is in `aegis.config.json#environments.production.forbiddenSpecialists`.
 # docs/D12-environments-overview.md:83-84 and docs/D12-monorepo-multi-app.md:229-230 (keep each file's indentation)
 -"allowedSpecialists": ["ui", "api", "security", "a11y"],
 -"forbiddenSpecialists": ["email", "performance", "unit"]
@@ -443,7 +410,7 @@ In `apps/cli/src/commands/init.ts`, add `import { DEFAULT_ENVIRONMENT_SPECIALIST
 - [ ] **Step 5:** `drop_baseline ENV:testing:functional:unmapped ENV:testing:integration:unmapped`
 - [ ] **Step 6:** `git add` the new files. `jest env-specialists` → PASS; then **Green**. `git grep -nE '"(a11y|functional|integration)"' -- aegis.config.json apps docs` is empty. **Commit:**
 ```bash
-git add packages/@qa/contracts/src/{specialists.ts,index.ts} __internal-tests__/env-specialists.test.ts .claude/pipeline.yaml aegis.config.json  apps/cli/src/commands/init.ts .claude/skills/qa-run-specialist/SKILL.md HANDBOOK/14-extending.md docs/D12-*.md __internal-tests__/alignment/baseline.yaml && git commit -m "feat(contracts): canonical specialist short names and environment lists (P1 AUD-036, 038)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add packages/@qa/contracts/src/{specialists.ts,index.ts} __internal-tests__/env-specialists.test.ts .claude/pipeline.yaml aegis.config.json  apps/cli/src/commands/init.ts .claude/skills/qa-run-specialist/SKILL.md HANDBOOK/14-extending.md docs/D12-*.md .claude/agents/spv/qa-email-specialist-spv.md __internal-tests__/alignment/baseline.yaml && git commit -m "feat(contracts): canonical specialist short names and environment lists (P1 AUD-036, 038)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ### Task 4: Environment enforcement at task claim (AUD-037)
@@ -460,10 +427,8 @@ describe('assertEnvSafe() canonical names (AUD-036/037)', () => {
     fs.writeFileSync(path.join(aegisRoot, 'aegis.config.json'), JSON.stringify({ environments: {
       production: { mutating: false, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['qa-email-specialist'] }, testing: { allowedSpecialists: ['*'] } } }));
   });
-  it('normalises agent and short names on both sides', () => {
-    expect([safe('production', 'qa-ui-specialist'), safe('production', 'api'), safe('production', 'email')])
-      .toEqual(['ok', 'ok', 'specialist-blocked']);
-  });
+  it('normalises agent and short names on both sides', () =>
+    expect([safe('production', 'qa-ui-specialist'), safe('production', 'api'), safe('production', 'email')]).toEqual(['ok', 'ok', 'specialist-blocked']));
   it('refuses a specialist missing from allowedSpecialists; "*" allows all', () =>
     expect([safe('production', 'qa-accessibility-specialist'), safe('testing', 'qa-performance-specialist', true)]).toEqual(['specialist-blocked', 'ok']));
   it('treats mutating: false as read-only', () => expect(safe('production', 'ui', true)).toBe('env-read-only'));
@@ -492,20 +457,20 @@ describe('claimTask environment safety (AUD-037)', () => {
     runId = (await createRun(t.root, { environment: 'production', modules: ['AUTH'], cycleType: 'smoke' }, 'owner')).runId;
     await addTask(t.root, runId, { id: 'T-1', title: 'task T-1' }, 'qa-test-executor');
   });
-  const status = async () => (await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-1'))?.status;
-  it('lets an allowed specialist claim', async () =>
-    expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' }));
   it('refuses a forbidden specialist, records env.specialist-blocked, leaves the task unclaimed', async () => {
     await expect(claimTask(t.root, runId, 'T-1', 'qa-database-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
     expect(lastEvent()).toMatchObject({ type: 'env.specialist-blocked', env: 'production', specialist: 'qa-database-specialist' });
-    expect(await status()).not.toBe('in-progress');
+    expect((await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-1'))?.status).not.toBe('in-progress');
   });
   it('refuses a specialist missing from allowedSpecialists; a refusal uses no cap slot', async () => {
     await expect(claimTask(t.root, runId, 'T-1', 'qa-exploratory-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
     await expect(claimTask(t.root, runId, 'T-1', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
   });
-  it('does not apply environment rules to non-specialists', async () =>
-    expect(claimTask(t.root, runId, 'T-1', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' }));
+  it('lets an allowed specialist and a non-specialist claim', async () => {
+    await addTask(t.root, runId, { id: 'T-2', title: 'task T-2' }, 'qa-test-executor');
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+    await expect(claimTask(t.root, runId, 'T-2', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
+  });
 });
 ```
 - [ ] **Step 2:** `jest path-guard run-state-tasks` → the new cases FAIL.
@@ -564,8 +529,6 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
    - aegis.config.json#artifacts
 +  - aegis.config.json#environments.{env}.allowedSpecialists
 +  - aegis.config.json#environments.{env}.forbiddenSpecialists
-```
-```diff
 # HANDBOOK/13-mechanics.md:63-65
 -**Env-safety extension — `assertEnvSafe(env, action)`:**
 -- If `env.readOnly === true` AND `action.mutates === true` → throw, emit `env.write-blocked`
@@ -583,12 +546,10 @@ git add packages/@qa/path-guard/src/index.ts packages/@qa/run-state/src/{tasks.t
 
 ### Task 5: TargetProfile schema (AUD-031)
 
-**Files:** Create `packages/@qa/contracts/src/target-profile.ts` and `__internal-tests__/target-profile.test.ts`. Modify `contracts/src/index.ts` and `qa-context-scanner.md:54`.
-**Produces:** `PackageManagerSchema` (`pnpm|npm|yarn|bun`), `SourceInventorySchema`, `ExistingTestsSchema`, `TargetProfileCoreSchema` (non-strict, P0a-1's three fields), `TargetProfileSchema` (strict, full), `type TargetProfile`, `type TargetProfileCore`.
+**Files:** Create `packages/@qa/contracts/src/target-profile.ts` and `__internal-tests__/target-profile.test.ts`. Modify `contracts/src/index.ts` and `qa-context-scanner.md:30,54,72`.
+**Produces:** `PackageManagerSchema` (`pnpm|npm|yarn|bun`), `SourceInventorySchema`, `ExistingTestsSchema` (with required `files: string[]`), `TargetProfileCoreSchema` (non-strict, P0a-1's three fields), `TargetProfileSchema` (strict, full), `type TargetProfile`, `type TargetProfileCore`.
 
-- [ ] **Step 0: Coordination check.** Run `git fetch origin && git rebase origin/main`, then `git grep -n "TargetProfileSchema" packages/@qa/contracts/src`.
-  - **Not found:** follow Steps 1–5 as written.
-  - **Found (P0a-1 landed first):** do not create `target-profile.ts`. Add Step 3's extension fields and extra exports to P0a-1's schema in its file. Keep P0a-1's minimal object exported as `TargetProfileCoreSchema`. Point the test's import at those exports.
+- [ ] **Step 0: Coordination.** P1 creates `target-profile.ts`; P0a-1 merges into it on rebase, and `@qa/run-state` imports `TargetProfileSchema` by that name. Fixed contract: `TargetProfileSchema` = the full schema, `TargetProfileCoreSchema` = the core (`targetIsSingleProject: boolean`, `sourceInventory: object`, `existingTests.files: string[]`, all required). If `git grep -n "TargetProfileSchema" packages/@qa/contracts/src` already finds P0a-1's file on `main`, merge Step 3 into it and keep those names and fields.
 - [ ] **Step 1: Failing test** `__internal-tests__/target-profile.test.ts` — after writing it, `jest target-profile` → FAIL (imports undefined):
 ```ts
 import * as fs from 'fs'; import * as path from 'path';
@@ -606,7 +567,9 @@ describe('TargetProfileSchema (AUD-031)', () => {
   });
   it('the core schema reads the three preflight fields from a full profile', () => {
     const core = TargetProfileCoreSchema.parse(example);
-    expect([core.targetIsSingleProject, core.sourceInventory.routes[0]!.path, core.existingTests.unitTestStyle]).toEqual([true, '/auth/login', 'none']);
+    expect([core.targetIsSingleProject, core.sourceInventory.routes[0]!.path, core.existingTests.files]).toEqual([true, '/auth/login', []]);
+    const { files: _f, ...noFiles } = example.existingTests;
+    expect(TargetProfileCoreSchema.safeParse({ ...example, existingTests: noFiles }).success).toBe(false);
   });
 });
 ```
@@ -625,7 +588,7 @@ export const SourceInventorySchema = z.object({
   existingTestFiles: z.array(z.object({ path: S, type: S })).default([]),
 });
 export const ExistingTestsSchema = z.object({
-  frameworks: z.array(z.string()), locations: z.array(z.string()), count: N,
+  files: z.array(z.string()), frameworks: z.array(z.string()), locations: z.array(z.string()), count: N,
   unitTestStyle: z.enum(["colocated", "tests-dir", "mixed", "none"]),
 });
 /** The fields the preflight and requirements phase rely on (P0 spec §6.2). Non-strict: reads a full profile. */
@@ -657,6 +620,12 @@ Append `export * from "./target-profile.js";` to `index.ts`. Make the prose exam
 # qa-context-scanner.md:54
 -  "scannedAt": "ISO-8601",
 +  "scannedAt": "2026-09-30T00:00:00.000Z",
+# qa-context-scanner.md:72
+-    "frameworks": [], "locations": [], "count": 0, "unitTestStyle": "none"
++    "files": [], "frameworks": [], "locations": [], "count": 0, "unitTestStyle": "none"
+# qa-context-scanner.md:30 (substring)
+-Record `unitTestStyle` (colocated / tests-dir / mixed / none).
++Record `unitTestStyle` (colocated / tests-dir / mixed / none) and every test file path in `existingTests.files[]`.
 ```
 - [ ] **Step 3:** `jest target-profile` → PASS.
 - [ ] **Step 4:** `git add` the new files; **Green**. **Commit:**
@@ -675,11 +644,9 @@ describe('event field declarations (AUD-039)', () => {
   const lines = () => (fs.existsSync(busPath) ? fs.readFileSync(busPath, 'utf-8').split('\n').filter(Boolean) : []);
   const artifact = { type: 'artifact.created', ts: TS, kind: 'plan', path: 'runs/x/plan.json', schemaVersion: '1.0' } as const;
   const valid = (ev: object) => AegisEventSchema.safeParse(ev).success;
-  it('append() refuses undeclared fields instead of stripping them', async () => {
+  it('append() refuses undeclared fields instead of stripping them, but keeps runId', async () => {
     await expect(append({ ...artifact, brief: 'x' } as any, busPath)).rejects.toThrow(/undeclared field\(s\).*brief/);
     expect(lines()).toHaveLength(0);
-  });
-  it('append() keeps a runId on events that do not declare one', async () => {
     await append({ ...artifact, runId: RUN_A } as any, busPath);
     expect(JSON.parse(lines()[0]!)).toMatchObject({ type: 'artifact.created', runId: RUN_A });
   });
@@ -726,8 +693,6 @@ In the locked write, replace `JSON.stringify(parsed.data)` with `JSON.stringify(
 +  packageManager: PackageManagerSchema,
 +  platform: z.enum(["supabase", "generic"]).optional(),
  });
-```
-```diff
 +/** The enriched dispatch brief qa-test-executor-spv checks (Winteringham Pattern 5). */
 +export const DispatchBriefSchema = z.object({
 +  missionGoal: z.string().min(1), lessonsRef: z.string().min(1), riskContext: z.string().optional(),
@@ -735,14 +700,10 @@ In the locked write, replace `JSON.stringify(parsed.data)` with `JSON.stringify(
 +}).strict();
 +
  export const SpecialistDispatchedEventSchema = EventBase.extend({
-   type: z.literal("specialist.dispatched"),
-   specialistName: z.string(),
-   tcIds: z.array(TestCaseIdSchema).default([]),
+   …
    environment: z.string(),
 +  brief: DispatchBriefSchema.optional(),
  });
-```
-```diff
 # qa-context-scanner.md:108
 -- `target.profiled` — always, includes `scannedAt`, `platform`, `appCount`
 +- `target.profiled` — always, includes `appCount`, `framework`, `packageManager` and `platform` (the event `ts` is the scan time)
@@ -786,7 +747,53 @@ git diff --stat   # 12 files, 16 lines; each changed line is an example or flag 
 git add __internal-tests__/run-id-docs.test.ts .claude/skills/*/SKILL.md && git commit -m "docs(skills): run-id examples in the CLI format RUN-YYYYMMDD-NNN (P1 AUD-041)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-### Task 8: Missing config keys (AUD-043)
+### Task 8: Work-report and review ids for phase and gate tasks (P0a-1 task ids)
+
+**Files:** Create `__internal-tests__/task-ref-ids.test.ts`. Modify `packages/@qa/contracts/src/ids.ts:5,60-68` and `packages/@qa/ids/src/index.ts` (the `WR` case).
+**Produces:** `TaskRefSchema` (`T-<n>` | `T-<phase>-<n>` | `T-GATE-G<N>`). `WorkReportIdSchema` = `WR-<taskRef>`, `ReviewIdSchema` = `RV-<agent-slug>-<taskRef>`. `nextId("WR", "T-design-1")` returns `WR-T-design-1`, and a bare number still gives `WR-T-<n>`.
+
+- [ ] **Step 1: Failing test** `__internal-tests__/task-ref-ids.test.ts` — after writing it, `jest task-ref-ids` → FAIL (`TaskRefSchema` undefined):
+```ts
+import { ReviewIdSchema, TaskRefSchema, WorkReportIdSchema } from '@qa/contracts';
+import { nextId } from '@qa/ids';
+const ok = (schema: { safeParse(x: unknown): { success: boolean } }, v: string) => schema.safeParse(v).success;
+describe('task refs in work-report and review ids', () => {
+  it('accepts T-<n>, T-<phase>-<n> and T-GATE-G<N>', () => {
+    for (const t of ['T-42', 'T-design-1', 'T-EXECUTION-12', 'T-GATE-G1'])
+      expect([ok(TaskRefSchema, t), ok(WorkReportIdSchema, `WR-${t}`), ok(ReviewIdSchema, `RV-ui-spv-${t}`)]).toEqual([true, true, true]);
+  });
+  it('rejects malformed refs, including a phase named GATE', () => {
+    for (const t of ['T-', 'T-design', 'T-GATE-1', 'T-GATE-GX', 'T-1-2', 'task:env-setup'])
+      expect([ok(TaskRefSchema, t), ok(WorkReportIdSchema, `WR-${t}`), ok(ReviewIdSchema, `RV-ui-spv-${t}`)]).toEqual([false, false, false]);
+  });
+  it('nextId("WR") keeps a full task id and still maps a bare number', async () => {
+    expect([await nextId('WR', 'T-design-1'), await nextId('WR', 'T-GATE-G2'), await nextId('WR', 42)])
+      .toEqual(['WR-T-design-1', 'WR-T-GATE-G2', 'WR-T-42']);
+  });
+});
+```
+- [ ] **Step 2: Implement** `contracts/src/ids.ts` (replace the two schemas; in the line-5 comment, add `WR-T-design-1, RV-td-spv-T-GATE-G1`):
+```ts
+/** A task id inside WR/RV ids: T-<n>, T-<phase>-<n> (phase ≠ GATE) or T-GATE-G<N>. */
+const TASK_REF = "T-(?:\\d+|(?!GATE-)[A-Za-z][A-Za-z0-9]*-\\d+|GATE-G\\d+)";
+export const TaskRefSchema = z.string().regex(new RegExp(`^${TASK_REF}$`), "Task ref format: T-{n} | T-{phase}-{n} | T-GATE-G{N}");
+export const WorkReportIdSchema = z.string().regex(new RegExp(`^WR-${TASK_REF}$`), "WorkReport ID format: WR-{taskRef}");
+export const ReviewIdSchema = z.string().regex(new RegExp(`^RV-[a-z-]+-${TASK_REF}$`), "Review ID format: RV-{agent-slug}-{taskRef}");
+```
+In `packages/@qa/ids/src/index.ts`, replace the `WR` case (it upper-cased the argument). Add `WorkReportIdSchema` to its `@qa/contracts` import if it is not there:
+```ts
+    case "WR": {
+      // A full task id (T-42, T-design-1, T-GATE-G1) keeps its case; a bare task number becomes T-<n>.
+      const raw = String(moduleOrArg);
+      return WorkReportIdSchema.parse(raw.startsWith("T-") ? `WR-${raw}` : `WR-T-${raw}`);
+    }
+```
+- [ ] **Step 3:** `jest task-ref-ids ids run-state-submit` → PASS (the existing `WR-T-42` and `RV-ui-spv-T-1` cases still pass); then **Green**. **Commit:**
+```bash
+git add __internal-tests__/task-ref-ids.test.ts packages/@qa/contracts/src/ids.ts packages/@qa/ids/src/index.ts && git commit -m "feat(contracts): WR/RV ids accept phase and gate task ids (T-<phase>-<n>, T-GATE-G<N>)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+### Task 9: Missing config keys (AUD-043, AUD-105)
 
 **Files:** Modify `aegis.config.json`, `qa-security-specialist.md:39,41` + contract `config`, `HANDBOOK/03-architecture.md:58`, and the baseline.
 
@@ -798,8 +805,6 @@ git add __internal-tests__/run-id-docs.test.ts .claude/skills/*/SKILL.md && git 
 +    "supabase": { "rolesToTest": [] }
    },
 +  "github": { "defaultReviewers": [], "labels": ["qa-automated", "ready-for-review"] },
-```
-```diff
        "url": "${TESTING_PREVIEW_URL}",
 +      "secretsRef": { "type": "github-actions-secrets", "prefix": "TESTING_" },
        "url": "https://stg.example.com",
@@ -824,7 +829,7 @@ git add __internal-tests__/run-id-docs.test.ts .claude/skills/*/SKILL.md && git 
 -Model assignment is in `aegis/packages/@qa/agent-core/model-policy.ts`. The policy can be overridden per agent via `aegis.config.json#modelOverrides`.
 +Model assignment is in `.claude/model-policy.yaml` (stamped into agent frontmatter by the `_qa-build-agents` skill); there is no per-agent override key in `aegis.config.json`.
 ```
-- [ ] **Step 5: Delete the fixed entries.** These are 10 P1 keys plus 1 P3 key that Step 4 fixes as a side effect. If QW already fixed and deleted the security key on `main` (AUD-105), drop it from the list and skip Step 3.
+- [ ] **Step 5: Delete the fixed entries.** These are 10 P1 keys plus 1 P3 key that Step 4 fixes as a side effect. The security key also closes AUD-105, which QW left to P1.
 ```bash
 drop_baseline "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.secretsRef:missing" \
   CONFIG:qa-{context-scanner,database-specialist,environment-engineer}:aegis.config.json#target.supabase.rolesToTest:missing \
@@ -840,12 +845,11 @@ drop_baseline "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.s
 git add aegis.config.json .claude/agents/tier2-specialist/qa-security-specialist.md HANDBOOK/03-architecture.md __internal-tests__/alignment/baseline.yaml && git commit -m "fix(config): supabase roles, github, secretsRef, allowedDestructive keys; sourceDirs/modelOverrides prose (P1 AUD-043)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-### Task 9: Metrics events (AUD-042, AUD-044)
+### Task 10: Metrics events (AUD-042, AUD-044)
 
 **Files:** Modify `qa-metrics-collector.md:29,33` + contract `awaits`, `qa-executive-reporter.md:140` + contract `reads`, the matrix (AUD-042b row and header note), and the baseline.
 
-- [ ] **Step 1: Confirm the failing state.** `node apps/cli/dist/index.js align --rule EVENT --json | grep -E 'qa-metrics-collector:(PhaseCompleted|token.used)'` shows 3 keys, and `--rule CONSUMER --json | grep token-usage` shows 1.
-- [ ] **Step 2: Metrics-collector prose.**
+- [ ] **Step 1: Metrics-collector prose.** (Before: `align --rule EVENT --json | grep -E 'qa-metrics-collector:(PhaseCompleted|token.used)'` shows 3 keys, and `--rule CONSUMER --json | grep token-usage` shows 1.)
 ```diff
 -### Cycle Time (from `run.phase.started`, `PhaseCompleted` events)
 +### Cycle Time (from `run.phase.started`, `run.phase.completed` events)
@@ -853,31 +857,31 @@ git add aegis.config.json .claude/agents/tier2-specialist/qa-security-specialist
 +Per event (fields `agent`, `model`, `input`, `output`, `cached`): one row `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`, with `usdCost` computed from the model-policy rates.
 ```
 Delete the line `  - PhaseCompleted` from the contract's `awaits`.
-- [ ] **Step 3: Executive-reporter consumer.**
+- [ ] **Step 2: Executive-reporter consumer.**
 ```diff
 -1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, token-usage log. Load lessons.md.
 +1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, `runs/{runId}/reports/metrics/token-usage.jsonl`. Load lessons.md.
    - "{run}/reports/metrics/*.json"
 +  - "{run}/reports/metrics/token-usage.jsonl"
 ```
-- [ ] **Step 4: Split AUD-042 in the matrix.** Add this row after the `| AUD-045 |` row of the P0 table:
+- [ ] **Step 3: Split AUD-042 in the matrix.** Add this row after the `| AUD-045 |` row of the P0 table:
 ```text
 | AUD-042b | `token.used` has no emitter: record per-subagent token usage from a SubagentStop hook (transcript usage) through the CLI; split from AUD-042 by the P1 spec | qa-metrics-collector.md:28 | LOW | P0b-2 | open |
 ```
 Append to the header line that starts `AUD-040, 062, 063, 064 moved to P0`: ` AUD-042 split into 042 (P1, consumer) / 042b (P0b-2, emitter) by the P1 spec.`
-- [ ] **Step 5: Baseline.** Re-tag the entry without changing its key:
+- [ ] **Step 4: Baseline.** Re-tag the entry without changing its key:
 ```diff
    - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
 -    ids: [AUD-042]
 +    ids: [AUD-042b]
 ```
 Then `drop_baseline EVENT:qa-metrics-collector:PhaseCompleted:{no-emitter,undeclared} "CONSUMER:qa-metrics-collector:{run}/reports/metrics/token-usage.jsonl:unread"`.
-- [ ] **Step 6:** **Green**. `align --by-slice` lists `EVENT:…token.used` under `P0b-2`. **Commit:**
+- [ ] **Step 5:** **Green**. `align --by-slice` lists `EVENT:…token.used` under `P0b-2`. **Commit:**
 ```bash
 git add .claude/agents/crosscutting/qa-metrics-collector.md .claude/agents/tier1-phase/qa-executive-reporter.md  docs/superpowers/specs/2026-09-29-audit-remediation-matrix.md __internal-tests__/alignment/baseline.yaml && git commit -m "fix(metrics): run.phase.completed for cycle time; token-usage consumer; AUD-042b emitter to P0b-2 (P1 AUD-042, 044)"  -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-### Task 10: Close P1 in the matrix and verify
+### Task 11: Close P1 in the matrix and verify
 
 **Files:** Modify `docs/superpowers/specs/2026-09-29-audit-remediation-matrix.md`.
 
@@ -886,15 +890,11 @@ git add .claude/agents/crosscutting/qa-metrics-collector.md .claude/agents/tier1
 f=docs/superpowers/specs/2026-09-29-audit-remediation-matrix.md
 sed -E -i '' '/^\| AUD-0(3[1-9]|4[1-4]) \|/ s/\| open \|$/| fixed |/' "$f"
 sed -E -i '' '/^\| AUD-0(85|96) \|/ s/\| P1 \| open \|$/| P1 | fixed |/' "$f"
+sed -E -i '' '/^\| AUD-105 \|/ s/\| QW \| open \|$/| QW | fixed — by P1 (security prose) |/' "$f"
+sed -E -i '' '/^\| AUD-114 \|/ s/\| open — qa-database-specialist half fixed \(QW\); qa-email-specialist-spv half closes with AUD-038 \(P1\) \|$/| fixed |/' "$f"
 sed -i '' 's|^Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.|Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`; P1 → `2026-09-30-p1-contracts-vocab-design.md`.|' "$f"
-grep -nE '^\| AUD-0(3[1-9]|4[1-4]|85|96) ' "$f"   # 16 rows, each ending "| fixed |"; AUD-042b stays open
+grep -nE '^\| AUD-(0(3[1-9]|4[1-4]|85|96)|105|114) ' "$f"   # 18 rows, each ending "fixed …|"; AUD-042b stays open
 ```
 - [ ] **Step 2: Verify.** **Green**. `node apps/cli/dist/index.js align --by-slice` has no `P1` group; no `closed-id` error, because no baseline entry names AUD-031..044/085/096. `git grep -nE 'specialistType|"functional"|RUN-2026-05' -- .claude aegis.config.json apps/cli/src` is empty.
 - [ ] **Step 3: Commit.** `git add "$f" && git commit -m "docs(matrix): P1 rows fixed" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"`
-- [ ] **Step 4: PR notes.** The PR needs the `contract-only-fix` label. Its body must cite:
-  - the 9 CONFIG keys fixed by new `aegis.config.json` keys while the subject agents are unchanged (rolesToTest ×3, target.supabase, defaultReviewers ×2, github.labels, secretsRef, allowedDestructive), with the config lines;
-  - the CONSUMER token-usage.jsonl pair fix (qa-executive-reporter.md:140);
-  - the side-effect deletion of `DOC-REF:HANDBOOK/03-architecture.md:@qa/agent-core` (AUD-066 stays open);
-  - the AUD-042b re-tag.
-
-  No `baseline-growth` label: no key is added.
+- [ ] **Step 4: PR notes.** Label `contract-only-fix` (no `baseline-growth`: no key is added). The body cites: the 9 CONFIG keys fixed by new `aegis.config.json` keys with unchanged subject agents (rolesToTest ×3, target.supabase, defaultReviewers ×2, github.labels, secretsRef, allowedDestructive), with the config lines; the CONSUMER token-usage.jsonl pair fix (qa-executive-reporter.md:140); the side-effect deletion of `DOC-REF:HANDBOOK/03-architecture.md:@qa/agent-core` (AUD-066 stays open); the AUD-042b re-tag.
