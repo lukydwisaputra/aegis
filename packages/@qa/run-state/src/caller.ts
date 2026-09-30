@@ -69,3 +69,17 @@ export function assertAppendableByAgent(type: string): void {
 export function isSpecialist(agent: string): boolean {
   return /^qa-[a-z0-9-]+-specialist$/.test(agent);
 }
+
+// Workers whose SPV is shared across a family rather than named `<agent>-spv`.
+const SHARED_SPV: Readonly<Record<string, string>> = {
+  "qa-cicd-planner": "qa-cicd-spv",
+  "qa-cicd-implementer": "qa-cicd-spv",
+  "qa-cicd-evaluator": "qa-cicd-spv",
+  "qa-github-planner": "qa-github-spv",
+  "qa-github-implementer": "qa-github-spv",
+};
+
+/** The one SPV allowed to review `agent`'s work. */
+export function pairedSpv(agent: string): string {
+  return SHARED_SPV[agent] ?? `${agent}-spv`;
+}

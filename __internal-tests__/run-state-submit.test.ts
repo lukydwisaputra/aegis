@@ -195,6 +195,34 @@ describe('submitReview extras', () => {
   });
 });
 
+describe('paired SPV only (R5)', () => {
+  it('refuses an SPV reviewing another pair\'s worker', async () => {
+    const file = writeJson('r.json', review('passed', { target: { agent: 'qa-security-specialist', taskId: 'T-1' } }));
+    await expect(submitReview(t.root, runId, file, SPV)).rejects.toMatchObject({ code: 'caller-forbidden' });
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'review'))).toBe(false);
+  });
+
+  it('refuses an SPV reviewing an unpaired worker even when it did the work', async () => {
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
+    await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
+    const other = 'qa-api-specialist-spv';
+    const file = writeJson('r.json', review('passed', { reviewer: other }));
+    await expect(submitReview(t.root, runId, file, other)).rejects.toMatchObject({ code: 'caller-forbidden' });
+    expect(events().filter((e) => String(e.type).startsWith('review.'))).toHaveLength(0);
+  });
+
+  it('lets qa-cicd-spv review qa-cicd-planner', async () => {
+    const planner = 'qa-cicd-planner';
+    await addTask(t.root, runId, { id: 'T-2', title: 'ci plan' }, 'qa-test-executor');
+    await claimTask(t.root, runId, 'T-2', planner);
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport({ taskId: 'T-2', agent: planner })), planner);
+    await releaseTask(t.root, runId, 'T-2', 'done', planner);
+    const file = writeJson('r.json', review('passed', { reviewer: 'qa-cicd-spv', target: { agent: planner, taskId: 'T-2' } }));
+    await expect(submitReview(t.root, runId, file, 'qa-cicd-spv')).resolves.toMatchObject({ verdict: 'passed', attempt: 1 });
+    expect(last(events())).toMatchObject({ type: 'review.passed', target: { agent: planner, taskId: 'T-2' }, emittedBy: 'qa-cicd-spv' });
+  });
+});
+
 describe('submission robustness', () => {
   it('retries the attempt number when the slot is already taken (EEXIST)', async () => {
     await submitWorkReport(t.root, runId, writeJson('wr1.json', workReport()), WORKER);

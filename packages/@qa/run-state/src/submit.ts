@@ -4,7 +4,7 @@ import { ReviewSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contract
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
-import { assertCallerAllowed } from "./caller.js";
+import { assertCallerAllowed, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, ESCALATION_REASON_PREFIX } from "./run.js";
@@ -180,6 +180,10 @@ export async function submitReview(root: string, runId: string, file: string, ca
 
   const { agent, taskId } = review.target;
   assertSafeIds(agent, taskId);
+  const expected = pairedSpv(agent);
+  if (caller !== expected) {
+    throw new RunStateError("caller-forbidden", `"${caller}" is not the paired SPV of ${agent}; only ${expected} may review it`);
+  }
   return withSubmitLock(root, runId, agent, taskId, async () => {
     const worked = attemptsIn(workDir(root, runId), agent, taskId);
     if (worked.length === 0) {

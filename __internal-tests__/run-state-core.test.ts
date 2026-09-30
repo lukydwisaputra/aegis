@@ -7,6 +7,7 @@ import {
   findAegisRoot,
   isCliRecordedEventType,
   isSpecialist,
+  pairedSpv,
   readActiveRun,
   readSettings,
   resolveCaller,
@@ -105,6 +106,18 @@ describe('caller', () => {
   it.each(['run.status', 'integrity.verify'] as const)('lets both owner and agents run %s', (cmd) => {
     expect(thrownCode(() => assertCallerAllowed('owner', cmd))).toBeUndefined();
     expect(thrownCode(() => assertCallerAllowed('qa-ui-specialist', cmd))).toBeUndefined();
+  });
+
+  it.each([
+    ['qa-ui-specialist', 'qa-ui-specialist-spv'],
+    ['qa-test-planner', 'qa-test-planner-spv'],
+    ['qa-cicd-planner', 'qa-cicd-spv'],
+    ['qa-cicd-implementer', 'qa-cicd-spv'],
+    ['qa-cicd-evaluator', 'qa-cicd-spv'],
+    ['qa-github-planner', 'qa-github-spv'],
+    ['qa-github-implementer', 'qa-github-spv'],
+  ])('pairs %s with %s', (agent, spv) => {
+    expect(pairedSpv(agent)).toBe(spv);
   });
 
   it('recognises Tier-2 specialists but not their SPVs', () => {
