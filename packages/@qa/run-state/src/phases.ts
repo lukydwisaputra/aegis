@@ -164,16 +164,18 @@ export function reviewPassed(root: string, runId: string, agent: string, taskId:
 /** Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. */
 export async function barrierProblems(root: string, runId: string, state: RunState, phase: PhaseId): Promise<string[]> {
   const problems: string[] = [];
-  const tasks = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).filter((t) => t.phase === phase);
+  // A task its dispatcher cancelled before anyone claimed it is not part of the phase (I6).
+  const tasks = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).filter((t) => t.phase === phase && t.status !== "cancelled");
   if (tasks.length === 0 && !PHASES_WITHOUT_TASKS.has(phase)) problems.push(`phase ${phase} has no tasks; dispatch its agents first`);
   for (const t of tasks) {
     if (t.status !== "done" && t.status !== "failed") {
       problems.push(`task ${t.id} is ${t.status}`);
       continue;
     }
-    const agent = t.claimedBy;
-    if (agent === undefined) {
-      problems.push(`task ${t.id} was never claimed`);
+    // The assignee is the only agent that can claim the task; its paired SPV reviews it.
+    const agent = t.assignee;
+    if (agent === undefined || t.claimedBy !== agent) {
+      problems.push(agent === undefined ? `task ${t.id} has no assignee` : `task ${t.id} was not released by its assignee ${agent}`);
       continue;
     }
     const attempts = attemptsIn(workDir(root, runId), agent, t.id);
@@ -212,7 +214,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       const id = gateTaskId(gate);
       const gateTask = tasks.find((t) => t.id === id);
       if (gateTask === undefined) {
-        problems.push(`gate task ${id} is missing; the orchestrator adds it (aegis task add --id ${id}) and it needs a passing ${pairedSpv(ORCHESTRATOR)} review`);
+        problems.push(`gate task ${id} is missing; the orchestrator adds it (aegis task add --id ${id} --agent ${ORCHESTRATOR}) and it needs a passing ${pairedSpv(ORCHESTRATOR)} review`);
       } else if (gateTask.status !== "done" || gateTask.claimedBy !== ORCHESTRATOR || !gateTaskPassed(root, runId, state, gate)) {
         problems.push(`gate task ${id} needs a passing ${pairedSpv(ORCHESTRATOR)} review of its latest attempt`);
       }

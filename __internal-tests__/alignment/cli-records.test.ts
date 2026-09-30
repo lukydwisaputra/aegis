@@ -32,6 +32,7 @@ const ENTRY: Record<string, string> = {
   'run.resume': 'resumeRun',
   'task.claim': 'claimTask',
   'task.release': 'releaseTask',
+  'task.cancel': 'cancelTask',
   'work-report.submit': 'submitWorkReport',
   'review.submit': 'submitReview',
   'integrity.verify': 'verifyRunIntegrity',

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, busPath, claimTask, completePhase, createRun, decideEscalation, nextStep, notApplicableReason, readRun,
+  addTask, busPath, cancelTask, claimTask, completePhase, createRun, decideEscalation, nextStep, notApplicableReason, readRun,
   releaseTask, requestStop, resumeRun, runDir, runJsonPath, startPhase, submitReview, submitWorkReport, taskmasterDir,
 } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
@@ -91,7 +91,7 @@ describe('I1: no accept-with-risk on a gate task', () => {
   it('three rejections of T-GATE-G1 escalate; accept-with-risk is refused, retry is allowed (p4.sh P4a)', async () => {
     await create();
     await planning();
-    await addTask(t.root, runId, { id: 'T-GATE-G1', title: 'Gate 1 preconditions' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-GATE-G1', title: 'Gate 1 preconditions', agent: ORCH }, ORCH);
     for (let i = 0; i < 3; i++) {
       await attempt('T-GATE-G1', ORCH);
       await reviewed('T-GATE-G1', ORCH, 'qa-orchestrator-spv', 'requested-changes');
@@ -109,7 +109,7 @@ describe('I2: an escalation abort is terminal', () => {
   it('abort stops the run with an escalation-abort cause; resume refuses it (p3.sh P3c)', async () => {
     await create();
     await requirements();
-    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
     for (let i = 0; i < 3; i++) {
       await attempt('T-requirements-1', RA);
       await reviewed('T-requirements-1', RA, `${RA}-spv`, 'requested-changes');
@@ -126,7 +126,7 @@ describe('I3: a failed release always escalates', () => {
   it('an SPV-reviewed agent: failed opens the escalation for its latest attempt; retry recovers (p4.sh P4c)', async () => {
     await create();
     await requirements();
-    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
     await attempt('T-requirements-1', RA, 'failed');
     expect(readRun(t.root, runId)).toMatchObject({ status: 'blocked', blockedBy: [expect.objectContaining({ kind: 'escalation', taskId: 'T-requirements-1', agent: RA })] });
     expect(fs.existsSync(marker(RA, 'T-requirements-1'))).toBe(true);
@@ -144,7 +144,7 @@ describe('I3: a failed release always escalates', () => {
     fastForward(t.root, runId, 'scan');
     await startPhase(t.root, runId, 'scan', ORCH);
     writeRunFile(t.root, runId, 'target-profile.json', PROFILE);
-    await addTask(t.root, runId, { id: 'T-scan-1', title: 'scan' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-scan-1', title: 'scan', agent: 'qa-context-scanner' }, ORCH);
     await attempt('T-scan-1', 'qa-context-scanner', 'failed');
     expect(readRun(t.root, runId)).toMatchObject({ status: 'blocked', blockedBy: [expect.objectContaining({ kind: 'escalation', taskId: 'T-scan-1' })] });
     await decideEscalation(t.root, runId, { taskId: 'T-scan-1', decision: 'retry', reason: 'Target is reachable again' }, 'owner');
@@ -155,7 +155,7 @@ describe('I3: a failed release always escalates', () => {
   it('accept-with-risk on a failed attempt satisfies the barrier without a review', async () => {
     await create();
     await requirements();
-    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
     await attempt('T-requirements-1', RA, 'failed');
     await decideEscalation(t.root, runId, { taskId: 'T-requirements-1', decision: 'accept-with-risk', reason: 'Known gap, tracked' }, 'owner');
     await expect(completePhase(t.root, runId, 'requirements', ORCH)).resolves.toMatchObject({ phases: { requirements: { status: 'completed' } } });
@@ -164,7 +164,7 @@ describe('I3: a failed release always escalates', () => {
   it('an escalation lost after the release was recorded is re-driven by releasing failed again', async () => {
     await create();
     await requirements();
-    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
     const before = readRun(t.root, runId);
     await attempt('T-requirements-1', RA, 'failed');
     // Simulate a crash between task.released and the block: no marker, run not blocked.
@@ -205,7 +205,7 @@ describe('I4: run.json is restored when the event write fails', () => {
   it('escalation decide: run.json unchanged, the escalation stays open, and the decision can be retried', async () => {
     await create();
     await requirements();
-    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
     await attempt('T-requirements-1', RA, 'failed');
     const before = readRun(t.root, runId);
     const repair = tearBus();
@@ -238,7 +238,7 @@ describe('M1: a block or decide keeps a stopped run stopped', () => {
   it('stop, then a 3rd rejection in flight, then retry: the run stays stopped and resume works (p4.sh P4d)', async () => {
     await create();
     await requirements();
-    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
     for (let i = 0; i < 2; i++) {
       await attempt('T-requirements-1', RA);
       await reviewed('T-requirements-1', RA, `${RA}-spv`, 'requested-changes');
@@ -260,7 +260,7 @@ describe('claims outside the current phase or while a gate is open', () => {
   it('a task of another phase cannot be claimed', async () => {
     await create();
     await startPhase(t.root, runId, 'intake', ORCH);
-    await addTask(t.root, runId, { id: 'T-intake-1', title: 'late' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-intake-1', title: 'late', agent: 'qa-context-scanner' }, ORCH);
     const s = readRun(t.root, runId);
     fs.writeFileSync(runJsonPath(t.root, runId), JSON.stringify({ ...s, currentPhase: 'scan', phases: { ...s.phases, intake: { status: 'completed' }, scan: { status: 'in-progress' } } }));
     await expect(claimTask(t.root, runId, 'T-intake-1', 'qa-context-scanner')).rejects.toMatchObject({ code: 'run-not-active', message: expect.stringMatching(/belongs to phase intake, but phase scan is in progress/) });
@@ -270,7 +270,7 @@ describe('claims outside the current phase or while a gate is open', () => {
   it('no task can be claimed while a gate awaits the owner', async () => {
     await create();
     await startPhase(t.root, runId, 'intake', ORCH);
-    await addTask(t.root, runId, { id: 'T-intake-1', title: 'x' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-intake-1', title: 'x', agent: 'qa-test-planner' }, ORCH);
     const s = readRun(t.root, runId);
     fs.writeFileSync(runJsonPath(t.root, runId), JSON.stringify({ ...s, status: 'awaiting-gate', gates: { G1: { status: 'open', decisions: 0 } } }));
     await expect(claimTask(t.root, runId, 'T-intake-1', 'qa-test-planner')).rejects.toMatchObject({ code: 'run-not-active', message: expect.stringMatching(/"awaiting-gate"/) });
@@ -291,5 +291,82 @@ describe('intake globs with a leading ./', () => {
     const b = await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full', intake: ['./docs/*.md'] }, 'owner');
     expect(fs.existsSync(path.join(runDir(t.root, b.runId), 'intake', 'docs', 'prd.md'))).toBe(true);
     await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full', intake: ['./'] }, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});
+
+describe('I6: task assignee and cancel', () => {
+  const TD = 'qa-test-designer';
+  /** Design in progress (G1 approved) with its output written. */
+  async function design() {
+    await create();
+    fastForward(t.root, runId, 'design', { G1: { status: 'approved', decisions: 1 } });
+    await startPhase(t.root, runId, 'design', ORCH);
+    writeRunFile(t.root, runId, 'rtm.json', {});
+  }
+
+  it('task add needs a qa-* agent; a gate task belongs to the orchestrator', async () => {
+    await design();
+    for (const agent of ['owner', 'designer', '']) {
+      await expect(addTask(t.root, runId, { id: 'T-design-1', title: 'd', agent }, ORCH)).rejects.toMatchObject({ code: 'invalid-input' });
+    }
+    await expect(addTask(t.root, runId, { id: 'T-GATE-G1', title: 'g', agent: 'qa-test-planner' }, ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/qa-orchestrator/) });
+    await expect(addTask(t.root, runId, { id: 'T-design-1', title: 'd', agent: TD }, ORCH)).resolves.toMatchObject({ assignee: TD, createdBy: ORCH, status: 'pending' });
+  });
+
+  it('only the assignee claims the task (not-assignee)', async () => {
+    await design();
+    await addTask(t.root, runId, { id: 'T-design-1', title: 'd', agent: TD }, ORCH);
+    await expect(claimTask(t.root, runId, 'T-design-1', 'qa-test-planner')).rejects.toMatchObject({ code: 'not-assignee', message: expect.stringMatching(/assigned to qa-test-designer/) });
+    expect(await task('T-design-1')).toMatchObject({ status: 'pending' });
+    await expect(claimTask(t.root, runId, 'T-design-1', TD)).resolves.toMatchObject({ status: 'in-progress', claimedBy: TD });
+  });
+
+  it('the barrier reviews the assignee: its paired SPV must pass the latest attempt', async () => {
+    await design();
+    await workTask(t.root, runId, 'T-design-1', TD, null);
+    await expect(completePhase(t.root, runId, 'design', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/attempt 1 of qa-test-designer has no passing review/) });
+    await reviewed('T-design-1', TD, `${TD}-spv`, 'passed');
+    await expect(completePhase(t.root, runId, 'design', ORCH)).resolves.toMatchObject({ phases: { design: { status: 'completed' } } });
+  });
+
+  it('cancel: only the creator, only a never-claimed pending task; records task.cancelled', async () => {
+    await design();
+    await addTask(t.root, runId, { id: 'T-design-2', title: 'd2', agent: TD }, ORCH);
+    await expect(cancelTask(t.root, runId, 'T-design-2', 'not needed', 'qa-test-executor')).rejects.toMatchObject({ code: 'caller-forbidden', message: expect.stringMatching(/added by qa-orchestrator/) });
+    await expect(cancelTask(t.root, runId, 'T-design-2', '  ', ORCH)).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(cancelTask(t.root, runId, 'T-design-2', 'Covered by T-design-1', ORCH)).resolves.toMatchObject({ status: 'cancelled', cancelReason: 'Covered by T-design-1' });
+    expect(events().pop()).toMatchObject({ type: 'task.cancelled', taskId: 'T-design-2', agent: TD, reason: 'Covered by T-design-1', emittedBy: ORCH });
+    await expect(claimTask(t.root, runId, 'T-design-2', TD)).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(cancelTask(t.root, runId, 'T-design-2', 'again', ORCH)).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+
+  it('cancel refuses a claimed task, a task reopened after a claim, and a gate task', async () => {
+    await design();
+    await addTask(t.root, runId, { id: 'T-design-1', title: 'd', agent: TD }, ORCH);
+    await claimTask(t.root, runId, 'T-design-1', TD);
+    await expect(cancelTask(t.root, runId, 'T-design-1', 'too late', ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/in-progress/) });
+    await submitWorkReport(t.root, runId, tmp(workReport(TD, 'T-design-1')), TD);
+    await releaseTask(t.root, runId, 'T-design-1', 'done', TD);
+    await reviewed('T-design-1', TD, `${TD}-spv`, 'requested-changes');
+    expect(await task('T-design-1')).toMatchObject({ status: 'pending' });
+    await expect(cancelTask(t.root, runId, 'T-design-1', 'drop it', ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/was claimed before/) });
+    await addTask(t.root, runId, { id: 'T-GATE-G1', title: 'g', agent: ORCH }, ORCH);
+    await expect(cancelTask(t.root, runId, 'T-GATE-G1', 'drop it', ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/gate task/) });
+  });
+
+  it('the barrier ignores a cancelled task', async () => {
+    await design();
+    await workTask(t.root, runId, 'T-design-1', TD, `${TD}-spv`);
+    await addTask(t.root, runId, { id: 'T-design-2', title: 'd2', agent: TD }, ORCH);
+    await expect(completePhase(t.root, runId, 'design', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/T-design-2 is pending/) });
+    await cancelTask(t.root, runId, 'T-design-2', 'Covered by T-design-1', ORCH);
+    await expect(completePhase(t.root, runId, 'design', ORCH)).resolves.toMatchObject({ phases: { design: { status: 'completed' } } });
+  });
+
+  it('a phase whose only task was cancelled still has no tasks', async () => {
+    await design();
+    await addTask(t.root, runId, { id: 'T-design-1', title: 'd', agent: TD }, ORCH);
+    await cancelTask(t.root, runId, 'T-design-1', 'wrong agent', ORCH);
+    await expect(completePhase(t.root, runId, 'design', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/has no tasks/) });
   });
 });

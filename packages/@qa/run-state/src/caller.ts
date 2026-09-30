@@ -15,6 +15,7 @@ export const CLI_COMMANDS = [
   "task.add",
   "task.claim",
   "task.release",
+  "task.cancel",
   "work-report.submit",
   "review.submit",
   "integrity.verify",

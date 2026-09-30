@@ -128,7 +128,7 @@ describe('phase barrier (spec §6.1)', () => {
 describe('tasks belong to their phase', () => {
   it('a late task blocks the barrier; a task of a finished phase cannot be claimed', async () => {
     await startPhase(t.root, runId, 'intake', ORCH);
-    await addTask(t.root, runId, { id: 'T-intake-1', title: 'late' }, ORCH);
+    await addTask(t.root, runId, { id: 'T-intake-1', title: 'late', agent: 'qa-context-scanner' }, ORCH);
     await expect(completePhase(t.root, runId, 'intake', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/T-intake-1 is pending/) });
     const s = readRun(t.root, runId);
     fs.writeFileSync(runFile(), JSON.stringify({ ...s, currentPhase: 'scan', phases: { ...s.phases, intake: { status: 'completed' }, scan: { status: 'in-progress' } } }));

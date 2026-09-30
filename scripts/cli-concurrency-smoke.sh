@@ -21,13 +21,12 @@ cd "$TMP"
 
 AEGIS_AGENT=owner node "$AEGIS" run create --env development --module AUTH >/dev/null
 AEGIS_AGENT=qa-orchestrator node "$AEGIS" phase start --phase intake >/dev/null
-for t in T-A T-B T-C T-D; do
-  AEGIS_AGENT=qa-test-executor node "$AEGIS" task add --id "$t" --title "task $t" >/dev/null
-done
-
 # 4 parallel claims by 4 specialists, cap = 2
 agents=(qa-ui-specialist qa-api-specialist qa-database-specialist qa-security-specialist)
 tasks=(T-A T-B T-C T-D)
+for i in 0 1 2 3; do
+  AEGIS_AGENT=qa-test-executor node "$AEGIS" task add --id "${tasks[$i]}" --title "task ${tasks[$i]}" --agent "${agents[$i]}" >/dev/null
+done
 pids=()
 for i in 0 1 2 3; do
   ( set +e; AEGIS_AGENT="${agents[$i]}" node "$AEGIS" task claim --task "${tasks[$i]}" >"$TMP/claim$i.out" 2>"$TMP/claim$i.err"; echo $? >"$TMP/claim$i.rc" ) &

@@ -63,7 +63,7 @@ const events = () => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l))
 beforeEach(async () => {
   t = makeAegisRoot();
   runId = await startedRun(t.root);
-  await addTask(t.root, runId, { id: 'T-1', title: 'login scripts' }, 'qa-test-executor');
+  await addTask(t.root, runId, { id: 'T-1', title: 'login scripts', agent: WORKER }, 'qa-test-executor');
   await claimTask(t.root, runId, 'T-1', WORKER);
 });
 
@@ -225,7 +225,7 @@ describe('paired SPV only (R5)', () => {
 
   it('lets qa-cicd-spv review qa-cicd-planner', async () => {
     const planner = 'qa-cicd-planner';
-    await addTask(t.root, runId, { id: 'T-2', title: 'ci plan' }, 'qa-test-executor');
+    await addTask(t.root, runId, { id: 'T-2', title: 'ci plan', agent: planner }, 'qa-test-executor');
     await claimTask(t.root, runId, 'T-2', planner);
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport({ taskId: 'T-2', agent: planner })), planner);
     await releaseTask(t.root, runId, 'T-2', 'done', planner);

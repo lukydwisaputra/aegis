@@ -65,9 +65,9 @@ describe('intake (spec §6.3, AUD-005)', () => {
 
 it('work needs a running run with a phase in progress, and tasks carry that phase (CO-08)', async () => {
   const { runId } = await create();
-  await expect(addTask(t.root, runId, { id: 'T-1', title: 'x' }, 'qa-orchestrator')).rejects.toMatchObject({ code: 'run-not-active' });
+  await expect(addTask(t.root, runId, { id: 'T-1', title: 'x', agent: 'qa-test-planner' }, 'qa-orchestrator')).rejects.toMatchObject({ code: 'run-not-active' });
   await startPhase(t.root, runId, 'intake', 'qa-orchestrator');
-  await expect(addTask(t.root, runId, { id: 'T-1', title: 'x' }, 'qa-orchestrator')).resolves.toMatchObject({ phase: 'intake', status: 'pending' });
+  await expect(addTask(t.root, runId, { id: 'T-1', title: 'x', agent: 'qa-test-planner' }, 'qa-orchestrator')).resolves.toMatchObject({ phase: 'intake', status: 'pending' });
   await expect(claimTask(t.root, runId, 'T-1', 'qa-test-planner')).resolves.toMatchObject({ status: 'in-progress' });
 });
 

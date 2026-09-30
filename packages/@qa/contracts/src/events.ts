@@ -1570,6 +1570,15 @@ export const EscalationDecidedEventSchema = EventBase.extend({
   reason: z.string().min(1),
 });
 
+// aegis task cancel: the dispatcher withdrew a task nobody claimed; the phase barrier ignores it.
+export const TaskCancelledEventSchema = EventBase.extend({
+  type: z.literal("task.cancelled"),
+  runId: RunIdSchema,
+  taskId: z.string().min(1),
+  agent: z.string().min(1),
+  reason: z.string().min(1),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 export const AegisEventSchema = z.discriminatedUnion("type", [
@@ -1789,6 +1798,7 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   GateDecidedEventSchema,
   GateAutoDecidedEventSchema,
   EscalationDecidedEventSchema,
+  TaskCancelledEventSchema,
 ]);
 
 export type AegisEvent = z.infer<typeof AegisEventSchema>;

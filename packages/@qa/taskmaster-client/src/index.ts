@@ -11,7 +11,8 @@ export type TaskStatus =
   | "done"
   | "failed"
   | "skipped"
-  | "blocked";
+  | "blocked"
+  | "cancelled";
 
 export interface Task {
   id: string;
@@ -19,11 +20,15 @@ export interface Task {
   title: string;
   description?: string;
   phase?: string; // pipeline phase, set by aegis task add; read by the phase barrier
+  assignee?: string; // the only agent that may claim it (aegis task add --agent)
+  createdBy?: string; // the dispatcher that added it; the only caller that may cancel it
   status: TaskStatus;
   claimedBy?: string;
   claimedAt?: string;
   completedAt?: string;
   result?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
   subtasks?: Task[];
 }
 
@@ -55,6 +60,9 @@ export interface TaskmasterClient {
 
   /** Create a top-level task (no parent). Throws if the ID already exists. */
   addRootTask(task: Omit<Task, "status" | "parentId">): Promise<void>;
+
+  /** Cancel a pending task that was never claimed. Throws ClaimError if it is not pending or was claimed. */
+  cancel(taskId: string, reason: string): Promise<void>;
 
   /** Return a finished task to pending so it can be claimed again (SPV requested changes). */
   reopen(taskId: string): Promise<void>;
@@ -250,6 +258,23 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
           throw new Error(`Task "${taskData.id}" already exists`);
         }
         throw e;
+      }
+    },
+
+    async cancel(taskId, reason) {
+      const filePath = taskFilePath(tasksDir, taskId);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+      const release = await lockfile.lock(filePath, LOCK_OPTIONS);
+      try {
+        const task = readTaskFile(filePath);
+        if (task.status !== "pending" || task.claimedBy !== undefined) {
+          throw new ClaimError(taskId, task.status);
+        }
+        writeTaskFile(filePath, { ...task, status: "cancelled", cancelledAt: nowIso(), cancelReason: reason });
+      } finally {
+        await release();
       }
     },
 

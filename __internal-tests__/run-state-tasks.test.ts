@@ -12,7 +12,10 @@ let runId: string;
 async function setup(maxSpecialists: number) {
   t = makeAegisRoot({ maxSpecialists });
   runId = await startedRun(t.root);
-  for (const id of ['T-1', 'T-2', 'T-3']) await addTask(t.root, runId, { id, title: `task ${id}` }, 'qa-test-executor');
+  // Each task has its assignee (I6): T-1 the UI specialist, T-2 the API specialist, T-3 the executor.
+  for (const [id, agent] of [['T-1', 'qa-ui-specialist'], ['T-2', 'qa-api-specialist'], ['T-3', 'qa-test-executor']]) {
+    await addTask(t.root, runId, { id: id!, title: `task ${id}`, agent: agent! }, 'qa-test-executor');
+  }
 }
 
 afterEach(() => t.cleanup());
@@ -54,7 +57,7 @@ describe('claimTask', () => {
 
   it('does not count non-specialists against the cap', async () => {
     await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
-    await expect(claimTask(t.root, runId, 'T-2', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
+    await expect(claimTask(t.root, runId, 'T-3', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
   });
 
   it('refuses claims once a stop is requested', async () => {
@@ -98,8 +101,8 @@ describe('claimTask', () => {
   });
 
   it('refuses a task that is already claimed', async () => {
-    await claimTask(t.root, runId, 'T-1', 'qa-test-executor');
-    await expect(claimTask(t.root, runId, 'T-1', 'qa-test-designer')).rejects.toMatchObject({ code: 'invalid-input' });
+    await claimTask(t.root, runId, 'T-3', 'qa-test-executor');
+    await expect(claimTask(t.root, runId, 'T-3', 'qa-test-executor')).rejects.toMatchObject({ code: 'invalid-input' });
   });
 });
 
@@ -144,15 +147,15 @@ describe('addTask', () => {
   beforeEach(() => setup(2));
 
   it('rejects duplicate and malformed ids', async () => {
-    await expect(addTask(t.root, runId, { id: 'T-1', title: 'dup' }, 'qa-test-executor')).rejects.toThrow(/already exists/);
+    await expect(addTask(t.root, runId, { id: 'T-1', title: 'dup', agent: 'qa-ui-specialist' }, 'qa-test-executor')).rejects.toThrow(/already exists/);
     const results = await Promise.allSettled([
-      addTask(t.root, runId, { id: 'T-NEW', title: 'a' }, 'qa-test-executor'),
-      addTask(t.root, runId, { id: 'T-NEW', title: 'b' }, 'qa-test-executor'),
+      addTask(t.root, runId, { id: 'T-NEW', title: 'a', agent: 'qa-ui-specialist' }, 'qa-test-executor'),
+      addTask(t.root, runId, { id: 'T-NEW', title: 'b', agent: 'qa-ui-specialist' }, 'qa-test-executor'),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rej = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
     expect(rej.reason).toMatchObject({ code: 'invalid-input' });
-    await expect(addTask(t.root, runId, { id: '../x', title: 'bad' }, 'qa-test-executor')).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(addTask(t.root, runId, { id: '../x', title: 'bad', agent: 'qa-ui-specialist' }, 'qa-test-executor')).rejects.toMatchObject({ code: 'invalid-input' });
   });
 });
 
@@ -196,7 +199,7 @@ describe('task id validation on claim and release', () => {
 
   it('cannot reach a task in another run through a traversal id', async () => {
     const other = await startedRun(t.root);
-    await addTask(t.root, other, { id: 'T-B', title: 'other' }, 'qa-test-executor');
+    await addTask(t.root, other, { id: 'T-B', title: 'other', agent: 'qa-ui-specialist' }, 'qa-test-executor');
     const evil = `../../../${other}/taskmaster/tasks/T-B`;
     await expect(claimTask(t.root, runId, evil, 'qa-ui-specialist')).rejects.toMatchObject({ message: expect.stringContaining('must match') });
     const c = createTaskmasterClient(taskmasterDir(t.root, other));
@@ -265,20 +268,22 @@ describe('claimTask environment safety (AUD-037)', () => {
       production: { url: 'https://example.com', mutating: false, readOnly: true, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['database'] },
     } });
     runId = await startedRun(t.root, 'smoke', 'production');
-    await addTask(t.root, runId, { id: 'T-1', title: 'task T-1' }, 'qa-test-executor');
+    for (const agent of ['qa-database-specialist', 'qa-exploratory-specialist', 'qa-api-specialist', 'qa-ui-specialist']) {
+      await addTask(t.root, runId, { id: `T-${agent}`, title: `task for ${agent}`, agent }, 'qa-test-executor');
+    }
   });
   it('refuses a forbidden specialist, records env.specialist-blocked, leaves the task unclaimed', async () => {
-    await expect(claimTask(t.root, runId, 'T-1', 'qa-database-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
+    await expect(claimTask(t.root, runId, 'T-qa-database-specialist', 'qa-database-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
     expect(lastEvent()).toMatchObject({ type: 'env.specialist-blocked', env: 'production', specialist: 'qa-database-specialist' });
-    expect((await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-1'))?.status).not.toBe('in-progress');
+    expect((await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-qa-database-specialist'))?.status).not.toBe('in-progress');
   });
   it('refuses a specialist missing from allowedSpecialists; a refusal uses no cap slot', async () => {
-    await expect(claimTask(t.root, runId, 'T-1', 'qa-exploratory-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
-    await expect(claimTask(t.root, runId, 'T-1', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+    await expect(claimTask(t.root, runId, 'T-qa-exploratory-specialist', 'qa-exploratory-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
+    await expect(claimTask(t.root, runId, 'T-qa-api-specialist', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
   });
   it('lets an allowed specialist and a non-specialist claim', async () => {
-    await addTask(t.root, runId, { id: 'T-2', title: 'task T-2' }, 'qa-test-executor');
-    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+    await addTask(t.root, runId, { id: 'T-2', title: 'task T-2', agent: 'qa-test-executor' }, 'qa-test-executor');
+    await expect(claimTask(t.root, runId, 'T-qa-ui-specialist', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
     await expect(claimTask(t.root, runId, 'T-2', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
   });
 });

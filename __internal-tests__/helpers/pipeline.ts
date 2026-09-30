@@ -64,7 +64,7 @@ export async function workTask(
   verdict: 'passed' | 'requested-changes' = 'passed',
   result: 'done' | 'failed' = 'done',
 ) {
-  await addTask(root, runId, { id: taskId, title: `task ${taskId}` }, ORCH);
+  await addTask(root, runId, { id: taskId, title: `task ${taskId}`, agent }, ORCH);
   await claimTask(root, runId, taskId, agent);
   await submitWorkReport(root, runId, tmpJson(root, `wr-${taskId}.json`, workReport(agent, taskId)), agent);
   await releaseTask(root, runId, taskId, result, agent);
