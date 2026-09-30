@@ -94,6 +94,18 @@ describe('caller', () => {
     expect(thrownCode(() => assertCallerAllowed('qa-ui-specialist', 'task.claim'))).toBeUndefined();
   });
 
+  it.each(['run.create', 'run.stop', 'run.resume'] as const)('forbids owner-only %s for an agent', (cmd) => {
+    expect(() => assertCallerAllowed('qa-ui-specialist', cmd)).toThrow(
+      expect.objectContaining({ code: 'caller-forbidden', message: `${cmd} is owner-only; run it through its /qa-* command` }),
+    );
+    expect(thrownCode(() => assertCallerAllowed('owner', cmd))).toBeUndefined();
+  });
+
+  it.each(['run.status', 'integrity.verify'] as const)('lets both owner and agents run %s', (cmd) => {
+    expect(thrownCode(() => assertCallerAllowed('owner', cmd))).toBeUndefined();
+    expect(thrownCode(() => assertCallerAllowed('qa-ui-specialist', cmd))).toBeUndefined();
+  });
+
   it('recognises Tier-2 specialists but not their SPVs', () => {
     expect(isSpecialist('qa-ui-specialist')).toBe(true);
     expect(isSpecialist('qa-ui-specialist-spv')).toBe(false);

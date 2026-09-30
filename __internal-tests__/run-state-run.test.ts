@@ -155,3 +155,31 @@ describe('concurrency and missing runs', () => {
     expect(() => readRun(t.root, 'RUN-20260929-099')).toThrow(expect.objectContaining({ code: 'run-not-found' }));
   });
 });
+
+describe('owner-only run commands (R1)', () => {
+  const AGENT = 'qa-ui-specialist';
+  const ownerOnly = (cmd: string) => ({ code: 'caller-forbidden', message: `${cmd} is owner-only; run it through its /qa-* command` });
+
+  it('refuses createRun from an agent', async () => {
+    await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, AGENT)).rejects.toMatchObject(ownerOnly('run.create'));
+    expect(fs.existsSync(path.join(t.root, 'runs'))).toBe(false);
+  });
+
+  it('refuses requestStop from an agent', async () => {
+    const { runId } = await create();
+    await expect(requestStop(t.root, runId, 'agent stop', AGENT)).rejects.toMatchObject(ownerOnly('run.stop'));
+    expect(readRun(t.root, runId).stopRequested).toBe(false);
+  });
+
+  it('refuses resumeRun from an agent', async () => {
+    const { runId } = await create();
+    await requestStop(t.root, runId, 'pause', 'owner');
+    await expect(resumeRun(t.root, runId, AGENT)).rejects.toMatchObject(ownerOnly('run.resume'));
+    expect(readRun(t.root, runId).status).toBe('stopped');
+  });
+
+  it('lets agents read status', async () => {
+    const { runId } = await create();
+    expect(runStatus(t.root, runId, AGENT).runId).toBe(runId);
+  });
+});

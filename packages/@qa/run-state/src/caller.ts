@@ -39,9 +39,15 @@ export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
   return name;
 }
 
+// Commands only the main thread may run; agents reach them through the matching /qa-* skill.
+const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["run.create", "run.stop", "run.resume"]);
+
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller === OWNER && !OWNER_COMMANDS.has(command)) {
     throw new RunStateError("caller-forbidden", `"${command}" is agent-only; the main thread cannot run it`);
+  }
+  if (caller !== OWNER && OWNER_ONLY.has(command)) {
+    throw new RunStateError("caller-forbidden", `${command} is owner-only; run it through its /qa-* command`);
   }
 }
 
