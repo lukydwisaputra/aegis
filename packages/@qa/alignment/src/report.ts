@@ -2,7 +2,7 @@ import { stringify } from "yaml";
 import { loadModel } from "./load.js";
 import { loadBaseline, ratchet, type RatchetResult } from "./ratchet.js";
 import { cliRule, configRule, envRule, handoffRule, routeRule } from "./rules/config.js";
-import { consumerRule, cycleRule, emitterRule, eventRule, producerRule, writePolicyRule } from "./rules/dataflow.js";
+import { consumerRule, cycleRule, emitterRule, eventRule, namedConsumerRule, producerRule, writePolicyRule } from "./rules/dataflow.js";
 import { cliAnchorRule, configAnchorRule, runsAnchorRule, skillKindRule } from "./rules/anchors.js";
 import { escapeRule } from "./rules/escape.js";
 import { pipelineAnchorRule } from "./rules/pipeline.js";
@@ -13,7 +13,7 @@ import type { Model, Violation } from "./types.js";
 
 export const ALL_RULES: Array<(m: Model) => Violation[]> = [
   contractRule, dispatchRule, spvRule, toolRule, cliRule, handoffRule, routeRule, envRule, configRule, unusedConfigRule,
-  producerRule, cycleRule, consumerRule, eventRule, emitterRule, writePolicyRule, skillRule, skillKindRule, driftRule,
+  producerRule, cycleRule, consumerRule, eventRule, emitterRule, namedConsumerRule, writePolicyRule, skillRule, skillKindRule, driftRule,
   cliAnchorRule, configAnchorRule, runsAnchorRule, pipelineAnchorRule, escapeRule, docRefRule, docNameRule, countRule,
 ];
 

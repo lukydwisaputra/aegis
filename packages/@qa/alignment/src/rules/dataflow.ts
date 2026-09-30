@@ -305,3 +305,39 @@ export function emitterRule(m: Model): Violation[] {
   }
   return out;
 }
+
+const RELATIVE_CONSUMER = /\b(that|which)\b[^.;]*\b(process(es)?|consumes?|handles?|picks? up|applies)\b/i;
+const mask = (line: string) => line.replace(/`[^`]*`/g, (x) => " ".repeat(x.length)).replace(/[a-z]+(?:\.[a-z0-9-]+)+/g, (x) => " ".repeat(x.length));
+
+/** Spec §8 (narrowed by controller ruling): prose names a consumer for an emitted event that does not await it (AUD-027). */
+export function namedConsumerRule(m: Model): Violation[] {
+  const out: Violation[] = [];
+  for (const u of m.units.values()) {
+    const c = u.contract;
+    if (c === null) continue;
+    const lines = u.source.split("\n");
+    // Body only: skip frontmatter (--- … ---) and stop before the contract heading.
+    let start = 0;
+    if (lines[0]?.trim() === "---") {
+      const close = lines.findIndex((l, k) => k > 0 && l.trim() === "---");
+      start = close >= 0 ? close + 1 : 0;
+    }
+    const heading = lines.findIndex((l) => l.startsWith("## Contract (machine-checked)"));
+    const end = heading >= 0 ? heading : lines.length;
+    for (const ev of new Set(c.emits.map((e) => e.event))) {
+      const re = new RegExp(`(^|[^a-z0-9.-])${ev.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9-]|$)`);
+      for (let i = start; i < end; i++) {
+        const line = lines[i]!;
+        const hit = re.exec(line);
+        if (hit === null) continue;
+        const rel = RELATIVE_CONSUMER.exec(mask(line));
+        if (rel === null || rel.index < hit.index) continue;
+        const named = [...line.matchAll(/qa-[a-z0-9-]+/g)].map((x) => x[0]).filter((n) => n !== u.name && m.units.has(n));
+        if (named.some((n) => m.units.get(n)?.contract?.awaits.includes(ev))) continue;
+        out.push(violation("EVENT", u.name, ev, "named-consumer-missing", u.file, i + 1, `${u.name} says ${ev} is processed by ${named.join(", ") || "an unnamed consumer"}, which does not await it`));
+        break;
+      }
+    }
+  }
+  return out;
+}

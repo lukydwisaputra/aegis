@@ -775,6 +775,9 @@ entries:
   - key: "EVENT:qa-defect-manager:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
+  - key: "EVENT:qa-defect-manager:rtm.append-link:named-consumer-missing"
+    ids: [AUD-027]
+    note: "qa-defect-manager says rtm.append-link is processed by an unnamed consumer, which does not await it"
   - key: "EVENT:qa-defect-manager:run.phase.completed:cli-recorded"
     ids: [CO-05]
     note: "run.phase.completed is recorded by the CLI"

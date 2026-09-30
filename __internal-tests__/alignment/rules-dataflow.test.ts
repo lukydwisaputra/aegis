@@ -1,4 +1,4 @@
-import { consumerRule, eventRule, loadModel, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
+import { consumerRule, eventRule, loadModel, namedConsumerRule, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
 import { makeRepo, MIN_PIPELINE } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
@@ -225,5 +225,25 @@ it('PRODUCER: a placeholder-free read satisfied only by sources.repo must exist 
     'PRODUCER:qa-s:agent-memory/qa-skill/lessons.json:missing-source',
   ]);
   expect(keys(skillRule(m))).toEqual([]);
+  t.cleanup();
+});
+
+it('AH-11/AUD-027: an event whose prose names a consumer that does not await it is reported', () => {
+  const body = (s: string) => `# x\n\n## Your Role\n\n${s}\n`;
+  const t = makeRepo({
+    agents: {
+      'qa-a': {
+        body: body('Emits `rtm.append-link` events that qa-b or a post-design RTM updater processes.\nEmits `test.passed`, which qa-c consumes.\nEmits `defect.opened` for the audit trail.'),
+        contract: ag('crosscutting', { emits: [{ event: 'rtm.append-link', via: 'append' }, { event: 'test.passed', via: 'append' }, { event: 'defect.opened', via: 'append' }] }),
+      },
+      'qa-b': { contract: ag('crosscutting', {}) },
+      'qa-c': { contract: ag('crosscutting', { awaits: ['test.passed'] }) },
+      'qa-d': { body: body('Emits `bus.error`, which an operator handles.\nHandle `bus.error` failures; every item processed is logged; `deps.applied` is emitted too.'), contract: ag('crosscutting', { emits: [{ event: 'bus.error', via: 'append' }] }) },
+    },
+  });
+  expect(keys(namedConsumerRule(loadModel(t.root))).sort()).toEqual([
+    'EVENT:qa-a:rtm.append-link:named-consumer-missing',
+    'EVENT:qa-d:bus.error:named-consumer-missing',
+  ]);
   t.cleanup();
 });
