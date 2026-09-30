@@ -5,6 +5,7 @@ import { cliRule, configRule, envRule, routeRule } from "./rules/config.js";
 import { consumerRule, eventRule, producerRule, writePolicyRule } from "./rules/dataflow.js";
 import { cliAnchorRule, configAnchorRule, runsAnchorRule, skillKindRule } from "./rules/anchors.js";
 import { escapeRule } from "./rules/escape.js";
+import { pipelineAnchorRule } from "./rules/pipeline.js";
 import { docRefRule, driftRule, skillRule } from "./rules/prose.js";
 import { contractRule, dispatchRule, spvRule } from "./rules/structure.js";
 import type { Model, Violation } from "./types.js";
@@ -12,7 +13,7 @@ import type { Model, Violation } from "./types.js";
 export const ALL_RULES: Array<(m: Model) => Violation[]> = [
   contractRule, dispatchRule, spvRule, cliRule, routeRule, envRule, configRule,
   producerRule, consumerRule, eventRule, writePolicyRule, skillRule, skillKindRule, driftRule,
-  cliAnchorRule, configAnchorRule, runsAnchorRule, escapeRule, docRefRule,
+  cliAnchorRule, configAnchorRule, runsAnchorRule, pipelineAnchorRule, escapeRule, docRefRule,
 ];
 
 export interface AlignmentReport {
