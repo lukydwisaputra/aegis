@@ -11,7 +11,7 @@ See [HANDBOOK chapter 12](../HANDBOOK/12-cicd-operations.md) for the narrative w
 |-------|---------|---------------|---------|--------|
 | Pre-commit | `git commit` | Husky hook | lint + tc + unit | ~30s |
 | PR gate | PR opened / synchronize | `qa-smoke.yml` | `/qa-smoke --env=testing` | ~10 min |
-| Main merge | push to `main` | `qa-full.yml` | `/qa-start --env=staging --skip-gates-ci` | ~30–60 min |
+| Main merge | push to `main` | `qa-full.yml` | `/qa-start --env=staging` (pauses at G1–G3 for `/qa-gate-decide`) | ~30–60 min |
 | Nightly | cron `0 2 * * *` | `qa-nightly.yml` | `/qa-regression + /qa-compare` | ~60–90 min |
 | Pre-release | tag `v*.*.*` | `qa-release.yml` | `/qa-start` + compliance | ~90 min |
 | Post-deploy | deploy webhook | `qa-smoke-prod.yml` | `/qa-smoke --env=production --read-only` | ~5 min |
@@ -40,7 +40,7 @@ testing (ephemeral per PR)
 staging (prod mirror)
   trigger: push to main
   workflow: qa-full.yml
-  command:  /qa-start --env=staging --skip-gates-ci
+  command:  /qa-start --env=staging
   nightly:  qa-nightly.yml → /qa-regression + /qa-compare
   gate:     STAGING
         │

@@ -23,14 +23,14 @@ SPV (read-only, tools: [Read, Bash]):
   reads: work-report.json + actual artifacts + worker's lessons.md
   writes: review.json (verdict + findings + corrective instructions)
   ↓
-Dispatcher reads review.json verdict, then:
+Dispatcher reads the verdict, then:
   passed                    → advance
-  passed-with-notes         → dispatcher calls pipeCorrectiveInstruction(); advance
-  requested-changes         → dispatcher calls pipeCorrectiveInstruction(); worker must redo task
-  2nd consecutive rejection → human gate
+  passed-with-notes         → advance (aegis review submit already appended the lesson)
+  requested-changes         → the CLI reopened the task; the worker redoes it
+  3rd rejection             → the CLI records task.escalated and blocks the run → /qa-escalation
 ```
 
-> **SPVs do not self-trigger and do not write lessons.** Tier-1 SPVs are dispatched by `qa-orchestrator` after each phase; Tier-2 SPVs are dispatched by `qa-test-executor` after each specialist. The **dispatcher** reads the SPV's `review.json` verdict and calls `pipeCorrectiveInstruction()` to append the lesson — because SPVs hold `tools: [Read, Bash]` and cannot write `lessons.json` themselves.
+> **SPVs do not self-trigger and do not write lessons.** Tier-1 SPVs are dispatched by `qa-orchestrator` after each phase; Tier-2 SPVs are dispatched by `qa-test-executor` after each specialist. The SPV submits its verdict with `aegis review submit`, which is the only path that appends lessons (`pipeCorrectiveInstruction()` in `@qa/agent-memory`); dispatchers never pipe lessons themselves.
 
 ## Work-report schema
 
@@ -107,10 +107,7 @@ Standard dedup/conflict/cap rules apply. Worker reads the updated `lessons.md` a
 
 ## SPV model assignment
 
-All SPVs default to the `validation` tier (Opus 4.7). The SPV fast-path (from `docs/D13-spv-fast-path.md`) allows first-pass review on Sonnet with Opus escalation only when:
-- Verdict is `requested-changes` or `passed-with-notes`
-- Work touches security/compliance/auth
-- Novel pattern not seen in lessons
+All SPVs run on the `validation` tier from `.claude/model-policy.yaml`. There is no Sonnet-first model escalation; `docs/D13-spv-fast-path.md` covers only the reduced review prompt.
 
 ## What SPVs do NOT do
 

@@ -35,14 +35,9 @@ The `ingestion` section of `model-policy.yaml` defines a multi-stage strategy:
 
 See `docs/D05-book-ingestion-model-strategy.md` for full cost breakdown.
 
-## SPV fast-path
+## SPV model
 
-First-pass review on Sonnet; escalate to Opus only when:
-- Verdict is `requested-changes` or `passed-with-notes`
-- Work touches security/compliance/auth
-- Novel pattern not seen in lessons
-
-Controlled by `aegis.config.json.spv.fastPath: true` (default). Estimated 40-60% SPV token reduction.
+SPVs run on the `validation` tier. There is no automatic Sonnet-first escalation: the former `spvFastPath` block and the `escalateOnFinding` brief flag were never implemented and are removed from `model-policy.yaml`.
 
 ## Build step
 

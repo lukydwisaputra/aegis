@@ -34,7 +34,6 @@ _Top 10 commands. Print this, stick it somewhere._
 ```
 --env=development|testing|staging|production
 --module=AUTH          (scope to one module)
---max-parallel=4       (specialist concurrency)
 --run=RUN-20260523-001 (target a specific run)
 --dry-run              (preview without spending tokens)
 --json                 (machine-readable output)

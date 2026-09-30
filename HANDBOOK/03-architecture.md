@@ -163,11 +163,11 @@ The framework pauses at three points for human review:
 
 | Gate | Trigger | What to review |
 |---|---|---|
-| **Plan Approval** | After strategy + test case plan is drafted | Scope, risk prioritisation, case count, compliance tags |
-| **Defect Triage** | After first execution wave; before re-runs | Severity/priority assignments, duplicate flags, false positives |
-| **Closure Sign-off** | After all runs complete; before final report | Coverage summary, open defect count, release recommendation |
+| **G1 — Plan approval** | After Planning | Scope, risk prioritisation, case count, compliance tags |
+| **G2 — Defect triage** | After Triage | Severity/priority assignments, duplicate flags, false positives |
+| **G3 — Closure** | After Closure-final, before the executive reports | Coverage summary, open defect count, residual risk |
 
-Gates are configured in `aegis.config.json#gates`. Setting `planApproval: false` skips that gate (useful in fully automated nightly runs).
+Gates cannot be switched off. The orchestrator opens a gate with `aegis gate open` once `qa-orchestrator-spv` has passed its gate work report; the owner decides it with `/qa-gate-decide`, and the CLI records the decision in `runs/{runId}/gates/gate-{N}-decision.json`. A later phase cannot start while its gate is undecided or rejected — there is no deferral. `/qa-smoke` has no human gate: `aegis gate auto-decide` evaluates `thresholds.yaml#smoke` instead.
 
 ---
 

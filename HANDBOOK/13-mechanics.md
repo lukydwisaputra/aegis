@@ -93,11 +93,11 @@ SPV (auto-triggered by orchestrator):
   6. If not clean pass: emit correctiveInstructions
   7. @qa/agent-memory.proposeLesson(worker, instruction)
   ↓
-Orchestrator:
-  • passed: mark task done, advance
-  • passed-with-notes: mark done, lesson appended
-  • requested-changes: re-queue task with correction attached
-  • 2nd consecutive rejection on same task: escalate to human gate
+Dispatcher (qa-orchestrator for phase agents, qa-test-executor for specialists):
+  • passed: the task is done, advance
+  • passed-with-notes: done; aegis review submit already appended the lesson
+  • requested-changes: the CLI reopened the task; re-dispatch the worker with the correction
+  • 3rd rejection on the same task: the CLI records task.escalated and blocks the run; the owner decides with /qa-escalation
 ```
 
 ## 13.6 Model-policy resolution at build time

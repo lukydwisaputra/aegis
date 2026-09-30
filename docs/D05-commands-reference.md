@@ -18,9 +18,8 @@ Options:
   --env=<env>           Target environment (default: development)
   --scope=<feature>     Scope to a specific feature path or description
   --type=Functional,Regression  Filter test types
-  --max-parallel=4      Specialist concurrency (default: 4)
+  --intake=<glob>       Requirement documents to copy into the run (default: aegis.config.json#intake.sources)
   --apps=<project-name>  Multi-app cycle (<target-project> style)
-  --skip-gates-ci       Auto-pass gates (CI headless mode)
   --budget=<duration>   Token budget (e.g. 30m, 2h)
 ```
 

@@ -4,23 +4,30 @@
 
 ---
 
-### 4.1 The Nine Phases
+### 4.1 The Canonical Phases
 
-The Software Testing Life Cycle in this framework runs in nine phases, in the canonical order the `qa-orchestrator` dispatches them. Not all phases apply to every run type — `/qa-smoke` runs an abbreviated subset.
+The Software Testing Life Cycle in this framework runs in sixteen phases, in the canonical order the `qa-orchestrator` advances with `aegis phase start` and `aegis phase complete`. A phase starts only after every earlier phase is completed or recorded as not-applicable. `/qa-smoke` runs a subset: Intake, Scan, Env-auth, Env-data, Execution and Triage.
 
-| Phase | Name | Agent(s) | Output |
+| # | Phase | Agent(s) | Output |
 |---|---|---|---|
-| 1 | **Requirements** | `qa-requirements-analyst` | Source-grounded requirements, RTM skeleton |
-| 2 | **Discovery** | `qa-context-scanner` + `qa-web-explorer` | `target-profile.json#sourceInventory`, site map, route/auth matrix |
-| 3 | **Planning** | `qa-test-planner` | Test strategy doc, test case plan |
-| 4 | **Design** | `qa-test-designer` + specialists | Test cases, defect templates |
-| 5 | **Environment** | `qa-environment-engineer` | `playwright.config.ts`, fixtures, data factories |
-| 6 | **Execution** | `qa-test-executor` + specialists | Test results, evidence, raw defect list |
-| 7 | **Triage** | `qa-defect-manager` | Triaged defect reports, regression flag |
-| 8 | **Closure** | `qa-closure-reporter` | `closure.md` + `closure.json` |
-| 9 | **Executive Report** | `qa-executive-reporter` | Three executive PDFs |
+| 0 | **Intake** | — (`aegis run create` copies the intake documents) | `run.json`, `intake/**` |
+| 1 | **Scan** | `qa-context-scanner` | `target-profile.json`; the preflight check runs when Scan completes |
+| 2 | **Dev-test-review** | developer-test reviewer (not-applicable when the target has no tests) | `dev-test-review.json` |
+| 3 | **Requirements** | `qa-requirements-analyst` | Ambiguity report, testability scores |
+| 4 | **Env-auth** | `qa-environment-engineer` (scope=auth) | Auth fixtures, per-role storage state |
+| 5 | **Explore** | `qa-web-explorer` | `discovery-report.json`, site map |
+| 6 | **Planning** | `qa-test-planner` | `plan.json`, `risk-register.json` |
+| 7 | **Design** | `qa-test-designer` | Test cases, RTM |
+| 8 | **Env-data** | `qa-environment-engineer` (scope=data) | Factories, seed data, `env-setup-report.json` |
+| 9 | **Execution** | `qa-test-executor` + specialists | Test results, evidence, `execution-summary.json` |
+| 10 | **Triage** | `qa-defect-manager` | Triaged defect reports |
+| 11 | **Closure-draft** | `qa-closure-reporter` | Closure draft |
+| 12 | **Compliance** | `qa-compliance-*` (per `aegis.config.json#compliance`; not-applicable when empty) | `reports/compliance/*.json` |
+| 13 | **Closure-final** | `qa-closure-reporter` | `closure.md` + `closure.json` |
+| 14 | **Executive** | `qa-executive-reporter` | Three executive PDFs |
+| 15 | **Curator** | `qa-curator` | `pending-promotions/**` |
 
-Gates sit after Planning (Plan Approval), after Execution (Defect Triage), and at the end of Closure (Closure Sign-off).
+Gates sit after Planning (G1 Plan approval), after Triage (G2 Defect triage) and after Closure-final (G3 Closure). The run completes only through `aegis run complete`, which refuses until every phase and gate is done.
 
 ---
 

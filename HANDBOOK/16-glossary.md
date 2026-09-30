@@ -109,7 +109,7 @@ An ingested product document (PRD, API spec, design doc, user research) processe
 The `qa-curator` agent that reviews pending lessons at end-of-cycle and decides which ones to promote to agent instructions. See Chapter 10.
 
 **Gate**
-A mandatory pause in the STLC where human review is required before the run proceeds. There are three gates: Plan Approval (after Phase 2), Defect Triage (after Phase 4), and Closure Sign-off (after Phase 6).
+A mandatory pause in the STLC where human review is required before the run proceeds. Every full cycle has three gates: G1 Plan approval (after Planning), G2 Defect triage (after Triage) and G3 Closure (after Closure-final). They cannot be disabled; `/qa-smoke` has none.
 
 **Lesson**
 A captured piece of learning derived from SPV feedback. Stored in `agent-memory/<agent>/lessons.json`. Promoted lessons become part of the agent's standing instructions. Identifier format: `L-{AGENT-INITIALS}-{NNN}`.

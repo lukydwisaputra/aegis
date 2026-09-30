@@ -10,7 +10,7 @@ Simulates the planning phase of a `/qa-start` invocation and outputs the full ta
 
 ## Usage
 ```
-/qa-dry-run [--module=AUTH] [--env=development|testing|staging|production] [--scope=<feature>] [--type=Functional,Security] [--technique=Accessibility,Unit] [--max-parallel=4] [--apps=prospect,bishan]
+/qa-dry-run [--module=AUTH] [--env=development|testing|staging|production] [--scope=<feature>] [--type=Functional,Security] [--technique=Accessibility,Unit] [--apps=prospect,bishan]
 ```
 
 ## Key flags
@@ -23,14 +23,13 @@ Accepts all the same scope flags as `/qa-start` — see that skill for details.
 | `--scope` | *(none)* | Narrow to a specific feature |
 | `--type` | `Functional,Security` | Test types to simulate (TestTypeSchema values: Functional, UI, Integration, API, Security, Database, Performance, Compatibility, Usability) |
 | `--technique` | *(none)* | Test techniques to include (TestTechniqueSchema values: Unit, Accessibility, Email, Realtime, FeatureFlag, Regression, Smoke, Exploratory, BoundaryValue, etc.) |
-| `--max-parallel` | `4` | Parallelism assumption for duration estimate |
 | `--apps` | `all` | Apps to include in simulation |
 
 ## Behaviour
 1. Run flag validation identical to `/qa-start` (fail fast on invalid inputs).
 2. Enumerate STLC phases and, for each, estimate the number of sub-tasks and agents based on scope.
 3. Look up token-cost estimates per agent type from `config/cost-estimates.yaml`.
-4. Build the full task dependency DAG and compute the critical path for duration estimate.
+4. Build the full task dependency DAG and compute the critical path for duration estimate, assuming the specialist concurrency from `aegis.config.json#parallelism.maxSpecialists`.
 5. Render a tree view of: phases → agents → estimated tasks, with per-node cost and duration.
 6. Print a totals row: estimated total tokens, USD cost, and wall-clock minutes.
 7. Warn about any flag combinations that are invalid or likely to exceed budget.
@@ -40,9 +39,9 @@ Accepts all the same scope flags as `/qa-start` — see that skill for details.
 
 ## Example
 ```
-/qa-dry-run --module=AUTH --type=Functional --max-parallel=6
+/qa-dry-run --module=AUTH --type=Functional
 ```
-Prints the task tree and cost estimate for a Functional-only AUTH run with 6-way parallelism.
+Prints the task tree and cost estimate for a Functional-only AUTH run.
 
 ## Contract (machine-checked)
 
@@ -61,4 +60,5 @@ runs: []
 dispatches: []
 config:
   - config/cost-estimates.yaml
+  - aegis.config.json#parallelism.maxSpecialists
 ```

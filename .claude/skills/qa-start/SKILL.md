@@ -6,7 +6,7 @@ description: Launch a full STLC cycle from requirements through closure for one 
 # /qa-start
 
 ## Purpose
-Kicks off a complete Software Testing Life Cycle run — requirements analysis, planning, test design, environment setup, execution, defect logging, and closure reporting. Creates a new run directory (RUN-{date}-NNN), acquires a run lock, and dispatches the qa-orchestrator to coordinate all downstream agents. The specialist cap comes from `aegis.config.json#parallelism.maxSpecialists` and is enforced by the CLI.
+Kicks off a complete Software Testing Life Cycle run — requirements analysis, planning, test design, environment setup, execution, defect logging, and closure reporting. Creates a new run directory (RUN-{date}-NNN) and dispatches the qa-orchestrator to coordinate all downstream agents. The specialist cap comes from `aegis.config.json#parallelism.maxSpecialists` and is enforced by the CLI. For a PR-gate smoke cycle use `/qa-smoke`.
 
 ## Usage
 ```
