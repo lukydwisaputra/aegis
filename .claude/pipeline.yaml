@@ -73,4 +73,7 @@ sources:
     - module-codes.md
     - "test-data/**"
     - "templates/**"
-nonAgentNames: []
+    - "secrets/**"
+nonAgentNames:
+  - qa-e2e # Playwright project name (qa-environment-engineer.md:61, HANDBOOK/17:76)
+  - qa-automated # GitHub label (qa-github-planner.md:40)

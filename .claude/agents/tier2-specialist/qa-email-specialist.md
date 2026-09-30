@@ -95,4 +95,5 @@ dispatches: []
 config:
   - aegis.config.json#emailAdapter
   - aegis.config.json#ports.mailpit
+  - aegis.config.json#ports.mailpit.http
 ```
