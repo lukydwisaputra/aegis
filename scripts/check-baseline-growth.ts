@@ -11,10 +11,18 @@ if (!base) {
   process.exit(2);
 }
 
+try {
+  execFileSync("git", ["rev-parse", "--verify", "--quiet", `${base}^{commit}`], { stdio: "ignore" });
+} catch {
+  console.log(`::error title=Baseline-growth guard COULD NOT RUN::base ref ${base} not found (fetch-depth?)`);
+  process.exit(2);
+}
+
 let baseYaml: string | null;
 try {
   baseYaml = execFileSync("git", ["show", `${base}:${BASELINE}`], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
 } catch {
+  console.log(`baseline-growth: ${BASELINE} absent on ${base}; guard not applicable`);
   baseYaml = null;
 }
 
