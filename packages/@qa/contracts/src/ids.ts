@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ID format patterns
 // TC-AUTH-031, DEF-001-AUTH-UI, STORY-AUTH-204, REQ-AUTH-04, RISK-AUTH-007
-// TP-PROJECT-R2.4, RUN-20260523-001, L-TD-012, WR-T-42, RV-td-spv-T-42
+// TP-PROJECT-R2.4, RUN-20260523-001, L-TD-012, WR-T-42, RV-td-spv-T-42, WR-T-design-1, RV-td-spv-T-GATE-G1
 
 const MODULE = "[A-Z]{2,8}";
 const DEF_TYPE = "UI|API|A11Y|SEC|PERF|DATA|UNIT|EXP";
@@ -57,15 +57,11 @@ export const LessonIdSchema = z.string().regex(
   "Lesson ID format: L-{AGENT-INITIALS}-{NNN}"
 );
 
-export const WorkReportIdSchema = z.string().regex(
-  /^WR-T-\d+$/,
-  "WorkReport ID format: WR-T-{taskNumber}"
-);
-
-export const ReviewIdSchema = z.string().regex(
-  /^RV-[a-z-]+-T-\d+$/,
-  "Review ID format: RV-{agent-slug}-T-{taskNumber}"
-);
+/** A task id inside WR/RV ids: T-<n>, T-<phase>-<n> (phase != GATE) or T-GATE-G<N>. */
+const TASK_REF = "T-(?:\\d+|(?!GATE-)[A-Za-z][A-Za-z0-9]*-\\d+|GATE-G\\d+)";
+export const TaskRefSchema = z.string().regex(new RegExp(`^${TASK_REF}$`), "Task ref format: T-{n} | T-{phase}-{n} | T-GATE-G{N}");
+export const WorkReportIdSchema = z.string().regex(new RegExp(`^WR-${TASK_REF}$`), "WorkReport ID format: WR-{taskRef}");
+export const ReviewIdSchema = z.string().regex(new RegExp(`^RV-[a-z-]+-${TASK_REF}$`), "Review ID format: RV-{agent-slug}-{taskRef}");
 
 export type TestCaseId = z.infer<typeof TestCaseIdSchema>;
 export type DefectId = z.infer<typeof DefectIdSchema>;

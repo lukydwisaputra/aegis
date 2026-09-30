@@ -137,8 +137,9 @@ export async function nextId(kind: IdKind, moduleOrArg: string | number, extra?:
       return `L-${mod}-${pad(n, 3)}`;
     }
     case "WR": {
-      // taskNumber is passed as module arg
-      return `WR-T-${mod}`;
+      // A full task id (T-42, T-design-1, T-GATE-G1) keeps its case; a bare task number becomes T-<n>.
+      const raw = String(moduleOrArg);
+      return WorkReportIdSchema.parse(raw.startsWith("T-") ? `WR-${raw}` : `WR-T-${raw}`);
     }
     case "RUN": {
       const n = await nextCounter("RUN", mod);
