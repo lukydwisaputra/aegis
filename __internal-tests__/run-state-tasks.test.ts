@@ -184,3 +184,56 @@ describe('task id validation on claim and release', () => {
     expect((await c.get('T-B'))!.status).toBe('pending');
   });
 });
+
+describe('claim/release rollback when the bus refuses (R3)', () => {
+  const tm = () => createTaskmasterClient(taskmasterDir(t.root, runId));
+  function tearBus(): () => void {
+    const bus = busPath(t.root, runId);
+    const good = fs.readFileSync(bus, 'utf8');
+    fs.appendFileSync(bus, '{"seq":99,"prevH');
+    return () => fs.writeFileSync(bus, good);
+  }
+
+  it('claimTask: task stays pending and the cap slot stays free', async () => {
+    await setup(1);
+    const before = await tm().get('T-1');
+    const repair = tearBus();
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).rejects.toThrow(/torn tail/);
+    expect(await tm().get('T-1')).toEqual(before);
+    repair();
+    expect(readLines(busPath(t.root, runId)).map((l) => JSON.parse(l).type)).not.toContain('task.claimed');
+    await expect(claimTask(t.root, runId, 'T-2', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress', claimedBy: 'qa-api-specialist' });
+  });
+
+  it('claimTask: the same claim succeeds once the tail is repaired', async () => {
+    await setup(1);
+    const repair = tearBus();
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).rejects.toThrow(/torn tail/);
+    repair();
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+  });
+
+  it('releaseTask: task stays in-progress under the claimer and can be released after repair', async () => {
+    await setup(2);
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    const before = await tm().get('T-1');
+    const repair = tearBus();
+    await expect(releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist')).rejects.toThrow(/torn tail/);
+    expect(await tm().get('T-1')).toEqual(before);
+    repair();
+    await expect(releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'done' });
+    expect(lastEvent()).toMatchObject({ type: 'task.released', taskId: 'T-1' });
+  });
+
+  it('restore does not overwrite a task that moved on since the failed write', async () => {
+    await setup(2);
+    const c = tm();
+    const pending = (await c.get('T-1'))!;
+    await c.claim('T-1', 'qa-ui-specialist');
+    await c.release('T-1', 'done');
+    await expect(c.restore(pending, { ifStatus: 'in-progress' })).resolves.toBe(false);
+    expect((await c.get('T-1'))!.status).toBe('done');
+    await expect(c.restore(pending, { ifStatus: 'done' })).resolves.toBe(true);
+    expect(await c.get('T-1')).toEqual(pending);
+  });
+});

@@ -58,6 +58,13 @@ export interface TaskmasterClient {
   /** Return a finished task to pending so it can be claimed again (SPV requested changes). */
   reopen(taskId: string): Promise<void>;
 
+  /**
+   * Roll a task file back to `task` (its content before a failed follow-up step), atomically and
+   * under the task-file lock. With `ifStatus`, only when the file still holds that status, so a
+   * rollback never overwrites a later change. Returns whether the file was written.
+   */
+  restore(task: Task, opts?: { ifStatus?: TaskStatus }): Promise<boolean>;
+
   /** Expand a task: replace it with subtasks. */
   expand(
     taskId: string,
@@ -263,6 +270,21 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
           throw new Error(`Task "${taskId}" is ${task.status}; only done or failed tasks can be reopened`);
         }
         writeTaskFile(filePath, { ...task, status: "pending" });
+      } finally {
+        await release();
+      }
+    },
+
+    async restore(task, opts = {}) {
+      const filePath = taskFilePath(tasksDir, task.id);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Task "${task.id}" not found`);
+      }
+      const release = await lockfile.lock(filePath, LOCK_OPTIONS);
+      try {
+        if (opts.ifStatus !== undefined && readTaskFile(filePath).status !== opts.ifStatus) return false;
+        writeTaskFile(filePath, task);
+        return true;
       } finally {
         await release();
       }

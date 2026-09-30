@@ -30,6 +30,29 @@ function assertTaskId(taskId: string): void {
   }
 }
 
+/**
+ * Record `event` for a task-file change that already happened; if the bus refuses, put the task
+ * file back to `before` and rethrow. Runs inside the caller's locks, so the rollback is covered
+ * by the same critical section as the change. `ifStatus` guards against undoing a later change.
+ */
+async function appendOrRollback(
+  c: ReturnType<typeof client>,
+  before: Task,
+  ifStatus: Task["status"],
+  append: () => Promise<unknown>
+): Promise<void> {
+  try {
+    await append();
+  } catch (e) {
+    try {
+      await c.restore(before, { ifStatus });
+    } catch (r) {
+      throw new Error(`${(e as Error).message}; rolling back task ${before.id} also failed: ${(r as Error).message}`);
+    }
+    throw e;
+  }
+}
+
 async function mustGet(root: string, runId: string, taskId: string): Promise<Task> {
   const task = await client(root, runId).get(taskId);
   if (task === null) throw new RunStateError("invalid-input", `task ${taskId} not found in run ${runId}`);
@@ -86,13 +109,16 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
           );
         }
       }
+      const before = await mustGet(root, runId, taskId);
       try {
         await c.claim(taskId, caller);
       } catch (e) {
         if (e instanceof ClaimError) throw new RunStateError("invalid-input", e.message);
         throw e;
       }
-      await appendChained({ type: "task.claimed", ts: iso(now), taskId, agent: caller }, busPath(root, runId), { emittedBy: caller, runId });
+      await appendOrRollback(c, before, "in-progress", () =>
+        appendChained({ type: "task.claimed", ts: iso(now), taskId, agent: caller }, busPath(root, runId), { emittedBy: caller, runId })
+      );
       return mustGet(root, runId, taskId);
     })
   );
@@ -114,8 +140,11 @@ export async function releaseTask(
     if (task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${taskId} is not in progress under ${caller}`);
     }
-    await client(root, runId).release(taskId, result);
-    await appendChained({ type: "task.released", ts: iso(now), taskId, agent: caller, result }, busPath(root, runId), { emittedBy: caller, runId });
+    const c = client(root, runId);
+    await c.release(taskId, result);
+    await appendOrRollback(c, task, result, () =>
+      appendChained({ type: "task.released", ts: iso(now), taskId, agent: caller, result }, busPath(root, runId), { emittedBy: caller, runId })
+    );
     return mustGet(root, runId, taskId);
   });
 }
