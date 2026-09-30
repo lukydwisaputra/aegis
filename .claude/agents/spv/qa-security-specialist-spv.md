@@ -43,3 +43,30 @@ You review security test results and reports from `qa-security-specialist`. You 
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-security-specialist]
+reads:
+  - "{run}/reports/work/qa-security-specialist.json"
+  - "{tests}/security/**"
+  - "{run}/evidence/**"
+  - "{run}/defects/*.json"
+  - "agent-memory/qa-security-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+  - {event: secret.leak-detected, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

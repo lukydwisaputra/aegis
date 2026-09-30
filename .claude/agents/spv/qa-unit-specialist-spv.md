@@ -41,3 +41,30 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-unit-specialist]
+reads:
+  - "{run}/reports/work/qa-unit-specialist.json"
+  - "{run}/reports/unit-coverage-gaps.json"
+  - "{tests}/qa/unit/**"
+  - "{tests}/qa/factories/**"
+  - "{run}/target-profile.json"
+  - "agent-memory/qa-unit-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -46,3 +46,29 @@ You review defect reports produced by `qa-defect-manager`. You apply the Kaner c
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-defect-manager]
+reads:
+  - "{run}/reports/work/qa-defect-manager.json"
+  - "{run}/defects/*.{md,json}"
+  - "{run}/events.jsonl"
+  - "{run}/evidence/{DEF}/**"
+  - "agent-memory/qa-defect-manager/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -42,3 +42,29 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-realtime-specialist]
+reads:
+  - "{run}/reports/work/qa-realtime-specialist.json"
+  - "{tests}/**"
+  - "{run}/target-profile.json"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-realtime-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

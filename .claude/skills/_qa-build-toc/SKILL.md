@@ -42,3 +42,24 @@ Parses `HANDBOOK.md` (and optionally other designated Markdown documentation fil
 /qa-build-toc --file=HANDBOOK.md --max-depth=2
 ```
 Regenerates the HANDBOOK.md TOC using only H1 and H2 headings.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: internal
+dispatchedBy: []
+reads:
+  - "HANDBOOK.md"
+writes:
+  - "HANDBOOK.md"
+emits:
+  - {event: toc.build.started, via: append}
+  - {event: toc.build.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

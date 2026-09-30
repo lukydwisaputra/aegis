@@ -58,3 +58,34 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 - `test.passed` / `test.failed` — per TC; includes status code and first assertion failure if relevant
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
+reviewedBy: qa-api-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - "{run}/discovery-report.json"
+  - aegis.config.json
+  - agent-memory/qa-api-specialist/lessons.md
+writes:
+  - "{tests}/qa/api/{endpoint}.api.test.ts"
+  - "{tests}/qa/contract/{consumer}-{provider}.pact.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: sandbox.explored, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - aegis.config.json
+```

@@ -40,3 +40,27 @@ Formalises environment promotion by first running a quality gate check and, on p
 /qa-promote-stage --run=RUN-2026-05-24-001 --to-stage=staging
 ```
 Runs the staging gate check on run 001 and, on pass, promotes it to staging.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "{run}/run.json"
+writes:
+  - "{run}/promotions/{to-stage}.json"
+  - "{run}/run.json"
+emits:
+  - {event: run.gate.check.triggered, via: append}
+  - {event: stage.promoted, via: append}
+  - {event: run.promotion.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-gate-check]
+config:
+  - config/integrations.yaml
+```

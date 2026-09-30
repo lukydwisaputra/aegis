@@ -40,3 +40,26 @@ Reads the execution results from a prior run and selectively re-dispatches only 
 /qa-rerun-failed --run=RUN-2026-05-24-001 --include-blocked
 ```
 Finds all failed and blocked TCs from run 001 and re-executes them, storing results in `RUN-2026-05-24-001/rerun-001/`.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "{run}/execution/results.json"
+writes:
+  - "{run}/rerun-{NNN}/**"
+  - "{run}/execution/results.json"
+emits:
+  - {event: rerun.started, via: append}
+  - {event: tc.retried, via: append}
+  - {event: rerun.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

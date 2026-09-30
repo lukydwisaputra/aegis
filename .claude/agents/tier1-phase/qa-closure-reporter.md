@@ -124,3 +124,40 @@ Claims `task:closure-reporting` via taskmaster-client. Read-only on all prior ar
 ## Worked Example
 
 `RUN-20260524-001` closure: Summary — "AUTH module tested over 3h across 8 TCs; 7 passed, 1 failed (DEF-001-AUTH-UI)." Open defects: DEF-001-AUTH-UI Sev2 — open, fix in review. Open questions: "Plus-aliased email failure only tested on 3 browsers; Singpass integration not tested (biometric). Email delivery to plus-aliased addresses was tested via Mailpit but not with real Gmail routing." Residual risk: RISK-AUTH-007 remains HIGH (fix unverified). Gate 3 approvals block: product owner must acknowledge residual risk before closure.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: closure
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-closure-reporter-spv
+reads:
+  - "{run}/execution-summary.json"
+  - "{run}/defects/*.json"
+  - "{run}/cases/*.json"
+  - "{run}/rtm.json"
+  - "{run}/risk-register.json"
+  - "{run}/plan.json"
+  - "{run}/reports/metrics/*.json"
+  - path: "{run}/reports/compliance/*.json"
+    optional: true
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-closure-reporter/lessons.md"
+writes:
+  - path: "{run}/reports/closure/closure.md"
+    terminal: true
+  - "{run}/reports/closure/closure.json"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-closure-reporter.json"
+emits:
+  - {event: closure.report-drafted, via: append}
+  - {event: blocking.dependency, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

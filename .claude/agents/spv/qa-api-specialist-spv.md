@@ -43,3 +43,32 @@ You review API test files and work reports from `qa-api-specialist`. You verify 
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-api-specialist]
+reads:
+  - "{run}/reports/work/qa-api-specialist.json"
+  - "{tests}/qa/api/**"
+  - "{tests}/qa/contract/**"
+  - "{run}/evidence/**"
+  - "{run}/target-profile.json"
+  - "{tests}/qa/**"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-api-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

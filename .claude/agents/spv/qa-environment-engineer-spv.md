@@ -52,3 +52,36 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-environment-engineer]
+reads:
+  - "{run}/reports/work/qa-environment-engineer.json"
+  - "{run}/env-setup-report.{md,json}"
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{tests}/qa/global-setup.ts"
+  - "{tests}/qa/global-teardown.ts"
+  - "{tests}/qa/factories/*.ts"
+  - "{target}/playwright.config.ts"
+  - "{run}/events.jsonl"
+  - "{run}/target-profile.json"
+  - "{tests}/qa/state/*.json"
+  - "{target}/.gitignore"
+  - "agent-memory/qa-environment-engineer/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: [aegis.config.json#browsers]
+```

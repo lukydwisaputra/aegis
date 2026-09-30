@@ -39,3 +39,25 @@ Runs the triage agent over the set of open defects to determine whether each is 
 /qa-triage --severity=Sev1,Sev2 --age=>7d
 ```
 Re-evaluates all Sev1 and Sev2 defects older than 7 days against the current codebase.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "artifacts/defects/**"
+writes:
+  - "artifacts/defects/**"
+emits:
+  - {event: triage.started, via: append}
+  - {event: defect.triaged, via: append}
+  - {event: triage.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

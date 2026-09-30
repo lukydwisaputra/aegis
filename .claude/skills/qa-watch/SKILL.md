@@ -41,3 +41,24 @@ Starts a file-system watcher on one or more source directories. When a file chan
 /qa-watch --paths=apps/prospect/src --debounce=1s --specialist=unit,api
 ```
 Watches the prospect app's source, re-running unit and API tests within 1 second of any change.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads: []
+writes: []
+emits:
+  - {event: watch.started, via: append}
+  - {event: watch.cycle.triggered, via: append}
+  - {event: watch.cycle.completed, via: append}
+  - {event: watch.stopped, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-unit-specialist, qa-api-specialist, qa-ui-specialist]
+config: []
+```

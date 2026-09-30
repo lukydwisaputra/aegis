@@ -130,3 +130,39 @@ tests/qa/
 - `test.passed` / `test.failed` — per TC; test.failed includes evidence paths
 - `test.id-proposal-created` — per missing testid
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
+reviewedBy: qa-ui-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{tests}/qa/pages/{url-path}/*.ts"
+  - "{run}/discovery-report.json"
+  - agent-memory/qa-ui-specialist/lessons.md
+  - "{tests}/qa/factories/**"
+  - "{target}/playwright.config.ts"
+writes:
+  - "{tests}/qa/specs/{url-path}/**"
+  - "{tests}/qa/fixtures/files/**"
+  - "{tests}/qa/pages/{url-path}/{page}.page.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "{run}/proposed-changes/testid-additions.md"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: test.id-proposal-created, via: append}
+  - {event: sandbox.explored, via: append}
+awaits: []
+cli: []
+runs: [playwright-cli]
+dispatches: []
+config: []
+```

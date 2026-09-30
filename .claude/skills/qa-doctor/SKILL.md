@@ -48,3 +48,32 @@ Sample output (abridged):
 
 Result: 4/5 checks passed — DEGRADED
 ```
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "config/requirements.yaml"
+  - "config/environments.yaml"
+  - "config/thresholds.yaml"
+  - ".gitignore"
+  - "runs/**"
+  - "artifacts/**"
+  - "knowledge/**"
+  - "templates/**"
+  - "config/**"
+writes: []
+emits: []
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/requirements.yaml
+  - config/environments.yaml
+  - config/thresholds.yaml
+```

@@ -101,3 +101,35 @@ Claims `task:test-planning` via taskmaster-client. One instance per run. Writes 
 ## Worked Example
 
 For `RUN-20260524-001` (SSO + plus-aliased emails): Strategy — "find critical auth breakages in the SSO callback path before staging deployment." SFDIPOT applied: Data dimension revealed the `+`→space encoding risk (became RISK-AUTH-007, score 12, HIGH, rationale: "Plus-sign encoding is a known OAuth edge case not addressed in the current implementation comments"). Logistics: qa-ui-specialist handles OAuth E2E, qa-security-specialist handles WSTG-AUTH-01, qa-accessibility-specialist handles WCAG 2.2 AA on the login form. Revision trigger documented: "If DEF-001-AUTH-UI scope expands to cover general email validation, re-scope security coverage to include WSTG-INPV-05."
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: planning
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-test-planner-spv
+reads:
+  - "{run}/requirements/ambiguity-report.json"
+  - "{run}/requirements/testability-scores.json"
+  - "{run}/intake/**"
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - "agent-memory/qa-test-planner/lessons.md"
+writes:
+  - "{run}/plan.{md,json}"
+  - "{run}/risk-register.{md,json}"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-test-planner.json"
+emits:
+  - {event: test.plan-drafted, via: append}
+  - {event: risk.flagged, via: append}
+  - {event: planning.blocked, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

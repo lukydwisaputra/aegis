@@ -86,3 +86,30 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy:
+  none: "not stated in prose"
+reads:
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - "{run}/plan.json"
+  - "{run}/target-profile.json"
+  - knowledge/synthesis/compliance-and-regulations.md
+  - agent-memory/qa-compliance-pdpa/lessons.md
+writes:
+  - "{run}/reports/compliance/pdpa.{md,json}"
+emits:
+  - {event: compliance.review-complete, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

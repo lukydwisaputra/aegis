@@ -143,3 +143,39 @@ Claims `task:test-design` via taskmaster-client. Writes to `runs/{runId}/cases/`
 ## Worked Example
 
 TC-AUTH-031 (SSO login with plus-aliased email): BVA on the email input — boundary: valid plus-alias, one char too long, invalid plus position. Decision table on auth path: valid SSO × valid email, valid SSO × invalid email, expired token × valid email, revoked token × valid email — 4 rows, 3 unique outcomes. automationStatus: Automated (all 13 criteria passed). Locator: `getByRole('button', { name: 'Sign in with Google' })` — role-first per hierarchy. TC-AUTH-035 (biometric check on Singpass path): automationStatus: Candidate, automationBlocker: "criterion 7 — requires real physical hardware (biometric sensor)."
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: design
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-test-designer-spv
+reads:
+  - "{run}/plan.json"
+  - "{run}/requirements/ambiguity-report.json"
+  - "{run}/requirements/testability-scores.json"
+  - "{run}/discovery-report.json"
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - "agent-memory/qa-test-designer/lessons.md"
+writes:
+  - "{run}/cases/{TC-ID}.{md,json}"
+  - "{run}/scenarios/{SCN-ID}.{md,json}"
+  - "{run}/rtm.{md,json}"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-test-designer.json"
+  - "{run}/proposed-changes/testid-additions.md"
+emits:
+  - {event: test.case-drafted, via: append}
+  - {event: manual.flag-raised, via: append}
+  - {event: test.id-proposal-created, via: append}
+  - {event: test.design-complete, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -97,3 +97,35 @@ You claim `task:requirements-analysis` via taskmaster-client before reading the 
 ## Worked Example
 
 REQ-AUTH-04 (OAuth callback with plus-aliased emails): Decomposable BLOCK — the AC conflated email validation with session creation in one clause. Observable FLAG — "valid session" was not defined (cookie? JWT? both?). Clarifying questions raised: (1) "Which token format constitutes 'valid session' — HttpOnly cookie, JWT, or both?" (2) "Should plus-aliased and non-aliased emails for the same Google account share a single user record?" Both were resolved at Gate 1 before Design began.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: requirements
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-requirements-analyst-spv
+reads:
+  - "{run}/intake/requirements/**"
+  - path: "{run}/intake/prd.md"
+    optional: true
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - "agent-memory/qa-requirements-analyst/lessons.md"
+writes:
+  - "{run}/requirements/ambiguity-report.{md,json}"
+  - "{run}/requirements/testability-scores.json"
+  - "{run}/events.jsonl"
+  - "{run}/reports/work/qa-requirements-analyst.json"
+emits:
+  - {event: ambiguity.flagged, via: append}
+  - {event: compliance.gap-flagged, via: append}
+  - {event: requirements.analysis-complete, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

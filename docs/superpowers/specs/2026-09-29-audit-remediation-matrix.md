@@ -17,15 +17,25 @@ Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
 
 ## Sub-projects
 
-| ID | Sub-project | Depends on |
-|----|-------------|-----------|
-| P0 | Pipeline foundation & hard enforcement | — |
-| P1 | Contracts & vocabulary | P0 |
-| P2 | Roster: orphans, SPV coverage, profiles, unused packages | P0, P1 |
-| P3 | Skills & path drift | P0, P1 |
-| P4 | Object-level authorization (IDOR / integer-ID) feature | P0, P1 |
-| P5 | Invariant tests & documentation | P0–P4 |
-| P6 | Rollout to sibling projects | P0–P5 |
+Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → PR re-review → merge):
+
+| Order | ID | Sub-project | Depends on |
+|-------|----|-------------|-----------|
+| done | P0b-1 | Contracts & CLI skeleton (run-state, event chain) | — |
+| 1a | ALIGN | Alignment checker: contracts per agent/skill, `pipeline.yaml`, ratchet baseline (every violation owned by a matrix ID) | P0b-1 |
+| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need a label) ; fix `pnpm-workspace.yaml` `allowBuilds.esbuild` placeholder (fresh-clone install/build/test fail on pnpm 11) | ALIGN |
+| 1a-H | ALIGN-H | Alignment checker hardening (AH-01..17) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
+| 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
+| 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |
+| 3 | P0a-1 | Phases, gates, barrier, orchestrator rewrite | P1 |
+| 4 | P0a-2 | Agents onto the CLI (released together with P0a-1 — AUD-097) | P0a-1 |
+| 5 | P0b-2 | Hooks H1–H4, legacy writers onto the chain | P0a-2 |
+| 6 | P0c | Rollup, trace, retest; execution skills | P0b-2 |
+| 7 | P4 | Object-level authorization (IDOR / integer-ID) feature | P0c, P1 |
+| 8 | P2 | Roster: orphans, SPV coverage, profiles, unused packages | P0a-2 |
+| 9 | P3 | Query skills & path drift | P0c |
+| 10 | P5 | Invariant tests & documentation → baseline empty | all above |
+| 11 | P6 | Rollout to sibling projects | P5 |
 
 ## P0 — Pipeline foundation & hard enforcement
 
@@ -62,7 +72,7 @@ Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
 | AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
 | AUD-062 | `qa-run-phase`: missing phases, expects `test-cases.json`, writes to unused `runs/{run}/{phase}/` | qa-run-phase:19,26 | MED | in-spec |
 | AUD-063 | `/qa-smoke` is a separate pipeline (no executor/env/exploratory); no smoke thresholds; `--include-security` re-adds email; exit code unimplementable | qa-smoke:27-29 | MED | in-spec |
-| AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report | MED | in-spec |
+| AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report; templates/ absent from git (only empty untracked dirs) — _qa-init-project/qa-ci-bootstrap template reads unresolved | MED | in-spec |
 | AUD-056a | Execution skills read stale `execution/results.json` (qa-rerun-failed, qa-regression, qa-record-manual) | qa-rerun-failed:25; qa-regression:28; qa-record-manual:29 | HIGH | in-spec |
 
 ## P1 — Contracts & vocabulary
@@ -198,3 +208,55 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-097 | Adoption-order risk: once the orchestrator uses `aegis run create`, any agent still hand-appending to events.jsonl breaks the chain and blocks the run → P0a-1 and P0a-2 must land together (or H1 first) | CLAUDE.md:100; chain verify | HIGH | P0a / P0b-2 sequencing | open |
 | AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | open |
 | AUD-099 | Run statuses `initializing/aborted/resuming/interrupted` written by skills fail `RunStateSchema` | qa-start:31; qa-stop:22,27; qa-resume:19-22 | MED | P0a-1 (with AUD-023) | open |
+
+## Classes found by the alignment checker (ALIGN)
+
+Class-level IDs for violation classes not already owned by an existing ID. The per-line detail
+lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition of done includes
+"its baseline lines are gone".
+
+| ID | Class | Example evidence | Sev | Owner | Status |
+|----|-------|------------------|-----|-------|--------|
+| AUD-100 | Skills emit events themselves, contrary to the router model (the owner cannot append; 29 skills / 92 events) | qa-start SKILL:41 `run.phase.started`; qa-gate-check SKILL:42 `gate.passed` | MED | P0c (execution) / P3 (query, internal) | open |
+| AUD-101 | SPVs state they emit `review.*` directly instead of via `aegis review submit` (25 SPVs) | qa-test-designer-spv.md:49 | MED | P0a-2 | open |
+| AUD-102 | Events awaited with no emitter (`defect.closed`, `defect.reopened`) | qa-metrics-collector.md:45 | MED | P0c | open |
+| AUD-103 | Orchestrator emits CLI-recorded `run.*` / `gate.*` types directly | qa-orchestrator.md:34,120 | HIGH | P0a-1 | open |
+| AUD-104 | Skills reference nonexistent paths not covered by AUD-056…059/060/065 (`templates/config/`, `runs/{run}/defects.json`, hardcoded sibling-project paths) | _qa-init-project SKILL:28; qa-gate-check SKILL:25; qa-push-reports SKILL:9 | MED | P3 / QW | open |
+| AUD-105 | Config keys read at the wrong location (`target.sourceDirs` vs top-level `sourceDirs`) | qa-security-specialist.md:39; aegis.config.json `sourceDirs` | LOW | QW | open |
+| AUD-106 | Docs name non-agents as agents, outside the files AUD-076 covers | HANDBOOK/07:89 `qa-defect-reporter`; HANDBOOK/16:127 `qa-sandbox-manager` | LOW | QW | open |
+| AUD-107 | Docs reference nonexistent slash commands (`/qa-defect-*`, `/qa-dash-*`, `/qa-ci-*`, `/qa-close`, `/qa-books`, `/qa-forget`, `/qa-ingest`, `/qa-lessons`, `/qa-reset-agent`) | HANDBOOK/05:119,265; HANDBOOK/09:79 | LOW | QW | open |
+| AUD-108 | Artefact written that no agent reads and that is not marked terminal | qa-environment-engineer.md:56 `runs/{runId}/playwright-output` | LOW | P0c | open |
+| AUD-109 | Agent inputs name paths no producer writes or too vague to trace | qa-accessibility-specialist-spv.md:21 `tests/qa/a11y/` (specialist writes `tests/qa/specs/{url-path}/a11y.spec.ts`); qa-database-specialist-spv.md:21 and qa-realtime-specialist-spv.md:21 `tests/` | LOW | QW | open |
+| AUD-110 | Execution skills invoke other skills directly instead of routing through the orchestrator/CLI | qa-start SKILL:28 `/qa-health`; qa-promote-stage SKILL:25 `/qa-gate-check`; qa-regression SKILL:29 `qa-compare` | MED | P0c | open |
+| AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
+| AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
+
+Known detection gaps (open items the checker cannot see; their slices close them by review, not by
+deleting baseline lines):
+
+- AUD-052 — `reviewedBy: {none: …}` is accepted by design, so agents without an SPV are not flagged;
+  only the HANDBOOK/08 `qa-compliance-gdpr-spv` reference is tracked (DOC-REF).
+- AUD-056a — the SKILL rule ignores reads of paths the skill itself writes (spec §4 narrowing), so an
+  execution skill reading its own stale `execution/results.json` is not flagged.
+
+## Alignment checker hardening (slice 1a-H, from the ALIGN final review)
+
+| ID | Item |
+|----|------|
+| AH-01 | DRIFT anchors every contract field to prose: backticked `aegis <noun> <verb>` ↔ `cli`; `aegis.config.json#…`, `thresholds.yaml`, `config/*.yaml` ↔ `config`; `emits.via`, skill `kind`, `runs` |
+| AH-02 | Escape hatches (`dispatch: {none}`, `reviewedBy: {none}`, `optional`, `terminal`, non-pipeline `phase`) reported as their own ratcheted class |
+| AH-03 | `pipeline.yaml` anchored to prose: executor routing lines, designer technique vocabulary, orchestrator phase table; every route target ∈ executor `dispatches`; route reachable from `designerEmits` (AUD-008, 032/033/035) |
+| AH-04 | Typed ID placeholders: `{TC}.json` must not overlap `{TC}-result.json` / `{TC}-{viewport}-result.json` (AUD-087) |
+| AH-05 | Tool checks: `dispatches` agents ⇒ Agent tool, skills ⇒ Skill tool, `writes` ⇒ Write/Edit |
+| AH-06 | Producer reachability: a producer nothing dispatches does not satisfy a read (AUD-011) |
+| AH-07 | A unit's own writes count as producer for its own read-modify-write reads (re-check PRODUCER:qa-test-executor:{run}/concurrency.json) |
+| AH-08 | Same-phase cycles detected; revisit compliance `phase: crosscutting` vs "during Closure" prose (AUD-004) |
+| AH-09 | DRIFT scope: all agent sections, undeclared event names in prose, aegis-root paths, HANDBOOK.md, docs/*.md, frontmatter `description` (AUD-092) |
+| AH-10 | Worker→SPV handoff verified: reviewed workers need `work-report.submit` / `task.claim` in `cli` (AUD-081/083) |
+| AH-11 | Reverse checks: config keys nothing reads (AUD-007), events nobody consumes (AUD-027), package names / pnpm scripts in docs (AUD-066/073), agent counts (AUD-075) |
+| AH-12 | Existence checks and doc loading read git-tracked files, not the working tree (untracked `config/`, `artifacts/` flip entries locally; gitignored `README.md` is scanned by DOC-REF) |
+| AH-13 | `WRITABLE` table moves from `dataflow.ts` into `pipeline.yaml` (single copy of the write policy; `sandbox/**` vs CLAUDE.md) |
+| AH-14 | Code debt: reuse the existing frontmatter scalar parser; exact `CLI_RECORDS` per-command test; `aegis align` resolves `@qa/contracts` from source or fails on stale dist; dedupe `allSources`; loader dead branch; `via: owner|none`; CLI smoke test; per-slice grouping in report output; secondary IDs AUD-023/024/025 on skill `run.*` EVENT entries; event-bus `appends-without-cli` → AUD-048; overlaps AUD-105↔043, AUD-101/103↔CO-05; `_qa-init-project` HANDBOOK.md allowance; CRLF frontmatter; heading inside fenced example; `**/qa-x**` / `[/qa-x]` lookbehind; own Process-only paths lost by whole-line skip; SPV `lessons.md` vs `lessons.json` naming (AUD-074); declare `yaml` in `__internal-tests__/package.json` devDependencies |
+| AH-15 | cli-only / `{tests}` write checks use `overlaps`, not `matches` (`{run}/events*.jsonl` passes today) — `dataflow.ts` |
+| AH-16 | DOC-REF checks `_qa-*` tokens and `/_qa-*` slash commands against skill directory names (leading underscore skipped today) — `prose.ts` |
+| AH-17 | `unitFor`/`known()` drop the `x`→`_x` fallback and frontmatter-name aliases (contradicts F7; `dispatches: qa-report-technical-pdf` passes) — `structure.ts` |

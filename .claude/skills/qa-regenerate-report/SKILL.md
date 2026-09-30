@@ -39,3 +39,27 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 /qa-regenerate-report --run=RUN-2026-05-24-001 --reports=closure,token-usage
 ```
 Replays events from run 001 and rewrites only the closure and token-usage reports.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "{run}/events.jsonl"
+  - "templates/reports/**"
+writes:
+  - "{run}/reports/**"
+  - "{run}/run.json"
+emits:
+  - {event: report.regeneration.started, via: append}
+  - {event: report.generated, via: append}
+  - {event: report.regeneration.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

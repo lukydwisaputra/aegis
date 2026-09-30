@@ -80,3 +80,48 @@ Output: `runs/{runId}/reports/metrics/flaky.json`.
 - `metrics.phase-rollup` — after each phase completes
 - `metrics.cycle-complete` — at run end, includes summary stats
 - `metrics.parse-error` — on malformed event, with raw line reference
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reads:
+  - "{run}/events.jsonl"
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - "{run}/plan.json"
+  - {path: "{run}/reports/work/qa-unit-specialist.json", optional: true}
+  - ".claude/model-policy.yaml"
+writes:
+  - "{run}/reports/metrics/token-usage.jsonl"
+  - "{run}/reports/metrics/cycle-time.json"
+  - "{run}/reports/metrics/coverage.json"
+  - "{run}/reports/metrics/defect-trend.json"
+  - "{run}/reports/metrics/effectiveness.json"
+  - "{run}/reports/metrics/agent-reliability.json"
+  - "{run}/reports/metrics/flaky.json"
+emits:
+  - {event: metrics.phase-rollup, via: append}
+  - {event: metrics.cycle-complete, via: append}
+  - {event: metrics.parse-error, via: append}
+awaits:
+  - run.phase.completed
+  - discovery.step-complete
+  - execution.complete
+  - run.completed
+  - token.used
+  - run.phase.started
+  - PhaseCompleted
+  - defect.opened
+  - defect.closed
+  - defect.reopened
+cli: []
+runs: []
+dispatches: []
+config:
+  - .claude/model-policy.yaml
+```

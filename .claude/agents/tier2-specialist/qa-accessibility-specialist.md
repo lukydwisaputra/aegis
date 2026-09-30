@@ -74,3 +74,33 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 - `test.passed` / `test.failed` — per TC; test.failed includes violation count by impact level
 - `a11y.violation-critical` — for any critical axe finding
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke]
+reviewedBy: qa-accessibility-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - agent-memory/qa-accessibility-specialist/lessons.md
+writes:
+  - "{tests}/qa/specs/{url-path}/a11y.spec.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: a11y.violation-critical, via: append}
+  - {event: sandbox.explored, via: append}
+awaits: []
+cli: []
+runs: [playwright-cli, pa11y]
+dispatches: []
+config:
+  - thresholds.yaml
+```

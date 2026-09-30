@@ -71,3 +71,29 @@ You evaluate the QA cycle against ISO/IEC 5055:2021, which defines automated sou
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy:
+  none: "not stated in prose"
+reads:
+  - "{run}/reports/compliance/"
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - knowledge/synthesis/compliance-and-regulations.md
+  - agent-memory/qa-compliance-iso5055/lessons.md
+writes:
+  - "{run}/reports/compliance/iso5055.{md,json}"
+emits:
+  - {event: compliance.review-complete, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

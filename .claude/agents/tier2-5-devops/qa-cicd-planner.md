@@ -50,3 +50,31 @@ For each workflow, design: triggers, jobs, job dependencies, matrix (monorepo ap
 ## Events You Emit
 
 - `cicd.plan-completed` — includes workflowCount, stageCoverage
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: devops
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-cicd-spv
+reads:
+  - "{run}/target-profile.json"
+  - "{run}/plan.json"
+  - thresholds.yaml
+  - aegis.config.json
+  - agent-memory/qa-cicd-planner/lessons.md
+writes:
+  - "{run}/devops/cicd-plan.json"
+  - "{run}/reports/work/qa-cicd-planner.json"
+emits:
+  - {event: cicd.plan-completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - thresholds.yaml
+  - aegis.config.json
+```

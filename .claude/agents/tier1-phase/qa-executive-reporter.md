@@ -186,3 +186,56 @@ Claims `task:executive-reporting` via taskmaster-client. Read-only on all run ar
 ## Worked Example
 
 `RUN-20260524-001` slide deck: Slide 1 — "All critical customer journeys tested. One medium-severity authentication issue found and under fix, with no immediate customer impact on standard email formats." Slide 2 WHAT: "147 automated tests run, 146 passed" → rephrased to "All key user journeys tested successfully; one issue detected." SO WHAT: "Customers can complete every critical action — login, booking, registration — without interruption." NOW WHAT: "Ship as planned; monitor plus-aliased email login in first 72h post-deploy."
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: executive
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-executive-reporter-spv
+reads:
+  - "{run}/reports/closure/closure.json"
+  - "{run}/rtm.json"
+  - "{run}/risk-register.json"
+  - "{run}/execution-summary.json"
+  - "{run}/defects/*.json"
+  - "{run}/cases/*.json"
+  - "{run}/events.jsonl"
+  - "{run}/gates/gate-{1,2,3}-decision.json"
+  - "{run}/reports/compliance/*.json"
+  - "{run}/reports/metrics/*.json"
+  - aegis.config.json
+  - "agent-memory/qa-executive-reporter/lessons.md"
+writes:
+  - path: "{run}/reports/executive/technical-report.pdf"
+    terminal: true
+  - path: "{run}/reports/executive/signoff.pdf"
+    terminal: true
+  - path: "{run}/reports/executive/executive-deck.pdf"
+    terminal: true
+  - path: "{run}/reports/executive/executive-slides.pdf"
+    terminal: true
+  - path: "{run}/reports/executive/technical-report.md"
+    terminal: true
+  - "{run}/reports/work/qa-executive-reporter.json"
+emits:
+  - {event: executive.report.generated, via: append}
+  - {event: report.produced, via: append}
+  - {event: jargon.flagged, via: append}
+  - {event: tone.check-failed, via: append}
+  - {event: brand.leak-detected, via: append}
+  - {event: report.fallback, via: append}
+  - {event: run.phase.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches:
+  - _qa-report-technical-pdf
+  - _qa-report-signoff-pdf
+  - _qa-report-executive-slides
+config:
+  - aegis.config.json#dashboard.projectName
+  - aegis.config.json#dashboard.footerText
+```

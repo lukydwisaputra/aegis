@@ -40,3 +40,24 @@ Executes a fast, focused subset of the automated QA pipeline designed to act as 
 /qa-smoke --module=AUTH --include-security --env=testing
 ```
 Runs a ~12-minute smoke cycle for the AUTH module including a security scan.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: [qa-deps-update]
+reads: []
+writes: []
+emits:
+  - {event: smoke.started, via: append}
+  - {event: smoke.passed, via: append}
+  - {event: smoke.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-api-specialist, qa-ui-specialist, qa-unit-specialist, qa-accessibility-specialist, qa-security-specialist]
+config:
+  - config/thresholds.yaml
+```

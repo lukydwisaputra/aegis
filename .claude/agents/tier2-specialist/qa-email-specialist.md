@@ -67,3 +67,34 @@ You are forbidden against the production environment.
 
 - `test.passed` / `test.failed` — per TC; test.failed includes which assertion failed
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist]
+reviewedBy: qa-email-specialist-spv
+reads:
+  - aegis.config.json
+  - path: secrets/.env.{env}
+    optional: true
+  - agent-memory/qa-email-specialist/lessons.md
+writes:
+  - "{tests}/qa/email/{flow}.email.spec.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: sandbox.explored, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - aegis.config.json#emailAdapter
+  - aegis.config.json#ports.mailpit
+  - aegis.config.json#ports.mailpit.http
+```

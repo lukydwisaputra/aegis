@@ -38,3 +38,26 @@ Dispatches one specialist testing agent in isolation, bypassing the full STLC or
 /qa-run-specialist --specialist=security --target=apps/prospect/src/api/auth
 ```
 Runs the security specialist scoped to the auth API directory and reports findings immediately.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads: []
+writes:
+  - "spot/{specialist}/{timestamp}/run.json"
+  - "spot/{specialist}/{timestamp}/results.json"
+emits:
+  - {event: specialist.started, via: append}
+  - {event: specialist.completed, via: append}
+  - {event: specialist.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-api-specialist, qa-ui-specialist, qa-unit-specialist, qa-performance-specialist, qa-security-specialist, qa-accessibility-specialist, qa-exploratory-specialist, qa-email-specialist, qa-database-specialist, qa-realtime-specialist, qa-feature-flag-specialist, qa-responsive-specialist]
+config:
+  - config/model-policy.yaml
+```

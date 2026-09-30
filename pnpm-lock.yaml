@@ -44,6 +44,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@qa/alignment':
+        specifier: workspace:*
+        version: link:../../packages/@qa/alignment
       '@qa/contracts':
         specifier: workspace:*
         version: link:../../packages/@qa/contracts
@@ -146,7 +149,7 @@ importers:
         version: 8.5.15
       tailwindcss:
         specifier: ^3.4.3
-        version: 3.4.19(tsx@4.22.3)
+        version: 3.4.19(tsx@4.22.3)(yaml@2.9.1)
       vite:
         specifier: ^5.2.0
         version: 5.4.21(@types/node@20.19.41)
@@ -187,6 +190,21 @@ importers:
       proper-lockfile:
         specifier: ^4.1.2
         version: 4.1.2
+
+  packages/@qa/alignment:
+    dependencies:
+      '@qa/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@qa/run-state':
+        specifier: workspace:*
+        version: link:../run-state
+      yaml:
+        specifier: ^2.5.0
+        version: 2.9.1
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
 
   packages/@qa/artifact-policy:
     dependencies:
@@ -4776,6 +4794,11 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yargs-parser@21.1.1:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
@@ -8697,13 +8720,14 @@ snapshots:
       camelcase-css: 2.0.1
       postcss: 8.5.15
 
-  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.22.3):
+  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.22.3)(yaml@2.9.1):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 1.21.7
       postcss: 8.5.15
       tsx: 4.22.3
+      yaml: 2.9.1
 
   postcss-nested@6.2.0(postcss@8.5.15):
     dependencies:
@@ -9271,7 +9295,7 @@ snapshots:
 
   tailwind-merge@3.6.0: {}
 
-  tailwindcss@3.4.19(tsx@4.22.3):
+  tailwindcss@3.4.19(tsx@4.22.3)(yaml@2.9.1):
     dependencies:
       '@alloc/quick-lru': 5.2.0
       arg: 5.0.2
@@ -9290,7 +9314,7 @@ snapshots:
       postcss: 8.5.15
       postcss-import: 15.1.0(postcss@8.5.15)
       postcss-js: 4.1.0(postcss@8.5.15)
-      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.22.3)
+      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.22.3)(yaml@2.9.1)
       postcss-nested: 6.2.0(postcss@8.5.15)
       postcss-selector-parser: 6.1.2
       resolve: 1.22.12
@@ -9546,6 +9570,8 @@ snapshots:
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
+
+  yaml@2.9.1: {}
 
   yargs-parser@21.1.1: {}
 

@@ -80,3 +80,33 @@ You **never** merge PRs. You **never** push directly to `main` or `master`. You 
 - `devops.branch-created` — includes branchName, baseRef
 - `devops.pr-opened` — includes prNumber, prUrl
 - `devops.issue-linked` — includes issueNumber, defectId
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: devops
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-github-spv
+reads:
+  - "{run}/devops/github-plan.json"
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - aegis.config.json
+  - agent-memory/qa-github-implementer/lessons.md
+writes:
+  - "{run}/devops/github-results.json"
+  - "{run}/reports/work/qa-github-implementer.json"
+emits:
+  - {event: devops.branch-created, via: append}
+  - {event: devops.pr-opened, via: append}
+  - {event: devops.issue-linked, via: append}
+awaits: []
+cli: []
+runs: [git, gh]
+dispatches: []
+config:
+  - aegis.config.json#github.defaultReviewers
+  - aegis.config.json#github.labels
+```

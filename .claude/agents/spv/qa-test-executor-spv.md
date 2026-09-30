@@ -42,3 +42,29 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-test-executor]
+reads:
+  - "{run}/reports/work/qa-test-executor.json"
+  - "{run}/execution-summary.{md,json}"
+  - "{run}/events.jsonl"
+  - "{run}/evidence/**"
+  - "agent-memory/qa-test-executor/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

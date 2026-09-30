@@ -41,3 +41,28 @@ Synchronises artifacts from a completed or in-progress run to an external projec
 /qa-export --tracker=clickup --what=defects --since=RUN-2026-05-20-003
 ```
 Exports only defects created after run 003 to ClickUp.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - path: "config/integrations.yaml"
+    optional: true
+  - "exports/{tracker}/id-map.json"
+writes:
+  - "exports/{tracker}/id-map.json"
+emits:
+  - {event: export.started, via: append}
+  - {event: export.item.created, via: append}
+  - {event: export.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/integrations.yaml
+```

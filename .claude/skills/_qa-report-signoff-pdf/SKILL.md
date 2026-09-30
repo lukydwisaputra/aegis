@@ -81,3 +81,32 @@ node aegis/.claude/skills/_qa-report-signoff-pdf/run.mjs --run=$RUN_ID
 ```
 
 Renders `runs/RUN-20260524-001/reports/signoff.pdf` as the formal attestation for product version 2.4.0.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: internal
+dispatchedBy: [qa-executive-reporter]
+reads:
+  - "aegis.config.json"
+  - "{run}/gates/gate-3-decision.json"
+  - "{run}/reports/closure.json"
+  - "{run}/risk-register.json"
+  - "{run}/plan.json"
+writes:
+  - path: "{run}/reports/signoff.pdf"
+    terminal: true
+emits:
+  - {event: report.signoff.started, via: append}
+  - {event: report.signoff.completed, via: append}
+  - {event: report.signoff.failed, via: append}
+awaits: []
+cli: []
+runs:
+  - node
+dispatches: []
+config:
+  - aegis.config.json#dashboard.projectName
+```

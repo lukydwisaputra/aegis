@@ -47,3 +47,30 @@ You review test cases and RTM produced by `qa-test-designer`. You verify that te
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-test-designer]
+reads:
+  - "{run}/reports/work/qa-test-designer.json"
+  - "{run}/cases/*.{md,json}"
+  - "{run}/rtm.{md,json}"
+  - "{run}/plan.json"
+  - "{run}/proposed-changes/**"
+  - "agent-memory/qa-test-designer/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -67,3 +67,36 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 - `test.passed` / `test.failed` — per TC; test.failed includes which metrics violated which thresholds
 - `performance.regression-detected` — when p95 > previous run's p95 + 10% regression allowance
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist]
+reviewedBy: qa-performance-specialist-spv
+reads:
+  - thresholds.yaml
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - agent-memory/qa-performance-specialist/lessons.md
+writes:
+  - "{tests}/qa/perf/{scenario}.perf.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: performance.regression-detected, via: append}
+  - {event: sandbox.explored, via: append}
+  - {event: execution.blocked, via: append}
+awaits: []
+cli: []
+runs: [k6, lighthouse]
+dispatches: []
+config:
+  - thresholds.yaml#gates.{env}.performance
+  - aegis.config.json#environments.{env}.readOnly
+```

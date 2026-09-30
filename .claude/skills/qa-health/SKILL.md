@@ -42,3 +42,28 @@ Performs a comprehensive self-diagnostic of the QA pipeline's data and configura
 /qa-health --fix --gitignore
 ```
 Runs all health checks, auto-fixes safe issues, and audits the `.gitignore`.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: [qa-start]
+reads:
+  - "runs/**"
+  - ".gitignore"
+  - "HANDBOOK.md"
+writes:
+  - "runs/**"
+  - ".gitignore"
+emits:
+  - {event: health.check.started, via: append}
+  - {event: health.issue.found, via: append}
+  - {event: health.check.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

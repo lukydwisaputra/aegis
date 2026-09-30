@@ -38,3 +38,27 @@ Recovers a run that was interrupted mid-cycle (e.g. agent crash, network loss, m
 /qa-resume --run=RUN-2026-05-24-002
 ```
 Detects that run 002 stalled mid-execution phase and resumes from the first unfinished specialist agent.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "{run}/events.jsonl"
+  - "{run}/.lock"
+writes:
+  - "{run}/.lock"
+  - "{run}/run.json"
+emits:
+  - {event: run.resumed, via: append}
+  - {event: run.lock.stale.cleared, via: append}
+  - {event: run.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-orchestrator]
+config: []
+```

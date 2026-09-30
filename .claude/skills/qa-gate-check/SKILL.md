@@ -46,3 +46,28 @@ Reads a run's execution results and compares them against the quality gate thres
 /qa-gate-check --run=RUN-2026-05-24-001 --stage=staging --json
 ```
 Evaluates the staging gate for run 001 and outputs JSON for CI consumption.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: [qa-promote-stage]
+reads:
+  - "{run}/execution/results.json"
+  - "{run}/defects.json"
+writes:
+  - "{run}/gates/{stage}-gate.json"
+emits:
+  - {event: gate.evaluation.started, via: append}
+  - {event: gate.threshold.evaluated, via: append}
+  - {event: gate.passed, via: append}
+  - {event: gate.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/thresholds.yaml
+```

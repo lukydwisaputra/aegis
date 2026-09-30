@@ -40,3 +40,29 @@ You review the work of qa-github-planner and qa-github-implementer. You validate
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: []
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-github-planner, qa-github-implementer]
+reads:
+  - "{run}/devops/github-plan.json"
+  - "{run}/devops/github-results.json"
+  - "{run}/reports/work/qa-github-planner.json"
+  - "{run}/reports/work/qa-github-implementer.json"
+  - agent-memory/qa-github-spv/lessons.md
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: [gh, git]
+dispatches: []
+config: []
+```

@@ -43,3 +43,30 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-email-specialist]
+reads:
+  - "{run}/reports/work/qa-email-specialist.json"
+  - "{tests}/qa/email/**"
+  - "aegis.config.json"
+  - "{tests}/qa/**"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-email-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: ["aegis.config.json#emailAdapter", "aegis.config.json#environments.production.forbiddenSpecialists"]
+```

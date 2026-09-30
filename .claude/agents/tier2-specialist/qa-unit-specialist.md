@@ -60,3 +60,31 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 - `test.passed` / `test.failed` — per TC
 - `coverage.updated` — after Jest run; includes new coverage delta
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
+reviewedBy: qa-unit-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - "{target}/**"
+  - agent-memory/qa-unit-specialist/lessons.md
+writes:
+  - "{run}/reports/unit-coverage-gaps.json"
+  - "{tests}/qa/unit/{path}/{name}.test.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/reports/metrics/coverage.json"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: coverage.updated, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

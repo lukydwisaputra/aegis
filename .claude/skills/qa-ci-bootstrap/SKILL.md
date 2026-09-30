@@ -39,3 +39,30 @@ Scaffolds the CI/CD integration layer for the automated QA pipeline: GitHub Acti
 /qa-ci-bootstrap --dry-run
 ```
 Previews all generated CI/CD files without writing them, allowing review before committing.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "package.json"
+  - "pnpm-workspace.yaml"
+writes:
+  - ".github/workflows/qa-smoke.yml"
+  - ".github/workflows/qa-regression.yml"
+  - ".github/workflows/qa-gate.yml"
+  - ".husky/pre-commit"
+  - "docs/ci-secrets-setup.md"
+emits:
+  - {event: ci.bootstrap.started, via: append}
+  - {event: ci.file.written, via: append}
+  - {event: ci.bootstrap.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

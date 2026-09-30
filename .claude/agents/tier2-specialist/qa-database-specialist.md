@@ -71,3 +71,40 @@ You are a read-write agent against the test database. You never touch the produc
 - `migration.applied` — one per migration file in the run
 - `rls.violation-detected` — when a role can access data it should not
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist]
+reviewedBy: qa-database-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - secrets/.env.{env}
+  - "{target}/**"
+  - agent-memory/qa-database-specialist/lessons.md
+writes:
+  - "{tests}/qa/integration/db/{feature}.db.test.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: migration.applied, via: append}
+  - {event: rls.violation-detected, via: append}
+  - {event: sandbox.explored, via: append}
+  - {event: execution.blocked, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - aegis.config.json#target.platform
+  - aegis.config.json#target.supabase
+  - aegis.config.json#target.supabase.rolesToTest
+  - aegis.config.json#environments.{env}.readOnly
+```

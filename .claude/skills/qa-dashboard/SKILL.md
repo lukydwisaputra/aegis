@@ -43,3 +43,28 @@ Controls the local QA metrics dashboard — a web UI that visualises run history
 /qa-dashboard start --port=3030 --no-open
 ```
 Starts the dashboard server on port 3030 without opening a browser tab.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "dashboard/.pids"
+  - "dashboard/dist/**"
+  - "runs/**"
+writes:
+  - "dashboard/.pids"
+  - "dashboard/dist/**"
+emits:
+  - {event: dashboard.started, via: append}
+  - {event: dashboard.stopped, via: append}
+  - {event: dashboard.built, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

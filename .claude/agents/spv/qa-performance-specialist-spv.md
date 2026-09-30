@@ -44,3 +44,32 @@ You review performance test scripts and results from `qa-performance-specialist`
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-performance-specialist]
+reads:
+  - "{run}/reports/work/qa-performance-specialist.json"
+  - "{tests}/qa/perf/**"
+  - "{target}/.lighthouserc.*"
+  - "thresholds.yaml"
+  - "{run}/evidence/{TC}/baseline/**"
+  - "{tests}/qa/**"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-performance-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: ["thresholds.yaml#gates.{stage}.performance"]
+```

@@ -42,3 +42,29 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-feature-flag-specialist]
+reads:
+  - "{run}/reports/work/qa-feature-flag-specialist.json"
+  - "{tests}/qa/specs/{url-path}/flags.spec.ts"
+  - "{run}/target-profile.json"
+  - "{run}/defects/*.json"
+  - "agent-memory/qa-feature-flag-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

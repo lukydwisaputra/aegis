@@ -44,3 +44,29 @@ Processes all agent YAML/JSON definition files in the Aegis framework and resolv
 /qa-build-agents --dry-run
 ```
 Previews all tier → model resolutions without writing any files.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: internal
+dispatchedBy: []
+reads:
+  - "config/model-policy.yaml"
+  - "aegis/agents/**"
+writes:
+  - "aegis/agents/**"
+  - "build/agents-manifest.json"
+emits:
+  - {event: agents.build.started, via: append}
+  - {event: agent.model.resolved, via: append}
+  - {event: agent.model.unresolved, via: append}
+  - {event: agents.build.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/model-policy.yaml
+```

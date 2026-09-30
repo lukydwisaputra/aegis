@@ -56,3 +56,30 @@ If no flag system is detected, emit `specialist.no-op` and exit gracefully.
 
 - `test.passed` / `test.failed` — per TC per flag state
 - `specialist.no-op` — when no flag system detected
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist]
+reviewedBy: qa-feature-flag-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - agent-memory/qa-feature-flag-specialist/lessons.md
+writes:
+  - "{tests}/qa/specs/{url-path}/flags.spec.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: specialist.no-op, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - aegis.config.json
+```

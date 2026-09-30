@@ -42,3 +42,30 @@ The curator agent automatically surfaces lessons learned, reusable skills, and m
 /qa-promote --type=lesson --auto-approve-low-risk
 ```
 Reviews only lesson promotions and auto-approves any the curator marked as low-risk.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "promotions/pending/*.json"
+writes:
+  - "promotions/approved/**"
+  - "promotions/rejected/**"
+  - "knowledge/**"
+  - "skills/**"
+  - "memory/**"
+emits:
+  - {event: promotion.review.started, via: append}
+  - {event: promotion.approved, via: append}
+  - {event: promotion.rejected, via: append}
+  - {event: promotion.review.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

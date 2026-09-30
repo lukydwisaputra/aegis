@@ -130,3 +130,42 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 - `ui.defect-found` — one per surface-level UI defect
 - `discovery.completed` — single event; includes pageCount, pomCount, defectCount
 - `discovery.step-complete` — `{ step: "explore", artifact: "discovery-report.json" }`; the orchestrator collects this as the second half of the Discovery two-event barrier (qa-context-scanner emits the `{ step: "scan" }` half)
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: discovery
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-web-explorer-spv
+reads:
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{run}/intake/requirements/**"
+  - agent-memory/qa-web-explorer/lessons.md
+writes:
+  - "{run}/discovery-report.{md,json}"
+  - "{tests}/qa/pages/{url-path}/{route-slug}.page.ts"
+  - "{run}/evidence/discovery/**"
+  - "{run}/defects/{DEF-ID}.{md,json}"
+  - "sandbox/{YYYY-MM-DD}-{slug}/**"
+emits:
+  - {event: page.discovered, via: append}
+  - {event: pom.generated, via: append}
+  - {event: ui.defect-found, via: append}
+  - {event: discovery.completed, via: append}
+  - {event: discovery.step-complete, via: append}
+awaits: []
+cli: []
+runs: [playwright-cli]
+dispatches: []
+config:
+  - aegis.config.json#discovery.entryPoints
+  - aegis.config.json#discovery.maxDepth
+  - aegis.config.json#discovery.maxPagesPerRun
+  - aegis.config.json#discovery.rolesToExplore
+  - aegis.config.json#discovery.skipPatterns
+  - aegis.config.json#discovery.allowedDestructive
+```

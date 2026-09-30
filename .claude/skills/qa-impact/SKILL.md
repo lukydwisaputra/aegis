@@ -40,3 +40,25 @@ Performs forward and backward traceability analysis for a given requirement. Giv
 /qa-impact REQ-AUTH-007 --module=AUTH
 ```
 Shows all TCs, defects, and RTM rows linked to requirement AUTH-007.
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "artifacts/requirements/**"
+  - "artifacts/rtm/rtm.json"
+  - "artifacts/test-cases/**"
+  - "artifacts/defects/**"
+writes:
+  - "reports/impact-{REQ-id}.md"
+emits: []
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -64,3 +64,30 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, practicesCovered, gaps[], maturityIndicator
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy:
+  none: "not stated in prose"
+reads:
+  - "{run}/plan.{md,json}"
+  - "{run}/reports/work/*.json"
+  - "{run}/reviews/*.json"
+  - "{run}/reports/closure/closure.json"
+  - agent-memory/qa-compliance-cmmi/lessons.json
+  - knowledge/synthesis/compliance-and-regulations.md
+writes:
+  - "{run}/reports/compliance/cmmi.{md,json}"
+emits:
+  - {event: compliance.review-complete, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

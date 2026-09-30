@@ -55,3 +55,29 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-executive-reporter]
+reads:
+  - "{run}/reports/work/qa-executive-reporter.json"
+  - "{run}/reports/executive/technical-report.pdf"
+  - "{run}/reports/executive/signoff.pdf"
+  - "{run}/reports/executive/executive-deck.pdf"
+  - "agent-memory/qa-executive-reporter/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: [grep]
+dispatches: []
+config: []
+```

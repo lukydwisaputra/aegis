@@ -123,3 +123,37 @@ At session end (durable):
 - `sandbox.experiment-completed` — emitted by `completeSandbox()` when the session sandbox is torn down
 - `test.passed` / `test.failed` — per charter outcome
 - `defect.opened` — for any unscripted defect discovered
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist]
+reviewedBy: qa-exploratory-specialist-spv
+reads:
+  - "{run}/risk-register.json"
+  - "{run}/plan.json"
+  - "{run}/discovery-report.json"
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - agent-memory/qa-exploratory-specialist/lessons.md
+writes:
+  - "sandbox/{YYYY-MM-DD}-{session-slug}/**"
+  - "{run}/reports/exploratory/{session-id}-notes.md"
+  - "{run}/defects/{DEF-ID}.{md,json}"
+  - "{run}/evidence/{DEF-ID}/**"
+  - "{run}/cases/{TC-ID}-result.json"
+emits:
+  - {event: exploratory.session-started, via: append}
+  - {event: exploratory.session-complete, via: append}
+  - {event: sandbox.experiment-completed, via: append}
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: defect.opened, via: append}
+awaits: []
+cli: []
+runs: [playwright-cli]
+dispatches: []
+config: []
+```

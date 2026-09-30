@@ -43,3 +43,42 @@ aegis init --template=default
 # Which internally dispatches:
 /qa-init-project --project-root=/path/to/project --template=default
 ```
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+kind: internal
+dispatchedBy: []
+reads:
+  - "package.json"
+  - "pnpm-workspace.yaml"
+  - "templates/config/environments.yaml"
+  - "templates/config/thresholds.yaml"
+  - "templates/config/model-policy.yaml"
+  - "templates/config/cost-estimates.yaml"
+writes:
+  - "runs/**"
+  - "artifacts/**"
+  - "config/**"
+  - "knowledge/**"
+  - "templates/**"
+  - "reports/**"
+  - "promotions/**"
+  - "HANDBOOK.md"
+  - ".gitignore"
+  - "~/.aegis/workspace-index.json"
+emits:
+  - {event: project.initialized, via: append}
+  - {event: project.init.file.written, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - templates/config/environments.yaml
+  - templates/config/thresholds.yaml
+  - templates/config/model-policy.yaml
+  - templates/config/cost-estimates.yaml
+```

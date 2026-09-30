@@ -74,3 +74,30 @@ You evaluate whether the test cycle adequately covers GDPR obligations for the a
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, articlesCovered, gaps[], highSeverityGapCount
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy:
+  none: "not stated in prose"
+reads:
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - "{run}/plan.json"
+  - "{run}/target-profile.json"
+  - knowledge/synthesis/compliance-and-regulations.md
+  - agent-memory/qa-compliance-gdpr/lessons.md
+writes:
+  - "{run}/reports/compliance/gdpr.{md,json}"
+emits:
+  - {event: compliance.review-complete, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

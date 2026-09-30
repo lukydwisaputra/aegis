@@ -63,3 +63,34 @@ You run application security tests across four surfaces: dynamic analysis of the
 - `test.passed` / `test.failed` — per TC
 - `security.finding-critical` — for any Critical severity finding; immediate escalation
 - `secret.leak-detected` — for any Gitleaks hit; immediate Sev1
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: execution
+dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke]
+reviewedBy: qa-security-specialist-spv
+reads:
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - "{target}/**"
+  - agent-memory/qa-security-specialist/lessons.md
+writes:
+  - "{tests}/security/{surface}.security.spec.ts"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
+  - "sandbox/{date}-{slug}/**"
+emits:
+  - {event: test.passed, via: append}
+  - {event: test.failed, via: append}
+  - {event: security.finding-critical, via: append}
+  - {event: secret.leak-detected, via: append}
+awaits: []
+cli: []
+runs: [zap, semgrep, pnpm, gitleaks, trivy]
+dispatches: []
+config:
+  - aegis.config.json#target.sourceDirs
+```

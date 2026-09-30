@@ -55,3 +55,30 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
+
+## Contract (machine-checked)
+
+```yaml
+# Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy:
+  none: "not stated in prose"
+reads:
+  - "{run}/plan.{md,json}"
+  - "{run}/cases/*.json"
+  - "{run}/reports/closure/closure.json"
+  - "{run}/rtm.json"
+  - knowledge/synthesis/compliance-and-regulations.md
+  - agent-memory/qa-compliance-istqb/lessons.md
+writes:
+  - "{run}/reports/compliance/istqb.{md,json}"
+emits:
+  - {event: compliance.review-complete, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```
