@@ -27,7 +27,7 @@ it('DRIFT: paths, events and dispatch lines must be in the contract', () => {
   ].join('\n') + '\n';
   const t = makeRepo({
     agents: {
-      'qa-a': { body, contract: ag({ reads: ['{run}/plan.json'], emits: [{ event: 'defect.opened', via: 'append' }] }) },
+      'qa-a': { body, tools: ['Read', 'Agent'], contract: ag({ reads: ['{run}/plan.json'], emits: [{ event: 'defect.opened', via: 'append' }] }) },
       'qa-b': { contract: ag({}) },
     },
   });
@@ -51,5 +51,51 @@ it('DOC-REF: unknown qa-* names in docs', () => {
     'DOC-REF:HANDBOOK/01.md:qa-defect-reporter:unknown',
     'DOC-REF:HANDBOOK/01.md:qa-sandbox-manager:unknown',
   ]);
+  t.cleanup();
+});
+
+const driftKeys = (agents: Record<string, object>, skills?: Record<string, object>) => {
+  const t = makeRepo({ agents, skills } as never);
+  const k = keys(driftRule(loadModel(t.root)));
+  t.cleanup();
+  return k;
+};
+const proc = (line: string) => `# A\n## Process\n${line}\n`;
+
+it('DRIFT dispatch: only agents with Agent tool, skipping negations', () => {
+  const b = { 'qa-b': { contract: ag({}) } };
+  const mk = (line: string, tools: string[]) => driftKeys({ 'qa-a': { body: proc(line), tools, contract: ag({}) }, ...b });
+  expect(mk('1. Dispatch qa-b now.', ['Read'])).toEqual([]);
+  expect(mk('1. This is dispatched by qa-b.', ['Read', 'Agent'])).toEqual([]);
+  expect(mk('1. You do not dispatch qa-b directly.', ['Read', 'Agent'])).toEqual([]);
+  expect(mk('1. Dispatch qa-b now.', ['Read', 'Agent'])).toEqual(['DRIFT:qa-a:qa-b:dispatch-not-in-contract']);
+});
+
+it('DRIFT paths: Process lines about other units, negations and families are skipped', () => {
+  const mk = (line: string) =>
+    driftKeys({ 'qa-a': { body: proc(line), contract: ag({}) }, 'qa-b': { contract: ag({}) } });
+  expect(mk('1. Never write `{run}/x.json`.')).toEqual([]);
+  expect(mk('1. qa-b writes `{run}/x.json`.')).toEqual([]);
+  expect(mk('1. qa-compliance-* write `{run}/x.json`.')).toEqual([]);
+  expect(mk('1. Write `{run}/x.json`.')).toEqual(['DRIFT:qa-a:{run}/x.json:path-not-in-contract']);
+  const outputs = `# A\n## Outputs\n- Never \`{run}/y.json\`\n`;
+  expect(driftKeys({ 'qa-a': { body: outputs, contract: ag({}) } })).toEqual(['DRIFT:qa-a:{run}/y.json:path-not-in-contract']);
+  expect(
+    driftKeys({ 'qa-b': { contract: ag({}) } }, { 'qa-s': { body: '# s\n## Purpose\nqa-b writes `{run}/z.json`.\n', contract: { contract: 1, kind: 'utility' } } }),
+  ).toEqual([]);
+});
+
+it('DOC-REF: families, slash commands and {aegis}/ reads', () => {
+  const t = makeRepo({
+    agents: { 'qa-compliance-gdpr': { contract: ag({}) }, 'qa-cicd-planner': { contract: ag({}) } },
+    skills: { 'qa-start': { contract: { contract: 1, kind: 'execution', reads: ['{aegis}/thresholds.yaml'] } } },
+    docs: { 'HANDBOOK/02.md': 'qa-compliance-* and qa-cicd-* and qa-specialist-*. Run /qa-start then `/qa-close` (see .claude/skills/qa-nope).\n' },
+  });
+  const m = loadModel(t.root);
+  expect(keys(docRefRule(m))).toEqual([
+    'DOC-REF:HANDBOOK/02.md:/qa-close:unknown-command',
+    'DOC-REF:HANDBOOK/02.md:qa-specialist:unknown',
+  ]);
+  expect(keys(skillRule(m))).toEqual([]);
   t.cleanup();
 });
