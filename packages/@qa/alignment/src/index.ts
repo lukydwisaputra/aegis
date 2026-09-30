@@ -4,3 +4,4 @@ export * from "./load.js";
 export * from "./paths.js";
 export * from "./cli-records.js";
 export * from "./rules/structure.js";
+export * from "./rules/config.js";
