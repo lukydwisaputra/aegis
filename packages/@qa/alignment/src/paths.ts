@@ -3,9 +3,11 @@ const TOKENS = new Set(["{run}", "{target}", "{tests}", "{aegis}"]);
 /** Canonical spelling of a path pattern taken from a contract or from prose. */
 export function normalizePath(raw: string): string {
   let p = (raw.trim().split(/\s+/)[0] ?? "").replace(/^`+/, "").replace(/[`,;:.)]+$/, "");
-  p = p.replace(/^\.\//, "").replace(/^aegis\//, "");
+  p = p.replace(/^\.\//, "").replace(/^(\.\.\/)+aegis\//, "").replace(/^aegis\//, "");
   p = p.replace(/^runs\/\{[^}]+\}/, "{run}");
+  // {tests} means <target>/tests (../tests), regardless of aegis.config.json#testsDir (../tests/qa).
   p = p.replace(/^\.\.\/tests\//, "{tests}/").replace(/^tests\//, "{tests}/");
+  if (/^(\.\.\/)+/.test(p)) p = "{target}/" + p.replace(/^(\.\.\/)+/, "");
   if (p.endsWith("/")) p += "**";
   return p;
 }
@@ -126,4 +128,11 @@ export function staticPrefix(p: string): string {
     out.push(s);
   }
   return out.join("/");
+}
+
+/** Token-rooted pattern with no literal-only segment after the token (e.g. `{run}/**`, `{run}/{phase}/**`). */
+export function isTooBroad(raw: string): boolean {
+  const segs = normalizePath(raw).split("/");
+  if (!TOKENS.has(segs[0]!)) return false;
+  return segs.slice(1).every((s) => /[{*]/.test(s));
 }

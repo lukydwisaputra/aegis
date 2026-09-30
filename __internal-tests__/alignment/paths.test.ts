@@ -1,5 +1,5 @@
 import { CLI_COMMANDS, isCliRecordedEventType } from '@qa/run-state';
-import { CLI_RECORDS, commandRecords, matches, normalizePath, overlaps, staticPrefix } from '@qa/alignment';
+import { isTooBroad, CLI_RECORDS, commandRecords, matches, normalizePath, overlaps, staticPrefix } from '@qa/alignment';
 
 describe('normalizePath', () => {
   it('maps run, tests and target spellings to tokens', () => {
@@ -56,5 +56,20 @@ describe('CLI_RECORDS', () => {
     expect(commandRecords('review.submit', 'review.passed')).toBe(true);
     expect(commandRecords('review.submit', 'task.escalated')).toBe(true);
     expect(commandRecords('task.claim', 'task.released')).toBe(false);
+  });
+});
+
+describe('normalizePath roots and isTooBroad', () => {
+  it('maps aegis and target-relative prefixes', () => {
+    expect(normalizePath('../../aegis/runs/{runId}/x.json')).toBe('{run}/x.json');
+    expect(normalizePath('aegis/runs/{runId}/')).toBe('{run}/**');
+    expect(normalizePath('../src/x.ts')).toBe('{target}/src/x.ts');
+    expect(normalizePath('../tests/a.ts')).toBe('{tests}/a.ts');
+  });
+  it('flags token-only patterns', () => {
+    expect(isTooBroad('{run}/**')).toBe(true);
+    expect(isTooBroad('{run}/{phase}/**')).toBe(true);
+    expect(isTooBroad('{run}/cases/{TC}.json')).toBe(false);
+    expect(isTooBroad('knowledge/**')).toBe(false);
   });
 });

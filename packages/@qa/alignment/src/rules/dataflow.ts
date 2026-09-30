@@ -1,6 +1,6 @@
 import { isCliRecordedEventType } from "@qa/run-state";
-import { commandRecords } from "../cli-records.js";
-import { matches, normalizePath, overlaps } from "../paths.js";
+import { CLI_RECORDS, commandRecords } from "../cli-records.js";
+import { isTooBroad, matches, normalizePath, overlaps } from "../paths.js";
 import type { PathEntry } from "../schema.js";
 import { isAgentContract, pathOf, violation, type Model, type Unit, type Violation } from "../types.js";
 
@@ -28,14 +28,23 @@ export function producerRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const idx = phaseIndex(m);
   const sources = allSources(m);
+  const hasTarget = (m.pipeline?.sources.target.length ?? 0) > 0;
   const writers = [...m.units.values()].flatMap((u) => (u.contract?.writes ?? []).map((w) => ({ u, path: pathOf(w) })));
+  for (const u of m.units.values()) {
+    for (const p of new Set(writers.filter((w) => w.u === u && isTooBroad(w.path)).map((w) => normalizePath(w.path)))) {
+      out.push(violation("PRODUCER", u.name, p, "too-broad", u.file, u.contractLine, `${p} is too broad to index as a producer`));
+    }
+  }
+  const indexed = writers.filter((w) => !isTooBroad(w.path));
   for (const r of [...m.units.values()].filter(isAgentContract)) {
     const rp = unitPhase(m, r, idx);
     for (const e of r.contract.reads) {
       if (optional(e)) continue;
+      if (isTooBroad(pathOf(e))) continue;
       const p = normalizePath(pathOf(e));
       if (sources.some((s) => overlaps(s, p))) continue;
-      const prods = writers.filter((w) => w.u.name !== r.name && overlaps(w.path, p));
+      if (hasTarget && matches("{tests}/**", p) && !overlaps("{tests}/qa/**", p)) continue;
+      const prods = indexed.filter((w) => w.u.name !== r.name && overlaps(w.path, p));
       if (prods.length === 0) {
         out.push(violation("PRODUCER", r.name, p, "none", r.file, r.contractLine, `nothing produces ${p}`));
         continue;
@@ -53,10 +62,16 @@ export function producerRule(m: Model): Violation[] {
 
 export function consumerRule(m: Model): Violation[] {
   const out: Violation[] = [];
-  const readers = [...m.units.values()].flatMap((u) => (u.contract?.reads ?? []).map((r) => ({ u, path: pathOf(r) })));
+  const allReaders = [...m.units.values()].flatMap((u) => (u.contract?.reads ?? []).map((r) => ({ u, path: pathOf(r) })));
+  for (const u of m.units.values()) {
+    for (const p of new Set(allReaders.filter((r) => r.u === u && isTooBroad(r.path)).map((r) => normalizePath(r.path)))) {
+      out.push(violation("CONSUMER", u.name, p, "too-broad", u.file, u.contractLine, `${p} is too broad to index as a reader`));
+    }
+  }
+  const readers = allReaders.filter((r) => !isTooBroad(r.path));
   for (const w of [...m.units.values()].filter(isAgentContract)) {
     for (const e of w.contract.writes) {
-      if (terminal(e)) continue;
+      if (terminal(e) || isTooBroad(pathOf(e))) continue;
       const p = normalizePath(pathOf(e));
       if (!readers.some((r) => r.u.name !== w.name && overlaps(r.path, p))) {
         out.push(violation("CONSUMER", w.name, p, "unread", w.file, w.contractLine, `no one reads ${p}`));
@@ -68,7 +83,10 @@ export function consumerRule(m: Model): Violation[] {
 
 export function eventRule(m: Model): Violation[] {
   const out: Violation[] = [];
-  const emitted = new Set([...m.units.values()].flatMap((u) => (u.contract?.emits ?? []).map((e) => e.event)));
+  const emitted = new Set([
+    ...[...m.units.values()].flatMap((u) => (u.contract?.emits ?? []).map((e) => e.event)),
+    ...[...m.units.values()].flatMap((u) => (u.contract?.cli ?? []).flatMap((cmd) => CLI_RECORDS[cmd] ?? [])),
+  ]);
   for (const u of m.units.values()) {
     const c = u.contract;
     if (c === null) continue;
@@ -80,12 +98,13 @@ export function eventRule(m: Model): Violation[] {
     }
     let appends = false;
     for (const e of c.emits) {
-      if (e.via === "append") {
-        appends = true;
+      const cmd = e.via === "append" ? "event.append" : e.via.slice("cli:".length);
+      if (e.via !== "append" && !c.cli.includes(cmd)) out.push(violation("EVENT", u.name, e.event, "command-not-in-cli", u.file, u.contractLine, `${cmd} is not listed in this unit's cli`));
+      if (e.via === "append" || cmd === "event.append") {
+        if (e.via === "append") appends = true;
         if (u.kind === "skill") out.push(violation("EVENT", u.name, e.event, "owner-cannot-append", u.file, u.contractLine, "skills run as owner, and the owner cannot append events"));
         else if (isCliRecordedEventType(e.event)) out.push(violation("EVENT", u.name, e.event, "cli-recorded", u.file, u.contractLine, `${e.event} is recorded by the CLI`));
       } else {
-        const cmd = e.via.slice("cli:".length);
         if (!commandRecords(cmd, e.event)) out.push(violation("EVENT", u.name, e.event, "wrong-command", u.file, u.contractLine, `${cmd} does not record ${e.event}`));
       }
     }
@@ -99,14 +118,20 @@ export function eventRule(m: Model): Violation[] {
 export function writePolicyRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const cliOnly = m.pipeline?.sources.cli ?? [];
+  const src = m.pipeline?.sources;
   for (const u of m.units.values()) {
+    const extra: string[] = [];
+    if (u.kind === "skill") {
+      extra.push(...(src?.repo ?? []), ...(src?.owner ?? []));
+      if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(".claude/**", "HANDBOOK/**", "docs/**");
+    }
     for (const e of u.contract?.writes ?? []) {
       const p = normalizePath(pathOf(e));
       let reason: string | null = null;
-      if (cliOnly.some((s) => overlaps(s, p))) reason = "cli-only";
+      if (cliOnly.some((s) => matches(s, p))) reason = "cli-only";
       else if (matches("{tests}/**", p) && !overlaps("{tests}/qa/**", p)) reason = "outside-tests-qa";
       else if (p.startsWith("{target}/")) reason = "target-source";
-      else if (!WRITABLE.some((w) => overlaps(w, p))) reason = "not-writable";
+      else if (!WRITABLE.some((w) => overlaps(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
       if (reason !== null) out.push(violation("WRITE-POLICY", u.name, p, reason, u.file, u.contractLine, `write to ${p} violates the write policy (${reason})`));
     }
   }

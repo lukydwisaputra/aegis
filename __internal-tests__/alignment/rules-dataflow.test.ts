@@ -36,8 +36,8 @@ it('CONSUMER: unread unless terminal', () => {
 it('EVENT: undeclared, no-emitter, cli-recorded, wrong-command, appends-without-cli, owner-cannot-append', () => {
   const t = makeRepo({
     agents: {
-      'qa-a': { contract: ag('crosscutting', { emits: [{ event: 'made.up', via: 'append' }, { event: 'review.passed', via: 'append' }, { event: 'task.claimed', via: 'cli:review.submit' }, { event: 'defect.opened', via: 'append' }], awaits: ['gate.approved'] }) },
-      'qa-b': { contract: ag('crosscutting', { cli: ['event.append'], emits: [{ event: 'defect.opened', via: 'append' }, { event: 'review.passed', via: 'cli:review.submit' }] }) },
+      'qa-a': { contract: ag('crosscutting', { cli: ['review.submit'], emits: [{ event: 'made.up', via: 'append' }, { event: 'review.passed', via: 'append' }, { event: 'task.claimed', via: 'cli:review.submit' }, { event: 'defect.opened', via: 'append' }], awaits: ['gate.approved'] }) },
+      'qa-b': { contract: ag('crosscutting', { cli: ['event.append', 'review.submit'], emits: [{ event: 'defect.opened', via: 'append' }, { event: 'review.passed', via: 'cli:review.submit' }] }) },
     },
     skills: { 'qa-s': { contract: { contract: 1, kind: 'execution', emits: [{ event: 'defect.opened', via: 'append' }] } } },
   });
@@ -66,4 +66,83 @@ it('WRITE-POLICY', () => {
     'WRITE-POLICY:qa-a:{tests}/security/x.ts:outside-tests-qa',
   ]);
   t.cleanup();
+});
+
+const ppl = (sources: object) => ({ ...MIN_PIPELINE, phases: [{ id: 'req', agents: ['qa-req'] }], sources });
+const wp = (t: { root: string }) => keys(writePolicyRule(loadModel(t.root)));
+
+describe('fix round 1', () => {
+  it('cli-only requires the write to fall inside a CLI-only pattern', () => {
+    const t = makeRepo({
+      agents: { 'qa-a': { contract: ag('crosscutting', { writes: ['{run}/reports/**', '{run}/reports/work/{agent}.json'] }) } },
+      pipeline: ppl({ cli: ['{run}/reports/work/**'] }),
+    });
+    expect(wp(t)).toEqual(['WRITE-POLICY:qa-a:{run}/reports/work/{agent}.json:cli-only']);
+    t.cleanup();
+  });
+
+  it('skills may write repo/owner sources; internal skills also .claude, HANDBOOK, docs', () => {
+    const sk = (kind: string, writes: string[]) => ({ contract: { contract: 1, kind, writes } });
+    const t = makeRepo({
+      skills: {
+        'qa-q': sk('query', ['knowledge/{slug}/x.json', '.claude/agents/x.md', 'reports/x.json']),
+        'qa-i': sk('internal', ['.claude/agents/x.md', 'HANDBOOK/a.md', 'docs/a.md', 'artifacts/x.json']),
+      },
+      pipeline: ppl({ repo: ['knowledge/**'] }),
+    });
+    expect(wp(t)).toEqual([
+      'WRITE-POLICY:qa-i:artifacts/x.json:not-writable',
+      'WRITE-POLICY:qa-q:.claude/agents/x.md:not-writable',
+      'WRITE-POLICY:qa-q:reports/x.json:not-writable',
+    ]);
+    t.cleanup();
+  });
+
+  it('developer-tree test reads count as target-sourced', () => {
+    const t = makeRepo({
+      agents: { 'qa-req': { contract: ag('req', { reads: ['{tests}/unit/**', '{tests}/qa/fixtures/auth.fixture.ts'] }) } },
+      pipeline: ppl({ target: ['{target}/**'] }),
+    });
+    expect(keys(producerRule(loadModel(t.root)))).toEqual(['PRODUCER:qa-req:{tests}/qa/fixtures/auth.fixture.ts:none']);
+    t.cleanup();
+  });
+
+  it('too-broad patterns are reported and not indexed', () => {
+    const t = makeRepo({
+      agents: {
+        'qa-req': { contract: ag('req', { writes: ['{run}/{phase}/**', '{run}/x.json'] }) },
+        'qa-scan': { contract: ag('scan', { reads: ['{run}/**', '{run}/y.json'] }) },
+      },
+      pipeline: phases,
+    });
+    const m = loadModel(t.root);
+    expect(keys(producerRule(m))).toEqual(['PRODUCER:qa-req:{run}/{phase}/**:too-broad', 'PRODUCER:qa-scan:{run}/y.json:none']);
+    expect(keys(consumerRule(m))).toEqual(['CONSUMER:qa-req:{run}/x.json:unread', 'CONSUMER:qa-scan:{run}/**:too-broad']);
+    t.cleanup();
+  });
+
+  it('awaits of CLI-recorded events are satisfied by a unit listing the command', () => {
+    const t = makeRepo({
+      agents: {
+        'qa-a': { contract: ag('crosscutting', { cli: ['task.release'] }) },
+        'qa-b': { contract: ag('crosscutting', { awaits: ['task.released'] }) },
+      },
+    });
+    expect(keys(eventRule(loadModel(t.root)))).toEqual([]);
+    t.cleanup();
+  });
+
+  it('via cli:event.append acts like append; unlisted commands are flagged', () => {
+    const t = makeRepo({
+      agents: {
+        'qa-a': { contract: ag('crosscutting', { cli: ['event.append'], emits: [{ event: 'review.passed', via: 'cli:event.append' }] }) },
+        'qa-b': { contract: ag('crosscutting', { emits: [{ event: 'review.passed', via: 'cli:review.submit' }] }) },
+      },
+    });
+    expect(keys(eventRule(loadModel(t.root)))).toEqual([
+      'EVENT:qa-a:review.passed:cli-recorded',
+      'EVENT:qa-b:review.passed:command-not-in-cli',
+    ]);
+    t.cleanup();
+  });
 });
