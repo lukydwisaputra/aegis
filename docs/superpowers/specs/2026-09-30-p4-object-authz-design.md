@@ -6,7 +6,8 @@
 - Date: 2026-09-30
 - Status: draft — awaiting owner review
 - Program matrix: `docs/superpowers/specs/2026-09-29-audit-remediation-matrix.md`, §P4 (AUD-070)
-- Builds on: P0 (`2026-09-29-p0-pipeline-foundation-design.md`) and P1 (contracts & vocabulary)
+- Builds on: P0 (`2026-09-29-p0-pipeline-foundation-design.md`, incl. P0a-1's minimal `TargetProfileSchema`) and P1 (contracts & vocabulary)
+- Owner decisions: 2026-10-01 (§9) — only 404 passes; 403 is a Sev2 defect; DELETE on fixture-owned objects only
 - Closes: AUD-070
 
 ---
@@ -21,9 +22,9 @@ UUID, a slug or a composite key. AUD-070 owns the gap.
 
 Approach A (agreed): the feature is **detection + active IDOR test**, wired into the existing
 phases and agents rather than a bolt-on tool. Test accounts are created locally (docker) by the
-environment engineer. Two severities apply: an authorization leak is **Sev1**, gate-blocking, tagged
-CWE-639 / WSTG-ATHZ-04; an enumerable integer id whose object is nonetheless correctly authorized is
-a **Sev3** hardening finding.
+environment engineer. Only a **404** passes a cross-owner request. An authorization leak is **Sev1**,
+gate-blocking, tagged CWE-639 / WSTG-v42-ATHZ-04; a **403** (existence disclosed) is **Sev2**; an
+enumerable integer id whose object is otherwise correctly protected is a **Sev3** hardening finding.
 
 ### 1.1 Where P4 lands
 
@@ -51,7 +52,7 @@ For every object-bearing route or endpoint, the id-shape is classified into one 
 |-------|--------|-------------|
 | `integer` | path/query segment is `^\d+$`; OpenAPI `type: integer`; Prisma/SQL `serial`/`bigserial` PK | yes (id±1) |
 | `uuid` | segment matches RFC-4122; OpenAPI `format: uuid` | no |
-| `slug` | human-readable token (`/posts/my-first-post`) | partially (guessable) |
+| `slug` | human-readable token (`/posts/my-first-post`) | no — observation only (O6) |
 | `composite` | two+ id segments (`/orgs/:orgId/projects/:projectId`) | per-segment |
 | `opaque` | ULID / nanoid / hashid — non-sequential, non-UUID | no |
 | `unknown` | shape not determinable statically | flagged for runtime confirmation |
@@ -74,7 +75,7 @@ For every object-bearing route or endpoint, the id-shape is classified into one 
 The scanner writes the initial `objectRoutes[]`; the web-explorer enriches it in place (rmw on
 `target-profile.json`, matching the existing optional-read escape the scanner already declares).
 
-### 2.3 `target-profile.json#objectRoutes[]` schema (added in P1's `TargetProfileSchema`)
+### 2.3 `target-profile.json#objectRoutes[]` schema (extends `TargetProfileSchema` in `packages/@qa/contracts/src/target-profile.ts`)
 
 ```jsonc
 {
@@ -95,7 +96,7 @@ The scanner writes the initial `objectRoutes[]`; the web-explorer enriches it in
 }
 ```
 
-`enumerable` is true only for `integer` (and low-confidence `slug`). It drives the Sev3 finding
+`enumerable` is true only for `integer`; a `slug` is recorded as an observation, never a defect (O6). It drives the Sev3 finding
 independently of the authz test outcome.
 
 ---
@@ -150,7 +151,8 @@ using P0's happy / rejection / edge AC categories:
   private." (`derived: true` when synthesized from `objectRoutes[]` rather than intake; confirmed at
   Gate 1.)
 - **Happy AC:** userA reads/edits **their own** object → 2xx, data as expected.
-- **Rejection AC:** userB reads/edits **userA's** object by id → 403 or 404, **and userA's data is
+- **Rejection AC:** userB reads/edits **userA's** object by id → **404** (the object's existence is
+  not disclosed; a 403 fails the AC — O1), **and userA's data is
   unchanged**.
 - **Edge AC:** (a) integer `id±1` reaches a neighbour's object; (b) a **deleted** object's id;
   (c) **vertical** escalation — a lower role reaching a higher-role object; (d) a **list endpoint
@@ -167,7 +169,7 @@ Example:
 ```gherkin
 Given userA owns order 1042 and userB is authenticated
 When userB sends GET /api/orders/1042
-Then the response status is 403 or 404
+Then the response status is 404
 And a follow-up GET as userA returns order 1042 unchanged
 ```
 
@@ -195,12 +197,15 @@ For each `objectRoutes[]` entry with an owner binding, the specialist runs, usin
 | Target id | userA's own id; for integer ids also `id-1` and `id+1`; a deleted id |
 | Actor | userB (same role, horizontal); each lower role (vertical) |
 
-**Pass** = every B→A request returns **403 or 404**, **and** userA's object is **unchanged**
-afterwards. A 2xx that returns userA's data, or any mutation that alters it, is a **fail** (Sev1).
+**Pass** = every B→A request returns **404**, **and** userA's object is **unchanged** afterwards
+(O1). A **403** with data unchanged is a **fail** (Sev2, existence disclosure). A 2xx that returns
+userA's data, or any mutation that alters it, is a **fail** (Sev1). Vertical cells follow the same
+rule: a lower role must get 404 for a higher-role object.
 
 ### 5.2 Assertions
 
-1. **Response assertion** — web-first: `expect(res).toBeOneOf([403, 404])`; a 401 is treated as
+1. **Response assertion** — web-first: `expect(res).toHaveStatus(404)` (helper asserting exactly 404;
+   the result records the actual status so 403 maps to Sev2, 2xx to Sev1); a 401 is treated as
    pass only if the request was genuinely unauthenticated (it is not here — userB is logged in), so
    401 from an authenticated userB is a finding.
 2. **Data-unchanged verification** — after any write attempt, confirm userA's object is intact via
@@ -213,7 +218,8 @@ afterwards. A 2xx that returns userA's data, or any mutation that alters it, is 
 
 DELETE in the matrix targets **fixture-owned objects only**: userB attempts to delete a
 **userA-fixture** object that was seeded for this run and will be torn down anyway. The pass criterion
-is that the delete is **refused** (403/404) and the object still exists on userA's follow-up read;
+is that the delete is **refused** with 404 and the object still exists on userA's follow-up read
+(a 403 refusal is the Sev2 finding);
 if the delete unexpectedly **succeeds**, that is the Sev1 finding itself and the fixture is
 re-seeded before the next case. No non-fixture / real object is ever a DELETE target. (Choice:
 fixture-owned-only, not dry-run — a dry run cannot prove the endpoint would have refused.)
@@ -225,6 +231,27 @@ fixture-owned-only, not dry-run — a dry run cannot prove the endpoint would ha
   every specialist already follows).
 - Evidence names follow the existing `{TC}_{step}_{ts}` convention; result JSON at
   `{run}/cases/{TC-ID}-result.json`.
+
+### 5.5 Defects (qa-defect-manager)
+
+| Outcome of a B→A (or vertical) cell | Severity | Tags | Gate effect |
+|-------------------------------------|----------|------|-------------|
+| 2xx returns userA's data, or userA's object changed/deleted | **Sev1** — authz leak | `CWE-639`, `WSTG-v42-ATHZ-04` (vertical: also `WSTG-v42-ATHZ-03`) | gate-blocking at G2 |
+| **403**, data unchanged — existence disclosed | **Sev2** (O1) | `CWE-639`, `WSTG-v42-ATHZ-04` | gate-blocking at G2 |
+| 404 everywhere, but the resource type is integer-keyed | **Sev3** — enumerable id | `CWE-639` | tracked, not blocking |
+| slug-keyed resource | observation only (O6) | — | none |
+
+- Sev1 and Sev2 count against the `thresholds.yaml` security limits of 0 (`maxCritical`, `maxHigh`);
+  the plan confirms the Sev→limit mapping used by the gate check.
+- **Grouping.** Sev1/Sev2 are filed per route × method (each is a distinct missing check). Sev3 is
+  filed **once per resource type** (O5): the defect manager keys it on `resourceType` (the object
+  type behind the route, e.g. `order`) and lists every integer-keyed route of that type in the one
+  defect's reproduction steps; later runs update that defect instead of opening a new one.
+- **Origin confirmation** (HANDBOOK/17 (d)): before filing, the defect manager rules out test-side
+  causes — userB's session really is userB (identity echo), the target object really belongs to userA
+  (userA's own GET succeeds), and the fixture is fresh — then reproduces the failing cell on a clean
+  state (fresh peer accounts + fresh seed). The result goes in `originConfirmation`.
+- Defect files stay brand-clean (CLAUDE.md brand rule).
 
 ---
 
@@ -247,21 +274,22 @@ fixture-owned-only, not dry-run — a dry run cannot prove the endpoint would ha
 Every change keeps `pnpm aegis align` green (HANDBOOK/14 §14.11): prose edited first, then the
 contract block, then pipeline touch-points and their prose anchors.
 
-### 7.1 Contracts (`@qa/contracts`) — depends on P1
+### 7.1 Contracts (`@qa/contracts`) — depends on P0a-1 and P1
 
-- `TargetProfileSchema` gains `objectRoutes[]` (§2.3). P1 owns `TargetProfileSchema`; **P4 requires
-  P1 to have landed it** so P4 only extends, never introduces, the schema.
-- `TestTechniqueSchema` gains **`ObjectAuthz`**. *This is the explicit P1 dependency:* `ObjectAuthz`
-  must be added to the vocabulary in P1's final technique set (or, if P1 has already frozen, added by
-  P4 with a P1-owned baseline note). Named here so it is not lost.
+- `TargetProfileSchema` gains `objectRoutes[]` (§2.3). The schema lives in
+  `packages/@qa/contracts/src/target-profile.ts`: **P0a-1** introduces it with the core fields,
+  **P1 (AUD-031)** extends it to the full strict schema in the same file (still exported as
+  `TargetProfileSchema`), and **P4** extends that strict schema with `objectRoutes[]`. P4 never
+  introduces the schema.
+- `TestTechniqueSchema` gains **`ObjectAuthz`**. It is not in P1's final vocabulary (P1 keeps `E2E`
+  as a testType and adds no authz technique), so **P4 adds it** — to the schema, to `pipeline.yaml`
+  routing and `designerEmits`, and to the prose anchors (§7.4).
 - `DefectSchema` needs no new field: severity (Sev1/Sev3), `compliance` tags (CWE-639,
   WSTG-ATHZ-04), `defectType: "Standards"` for the enumerable-id finding and `"Logic"` for the authz
   leak all already exist.
-- **Tags:** `CWE-639` matches the existing `cweTag` regex; `WSTG-ATHZ-04` — the current `wstgTag`
-  regex is `^WSTG-v\d+-[A-Z]+-\d+$`, which does **not** admit `WSTG-ATHZ-04` (no `vNN`). P4 must
-  relax the regex to also accept the short `WSTG-{CATEGORY}-{NN}` form, or the designer must emit
-  `WSTG-v42-ATHZ-04`. **Recommendation: emit the versioned form `WSTG-v42-ATHZ-04`** (no schema
-  change, consistent with existing security tags).
+- **Tags:** `CWE-639` matches the existing `cweTag` regex. The WSTG tag is emitted in the versioned
+  form **`WSTG-v42-ATHZ-04`** (O2), which the existing `wstgTag` regex already accepts — no tag-schema
+  change.
 
 ### 7.2 New events (declared)
 
@@ -286,7 +314,7 @@ Each is added to `@qa/contracts/events.ts` and to the emitting agent's contract 
 | `qa-defect-manager` | Sev1 authz-leak & Sev3 enumerable-id defect shapes; origin confirmation for both |
 
 SPV checklists updated in lockstep (each agent's existing SPV): the security SPV gains "B→A matrix
-ran for every owner-bound route", "data-unchanged verified via userA GET or DB", "authz leak = Sev1",
+ran for every owner-bound route", "data-unchanged verified via userA GET or DB", "authz leak = Sev1", "403 = Sev2",
 "enumerable-id reported once per resource type"; the environment SPV gains "peer fixtures created +
 teardown paired, mutating-env only"; the designer SPV gains "ObjectAuthz TC carries Gherkin".
 
@@ -319,12 +347,15 @@ two mounted resources sharing one shape:
 
 - `/api/vulnerable/orders/:id` (integer) — **no ownership check**: returns any order by id (the
   planted IDOR + enumerable integer id).
-- `/api/safe/orders/:id` (integer) — checks the caller owns the order, else 403 (the correct twin;
+- `/api/safe/orders/:id` (integer) — checks the caller owns the order, else 404 (the correct twin;
   still Sev3-enumerable, but authz-clean).
+- `/api/forbidden/orders/:id` (integer) — checks ownership but answers 403 (the Sev2 existence-
+  disclosure variant).
 - `/api/safe-uuid/orders/:uuid` (UUID) — ownership-checked and non-enumerable (fully clean).
 
 Seed: userA owns order 1, userB owns order 2. The suite asserts the pipeline **finds** the leak on
-`/vulnerable` (Sev1), reports Sev3-only on `/safe`, and reports **clean** on `/safe-uuid`.
+`/vulnerable` (Sev1), a Sev2 on `/forbidden`, and **clean** on `/safe-uuid`; `/safe` and `/forbidden`
+share the `order` resource type with `/vulnerable`, so exactly **one** Sev3 is filed for `order`.
 
 ### 8.2 Unit / invariant tests (`__internal-tests__`)
 
@@ -334,31 +365,34 @@ Seed: userA owns order 1, userB owns order 2. The suite asserts the pipeline **f
 - **Data-unchanged check:** userA-GET diff and DB-read paths both detect a mutation.
 - **Env guard:** ObjectAuthz refused on a non-mutating env and on production; blocked-with-reason,
   not skipped.
-- **Severity mapping:** leak → Sev1 + CWE-639 + WSTG-v42-ATHZ-04; enumerable-clean → Sev3.
+- **Severity mapping:** leak → Sev1 + CWE-639 + WSTG-v42-ATHZ-04; 403 → Sev2; enumerable-clean →
+  Sev3, once per resource type; slug → observation.
 - **Alignment:** `pnpm aegis align` green; `ObjectAuthz` present in schema, pipeline routing and
   both prose anchors; new events resolve to an emitter.
 - **E2E:** the §8.1 fixture app driven through the security specialist's matrix (stubbed
-  provisioning), asserting the three expected verdicts and that DELETE never removed a non-fixture
+  provisioning), asserting the four expected verdicts and that DELETE never removed a non-fixture
   object.
 
 ---
 
-## 9. Open decisions for the owner
+## 9. Decisions (resolved 2026-10-01)
 
-| # | Decision | Recommendation |
-|---|----------|----------------|
-| O1 | 403 vs 404 for a denied cross-owner request — is a 403 (existence disclosed) itself a Sev3? | **Accept both as pass; note 403 as an info-only observation.** 404 is stricter but 403 is a legitimate design choice; do not fail it. |
-| O2 | WSTG tag form — relax the regex for short `WSTG-ATHZ-04`, or emit versioned `WSTG-v42-ATHZ-04`? | **Emit `WSTG-v42-ATHZ-04`** — no schema change, matches existing tags. |
-| O3 | Provisioning fallback order when signup is closed — admin API vs direct docker DB seed? | **Prefer admin/seed API; fall back to docker DB seed** (owner's stated local flow), recorded as `method`. |
-| O4 | DELETE handling — fixture-owned-only vs dry-run/verify? | **Fixture-owned-only.** A dry run cannot prove the endpoint would refuse; a seeded object can be safely re-created. |
-| O5 | Enumerability reporting granularity — one Sev3 per resource type or per route? | **Once per resource type** (an integer PK is a data-model property, not a per-route bug). |
-| O6 | Should a low-confidence `slug` shape be treated as enumerable (Sev3)? | **No — report as an observation only**, since guessability is not the same as sequential enumeration. |
+| # | Decision | Resolution |
+|---|----------|------------|
+| O1 | 403 vs 404 for a denied cross-owner request | **Owner: only 404 passes; 403 is a Sev2 defect** (existence disclosure, CWE-639 / WSTG-v42-ATHZ-04). |
+| O2 | WSTG tag form | **Emit `WSTG-v42-ATHZ-04`** — no tag-schema change. |
+| O3 | Provisioning fallback when signup is closed | **Admin/seed API, then docker DB seed**, recorded as `method`. |
+| O4 | DELETE handling | **Owner: fixture-owned objects only** (§5.3). |
+| O5 | Enumerability reporting granularity | **Once per resource type** (§5.5). |
+| O6 | Low-confidence `slug` shape | **Observation only**, never a defect. |
+
+No open decisions remain for this spec.
 
 ---
 
 ## 10. Tasks outline (for the later plan)
 
-1. **Contracts** (needs P1): add `objectRoutes[]` to `TargetProfileSchema`; add `ObjectAuthz` to
+1. **Contracts** (needs P0a-1 + P1): extend the strict `TargetProfileSchema` with `objectRoutes[]`; add `ObjectAuthz` to
    `TestTechniqueSchema`; add the four new events; confirm CWE-639 / WSTG-v42-ATHZ-04 tag validity.
 2. **Detection:** scanner id-shape classifier + `objectRoutes[]` seed; web-explorer runtime enrich;
    `objectroute.detected`.
@@ -368,8 +402,8 @@ Seed: userA owns order 1, userB owns order 2. The suite asserts the pipeline **f
    traceability.
 5. **Execution:** security specialist B→A matrix, response + data-unchanged assertions, HAR
    sanitization, non-destructive DELETE, rate cap; `authz.leak-detected`, `id.enumerable-detected`.
-6. **Defects:** defect-manager Sev1 leak (CWE-639, gate-blocking) & Sev3 enumerable-id (per resource
-   type) shapes + origin confirmation.
+6. **Defects:** defect-manager Sev1 leak, Sev2 403 existence disclosure (both gate-blocking) & Sev3
+   enumerable-id (per resource type) shapes + origin confirmation.
 7. **Pipeline & anchors:** `pipeline.yaml` routing + prose anchors; `thresholds.yaml#security.objectAuthz`.
 8. **Tests:** §8 fixture app + unit/invariant/E2E; `pnpm aegis align` green.
 9. **SPV checklists:** update the five agents' existing SPVs in lockstep.
