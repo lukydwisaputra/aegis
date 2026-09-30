@@ -91,8 +91,12 @@ export async function decideEscalation(root: string, runId: string, input: Decid
       });
       if (!record.success) throw new RunStateError("invalid-input", `escalation decision invalid: ${formatIssues(record.error.issues)}`);
       atomicWrite(join(reviewDir(root, runId), escalationFile(agent, input.taskId, attempt)), JSON.stringify(record.data, null, 2) + "\n");
+      // Reopen before the marker goes: a failed reopen leaves the escalation open, so the same decision can be retried.
+      if (input.decision === "retry") {
+        const client = createTaskmasterClient(taskmasterDir(root, runId));
+        if ((await client.get(input.taskId))?.status !== "pending") await client.reopen(input.taskId);
+      }
       rmSync(markerFile(root, runId, agent, input.taskId), { force: true });
-      if (input.decision === "retry") await createTaskmasterClient(taskmasterDir(root, runId)).reopen(input.taskId);
 
       const blockedBy = state.blockedBy.filter((c) => !(c.kind === "escalation" && c.taskId === input.taskId));
       const abort = input.decision === "abort";

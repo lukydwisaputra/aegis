@@ -8,7 +8,7 @@ import { AGENT_ID, assertCallerAllowed, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
-import { blockRun, readRun } from "./run.js";
+import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
 import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
 
@@ -106,8 +106,9 @@ export async function submitWorkReport(root: string, runId: string, file: string
   });
 }
 
-function rejectionsSoFar(dir: string, agent: string, taskId: string): number {
-  return attemptsIn(dir, agent, taskId).filter((n) => {
+/** Requested-changes reviews in the current round: attempts above the floor a gate rejection set (escalation retry keeps the round). */
+function rejectionsSoFar(dir: string, agent: string, taskId: string, floor: number): number {
+  return attemptsIn(dir, agent, taskId).filter((n) => n > floor).filter((n) => {
     const name = `${agent}.${taskId}.${n}.json`;
     let parsed;
     try {
@@ -193,7 +194,8 @@ export async function submitReview(root: string, runId: string, file: string, ca
     fs.mkdirSync(dir, { recursive: true });
     const out = join(dir, `${agent}.${taskId}.${attempt}.json`);
     const rejected = review.verdict === "requested-changes";
-    const rejections = rejectionsSoFar(dir, agent, taskId) + (rejected ? 1 : 0);
+    const floor = supersededAttempt(readRun(root, runId), agent, taskId);
+    const rejections = rejectionsSoFar(dir, agent, taskId, floor) + (rejected ? 1 : 0);
     try {
       publishJson(out, review);
     } catch (e) {
@@ -209,7 +211,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
       const marker = join(dir, `${agent}.${taskId}.escalated`);
       const decided = join(dir, `${agent}.${taskId}.${attempt}.escalation.json`);
       if (!existing.success || existing.data.verdict !== "requested-changes" || fs.existsSync(marker) || fs.existsSync(decided)) throw already;
-      const total = rejectionsSoFar(dir, agent, taskId);
+      const total = rejectionsSoFar(dir, agent, taskId, floor);
       if (total < MAX_ATTEMPTS) {
         // CO-12: re-drive a reopen that failed after this rejection was recorded.
         if (task?.status !== "done" && task?.status !== "failed") throw already;

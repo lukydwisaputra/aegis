@@ -23,8 +23,9 @@ import { assertCallerAllowed, ORCHESTRATOR } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
-import { describeStep, nextStep, parsePhase, reviewPassed, supersededAttempt } from "./phases.js";
-import { readRun, withRunLock, writeRun } from "./run.js";
+import { describeStep, nextStep, parsePhase, reviewPassed } from "./phases.js";
+import { CYCLE_PHASES } from "./phase-map.js";
+import { readRun, supersededAttempt, withRunLock, writeRun } from "./run.js";
 import { attemptsIn, workDir } from "./submit.js";
 import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
 
@@ -74,7 +75,10 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
   });
 }
 
-/** Write gate-{N}-decision.json, moving an earlier decision to gate-{N}-decision.{sequence}.json (spec §3.2 history). */
+/**
+ * Write gate-{N}-decision.json, moving an earlier decision to gate-{N}-decision.{sequence}.json (spec §3.2 history).
+ * A file with the same sequence is a retry of this decision after a failure, so it is overwritten, not archived.
+ */
 function publishDecision(root: string, runId: string, decision: GateDecision): void {
   const parsed = GateDecisionSchema.safeParse(decision);
   if (!parsed.success) throw new RunStateError("invalid-input", `gate decision invalid: ${formatIssues(parsed.error.issues)}`);
@@ -82,7 +86,7 @@ function publishDecision(root: string, runId: string, decision: GateDecision): v
   const file = gateDecisionPath(root, runId, decision.gate);
   if (existsSync(file)) {
     const old = GateDecisionSchema.parse(loadJson(file));
-    renameSync(file, file.replace(/\.json$/, `.${old.sequence}.json`));
+    if (old.sequence !== decision.sequence) renameSync(file, file.replace(/\.json$/, `.${old.sequence}.json`));
   }
   atomicWrite(file, JSON.stringify(parsed.data, null, 2) + "\n");
 }
@@ -92,11 +96,32 @@ function reopenedPhaseIds(from: PhaseId, gate: GateId): PhaseId[] {
   return PHASE_IDS.slice(PHASE_IDS.indexOf(from), PHASE_IDS.indexOf(GATE_AFTER[gate]) + 1);
 }
 
-/** Phases from `from` through the gated phase go back to pending after a rejection. */
+/**
+ * Every in-range phase of the cycle goes back to pending after a rejection, a computed not-applicable one too
+ * (the orchestrator re-derives the skip from the new Scan). Phases outside the cycle stay not-applicable.
+ */
 function reopenPhases(state: RunState, from: PhaseId, gate: GateId): RunState["phases"] {
+  const inCycle = new Set<PhaseId>(CYCLE_PHASES[state.cycleType]);
   const phases = { ...state.phases };
-  for (const id of reopenedPhaseIds(from, gate)) if (phases[id]?.status !== "not-applicable") phases[id] = { status: "pending" };
+  for (const id of reopenedPhaseIds(from, gate)) if (inCycle.has(id)) phases[id] = { status: "pending" };
   return phases;
+}
+
+const WORK_FILE = /^(qa-[a-z0-9-]+)\.(.+)\.(\d+)\.json$/;
+
+/** run.json#supersededAttempts merged with the highest attempt of every agent on `taskIds` (work reports on disk). */
+function supersedeAttempts(root: string, runId: string, state: RunState, taskIds: ReadonlySet<string>): NonNullable<RunState["supersededAttempts"]> {
+  const floors: NonNullable<RunState["supersededAttempts"]> = {};
+  for (const [id, byAgent] of Object.entries(state.supersededAttempts ?? {})) floors[id] = { ...byAgent };
+  const dir = workDir(root, runId);
+  for (const f of existsSync(dir) ? readdirSync(dir) : []) {
+    const m = WORK_FILE.exec(f);
+    if (m === null || !taskIds.has(m[2]!)) continue;
+    const [agent, id, n] = [m[1]!, m[2]!, Number(m[3])];
+    const byAgent = (floors[id] ??= {});
+    byAgent[agent] = Math.max(byAgent[agent] ?? 0, n);
+  }
+  return floors;
 }
 
 export interface DecideGateInput {
@@ -109,8 +134,10 @@ export interface DecideGateInput {
 
 /**
  * Owner decision on an open gate (spec §3.2). A rejection reopens `reopenPhase` (default: the gated phase) through
- * the gated phase: their tasks go back to pending and every attempt so far is recorded in run.json#supersededAttempts,
- * so only new work can pass the barrier again. It never reopens a phase at or before the previous gate's phase.
+ * the gated phase: every attempt so far on their tasks is recorded in run.json#supersededAttempts and the tasks go back
+ * to pending, so only new work can pass the barrier again. It never reopens a phase at or before the previous gate's phase.
+ * Retryable: until the final run.json write and the gate.decided event both land, the gate stays open, so a failed
+ * call can be repeated and ends with one decision file and one event.
  * Lock order: run.lock -> task-file lock -> event-bus lock.
  */
 export async function decideGate(root: string, runId: string, input: DecideGateInput, caller: string): Promise<GateDecision> {
@@ -141,40 +168,48 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
       ...(reopen !== undefined ? { reopenPhase: reopen } : {}), decidedBy: "owner", decidedAt: ts,
     };
 
-    // A rejection: every released task of the reopened phases needs a new attempt.
-    const client = createTaskmasterClient(taskmasterDir(root, runId));
-    const phaseSet = new Set<string>(reopen !== undefined ? reopenedPhaseIds(reopen, gate) : []);
-    const reopenTasks = reopen === undefined ? [] : (await client.list()).filter((t) => t.phase !== undefined && phaseSet.has(t.phase) && (t.status === "done" || t.status === "failed"));
-    const superseded: NonNullable<RunState["supersededAttempts"]> = { ...(state.supersededAttempts ?? {}) };
-    for (const t of reopenTasks) {
-      const attempts = t.claimedBy === undefined ? [] : attemptsIn(workDir(root, runId), t.claimedBy, t.id);
-      if (attempts.length > 0) superseded[t.id] = { ...(superseded[t.id] ?? {}), [t.claimedBy!]: Math.max(...attempts) };
+    let open = state;
+    if (reopen !== undefined) {
+      const client = createTaskmasterClient(taskmasterDir(root, runId));
+      const phaseSet = new Set<string>(reopenedPhaseIds(reopen, gate));
+      const tasks = (await client.list()).filter((t) => t.phase !== undefined && phaseSet.has(t.phase));
+      // The superseded attempts land first, while the gate is still open: the barrier never trusts the old work,
+      // and a failure below leaves a gate the owner can decide again.
+      open = { ...state, supersededAttempts: supersedeAttempts(root, runId, state, new Set(tasks.map((t) => t.id))), updatedAt: ts };
+      writeRun(root, open);
+      for (const t of tasks) {
+        if (t.status !== "done" && t.status !== "failed") continue; // pending: reopened by an earlier try
+        try {
+          await client.reopen(t.id);
+        } catch (e) {
+          // submitReview reopens under submit.lock, not run.lock: a late rejection of an unreviewed (failed,
+          // accepted-with-risk) attempt can reopen the task between list() and here. Any other failure is real.
+          if ((await client.get(t.id))?.status !== "pending") throw e;
+        }
+      }
     }
 
     publishDecision(root, runId, decision);
     const next: RunState = {
-      ...state,
+      ...open,
       // A block or stop that landed while the gate was open stays in force.
-      status: state.status === "awaiting-gate" ? "running" : state.status,
-      gates: { ...state.gates, [gate]: { ...record, status: input.decision, decidedAt: ts, decisions: sequence } },
-      ...(reopen !== undefined ? { phases: reopenPhases(state, reopen, gate), currentPhase: null, supersededAttempts: superseded } : {}),
+      status: open.status === "awaiting-gate" ? "running" : open.status,
+      gates: { ...open.gates, [gate]: { ...record, status: input.decision, decidedAt: ts, decisions: sequence } },
+      ...(reopen !== undefined ? { phases: reopenPhases(open, reopen, gate), currentPhase: null } : {}),
       updatedAt: ts,
     };
-    // run.json records the superseded attempts before any task reopens: the barrier never trusts the old work.
     writeRun(root, next);
-    for (const t of reopenTasks) {
-      try {
-        await client.reopen(t.id);
-      } catch (e) {
-        // A concurrent review rejection may have reopened it already; anything else is a real failure.
-        if ((await client.get(t.id))?.status !== "pending") throw e;
-      }
+    try {
+      await appendChained(
+        { type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note, ...(reopen !== undefined ? { reopenPhase: reopen } : {}) },
+        busPath(root, runId),
+        { emittedBy: caller, runId }
+      );
+    } catch (e) {
+      // Unrecorded: put the gate back to open so the same decision can be retried (publishDecision overwrites it).
+      writeRun(root, open);
+      throw e;
     }
-    await appendChained(
-      { type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note, ...(reopen !== undefined ? { reopenPhase: reopen } : {}) },
-      busPath(root, runId),
-      { emittedBy: caller, runId }
-    );
     return decision;
   });
 }
@@ -201,7 +236,8 @@ function readSmokeThresholds(root: string): SmokeThresholds {
   return { passRateMin: num("passRateMin"), openSev1Max: num("openSev1Max"), openSev2Max: num("openSev2Max") };
 }
 
-const OPEN_DEFECT = new Set(["New", "Triaged", "In Progress", "Reopened"]);
+// Resolved counts as open: fixed but not verified, so it still blocks the smoke gate until it is Verified.
+const OPEN_DEFECT = new Set(["New", "Triaged", "In Progress", "Resolved", "Reopened"]);
 
 /** Measured smoke inputs: pass rate from execution-summary.json#totals, open Sev1/Sev2 from defects/*.json. */
 function smokeMetrics(root: string, runId: string, t: SmokeThresholds): GateMetric[] {
@@ -233,10 +269,13 @@ function smokeMetrics(root: string, runId: string, t: SmokeThresholds): GateMetr
   ];
 }
 
-/** Smoke cycles only (spec §3.2): evaluate thresholds.yaml#smoke and record gate.auto-decided. */
+/** Smoke cycles only (spec §3.2): verify the log, evaluate thresholds.yaml#smoke and record gate.auto-decided. */
 export async function autoDecideGate(root: string, runId: string, gateArg: string, caller: string, now?: Date): Promise<GateDecision> {
   assertCallerAllowed(caller, "gate.auto-decide");
   const gate = parseGate(gateArg);
+  // Same as openGate: integrity.lock -> run.lock (verify; a failure records integrity.violation and blocks), then run.lock.
+  const integrity = await verifyRunIntegrity(root, runId, caller, now);
+  if (!integrity.ok) throw new RunStateError("integrity-failed", `event log does not verify: ${integrity.errors.join("; ")}`);
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     if (state.cycleType !== "smoke") throw new RunStateError("out-of-order", "gates are auto-decided only in a smoke cycle; full cycles need the owner");

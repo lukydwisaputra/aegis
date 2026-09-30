@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SPECIALISTS, specialistShortName, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
@@ -8,7 +9,8 @@ import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
 import { busPath, taskmasterDir } from "./paths.js";
-import { readRun, withRunLock } from "./run.js";
+import { readRun, supersededAttempt, withRunLock } from "./run.js";
+import { attemptsIn, reviewDir, workDir } from "./submit.js";
 import { iso, withFileLock } from "./util.js";
 
 export const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -154,6 +156,20 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
   );
 }
 
+/**
+ * A release needs a work report from this claim: the caller's latest attempt exists, is newer than any a gate
+ * rejection superseded, and is not reviewed yet. Otherwise the released task could never be reviewed or reopened.
+ * Called under the submit lock, which also serialises submitWorkReport and submitReview for this agent/task.
+ */
+function assertWorkSubmittedThisClaim(root: string, runId: string, agent: string, taskId: string): void {
+  const attempts = attemptsIn(workDir(root, runId), agent, taskId);
+  const latest = attempts.length === 0 ? 0 : Math.max(...attempts);
+  const fresh = latest > supersededAttempt(readRun(root, runId), agent, taskId) && !existsSync(join(reviewDir(root, runId), `${agent}.${taskId}.${latest}.json`));
+  if (!fresh) {
+    throw new RunStateError("no-work-report", `task ${taskId}: ${agent} has submitted no work report in this claim; run aegis work-report submit before releasing`);
+  }
+}
+
 export async function releaseTask(
   root: string,
   runId: string,
@@ -171,6 +187,7 @@ export async function releaseTask(
     if (task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${taskId} is not in progress under ${caller}`);
     }
+    assertWorkSubmittedThisClaim(root, runId, caller, taskId);
     const c = client(root, runId);
     await c.release(taskId, result);
     await appendOrRollback(c, task, result, () =>

@@ -20,7 +20,7 @@ import { readEscalationDecision } from "./escalation.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { OUTPUT_SCHEMAS, PHASE_OUTPUTS, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
-import { blockRun, readRun, withRunLock, writeRun } from "./run.js";
+import { blockRun, readRun, supersededAttempt, withRunLock, writeRun } from "./run.js";
 import { attemptsIn, reviewDir, workDir } from "./submit.js";
 import { formatIssues, iso, loadJson } from "./util.js";
 
@@ -140,10 +140,6 @@ export function reviewPassed(root: string, runId: string, agent: string, taskId:
   return review.success && review.data.reviewer === pairedSpv(agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
 }
 
-/** The highest attempt of `agent` on `taskId` that a gate rejection superseded (0: none). Only a later attempt counts. */
-export function supersededAttempt(state: RunState, agent: string, taskId: string): number {
-  return state.supersededAttempts?.[taskId]?.[agent] ?? 0;
-}
 
 /** Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. */
 export async function barrierProblems(root: string, runId: string, state: RunState, phase: PhaseId): Promise<string[]> {

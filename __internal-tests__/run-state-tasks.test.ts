@@ -2,8 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
-import { addTask, blockRun, busPath, claimTask, releaseTask, requestStop, taskmasterDir } from '@qa/run-state';
+import { addTask, blockRun, busPath, claimTask, releaseTask, requestStop, submitWorkReport, taskmasterDir } from '@qa/run-state';
 import { last, makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
+import { workReport } from './helpers/pipeline';
 
 let t: TmpAegis;
 let runId: string;
@@ -17,6 +18,12 @@ async function setup(maxSpecialists: number) {
 afterEach(() => t.cleanup());
 
 const lastEvent = () => JSON.parse(last(readLines(busPath(t.root, runId))));
+/** A release needs a work report from the current claim. */
+async function report(taskId: string, agent: string) {
+  const file = path.join(t.root, `wr-${taskId}-${agent}.json`);
+  fs.writeFileSync(file, JSON.stringify(workReport(agent, taskId)));
+  await submitWorkReport(t.root, runId, file, agent);
+}
 
 describe('claimTask', () => {
   beforeEach(() => setup(1));
@@ -30,6 +37,7 @@ describe('claimTask', () => {
   it('refuses a specialist beyond parallelism.maxSpecialists until a slot frees', async () => {
     await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
     await expect(claimTask(t.root, runId, 'T-2', 'qa-api-specialist')).rejects.toMatchObject({ code: 'cap-reached' });
+    await report('T-1', 'qa-ui-specialist');
     await releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist');
     await expect(claimTask(t.root, runId, 'T-2', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
   });
@@ -100,6 +108,7 @@ describe('releaseTask', () => {
 
   it('two concurrent releases of the same task yield exactly one success and one event', async () => {
     await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await report('T-1', 'qa-ui-specialist');
     const results = await Promise.allSettled([
       releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist'),
       releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist'),
@@ -113,9 +122,18 @@ describe('releaseTask', () => {
     expect(released).toHaveLength(1);
   });
 
+  it('refuses a release with no work report from this claim (no-work-report) and keeps the claim', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await expect(releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'no-work-report' });
+    await expect(releaseTask(t.root, runId, 'T-1', 'failed', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'no-work-report' });
+    expect(await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-1')).toMatchObject({ status: 'in-progress', claimedBy: 'qa-ui-specialist' });
+    expect(readLines(busPath(t.root, runId)).map((l) => JSON.parse(l).type)).not.toContain('task.released');
+  });
+
   it('only the claimer can release, and release emits task.released', async () => {
     await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
     await expect(releaseTask(t.root, runId, 'T-1', 'done', 'qa-api-specialist')).rejects.toMatchObject({ code: 'not-claimed' });
+    await report('T-1', 'qa-ui-specialist');
     const task = await releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist');
     expect(task.status).toBe('done');
     expect(lastEvent()).toMatchObject({ type: 'task.released', taskId: 'T-1', result: 'done' });
@@ -145,6 +163,7 @@ describe('reopen', () => {
     const c = createTaskmasterClient(taskmasterDir(t.root, runId));
     await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
     await expect(c.reopen('T-1')).rejects.toThrow(/only done or failed/);
+    await report('T-1', 'qa-ui-specialist');
     await releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist');
     await c.reopen('T-1');
     const task = (await c.get('T-1'))!;
@@ -216,6 +235,7 @@ describe('claim/release rollback when the bus refuses (R3)', () => {
   it('releaseTask: task stays in-progress under the claimer and can be released after repair', async () => {
     await setup(2);
     await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await report('T-1', 'qa-ui-specialist');
     const before = await tm().get('T-1');
     const repair = tearBus();
     await expect(releaseTask(t.root, runId, 'T-1', 'done', 'qa-ui-specialist')).rejects.toThrow(/torn tail/);

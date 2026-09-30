@@ -13,7 +13,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "run.complete": ["run.completed", "integrity.violation", "run.blocked"],
   "gate.open": ["gate.opened", "integrity.violation", "run.blocked"],
   "gate.decide": ["gate.decided"],
-  "gate.auto-decide": ["gate.auto-decided"],
+  "gate.auto-decide": ["gate.auto-decided", "integrity.violation", "run.blocked"],
   "escalation.decide": ["escalation.decided"],
 };
 

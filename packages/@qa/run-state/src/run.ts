@@ -49,6 +49,11 @@ export function initialPhases(cycleType: CycleType): RunState["phases"] {
   return phases;
 }
 
+/** The highest attempt of `agent` on `taskId` that a gate rejection superseded (0: none). Only a later attempt counts. */
+export function supersededAttempt(state: RunState, agent: string, taskId: string): number {
+  return state.supersededAttempts?.[taskId]?.[agent] ?? 0;
+}
+
 export function readRun(root: string, runId: string): RunState {
   let text: string;
   try {
