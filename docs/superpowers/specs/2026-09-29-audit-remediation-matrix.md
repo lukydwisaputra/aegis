@@ -23,7 +23,7 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 |-------|----|-------------|-----------|
 | done | P0b-1 | Contracts & CLI skeleton (run-state, event chain) | — |
 | 1a | ALIGN | Alignment checker: contracts per agent/skill, `pipeline.yaml`, ratchet baseline (every violation owned by a matrix ID) | P0b-1 |
-| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need a label) ; fix `pnpm-workspace.yaml` `allowBuilds.esbuild` placeholder (fresh-clone install/build/test fail on pnpm 11) | ALIGN |
+| 1a' | CI | Minimal GitHub Actions (`.github/workflows/ci.yml`): typecheck, `pnpm test`, build, `pnpm test:smoke`, `pnpm aegis align` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need the `baseline-growth` label); OWASP security-gates caller; fix `pnpm-workspace.yaml` `allowBuilds.esbuild` placeholder (fresh-clone install/build/test fail on pnpm 11) | ALIGN |
 | 1a-H | ALIGN-H | Alignment checker hardening (AH-01..17) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
 | 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
 | 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |
@@ -183,7 +183,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | CO-09 | Full-log read per append (tail read); reopen emits no event; review events lack attempt/path; state written before event; uncapped violation `errors` array | P0c |
 | CO-11 | Finish AUD-017/018/040: remove hardcoded "4" (qa-test-executor.md:3,19,80; CLAUDE.md:69,98), tell agents to use `pnpm aegis` (H4 cheat-sheet + agent edits), build `apps/cli/dist` automatically (prepare script) so `pnpm aegis` works on a fresh clone | P0a-2 / P0b-2 |
 | CO-12 | `submitReview`: a reopen that fails after the review is recorded surfaces as an error with no retry path; `releaseTask` rollback is skipped if the task changed meanwhile | P0a |
-| CO-10 | Show acknowledged errors in `run resume` output; multi-process lock proof runs only via `pnpm test:smoke` (no CI yet) | P0b-2 |
+| CO-10 | Show acknowledged errors in `run resume` output; multi-process lock proof runs only via `pnpm test:smoke` (run in CI since 1a') | P0b-2 |
 
 ## Gaps found in the pre-merge alignment audit (2026-09-29, after P0b-1)
 
@@ -230,6 +230,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-110 | Execution skills invoke other skills directly instead of routing through the orchestrator/CLI | qa-start SKILL:28 `/qa-health`; qa-promote-stage SKILL:25 `/qa-gate-check`; qa-regression SKILL:29 `qa-compare` | MED | P0c | open |
 | AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
 | AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
+| CI-01 | Lint floor missing: no package defines a `lint` script, so `pnpm lint` fails and CI omits it; adding ESLint is its own change (see AUD-072) | pnpm output | MED | P5 | open |
 
 Known detection gaps (open items the checker cannot see; their slices close them by review, not by
 deleting baseline lines):

@@ -26,9 +26,11 @@ pnpm test
 # Run a single internal test file
 pnpm -F aegis-internal-tests jest __internal-tests__/brand-exposure.test.ts
 
-# Lint / typecheck
-pnpm lint
+# Typecheck (pnpm lint is not available yet: no package defines a lint script, CI-01)
 pnpm typecheck
+
+# Multi-process lock smoke test (needs a built CLI; also runs in CI)
+pnpm test:smoke
 
 pnpm aegis align            # alignment checker (ratchet vs baseline)
 
