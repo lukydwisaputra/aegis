@@ -128,7 +128,7 @@ Full field reference for files at `runs/<RUN-ID>/cases/<TC-ID>.json`:
   "story":        "STORY-AUTH-204",
   "scenarioId":   "SCN-AUTH-012",  // required — every TC belongs to exactly one scenario
   "requirement":  "REQ-AUTH-04",
-  "testType":     "UI",           // Functional | UI | Integration | API | Security | Database | Performance | Compatibility | Usability
+  "testType":     ["UI"],         // array, each value routes: Functional | UI | E2E | Integration | API | Security | Database | Performance | Compatibility | Usability
   "testTechnique": ["Accessibility", "Regression"],  // optional — technique metadata + secondary specialist dispatch
   "priority":     "P1",
   "automationStatus": "auto",     // auto | manual | blocked

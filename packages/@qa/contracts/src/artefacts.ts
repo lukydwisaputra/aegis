@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SeveritySchema, PrioritySchema } from "./severity.js";
 import { ComplianceTagsSchema } from "./tags.js";
+import { TECHNIQUE_COMPANION_TYPES } from "./routing.js";
 import {
   TestCaseIdSchema,
   DefectIdSchema,
@@ -51,7 +52,10 @@ export const AutomationStatusSchema = z.enum([
 
 export const ViewportScopeSchema = z.enum(["desktop", "mobile", "tablet", "all"]);
 
-export const TestCaseSchema = z.object({
+const Clauses = z.array(z.string().min(1)).min(1);
+export const GherkinSchema = z.object({ given: Clauses, when: Clauses, then: Clauses }).strict();
+
+export const TestCaseObjectSchema = z.object({
   id: TestCaseIdSchema,
   title: z.string().min(10).max(200),
   module: z.string().regex(/^[A-Z]{2,8}$/),
@@ -84,6 +88,23 @@ export const TestCaseSchema = z.object({
   reviewer: z.string().optional(),
   createdAt: IsoTimestampSchema,
   lastUpdatedAt: IsoTimestampSchema,
+  scenarioId: ScenarioIdSchema,
+  order: z.number().int().positive(),
+  gherkin: GherkinSchema.optional(),
+  manualJustification: z.string().optional(),
+}).strict();
+
+export const TestCaseSchema = TestCaseObjectSchema.superRefine((tc, ctx) => {
+  const techniques = tc.testTechnique ?? [];
+  for (const t of techniques) {
+    const needs = TECHNIQUE_COMPANION_TYPES[t];
+    if (needs !== undefined && !needs.some((x) => tc.testType.includes(x))) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["testTechnique"], message: `${t} requires testType ${needs.join(" or ")}` });
+    }
+  }
+  if (techniques.includes("Flow") && tc.gherkin === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gherkin"], message: "a Flow test case must carry gherkin {given, when, then}" });
+  }
 });
 export type TestCase = z.infer<typeof TestCaseSchema>;
 

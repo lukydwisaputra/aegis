@@ -86,7 +86,7 @@ You translate approved requirements and the test plan into concrete, executable 
    - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], order, traceability{}, compliance[], author, createdAt, scenarioId, gherkin{given[], when[], then[]} (conditional — see below)
 
    - Add `scenarioId` to the canonical schema; every TC belongs to exactly one scenario, every scenario to exactly one `storyId` (User Story → Scenario → Test Case).
-   - **Gherkin for flows:** when `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`, the TC MUST carry a `gherkin` block (`given[]`, `when[]`, `then[]`). Technique-derived cases (BVA/EP/decision-table) keep the `steps[]` format — do NOT force Gherkin on them.
+   - **Gherkin for flows:** when `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`, the TC MUST carry a `gherkin` block (`given[]`, `when[]`, `then[]`). Technique-derived cases (BoundaryValue/EquivalencePartition/DecisionTable) keep the `steps[]` format — do NOT force Gherkin on them.
    - **Scenario-owned seed:** declare shared seed once at `scenario.sharedSeed{}` (e.g. `{ factory: "user", role: "admin", reuseAcross: ["TC-…","TC-…"] }`); member TCs reference it instead of each re-declaring `testData`.
    - **Coverage per scenario:** each scenario enumerates acceptance cases, rejection (negative) cases, and edge cases where applicable.
    - **Order:** each TC carries `order`; the scenario file lists TCs in a runnable sequence so seed data can be reused across flows.
