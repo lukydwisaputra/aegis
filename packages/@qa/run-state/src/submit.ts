@@ -188,7 +188,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
     if (worked.length === 0) {
       throw new RunStateError("no-work-report", `no work report from ${agent} for task ${taskId}; the worker must submit first`);
     }
-    // Review the released attempt only: the worker's state can no longer change under the review.
+    // Only a released task is reviewed. done/failed changes only through reopen, which runs under this lock.
     const client = createTaskmasterClient(taskmasterDir(root, runId));
     const task = await client.get(taskId);
     if (task?.status === "in-progress") {
