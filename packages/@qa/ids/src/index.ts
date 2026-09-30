@@ -91,6 +91,10 @@ export type NextIdOptions = { module?: string };
 
 export type DefectType = "UI" | "API" | "A11Y" | "SEC" | "PERF" | "DATA" | "UNIT" | "EXP";
 
+export type AcCategory = "happy" | "rejection" | "edge";
+
+const AC_LETTER: Record<AcCategory, "H" | "R" | "E"> = { happy: "H", rejection: "R", edge: "E" };
+
 export async function nextId(kind: "TC", module: string): Promise<string>;
 export async function nextId(kind: "DEF", module: string, defectType: DefectType): Promise<string>;
 export async function nextId(kind: "STORY", module: string): Promise<string>;
@@ -98,7 +102,9 @@ export async function nextId(kind: "REQ", module: string): Promise<string>;
 export async function nextId(kind: "RISK", module: string): Promise<string>;
 export async function nextId(kind: "L", agentInitials: string): Promise<string>;
 export async function nextId(kind: "WR", taskNumber: number | string): Promise<string>;
-export async function nextId(kind: IdKind, moduleOrArg: string | number, defectType?: DefectType): Promise<string> {
+export async function nextId(kind: "RUN", yyyymmdd: string): Promise<string>;
+export async function nextId(kind: "AC", storyId: string, category: AcCategory): Promise<string>;
+export async function nextId(kind: IdKind, moduleOrArg: string | number, extra?: DefectType | AcCategory): Promise<string> {
   const kindParsed = IdKindSchema.parse(kind);
   const mod = String(moduleOrArg).toUpperCase();
 
@@ -108,7 +114,7 @@ export async function nextId(kind: IdKind, moduleOrArg: string | number, defectT
       return `TC-${mod}-${pad(n, 3)}`;
     }
     case "DEF": {
-      const type = (defectType ?? "UI").toUpperCase();
+      const type = String(extra ?? "UI").toUpperCase();
       // NNN is a single global counter per MODULE — leads the ID so files sort by discovery order
       const n = await nextCounter("DEF", mod);
       return `DEF-${pad(n, 3)}-${mod}-${type}`;
@@ -137,6 +143,17 @@ export async function nextId(kind: IdKind, moduleOrArg: string | number, defectT
     case "RUN": {
       const n = await nextCounter("RUN", mod);
       return `RUN-${mod}-${pad(n, 3)}`;
+    }
+    case "AC": {
+      const story = StoryIdSchema.parse(mod); // STORY-AUTH-003
+      // Own keys only: an inherited key such as "constructor" is not a category.
+      const letter = typeof extra === "string" && Object.hasOwn(AC_LETTER, extra) ? AC_LETTER[extra as AcCategory] : undefined;
+      if (letter === undefined) {
+        throw new Error(`nextId("AC"): category must be happy|rejection|edge, got "${String(extra)}"`);
+      }
+      const [, storyModule, storyNumber] = story.split("-") as [string, string, string];
+      const n = await nextCounter("AC", `${story}:${letter}`);
+      return `AC-${storyModule}-${storyNumber}-${letter}${n}`;
     }
     default:
       throw new Error(`nextId: unsupported kind "${kindParsed}"`);

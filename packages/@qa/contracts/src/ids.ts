@@ -27,6 +27,11 @@ export const ScenarioIdSchema = z.string().regex(
   "Scenario ID format: SCN-{MODULE}-{NNN}"
 );
 
+export const AcceptanceCriterionIdSchema = z.string().regex(
+  new RegExp(`^AC-${MODULE}-\\d{3,4}-[HRE]\\d{1,2}$`),
+  "Acceptance criterion ID format: AC-{MODULE}-{NNN}-{H|R|E}{n}"
+);
+
 export const RequirementIdSchema = z.string().regex(
   new RegExp(`^REQ-${MODULE}-\\d{2,4}$`),
   "Requirement ID format: REQ-{MODULE}-{NN}"
@@ -66,10 +71,11 @@ export type TestCaseId = z.infer<typeof TestCaseIdSchema>;
 export type DefectId = z.infer<typeof DefectIdSchema>;
 export type StoryId = z.infer<typeof StoryIdSchema>;
 export type ScenarioId = z.infer<typeof ScenarioIdSchema>;
+export type AcceptanceCriterionId = z.infer<typeof AcceptanceCriterionIdSchema>;
 export type RequirementId = z.infer<typeof RequirementIdSchema>;
 export type RiskId = z.infer<typeof RiskIdSchema>;
 export type RunId = z.infer<typeof RunIdSchema>;
 export type LessonId = z.infer<typeof LessonIdSchema>;
 
-export const IdKindSchema = z.enum(["TC", "DEF", "STORY", "SCN", "REQ", "RISK", "TP", "RUN", "L", "WR", "RV"]);
+export const IdKindSchema = z.enum(["TC", "DEF", "STORY", "SCN", "REQ", "RISK", "TP", "RUN", "L", "WR", "RV", "AC"]);
 export type IdKind = z.infer<typeof IdKindSchema>;

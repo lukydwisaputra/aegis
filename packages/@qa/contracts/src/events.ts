@@ -11,6 +11,7 @@ import {
   TestPlanIdSchema,
 } from "./ids.js";
 import { SeveritySchema } from "./severity.js";
+import { Sha256HexSchema } from "./chain.js";
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
@@ -1500,6 +1501,26 @@ export const ScanWarningEventSchema = EventBase.extend({
   reason: z.string(),
 });
 
+// ─── Integrity ────────────────────────────────────────────────────────────────
+
+export const IntegrityViolationEventSchema = EventBase.extend({
+  type: z.literal("integrity.violation"),
+  runId: RunIdSchema,
+  errors: z.array(z.string()).min(1),
+});
+
+export const IntegrityAcknowledgedEventSchema = EventBase.extend({
+  type: z.literal("integrity.acknowledged"),
+  runId: RunIdSchema,
+  throughLine: z.number().int().nonnegative(),
+  // sha256 of line `throughLine`, and of lines 1..throughLine joined by "\n" (GENESIS_HASH / sha256("") when 0).
+  lineHash: Sha256HexSchema,
+  prefixHash: Sha256HexSchema,
+  // The exact verification errors the owner reviewed; only these stay ignored.
+  errors: z.array(z.string()),
+  reason: z.string().min(1),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 export const AegisEventSchema = z.discriminatedUnion("type", [
@@ -1713,6 +1734,8 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   SandboxTtlPruneEventSchema,
   DefectClosedAsInvalidEventSchema,
   ScanWarningEventSchema,
+  IntegrityViolationEventSchema,
+  IntegrityAcknowledgedEventSchema,
 ]);
 
 export type AegisEvent = z.infer<typeof AegisEventSchema>;
