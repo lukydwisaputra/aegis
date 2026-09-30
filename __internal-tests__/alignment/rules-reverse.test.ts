@@ -1,5 +1,5 @@
 import { countRule, docNameRule, loadModel, unusedConfigRule } from '@qa/alignment';
-import { makeRepo } from './helpers';
+import { MIN_PIPELINE, makeRepo } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
 const none = { none: 'test only' };
@@ -49,8 +49,17 @@ it('AH-11: "N agents" claims and tier-table counts match the agent files', () =>
 it('AH-11: a lite-profile agent count is a subset claim, not the total', () => {
   const t = makeRepo({
     agents: { 'qa-o': { dir: 'orchestrator', contract: null } },
-    docs: { 'HANDBOOK.md': 'Lite mode drops to 14 agents.\nFull has 12 agents; `full` (13 agents) or `lite`.\n' },
+    docs: { 'HANDBOOK.md': 'Lite mode drops to 14 agents.\nFull has 12 agents; `full` (13 agents) or `lite`.\nUnlike the lite profile, all 70 agents run; an elite team of 15 agents.\n' },
   });
-  expect(keys(countRule(loadModel(t.root)))).toEqual(['DOC-REF:HANDBOOK.md:12 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:13 agents:count-mismatch']);
+  expect(keys(countRule(loadModel(t.root)))).toEqual(['DOC-REF:HANDBOOK.md:12 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:13 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:15 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:70 agents:count-mismatch']);
+  t.cleanup();
+});
+
+it('AH-11: pipeline.externalScripts names are not unknown pnpm scripts', () => {
+  const t = makeRepo({
+    pipeline: { ...MIN_PIPELINE, externalScripts: ['husky'] },
+    docs: { 'CLAUDE.md': 'Run `pnpm husky install` and `pnpm nope`.\n' },
+  });
+  expect(keys(docNameRule(loadModel(t.root)))).toEqual(['DOC-REF:CLAUDE.md:nope:unknown-script']);
   t.cleanup();
 });

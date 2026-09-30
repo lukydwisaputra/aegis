@@ -73,5 +73,6 @@ awaits: []
 cli: []
 runs: []
 dispatches: []
-config: []
+config:
+  - aegis.config.json#testing.manualCategoriesAllowed
 ```

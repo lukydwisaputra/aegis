@@ -82,6 +82,8 @@ nonAgentNames:
   - qa-api # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:167)
   - qa-web # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:171)
   - qa-admin # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:176)
+# pnpm scripts/bins run in the target repo by generated setup, not Aegis scripts
+externalScripts: [husky]
 # Every escape hatch a contract uses, with its reason (ESCAPE rule). A new entry needs the baseline-growth label.
 escapes:
   - {unit: _qa-report-executive-slides, field: terminal, value: "{run}/reports/executive-deck.pdf", reason: "SKILL.md:12 renders the final stakeholder deck"}

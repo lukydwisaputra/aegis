@@ -56,6 +56,7 @@ export const PipelineSchema = z
       })
       .strict(),
     nonAgentNames: z.array(z.string()).default([]),
+    externalScripts: z.array(z.string()).default([]),
     escapes: z
       .array(
         z

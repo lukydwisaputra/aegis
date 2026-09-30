@@ -67,6 +67,7 @@ function configMentioned(entry: string, lines: Array<{ text: string }>, refs: Ar
   if (key === undefined) return lines.some((l) => namesFile(l.text));
   const last = [...key.split(".")].reverse().find((s) => !isPlaceholder(s));
   if (last === undefined) return false;
+  if (new RegExp(`\`${escapeRe(last)}\``).test(lines.map((l) => l.text).join("\n"))) return true; // backticked bare segment
   const word = new RegExp(`(^|[^A-Za-z0-9_])${escapeRe(last)}([^A-Za-z0-9_]|$)`);
   return lines.some((l) => namesFile(l.text) && word.test(l.text));
 }

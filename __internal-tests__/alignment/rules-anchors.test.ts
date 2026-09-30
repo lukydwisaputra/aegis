@@ -69,3 +69,11 @@ it('config: a full dotted key written verbatim anywhere in prose counts as menti
     'DRIFT:qa-a:aegis.config.json#target.supabase.other:config-not-in-prose',
   ]);
 });
+
+it('config: a backticked last segment counts as mentioned in prose; a bare word does not', () => {
+  const config = ['aegis.config.json#testing.manualCategoriesAllowed'];
+  expect(one('# qa-a\n\n## Process\n\n1. A category from `manualCategoriesAllowed`.\n', { config }, configAnchorRule)).toEqual([]);
+  expect(one('# qa-a\n\n## Process\n\n1. A category from manualCategoriesAllowed.\n', { config }, configAnchorRule)).toEqual([
+    'DRIFT:qa-a:aegis.config.json#testing.manualCategoriesAllowed:config-not-in-prose',
+  ]);
+});

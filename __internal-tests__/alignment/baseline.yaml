@@ -207,9 +207,6 @@ entries:
   - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
     ids: [AUD-007]
     note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:testing.manualCategoriesAllowed:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#testing.manualCategoriesAllowed is listed by no contract and read by no package source"
   - key: "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.secretsRef:missing"
     ids: [AUD-043]
     note: "aegis.config.json#environments.{env}.secretsRef does not exist"
@@ -568,9 +565,6 @@ entries:
   - key: "DOC-REF:docs/D02-teammate-onboarding.md:@qa/templates:unknown-package"
     ids: [AUD-066]
     note: "@qa/templates is not a package in packages/@qa/"
-  - key: "DOC-REF:docs/D12-cicd-workflow.md:husky:unknown-script"
-    ids: [AUD-073]
-    note: "pnpm husky is not a root or workspace script, bin or pnpm command"
   - key: "DOC-REF:docs/D12-environments-overview.md:qa-smoke:unknown-script"
     ids: [AUD-073]
     note: "pnpm qa-smoke is not a root or workspace script, bin or pnpm command"
@@ -590,9 +584,6 @@ entries:
   - key: "DRIFT:qa-database-specialist:aegis.config.json#environments.{env}.readOnly:config-not-in-prose"
     ids: [AUD-114]
     note: "contract config lists aegis.config.json#environments.{env}.readOnly; prose never names it"
-  - key: "DRIFT:qa-email-specialist-spv:aegis.config.json#environments.production.forbiddenSpecialists:config-not-in-prose"
-    ids: [AUD-114]
-    note: "contract config lists aegis.config.json#environments.production.forbiddenSpecialists; prose never names it"
   # --- ENV ---
   - key: "ENV:testing:functional:unmapped"
     ids: [AUD-036]
