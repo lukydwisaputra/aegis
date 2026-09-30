@@ -30,6 +30,8 @@ pnpm -F aegis-internal-tests jest __internal-tests__/brand-exposure.test.ts
 pnpm lint
 pnpm typecheck
 
+pnpm aegis align            # alignment checker (ratchet vs baseline)
+
 # Regenerate HANDBOOK.md table of contents
 pnpm qa-build-toc
 
@@ -159,6 +161,7 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 3. Create lessons stub: `echo '{"version":"1.0","lessons":[]}' > agent-memory/qa-{name}/lessons.json`
 4. Register both in `.claude/model-policy.yaml` under the correct tier.
 5. Run `_qa-build-agents` skill to stamp model names into frontmatter.
+6. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
 
 ---
 
