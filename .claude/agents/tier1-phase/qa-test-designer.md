@@ -92,10 +92,12 @@ You translate approved requirements and the test plan into concrete, executable 
    - **Order:** each TC carries `order`; the scenario file lists TCs in a runnable sequence so seed data can be reused across flows.
 
    **testType vs testTechnique:**
-   - `testType` — required; determines which primary specialist the executor routes this TC to (e.g. `Security`, `Functional`, `Database`)
-   - `testTechnique` — optional metadata array; describes *how* the test is conducted and triggers secondary specialist dispatch (e.g. `["Accessibility"]` on a `Functional` TC also dispatches qa-accessibility-specialist; `["Unit"]` dispatches qa-unit-specialist; `["Email"]` dispatches qa-email-specialist; `["Regression", "BoundaryValue"]` are documentation-only techniques with no specialist dispatch)
+   - `testType` — required array; every value routes to its primary specialist, and the executor dispatches each distinct specialist once. Values: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]. A multi-page journey is `E2E` (the stakeholder term) with technique `Flow`.
+   - `testTechnique` — optional array. Routed techniques add a specialist alongside the primary: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory]. Documentation-only techniques record how the case was designed and dispatch nothing: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration].
+   - Companion types (schema-enforced): `Flow` needs `Functional` or `E2E`; `Visual` needs `UI` or `Compatibility`; `Contract` needs `API` or `Integration`; `Load` needs `Performance`; `Migration` needs `Database`.
+   - When to emit: `Realtime` when target-profile.json `hasRealtimeFeatures` is true and the requirement involves live updates; `FeatureFlag` when `hasFeatureFlags` is true and the behaviour is flag-gated; `Compatibility` (with `viewportScope`) for layout and breakpoint requirements; `Usability` for human-judgment charters; `Unit` only to review developer unit-test coverage — unit testing is developer scope.
 
-   Set `testTechnique` when: (a) a secondary specialist must run alongside the primary, OR (b) the test design technique applied is worth recording for traceability (BVA, EP, StateTransition, DecisionTable, Pairwise, Regression, Smoke).
+   Set `testTechnique` when: (a) a secondary specialist must run alongside the primary, OR (b) the test design technique applied is worth recording for traceability (BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow).
 
    **Ground steps in source code.** Prefer test steps that reference actual source routes/components/handlers from `target-profile.json#sourceInventory` over paraphrased documentation. **Mark which factory each test needs in `testData`** (e.g. `testData: { factory: "user", role: "admin" }`) so qa-ui-specialist knows which factory's `create()` to call in `beforeEach` for seed data.
 

@@ -24,7 +24,7 @@ Runs the full regression suite — all test cases tagged for regression (via `re
 1. Scan `artifacts/test-cases/` for all TCs tagged `regression: true`.
 2. Apply `--priority` and `--module` filters to the TC set.
 3. Create a new run directory (RUN-{date}-NNN) with type `regression`.
-4. Dispatch specialist agents for each TC's `specialistType` in parallel (up to `max-parallel` from project config).
+4. Route each TC the way the test executor does — every value of its `testType` array, then each routed `testTechnique` — and dispatch each distinct specialist once, in parallel (up to `max-parallel` from project config).
 5. Collect results into `runs/{run}/execution/results.json`.
 6. If `--against` is provided, automatically invoke qa-compare to produce a regression delta report.
 7. Evaluate results against `thresholds.yaml` regression gate (default: no new P0/P1 failures vs baseline).

@@ -33,15 +33,17 @@ export const EvidenceSchema = z.object({
 
 export const TestLevelSchema = z.enum(["Unit", "Integration", "System", "Acceptance"]);
 export const TestTypeSchema = z.enum([
-  "Functional", "UI", "Integration", "API",
+  "Functional", "UI", "E2E", "Integration", "API",
   "Security", "Database", "Performance", "Compatibility", "Usability",
 ]);
 export const TestTechniqueSchema = z.enum([
   "Unit", "Accessibility", "Email", "Realtime", "FeatureFlag",
   "Regression", "Smoke", "Exploratory", "Visual", "Contract",
-  "E2E", "Load", "Migration",
+  "Flow", "Load", "Migration",
   "BoundaryValue", "EquivalencePartition", "StateTransition", "DecisionTable", "Pairwise",
 ]);
+export type TestType = z.infer<typeof TestTypeSchema>;
+export type TestTechnique = z.infer<typeof TestTechniqueSchema>;
 
 export const AutomationStatusSchema = z.enum([
   "Automated", "Manual", "Candidate", "NotAutomatable",
