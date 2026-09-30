@@ -50,3 +50,27 @@ You are read-only. You watch GitHub Actions runs for the current cycle, parse re
 
 - `cicd.run-completed` — includes runId, branch, conclusion, jobFailures
 - `devops.flake-detected` — includes testRef, flakeRate, retryCount
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: devops
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "SPV not required — evaluator is read-only; curator monitors for recurring patterns"}
+reads:
+  - "{run}/devops/github-results.json"
+  - agent-memory/qa-cicd-evaluator/lessons.md
+writes:
+  - "{run}/reports/metrics/flaky.json"
+  - "{run}/devops/ci-summary.json"
+  - "{run}/events.jsonl"
+emits:
+  - {event: cicd.run-completed, via: append}
+  - {event: devops.flake-detected, via: append}
+awaits: []
+cli: []
+runs: [gh]
+dispatches: []
+config: []
+```

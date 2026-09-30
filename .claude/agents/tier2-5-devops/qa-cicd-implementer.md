@@ -61,3 +61,34 @@ You write the GitHub Actions workflow YAML files and configure secrets. You impl
 
 - `devops.workflow-edited` — one per YAML file; includes filename, stages covered
 - `secrets.configured` — count of secrets set
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: devops
+dispatchedBy: []
+reviewedBy: qa-cicd-spv
+reads:
+  - "{run}/devops/cicd-plan.json"
+  - templates/github-workflows/**
+  - "{run}/target-profile.json"
+  - aegis.config.json
+  - agent-memory/qa-cicd-implementer/lessons.md
+  - secrets/.env.{env}
+writes:
+  - "{target}/.github/workflows/qa-*.yml"
+  - "{target}/.husky/**"
+  - "{run}/devops/cicd-results.json"
+  - "{run}/reports/work/qa-cicd-implementer.json"
+emits:
+  - {event: devops.workflow-edited, via: append}
+  - {event: secrets.configured, via: append}
+awaits: []
+cli: []
+runs: [gh, pnpm, git]
+dispatches: []
+config:
+  - aegis.config.json#dashboard.projectName
+  - aegis.config.json#environments.{env}.secretsRef
+```

@@ -44,3 +44,30 @@ You review the work of qa-cicd-planner and qa-cicd-implementer. You validate wor
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: []
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-cicd-planner, qa-cicd-implementer]
+reads:
+  - "{run}/reports/work/qa-cicd-planner.json"
+  - "{run}/reports/work/qa-cicd-implementer.json"
+  - "{target}/.github/workflows/*.yml"
+  - thresholds.yaml
+  - "{run}/target-profile.json"
+  - agent-memory/qa-cicd-spv/lessons.md
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: [yamllint, actionlint]
+dispatches: []
+config:
+  - thresholds.yaml
+```

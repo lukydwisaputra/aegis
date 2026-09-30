@@ -51,3 +51,29 @@ You plan the branching strategy and PR structure for the current QA cycle. You a
 ## Events You Emit
 
 - `devops.github-plan-completed` — includes branchName, prCount
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: devops
+dispatchedBy: [qa-orchestrator]
+reviewedBy: qa-github-spv
+reads:
+  - "{run}/plan.json"
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - "{run}/target-profile.json"
+  - agent-memory/qa-github-planner/lessons.md
+writes:
+  - "{run}/devops/github-plan.json"
+  - "{run}/reports/work/qa-github-planner.json"
+emits:
+  - {event: devops.github-plan-completed, via: append}
+awaits: []
+cli: []
+runs: [gh]
+dispatches: []
+config:
+  - aegis.config.json#github.defaultReviewers
+```
