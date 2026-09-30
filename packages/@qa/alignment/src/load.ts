@@ -5,8 +5,7 @@ import { AegisEventSchema } from "@qa/contracts";
 import { AgentContractSchema, PipelineSchema, SkillContractSchema } from "./schema.js";
 import type { Pipeline } from "./schema.js";
 import { violation, type Model, type Section, type Unit, type Violation } from "./types.js";
-
-export const CONTRACT_HEADING = "## Contract (machine-checked)";
+import { CONTRACT_HEADING, frontmatterLite } from "./markdown.js";
 
 export function extractContract(source: string): { yaml: string; line: number } | "missing" | "duplicate" | "no-fence" {
   const lines = source.split("\n");
@@ -39,17 +38,6 @@ export function parseSections(source: string): Section[] {
   });
   if (cur) out.push(cur);
   return out;
-}
-
-export function frontmatterLite(source: string): { name?: string; tools: string[] } {
-  const m = /^---\n([\s\S]*?)\n---\n/.exec(source);
-  const block = m?.[1] ?? "";
-  const name = /^name:\s*(.+)$/m.exec(block)?.[1]?.trim();
-  const tools = /^tools:\s*\[(.*)\]\s*$/m.exec(block)?.[1];
-  return {
-    ...(name !== undefined ? { name } : {}),
-    tools: tools === undefined ? [] : tools.split(",").map((t) => t.trim()).filter(Boolean),
-  };
 }
 
 function walk(dir: string, match: (p: string) => boolean): string[] {

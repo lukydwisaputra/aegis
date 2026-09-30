@@ -29,10 +29,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Baseline-growth guard
+      - name: Baseline guard (growth and shrink)
         if: github.event_name == 'pull_request'
         env:
           ALLOW_BASELINE_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'baseline-growth') }}
+          ALLOW_CONTRACT_ONLY_FIX: ${{ contains(github.event.pull_request.labels.*.name, 'contract-only-fix') }}
           BASE_REF: ${{ github.base_ref }}
         run: pnpm exec tsx scripts/check-baseline-growth.ts --base "origin/$BASE_REF"
       # Workspace packages resolve each other's types from dist/, so build (topological tsc) must

@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { CONTRACT_HEADING, existsWithContent, frontmatterLite } from "../load.js";
+import { existsWithContent } from "../load.js";
+import { CONTRACT_HEADING, frontmatterLite } from "../markdown.js";
 import { normalizePath, overlaps, staticPrefix } from "../paths.js";
 import { isAgentContract, isSkillContract, pathOf, violation, type Model, type Section, type Unit, type Violation } from "../types.js";
 

@@ -192,6 +192,10 @@ rule with `pnpm aegis align --rule <RULE>`, or everything with `pnpm aegis align
    matrix item, and the PR must call it out.
    CI enforces this: a PR that adds keys to the baseline fails unless it carries the `baseline-growth` label. The guard runs from the PR's own code, so it is a review aid, not a tamper-proof control: a PR that edits `.github/workflows/ci.yml`, `scripts/check-baseline-growth.ts` or `packages/@qa/alignment/**` needs the same scrutiny as one that grows the baseline.
 2. Delete a stale entry only in the same commit as the prose or code change that fixed it. Never
-   edit a contract block alone to make an entry stale.
+   edit a contract block alone to make an entry stale. CI enforces this too: every key a PR removes
+   needs a changed non-blank line outside the contract block of its subject's file (the agent or
+   skill file; the doc file for a DOC-REF key; the executor, designer or orchestrator prose for
+   `pipeline` and ROUTE keys, and also `aegis.config.json` for ENV keys), or the deletion of that
+   file. Otherwise the PR needs the reviewer label `contract-only-fix`.
 3. An entry that names a `fixed` or `wontfix` matrix ID fails as `closed-id`; an ID missing from
    the matrix fails as an unknown id.

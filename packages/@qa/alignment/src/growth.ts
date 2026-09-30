@@ -1,7 +1,7 @@
 import { parse as parseYaml } from "yaml";
 import { BaselineSchema, type Baseline } from "./schema.js";
 
-function parseBaseline(yaml: string, label: string): Baseline {
+export function parseBaseline(yaml: string, label: string): Baseline {
   const parsed = BaselineSchema.safeParse(parseYaml(yaml) ?? { baseline: 1, entries: [] });
   if (!parsed.success) {
     const shown = parsed.error.issues
