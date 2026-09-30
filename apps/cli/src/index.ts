@@ -10,6 +10,7 @@ import { idCommand } from "./commands/id.js";
 import { taskCommand } from "./commands/task.js";
 import { reviewCommand, workReportCommand } from "./commands/submit.js";
 import { integrityCommand } from "./commands/integrity.js";
+import { alignCommand } from "./commands/align.js";
 
 const program = new Command();
 
@@ -29,5 +30,6 @@ program.addCommand(taskCommand());
 program.addCommand(workReportCommand());
 program.addCommand(reviewCommand());
 program.addCommand(integrityCommand());
+program.addCommand(alignCommand());
 
 await program.parseAsync();

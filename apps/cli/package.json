@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@qa/alignment": "workspace:*",
     "@qa/contracts": "workspace:*",
     "@qa/event-bus": "workspace:*",
     "@qa/ids": "workspace:*",

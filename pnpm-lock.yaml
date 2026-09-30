@@ -44,6 +44,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@qa/alignment':
+        specifier: workspace:*
+        version: link:../../packages/@qa/alignment
       '@qa/contracts':
         specifier: workspace:*
         version: link:../../packages/@qa/contracts
