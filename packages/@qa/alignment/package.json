@@ -1,0 +1,17 @@
+{
+  "name": "@qa/alignment",
+  "version": "1.0.0",
+  "description": "Static alignment checker for Aegis agents, skills, contracts and docs",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } },
+  "scripts": { "build": "tsc", "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@qa/contracts": "workspace:*",
+    "@qa/run-state": "workspace:*",
+    "yaml": "^2.5.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {}
+}
