@@ -252,22 +252,22 @@ Owner overlaps (one violation class, two IDs — close them together):
 
 ## Alignment checker hardening (slice 1a-H, from the ALIGN final review)
 
-| ID | Item |
-|----|------|
-| AH-01 | DRIFT anchors every contract field to prose: backticked `aegis <noun> <verb>` ↔ `cli`; `aegis.config.json#…`, `thresholds.yaml`, `config/*.yaml` ↔ `config`; `emits.via`, skill `kind`, `runs` |
-| AH-02 | Escape hatches (`dispatch: {none}`, `reviewedBy: {none}`, `optional`, `terminal`, non-pipeline `phase`) reported as their own ratcheted class |
-| AH-03 | `pipeline.yaml` anchored to prose: executor routing lines, designer technique vocabulary, orchestrator phase table; every route target ∈ executor `dispatches`; route reachable from `designerEmits` (AUD-008, 032/033/035) |
-| AH-04 | Typed ID placeholders: `{TC}.json` must not overlap `{TC}-result.json` / `{TC}-{viewport}-result.json` (AUD-087) |
-| AH-05 | Tool checks: `dispatches` agents ⇒ Agent tool, skills ⇒ Skill tool, `writes` ⇒ Write/Edit |
-| AH-06 | Producer reachability: a producer nothing dispatches does not satisfy a read (AUD-011) |
-| AH-07 | A unit's own writes count as producer for its own read-modify-write reads (re-check PRODUCER:qa-test-executor:{run}/concurrency.json) |
-| AH-08 | Same-phase cycles detected; revisit compliance `phase: crosscutting` vs "during Closure" prose (AUD-004) |
-| AH-09 | DRIFT scope: all agent sections, undeclared event names in prose, aegis-root paths, HANDBOOK.md, docs/*.md, frontmatter `description` (AUD-092) |
-| AH-10 | Worker→SPV handoff verified: reviewed workers need `work-report.submit` / `task.claim` in `cli` (AUD-081/083) |
-| AH-11 | Reverse checks: config keys nothing reads (AUD-007), events nobody consumes (AUD-027), package names / pnpm scripts in docs (AUD-066/073), agent counts (AUD-075) |
-| AH-12 | Existence checks and doc loading read git-tracked files, not the working tree (untracked `config/`, `artifacts/` flip entries locally; gitignored `README.md` is scanned by DOC-REF) |
-| AH-13 | `WRITABLE` table moves from `dataflow.ts` into `pipeline.yaml` (single copy of the write policy; `sandbox/**` vs CLAUDE.md) |
-| AH-14 | Code debt: reuse the existing frontmatter scalar parser; exact `CLI_RECORDS` per-command test; `aegis align` resolves `@qa/contracts` from source or fails on stale dist; dedupe `allSources`; loader dead branch; `via: owner|none`; CLI smoke test; per-slice grouping in report output; secondary IDs AUD-023/024/025 on skill `run.*` EVENT entries; event-bus `appends-without-cli` → AUD-048; overlaps AUD-105↔043, AUD-101/103↔CO-05; `_qa-init-project` HANDBOOK.md allowance; CRLF frontmatter; heading inside fenced example; `**/qa-x**` / `[/qa-x]` lookbehind; own Process-only paths lost by whole-line skip; SPV `lessons.md` vs `lessons.json` naming (AUD-074); declare `yaml` in `__internal-tests__/package.json` devDependencies |
-| AH-15 | cli-only / `{tests}` write checks use `overlaps`, not `matches` (`{run}/events*.jsonl` passes today) — `dataflow.ts` |
-| AH-16 | DOC-REF checks `_qa-*` tokens and `/_qa-*` slash commands against skill directory names (leading underscore skipped today) — `prose.ts` |
-| AH-17 | `unitFor`/`known()` drop the `x`→`_x` fallback and frontmatter-name aliases (contradicts F7; `dispatches: qa-report-technical-pdf` passes) — `structure.ts` |
+| ID | Item | Status |
+|----|------|--------|
+| AH-01 | DRIFT anchors every contract field to prose: backticked `aegis <noun> <verb>` ↔ `cli`; `aegis.config.json#…`, `thresholds.yaml`, `config/*.yaml` ↔ `config`; `emits.via`, skill `kind`, `runs` | fixed |
+| AH-02 | Escape hatches (`dispatch: {none}`, `reviewedBy: {none}`, `optional`, `terminal`, non-pipeline `phase`) reported as their own ratcheted class | fixed |
+| AH-03 | `pipeline.yaml` anchored to prose: executor routing lines, designer technique vocabulary, orchestrator phase table; every route target ∈ executor `dispatches`; route reachable from `designerEmits` (AUD-008, 032/033/035) | fixed |
+| AH-04 | Typed ID placeholders: `{TC}.json` must not overlap `{TC}-result.json` / `{TC}-{viewport}-result.json` (AUD-087) | fixed |
+| AH-05 | Tool checks: `dispatches` agents ⇒ Agent tool, skills ⇒ Skill tool, `writes` ⇒ Write/Edit | fixed |
+| AH-06 | Producer reachability: a producer nothing dispatches does not satisfy a read (AUD-011) | fixed |
+| AH-07 | A unit's own writes count as producer for its own read-modify-write reads (re-check PRODUCER:qa-test-executor:{run}/concurrency.json) | fixed |
+| AH-08 | Same-phase cycles detected; revisit compliance `phase: crosscutting` vs "during Closure" prose (AUD-004) | fixed |
+| AH-09 | DRIFT scope: all agent sections, undeclared event names in prose, aegis-root paths, HANDBOOK.md, docs/*.md, frontmatter `description` (AUD-092) (frontmatter `description` is scanned; AUD-092 stays a detection gap, baselined) | fixed |
+| AH-10 | Worker→SPV handoff verified: reviewed workers need `work-report.submit` / `task.claim` in `cli` (AUD-081/083) | fixed |
+| AH-11 | Reverse checks: config keys nothing reads (AUD-007), events whose prose names a consumer that does not await them (AUD-027), package names / pnpm scripts in docs (AUD-066/073), agent counts (AUD-075) | fixed |
+| AH-12 | Existence checks and doc loading read git-tracked files, not the working tree (untracked `config/`, `artifacts/` flip entries locally; gitignored `README.md` is scanned by DOC-REF) | fixed |
+| AH-13 | `WRITABLE` table moves from `dataflow.ts` into `pipeline.yaml` (single copy of the write policy; `sandbox/**` vs CLAUDE.md) | fixed |
+| AH-14 | Code debt: reuse the existing frontmatter scalar parser; exact `CLI_RECORDS` per-command test; `aegis align` resolves `@qa/contracts` from source or fails on stale dist; dedupe `allSources`; loader dead branch; `via: owner|none`; CLI smoke test; per-slice grouping in report output; secondary IDs AUD-023/024/025 on skill `run.*` EVENT entries; event-bus `appends-without-cli` → AUD-048; overlaps AUD-105↔043, AUD-101/103↔CO-05; `_qa-init-project` HANDBOOK.md allowance; CRLF frontmatter; heading inside fenced example; `**/qa-x**` / `[/qa-x]` lookbehind; own Process-only paths lost by whole-line skip; SPV `lessons.md` vs `lessons.json` naming (AUD-074); declare `yaml` in `__internal-tests__/package.json` devDependencies | fixed |
+| AH-15 | cli-only / `{tests}` write checks use `overlaps`, not `matches` (`{run}/events*.jsonl` passes today) — `dataflow.ts` | fixed |
+| AH-16 | DOC-REF checks `_qa-*` tokens and `/_qa-*` slash commands against skill directory names (leading underscore skipped today) — `prose.ts` | fixed |
+| AH-17 | `unitFor`/`known()` drop the `x`→`_x` fallback and frontmatter-name aliases (contradicts F7; `dispatches: qa-report-technical-pdf` passes) — `structure.ts` | fixed |

@@ -139,7 +139,7 @@ Every agent and skill file ends with one `## Contract (machine-checked)` heading
 fenced `yaml` block. The block is a **static index of the prose above it** for the alignment checker —
 not instructions; the prose governs. Its first line is a YAML comment saying exactly that. The checker
 (`pnpm aegis align`, also run by `pnpm test`) compares every contract with the prose, with the other
-contracts, with `.claude/pipeline.yaml`, with the config files and with the docs.
+contracts, with `.claude/pipeline.yaml`, with the config files and with the docs. Existence checks and the docs it reads use git-tracked files: an untracked or gitignored file does not count.
 
 **Agent fields** (schema: `packages/@qa/alignment/src/schema.ts`):
 
@@ -151,9 +151,9 @@ contracts, with `.claude/pipeline.yaml`, with the config files and with the docs
 | `dispatch` | `{none: "<reason>"}` when nothing dispatches it |
 | `reviewedBy` | Its SPV, or `{none: "<reason>"}` |
 | `reviews` | SPVs only: the workers it reviews |
-| `reads` | Path patterns it reads; an entry may be `{path, optional: true}` |
+| `reads` | Path patterns it reads; an entry may be `{path, optional: true}`, or `{path, rmw: true}` when the unit updates a file it also writes (only then does its own write satisfy the read) |
 | `writes` | Path patterns it writes; an entry may be `{path, terminal: true}` (nobody reads it on purpose) |
-| `emits` | `{event, via}` — `via: append` or `via: cli:<command>` |
+| `emits` | `{event, via}` — `via: append`, `via: cli:<command>`, or `via: none` (documented, no channel) |
 | `awaits` | Event types it waits for |
 | `cli` | `aegis` commands it calls, written dotted (task.claim for `aegis task claim`) |
 | `runs` | Other programs or scripts it runs (needs `Bash`) |
@@ -163,12 +163,18 @@ contracts, with `.claude/pipeline.yaml`, with the config files and with the docs
 **Skill fields:** the same, minus `phase`, `reviewedBy` and `reviews`, plus `kind: execution | query | internal`.
 
 **Path tokens:** `{run}` = `runs/{runId}`; `{tests}` = `<target>/tests` (fixed, whatever `testsDir`
-says); `{target}` = the target app root; `{aegis}` = this repo. Any other `{NAME}` matches one
-segment or part of one, `*` matches within a segment, `**` matches any number of segments.
+says); `{target}` = the target app root; `{aegis}` = this repo. An ID placeholder (`{TC}`, `{TC-ID}`,
+`{DEF}`, `{DEF-ID}`, `{REQ}`, `{REQ-id}`, `{US}`, `{AC}`, `{SCN}`, `{SCN-ID}`, `{RISK}`, `{runId}`,
+`{runA}`, `{runB}`) matches exactly one artefact ID such as `TC-AUTH-031`, so `{TC}.json` never
+overlaps `{TC}-result.json`. Any other `{NAME}` matches one segment or part of one, `*` matches within
+a segment, `**` matches any number of segments.
 
-**Escape hatches** — `dispatch: {none: …}`, `reviewedBy: {none: …}`, `optional: true` and
-`terminal: true` silence a rule. Each one needs the reviewer's sign-off in the PR, with the reason
-written in the `none` text or the PR description.
+**Escape hatches** — `dispatch: {none: …}`, `reviewedBy: {none: …}`, `optional: true`, `terminal: true`
+and `rmw: true` silence a rule, so each one is also listed in `.claude/pipeline.yaml#escapes` as
+`{unit, field, value?, reason}` (`field`: reviewedBy.none, dispatch.none, `optional`, `terminal`,
+`rmw`; `value`: the path, for the last three; `reason`: at least 10 characters). The ESCAPE rule
+reports a hatch missing from the list (`unlisted`) and a list entry with no hatch (`stale`). A new
+entry counts as baseline growth: the PR needs the `baseline-growth` label and the reviewer's sign-off.
 
 **`.claude/pipeline.yaml` touch-points** (facts that belong to no single agent):
 
@@ -181,16 +187,56 @@ written in the `none` text or the PR description.
 | `spvPairs` | An SPV is not named `<agent>-spv` — also update `SHARED_SPV` in `packages/@qa/run-state/src/caller.ts`, or SPV reports `pair-mismatch` |
 | `sources` | A path is produced outside any agent (`cli`, `owner`, `target`, `repo`); a concrete `repo` read must exist on disk |
 | `nonAgentNames` | A `qa-*` token in the docs is not an agent or skill (labels, project names) |
+| `externalScripts` | A `pnpm <script>` named in the docs runs in the target repo, not in Aegis (e.g. `husky`) |
+| `escapes` | A contract gains or loses an escape hatch (see above) |
+| `writePolicy` → `writable` / `internalSkills` / `units` | CLAUDE.md's write table changes (`writable`), internal skills get a new framework area (`internalSkills`), or one unit needs a named exception (`units`, e.g. `_qa-build-toc: [HANDBOOK.md]`) |
+
+**Anchors** — some contract and pipeline facts must also appear in the prose, so a contract-only or
+pipeline-only edit produces a new violation locally:
+
+| Fact | Prose it must match | Violation |
+|------|---------------------|-----------|
+| `cli` | backticked `aegis <noun> <verb>` or `pnpm aegis <noun> <verb>` | `DRIFT … cli-not-in-contract` / `cli-not-in-prose` |
+| `config` | `aegis.config.json#key` / `thresholds.yaml#key`, or the key's last segment on a line naming the file | `DRIFT … config-not-in-contract` / `config-not-in-prose` |
+| `runs` | the tool's name as a word | `DRIFT … run-not-in-prose` |
+| skill `kind` | `_` name ⇔ `internal`; `query` never dispatches, writes run state or emits | `CONTRACT … kind-name-mismatch` / `query-side-effect` |
+| `routing` → `byType` / `byTechnique` | qa-test-executor route lines under **By `testType`** / **By `testTechnique`** | `ROUTE:pipeline:… route-not-in-prose` / `route-not-in-pipeline` |
+| `phases` order, `gateAfter` | qa-orchestrator `Canonical order:` line; `after/before <Phase> (Gate N` sentence | `CONTRACT:pipeline:… phase-order` / `gate-position` |
+| `designerEmits` | qa-test-designer backticked value, or a `[…]`/`(…)` list on a `testType`/`testTechnique` line | `ROUTE:pipeline:… emit-not-in-prose` |
+
+A config key written with its full dotted path (`aegis.config.json#a.b.c`) anchors on that path; a
+key written as its backticked last segment on a line naming the file anchors on the segment. A
+cross-cutting unit the orchestrator dispatches is placed in a phase by a qa-orchestrator prose line
+saying "during <Phase>"; with no such line the check reports
+`CONTRACT:qa-orchestrator:during-phase:anchor-missing`. An anchor whose heading or line is missing
+reports `…:anchor-missing` instead of passing. Reword an anchor only together with the rule in
+`packages/@qa/alignment/src/rules/pipeline.ts`. Other graph checks: dispatching needs the
+`Agent`/`Skill` tool and writing needs `Write`/`Edit`; a producer counts only when a pipeline phase
+or execution skill reaches it; same-phase units must not read each other's writes; a worker with an
+SPV lists task.claim and work-report.submit in its `cli` field; an event emitted only by units that nothing
+reaches is `EVENT:<event>:<emitter>:unreachable-emitter`.
+
+**Named event consumers:** prose that says an event is processed, consumed or handled by a named unit
+requires that unit to list the event in `awaits`
+(`EVENT:<emitter>:<event>:named-consumer-missing`).
+
+**Reverse checks** report what the docs or config name that nothing backs: a key in
+`aegis.config.json` that nothing reads (`CONFIG:aegis.config.json:<key>:unused`), an `@qa/<name>`
+package or `pnpm <script>` named in the docs that does not exist (`DOC-REF … unknown-package` /
+`unknown-script`; scripts that run in the target repo go in `pipeline.yaml#externalScripts`), and an
+"N agents" claim or tier-table count that disagrees with `.claude/agents` (`DOC-REF … count-mismatch`).
 
 **Workflow:** edit the prose first, then the contract block, then run `pnpm aegis align`. Inspect one
 rule with `pnpm aegis align --rule <RULE>`, or everything with `pnpm aegis align --json`. In the output,
-`+ add or fix` is a new violation and `- delete` is a baseline entry that no longer occurs.
+`+ add or fix` is a new violation and `- delete` is a baseline entry that no longer occurs. Group the
+output by owning slice with `pnpm aegis align --by-slice`. `aegis align` refuses with `stale-build`
+(exit 2) when a `src` it runs is newer than its `dist`: run `pnpm build`.
 
 **Baseline rules** (`__internal-tests__/alignment/baseline.yaml`; every entry names the matrix IDs that own it):
 
 1. Fix a new violation in the prose. Baselining a new key is allowed only for an open or in-spec
    matrix item, and the PR must call it out.
-   CI enforces this: a PR that adds keys to the baseline fails unless it carries the `baseline-growth` label. The guard runs from the PR's own code, so it is a review aid, not a tamper-proof control: a PR that edits `.github/workflows/ci.yml`, `scripts/check-baseline-growth.ts` or `packages/@qa/alignment/**` needs the same scrutiny as one that grows the baseline.
+   CI enforces this: a PR that adds keys to the baseline fails unless it carries the `baseline-growth` label. New `pipeline.yaml#escapes` entries count as added keys. The guard runs from the PR's own code, so it is a review aid, not a tamper-proof control: a PR that edits `.github/workflows/ci.yml`, `scripts/check-baseline-growth.ts` or `packages/@qa/alignment/**` needs the same scrutiny as one that grows the baseline.
 2. Delete a stale entry only in the same commit as the prose or code change that fixed it. Never
    edit a contract block alone to make an entry stale. CI enforces this too: every key a PR removes
    needs a changed non-blank line outside the contract block of its subject's file (the agent or
