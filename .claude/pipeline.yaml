@@ -1,0 +1,76 @@
+pipeline: 1
+phases:
+  - id: requirements
+    agents: [qa-requirements-analyst]
+  - id: discovery
+    agents: [qa-context-scanner, qa-web-explorer]
+  - id: planning
+    agents: [qa-test-planner]
+    gateAfter: G1
+  - id: design
+    agents: [qa-test-designer]
+  - id: environment
+    agents: [qa-environment-engineer]
+  - id: execution
+    agents: [qa-test-executor]
+  - id: triage
+    agents: [qa-defect-manager]
+    gateAfter: G2
+  - id: closure
+    agents: [qa-closure-reporter]
+    gateAfter: G3
+  - id: executive
+    agents: [qa-executive-reporter]
+routing:
+  byType:
+    Functional: qa-ui-specialist
+    UI: qa-ui-specialist
+    API: qa-api-specialist
+    Integration: qa-api-specialist
+    Performance: qa-performance-specialist
+    Security: qa-security-specialist
+    Database: qa-database-specialist
+    Compatibility: qa-responsive-specialist
+    Usability: qa-exploratory-specialist
+  byTechnique:
+    Unit: qa-unit-specialist
+    Accessibility: qa-accessibility-specialist
+    Email: qa-email-specialist
+    Realtime: qa-realtime-specialist
+    FeatureFlag: qa-feature-flag-specialist
+  designerEmits:
+    testType: [Functional, UI, E2E, Security, Database]
+    testTechnique: [EP, BVA, Flow, Accessibility, Unit, Email, Regression, BoundaryValue, StateTransition, DecisionTable, Pairwise, Smoke]
+  techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke]
+spvPairs:
+  qa-cicd-planner: qa-cicd-spv
+  qa-cicd-implementer: qa-cicd-spv
+  qa-cicd-evaluator: qa-cicd-spv
+  qa-github-planner: qa-github-spv
+  qa-github-implementer: qa-github-spv
+envSpecialists:
+  ui: qa-ui-specialist
+  api: qa-api-specialist
+  security: qa-security-specialist
+  database: qa-database-specialist
+  performance: qa-performance-specialist
+sources:
+  cli:
+    - "{run}/run.json"
+    - "{run}/events.jsonl"
+    - "{run}/taskmaster/**"
+    - "{run}/reports/work/**"
+    - "{run}/reports/review/**"
+  owner: []
+  target:
+    - "{target}/**"
+  repo:
+    - aegis.config.json
+    - thresholds.yaml
+    - "knowledge/**"
+    - "agent-memory/**"
+    - ".claude/**"
+    - module-codes.md
+    - "test-data/**"
+    - "templates/**"
+nonAgentNames: []
