@@ -3,6 +3,7 @@ import { resolve, join } from "node:path";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from "node:fs";
 import { execSync } from "node:child_process";
 import pc from "picocolors";
+import { DEFAULT_ENVIRONMENT_SPECIALISTS } from "@qa/contracts";
 
 export function initCommand(): Command {
   return new Command("init")
@@ -202,28 +203,27 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
         url: "http://localhost:3000",
         mode: "interactive",
         mutating: true,
-        allowedSpecialists: ["*"],
+        ...DEFAULT_ENVIRONMENT_SPECIALISTS.development,
       },
       testing: {
         url: "${TESTING_PREVIEW_URL}",
         mode: "automated",
         mutating: true,
         ephemeral: true,
-        allowedSpecialists: ["functional", "ui", "integration", "api", "security", "database"],
+        ...DEFAULT_ENVIRONMENT_SPECIALISTS.testing,
       },
       staging: {
         url: "https://stg.example.com",
         mode: "automated",
         mutating: true,
-        allowedSpecialists: ["*"],
+        ...DEFAULT_ENVIRONMENT_SPECIALISTS.staging,
       },
       production: {
         url: "https://example.com",
         mode: "smoke-only",
         mutating: false,
         readOnly: true,
-        allowedSpecialists: ["ui", "api", "security"],
-        forbiddenSpecialists: ["database", "performance"],
+        ...DEFAULT_ENVIRONMENT_SPECIALISTS.production,
       },
     },
   };

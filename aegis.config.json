@@ -39,7 +39,7 @@
         "dbSnapshotFrom": "staging",
         "mailpitPerInstance": true
       },
-      "allowedSpecialists": ["functional", "ui", "integration", "api", "security", "database"],
+      "allowedSpecialists": ["*"],
       "purpose": "PR gate; /qa-smoke 10-min budget; isolated per PR"
     },
     "staging": {
@@ -55,8 +55,8 @@
       "mutating": false,
       "readOnly": true,
       "branch": "main",
-      "allowedSpecialists": ["ui", "api", "security"],
-      "forbiddenSpecialists": ["database", "performance"],
+      "allowedSpecialists": ["ui", "api"],
+      "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"],
       "purpose": "Read-only synthetic monitoring; critical-path smoke"
     }
   },

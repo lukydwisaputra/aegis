@@ -56,6 +56,13 @@ envSpecialists:
   security: qa-security-specialist
   database: qa-database-specialist
   performance: qa-performance-specialist
+  responsive: qa-responsive-specialist
+  exploratory: qa-exploratory-specialist
+  accessibility: qa-accessibility-specialist
+  email: qa-email-specialist
+  realtime: qa-realtime-specialist
+  feature-flag: qa-feature-flag-specialist
+  unit: qa-unit-specialist
 sources:
   cli:
     - "{run}/run.json"

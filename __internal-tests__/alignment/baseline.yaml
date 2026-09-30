@@ -507,12 +507,6 @@ entries:
     note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   # --- DRIFT ---
   # --- ENV ---
-  - key: "ENV:testing:functional:unmapped"
-    ids: [AUD-036]
-    note: "functional maps to no agent"
-  - key: "ENV:testing:integration:unmapped"
-    ids: [AUD-036]
-    note: "integration maps to no agent"
   # --- EVENT ---
   - key: "EVENT:_qa-build-agents:agent.model.resolved:owner-cannot-append"
     ids: [AUD-100]

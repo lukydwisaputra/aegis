@@ -11,3 +11,4 @@ export * from "./gate.js";
 export * from "./chain.js";
 export * from "./run-state.js";
 export * from "./routing.js";
+export * from "./specialists.js";

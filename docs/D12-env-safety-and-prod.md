@@ -11,7 +11,7 @@ See [D11-secrets-handling.md](D11-secrets-handling.md) for secrets management.
 | Environment | Mutating writes allowed | Specialist restrictions |
 |-------------|------------------------|------------------------|
 | `development` (local) | Yes | None |
-| `testing` (ephemeral per PR) | Yes | `qa-performance-specialist` limited to baseline-only |
+| `testing` (ephemeral per PR) | Yes | Full specialist roster |
 | `staging` (prod mirror) | Yes | Full specialist roster |
 | `production` | **No** | All mutating specialists forbidden |
 
@@ -51,12 +51,9 @@ Configured in `aegis.config.json`:
 "environments": {
   "production": {
     "readOnly": true,
-    "forbiddenSpecialists": [
-      "qa-performance-specialist",   // k6 load tests would hammer prod
-      "qa-security-specialist",      // ZAP active scan mutates state
-      "qa-database-specialist",      // migration tests are destructive
-      "qa-email-specialist"          // no real email sends in prod
-    ]
+    "allowedSpecialists": ["ui", "api"],  // read-only smoke
+    // destructive migrations, k6 load, ZAP active scan, real email sends, flag-override writes:
+    "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"]
   }
 }
 ```

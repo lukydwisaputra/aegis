@@ -80,8 +80,8 @@ Forbidden specialists in production: `email`, `performance`, `unit`.
     "mode": "smoke-only",
     "mutating": false,
     "readOnly": true,
-    "allowedSpecialists": ["ui", "api", "security", "a11y"],
-    "forbiddenSpecialists": ["email", "performance", "unit"]
+    "allowedSpecialists": ["ui", "api"],
+    "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"]
   }
 }
 ```
