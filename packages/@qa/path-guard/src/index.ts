@@ -99,7 +99,7 @@ export function assertWritable(path: string, aegisRoot: string): void {
   if (!allowed) {
     throw new PathGuardError(
       `Write blocked: "${normalised}" is outside the QA write allowlist. ` +
-      `Only writes to tests/, aegis/runs/, aegis/packages/, aegis/apps/, and aegis/agent-memory/ are permitted. ` +
+      `Only writes to tests/, aegis/runs/, aegis/packages/, aegis/apps/, aegis/agent-memory/, and aegis/sandbox/ are permitted. ` +
       `To modify target app source, file a defect and let the developer apply the fix.`,
       normalised,
       "not-writable"

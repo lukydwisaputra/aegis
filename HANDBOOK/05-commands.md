@@ -104,7 +104,7 @@ Open defects: 1 Critical, 0 High
 
 ### 5.3 Group 2 — Defect Management
 
-Defects are filed by `qa-defect-manager` during a run; no command files, lists, updates or closes a defect by hand.
+Defects are raised during a run and managed by `qa-defect-manager`; apart from `/qa-rollback`'s incident defect, no command files, lists, updates or closes one by hand.
 
 #### `/qa-triage`
 
@@ -130,7 +130,7 @@ Pushes defects and test cases from a run into Jira, Linear or ClickUp.
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--tracker` | string | required | `jira`, `linear` or `clickup` |
-| `--what` | string | `defects` | `defects` or `test-cases` |
+| `--what` | string | `defects` | `defects`, `test-cases`, or both, comma-separated |
 | `--since` | string | — | Only items newer than this run |
 | `--run` | string | latest | Run ID |
 
@@ -239,4 +239,3 @@ Lessons live under `agent-memory/<agent>/`; no command lists or resets them. The
 
 - `docs/D05-commands-reference.md` — full reference for every user command
 - `docs/D05-cheat-sheet.md` — one-page cheat sheet
-- `docs/D05-knowledge-ingestion.md` — book ingestion pipeline and token budgets
