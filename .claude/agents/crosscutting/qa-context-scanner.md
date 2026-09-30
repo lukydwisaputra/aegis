@@ -109,3 +109,31 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
 - `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }`; the orchestrator collects this as one half of the Discovery two-event barrier (the other half is `qa-web-explorer`'s `{ step: "explore" }`)
 - `preflight.failed` — emitted (in addition to `target.profiled`) when `targetIsSingleProject` resolves to `false`; the orchestrator halts before dispatching any phase
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: discovery
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "(no SPV — cross-cutting profiler)"}
+reads:
+  - aegis.config.json
+  - "{target}/**"
+  - "{run}/target-profile.json"
+writes:
+  - "{run}/target-profile.json"
+emits:
+  - {event: target.profiled, via: append}
+  - {event: target.changed, via: append}
+  - {event: discovery.step-complete, via: append}
+  - {event: preflight.failed, via: append}
+  - {event: scan.warning, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - aegis.config.json#targetProjectRoot
+  - aegis.config.json#target.supabase.rolesToTest
+```

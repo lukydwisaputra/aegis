@@ -64,3 +64,24 @@ The active query is passed by the orchestrator in the dispatch brief.
 ## Events You Emit
 
 - `knowledge.queried` — includes query topic, sources consulted, hitCount (for coverage analytics)
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reads:
+  - knowledge/INDEX.md
+  - "knowledge/synthesis/**"
+  - "knowledge/{book-slug}/ch-XX-*.md"
+writes: []
+emits:
+  - {event: knowledge.queried, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

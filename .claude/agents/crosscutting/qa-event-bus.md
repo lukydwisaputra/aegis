@@ -51,3 +51,24 @@ Required fields on every event:
 
 - `bus.error` — schema validation failure; includes `{ invalidEventType, reason }`
 - `bus.lock-timeout` — lock acquisition timeout
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: crosscutting
+dispatchedBy: []
+reviewedBy: {none: "not stated in prose"}
+reads: []
+writes:
+  - "{run}/events.jsonl"
+  - "{run}/events.jsonl.lock"
+emits:
+  - {event: bus.error, via: append}
+  - {event: bus.lock-timeout, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -120,3 +120,33 @@ All proposals written to `runs/{runId}/pending-promotions/`:
 ## Events You Emit
 
 - `curator.proposals-ready` — includes proposalCount, types: { skills, memories, lessonArchives, conflicts }
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: crosscutting
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reads:
+  - "{run}/events.jsonl"
+  - "{run}/reviews/*.json"
+  - "{run}/defects/*.json"
+  - "{run}/reports/metrics/agent-reliability.json"
+  - "{run}/reports/work/*.json"
+  - "agent-memory/*/lessons.json"
+  - {path: "{run}/pending-promotions/**", optional: true}
+writes:
+  - "{run}/pending-promotions/skill-{name}.json"
+  - "{run}/pending-promotions/memory-{title-slug}.json"
+  - "{run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json"
+  - "{run}/pending-promotions/lesson-conflict-{agentName}-{conflictId}.json"
+  - {path: "{run}/pending-promotions/summary.md", terminal: true}
+emits:
+  - {event: curator.proposals-ready, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```
