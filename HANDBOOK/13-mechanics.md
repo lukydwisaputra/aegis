@@ -24,23 +24,12 @@ for await (const evt of tail(busPath)) { /* stream */ }
 
 ## 13.2 Taskmaster task claim/release atomicity
 
-Task files live at `.taskmaster/tasks/{id}.json`. Claim protocol:
+Task files live at `runs/{runId}/taskmaster/tasks/{id}.json` and change only through the `aegis task` commands:
 
-```
-1. Read {id}.json; check status === "pending"
-2. Acquire flock on runs/{runId}/locks/task-{id}.lock
-3. Write status = "in-progress", claimedBy = agentName, claimedAt = now
-4. Release lock
-5. If claim fails (status != pending): return WORK_TAKEN error
-```
-
-Release:
-```
-1. Acquire lock
-2. Write status = "done", result = resultRef
-3. Release lock
-4. Emit task.released event
-```
+- `aegis task add --id <id> --title <text> --agent <qa-*>` — the dispatcher adds a task for one assignee, tagged with the phase in progress. The assignee is the only agent that may claim it; its paired SPV reviews it.
+- `aegis task claim --task <id>` — the assignee takes a `pending` task (`not-assignee` for anyone else), under the task-file lock; the specialist cap and the environment rules apply. Records `task.claimed`.
+- `aegis task release --task <id> --result done|failed` — after a work report from this claim. `done`: the task was carried out (failing tests are results of a `done` task). `failed`: the agent could not complete the task; the CLI opens an escalation for that attempt and blocks the run until the owner decides with `/qa-escalation`. Records `task.released`.
+- `aegis task cancel --task <id> --reason <text>` — the task's creator withdraws a `pending` task nobody ever claimed. Records `task.cancelled`; the phase barrier ignores the task.
 
 If an agent crashes after claiming but before releasing, the orphan lock is detected by `/qa-health --fix` (stale lock age > 5 minutes).
 

@@ -158,7 +158,7 @@ This keeps state clean between runs and is the single biggest source of flake re
 
 **Results location.** Execution writes a run-level summary to `runs/<RUN-ID>/execution-summary.{md,json}`, and per-test-case evidence (screenshots, video, traces) to `runs/<RUN-ID>/evidence/{TC-ID}/`. (The old `runs/<RUN-ID>/results/` and `artifacts/evidence/` paths are gone.)
 
-**Per-worker SPV dispatch.** After each specialist completes and writes its work-report to `reports/work/qa-*.json`, `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`), reads its `review.json` verdict, and calls `pipeCorrectiveInstruction()` to append a lesson on any non-pass verdict. SPVs are read-only (`tools: [Read, Bash]`) and never write lessons themselves. See §4.10.
+**Per-worker SPV dispatch.** After each specialist submits its work report (`aegis work-report submit`, stored under `reports/work/`), `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`). The SPV records its verdict with `aegis review submit`; the CLI stores the review and pipes any corrective instructions into the worker's lessons. The dispatcher never reads the review file to write lessons and never calls `pipeCorrectiveInstruction()`; SPVs never write lessons themselves. See §4.10.
 
 When `TC-AUTH-031` ran, the SSO redirect landed on `/` instead of `/dashboard`. The test failed. `qa-defect-manager` was triggered automatically.
 
@@ -225,7 +225,7 @@ SPV review is **dispatcher-driven**, not self-triggered:
 - **Tier-1 phase work** — after a phase agent writes its work-report, `qa-orchestrator` dispatches the paired Tier-1 SPV.
 - **Tier-2 specialist work** — after a specialist writes its work-report, `qa-test-executor` dispatches the paired specialist SPV (`qa-{name}-spv`).
 
-In both cases the **dispatcher** reads the SPV's `review.json` verdict and calls `pipeCorrectiveInstruction()` to append a lesson on any `passed-with-notes` or `requested-changes` verdict. SPVs themselves are read-only (`tools: [Read, Bash]`) and cannot write to `lessons.json`. See Chapter 10 and `docs/D13-spv-review-pattern.md`.
+In both cases the SPV submits its verdict with `aegis review submit`, and the CLI pipes the corrective instructions of a `passed-with-notes` or `requested-changes` verdict into the worker's lessons. The dispatcher never reads the review file to write lessons and never calls `pipeCorrectiveInstruction()`; SPVs themselves (`tools: [Read, Bash]`) never write `lessons.json`. See Chapter 10 and `docs/D13-spv-review-pattern.md`.
 
 ---
 

@@ -6,7 +6,7 @@ description: Resume a stopped or blocked QA cycle through the CLI and hand it ba
 # /qa-resume
 
 ## Purpose
-Continues a run that was stopped (`/qa-stop`, agent crash, network loss) or blocked. The CLI resumes only a `stopped` or `blocked` run, and only after its block causes are resolved: an escalation needs `/qa-escalation` first, an integrity violation needs an explicit owner acknowledgement. The orchestrator then re-dispatches the metrics collector, re-checks the gates and continues from the first phase that is not completed. Completed artefacts are kept.
+Continues a run that was stopped (`/qa-stop`, agent crash, network loss) or blocked. The CLI resumes only a `stopped` or `blocked` run, and only after its block causes are resolved: an escalation needs `/qa-escalation` first, an integrity violation needs an explicit owner acknowledgement. A run ended by an escalation `abort` is never resumed (`aborted: start a new run`). The orchestrator then re-dispatches the metrics collector, re-checks the gates and continues from the first phase that is not completed. Completed artefacts are kept.
 
 ## Usage
 ```
@@ -22,9 +22,9 @@ Continues a run that was stopped (`/qa-stop`, agent crash, network loss) or bloc
 
 ## Behaviour
 1. Run `AEGIS_AGENT=owner pnpm aegis run status`. Continue only for `stopped` or `blocked`; show the block causes.
-2. An escalation cause: stop and tell the owner to decide it with `/qa-escalation` — resume refuses until then. An integrity cause: show `AEGIS_AGENT=owner pnpm aegis integrity verify` and continue only when the owner passed `--acknowledge-integrity` with a reason. A preflight cause: the owner fixes the target or reruns `/qa-health` first; the orchestrator then repeats Scan.
-3. Run `AEGIS_AGENT=owner pnpm aegis run resume` (with `--acknowledge-integrity --reason "<reason>"` when given). The CLI clears the stop request and the resolved causes, sets the run to running (or awaiting-gate while a gate is open) and records `run.resumed`.
-4. Dispatch `qa-orchestrator` in resume mode. It re-dispatches the metrics collector, re-checks the gates and continues from the next step the run status reports.
+2. An `escalation-abort` cause: the run was aborted and cannot be resumed — stop and tell the owner to start a new run (`/qa-start` or `/qa-smoke`). An escalation cause: stop and tell the owner to decide it with `/qa-escalation` — resume refuses until then. An integrity cause: show `AEGIS_AGENT=owner pnpm aegis integrity verify` and continue only when the owner passed `--acknowledge-integrity` with a reason. A preflight cause: when the target is a multi-project parent, the owner fixes the target first and the orchestrator repeats Scan after the resume; when the pre-cycle health check did not pass, the run cannot be recovered in place — stop and tell the owner to start a new run with `/qa-start`, which runs `/qa-health` and creates the run with `--health passed` only when it passes.
+3. Run `AEGIS_AGENT=owner pnpm aegis run resume` (with `--acknowledge-integrity --reason "<reason>"` when given). The CLI clears the stop request and the resolved causes, sets the run to running (or awaiting-gate while a gate is open) and records `run.resumed`. It refuses an aborted run and an undecided escalation.
+4. Dispatch `qa-orchestrator` in resume mode. It re-dispatches the metrics collector, re-dispatches workers whose claims are still in progress, re-checks the gates and continues from the next step the run status reports.
 
 ## Events emitted
 - `run.resumed` and, with an acknowledgement, `integrity.acknowledged` — recorded by the CLI, never appended by this skill
