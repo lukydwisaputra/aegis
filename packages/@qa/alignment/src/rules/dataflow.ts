@@ -35,7 +35,7 @@ export function producerRule(m: Model): Violation[] {
       out.push(violation("PRODUCER", u.name, p, "too-broad", u.file, u.contractLine, `${p} is too broad to index as a producer`));
     }
   }
-  const indexed = writers.filter((w) => w.u.kind === "skill" || !isTooBroad(w.path));
+  const indexed = writers.filter((w) => !isTooBroad(w.path));
   for (const r of [...m.units.values()].filter(isAgentContract)) {
     const rp = unitPhase(m, r, idx);
     for (const e of r.contract.reads) {
@@ -70,7 +70,7 @@ export function consumerRule(m: Model): Violation[] {
       out.push(violation("CONSUMER", u.name, p, "too-broad", u.file, u.contractLine, `${p} is too broad to index as a reader`));
     }
   }
-  const readers = allReaders.filter((r) => r.u.kind === "skill" || !isTooBroad(r.path));
+  const readers = allReaders.filter((r) => !isTooBroad(r.path));
   for (const w of [...m.units.values()].filter(isAgentContract)) {
     for (const e of w.contract.writes) {
       if (terminal(e) || isTooBroad(pathOf(e))) continue;

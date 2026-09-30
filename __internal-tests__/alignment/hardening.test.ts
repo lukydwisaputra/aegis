@@ -87,6 +87,15 @@ describe('8h item 3: dataflow', () => {
     expect(keys(producerRule(m))).toEqual(['PRODUCER:qa-req:{run}/**:too-broad']);
     t.cleanup();
   });
+  it('broad skill patterns are excluded from the producer index and not reported', () => {
+    const t = makeRepo({
+      agents: { 'qa-req': { contract: ag({ reads: ['{run}/intake/prd.md'] }, 'req') } },
+      skills: { 'qa-run-phase': { contract: { contract: 1, kind: 'execution', writes: ['{run}/{phase}/**'] } } },
+      pipeline: pl({}),
+    });
+    expect(keys(producerRule(loadModel(t.root)))).toEqual(['PRODUCER:qa-req:{run}/intake/prd.md:none']);
+    t.cleanup();
+  });
   it('WRITABLE uses matches: bare ** is not-writable', () => {
     const t = makeRepo({
       agents: { 'qa-req': { contract: ag({ writes: ['**', '{run}/a.json', 'agent-memory/qa-req/x.json'] }, 'req') } },
