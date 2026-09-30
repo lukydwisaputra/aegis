@@ -80,6 +80,7 @@ writes:
   - "{run}/reports/compliance/iso25010.{md,json}"
 emits:
   - {event: compliance.review-complete, via: append}
+  - {event: rtm.append-link, via: append}
 awaits: []
 cli: []
 runs: []
