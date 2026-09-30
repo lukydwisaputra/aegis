@@ -264,7 +264,7 @@ describe('claimTask environment safety (AUD-037)', () => {
       development: { url: 'http://localhost:5173', mutating: true },
       production: { url: 'https://example.com', mutating: false, readOnly: true, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['database'] },
     } });
-    runId = (await createRun(t.root, { environment: 'production', modules: ['AUTH'], cycleType: 'smoke' }, 'owner')).runId;
+    runId = await startedRun(t.root, 'smoke', 'production');
     await addTask(t.root, runId, { id: 'T-1', title: 'task T-1' }, 'qa-test-executor');
   });
   it('refuses a forbidden specialist, records env.specialist-blocked, leaves the task unclaimed', async () => {

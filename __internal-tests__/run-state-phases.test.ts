@@ -96,7 +96,7 @@ describe('phase barrier (spec §6.1)', () => {
   });
 
   it('records not-applicable only with a CLI-computed reason, from the Scan snapshot', async () => {
-    const scanned = await passScan({ ...PROFILE, existingTests: { files: ['src/a.test.ts'] } });
+    const scanned = await passScan({ ...PROFILE, existingTests: { ...PROFILE.existingTests, files: ['src/a.test.ts'], count: 1 } });
     expect(scanned.phases.scan).toMatchObject({ status: 'completed', existingTestsCount: 1 });
     const applicable = { code: 'barrier', message: 'phase dev-test-review is applicable to this run; it cannot be skipped' };
     await expect(completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true })).rejects.toMatchObject(applicable);

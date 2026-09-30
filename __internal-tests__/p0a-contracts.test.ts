@@ -1,4 +1,4 @@
-import { AegisEventSchema, GATE_AFTER, GateDecisionSchema, PHASE_IDS, TargetProfileSchema, gateNumber } from '@qa/contracts';
+import { AegisEventSchema, GATE_AFTER, GateDecisionSchema, PHASE_IDS, TargetProfileCoreSchema, gateNumber } from '@qa/contracts';
 
 const TS = '2026-09-30T08:00:00.000Z';
 const RUN = 'RUN-20260930-001';
@@ -20,10 +20,11 @@ describe('P0a-1 contracts', () => {
     expect(GateDecisionSchema.safeParse({ ...base, gate: 'plan-approval', decision: 'approved', decidedBy: 'owner' }).success).toBe(false);
   });
 
-  it('TargetProfileSchema requires the three P0 fields and passes others through', () => {
-    const ok = { targetIsSingleProject: true, sourceInventory: { routes: [] }, existingTests: { files: [] }, framework: 'vite' };
-    expect(TargetProfileSchema.parse(ok)).toMatchObject({ framework: 'vite' });
-    expect(TargetProfileSchema.safeParse({ targetIsSingleProject: true, sourceInventory: {} }).success).toBe(false);
+  it('TargetProfileCoreSchema requires the three P0 fields and tolerates the rest of the profile', () => {
+    const existingTests = { files: [], frameworks: [], locations: [], count: 0, unitTestStyle: 'none' };
+    const ok = { targetIsSingleProject: true, sourceInventory: { routes: [] }, existingTests, framework: 'vite' };
+    expect(TargetProfileCoreSchema.parse(ok)).toMatchObject({ targetIsSingleProject: true, existingTests: { files: [] } });
+    expect(TargetProfileCoreSchema.safeParse({ targetIsSingleProject: true, sourceInventory: {} }).success).toBe(false);
   });
 
   it('declares every field of the new events and uses G1-G3 for gate events', () => {

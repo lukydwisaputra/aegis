@@ -47,9 +47,9 @@ export function thrownCode(fn: () => unknown): string | undefined {
 }
 
 /** A created run with Intake in progress, so tasks can be added and claimed (CO-08). */
-export async function startedRun(root: string, cycleType: 'full' | 'smoke' = 'full'): Promise<string> {
+export async function startedRun(root: string, cycleType: 'full' | 'smoke' = 'full', environment = 'development'): Promise<string> {
   const { createRun, startPhase } = await import('@qa/run-state');
-  const { runId } = await createRun(root, { environment: 'development', modules: ['AUTH'], cycleType }, 'owner');
+  const { runId } = await createRun(root, { environment, modules: ['AUTH'], cycleType }, 'owner');
   await startPhase(root, runId, 'intake', 'qa-orchestrator');
   return runId;
 }

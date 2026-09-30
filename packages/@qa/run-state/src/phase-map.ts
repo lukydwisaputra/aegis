@@ -1,4 +1,4 @@
-import { PHASE_IDS, TargetProfileSchema, type CycleType, type PhaseId } from "@qa/contracts";
+import { PHASE_IDS, TargetProfileCoreSchema, type CycleType, type PhaseId } from "@qa/contracts";
 
 // Phases each cycle runs; the others start as not-applicable. Smoke has no human gate (spec §3.2); P0c may refine.
 export const CYCLE_PHASES: Readonly<Record<CycleType, readonly PhaseId[]>> = {
@@ -7,8 +7,8 @@ export const CYCLE_PHASES: Readonly<Record<CycleType, readonly PhaseId[]>> = {
 };
 
 // The one schema the Scan barrier, preflight and not-applicable use for target-profile.json.
-// P1 makes TargetProfileSchema strict and adds TargetProfileCoreSchema; on rebase, point this alias at the Core schema.
-export const ScanProfileSchema = TargetProfileSchema;
+// The barrier checks only the core fields they read; strict validation of the full profile belongs to the scanner's SPV.
+export const ScanProfileSchema = TargetProfileCoreSchema;
 
 // Every phase except Intake needs at least one released task before it can complete.
 export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake"]);

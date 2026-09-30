@@ -71,7 +71,12 @@ export async function workTask(
   if (spv !== null) await submitReview(root, runId, tmpJson(root, `rv-${taskId}.json`, review(spv, agent, taskId, verdict)), spv);
 }
 
-export const PROFILE = { targetIsSingleProject: true, sourceInventory: {}, existingTests: { files: [] } };
+/** The core fields the Scan barrier reads (TargetProfileCoreSchema); the full profile is the scanner SPV's to check. */
+export const PROFILE = {
+  targetIsSingleProject: true,
+  sourceInventory: {},
+  existingTests: { files: [] as string[], frameworks: [] as string[], locations: [] as string[], count: 0, unitTestStyle: 'none' },
+};
 
 /** Test shortcut: mark every phase before `phase` completed and leave the run running, as if the pipeline got there. */
 export function fastForward(root: string, runId: string, phase: string, gates: Record<string, unknown> = {}): void {
