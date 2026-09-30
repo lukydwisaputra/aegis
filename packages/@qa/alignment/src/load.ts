@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { AegisEventSchema } from "@qa/contracts";
 import { AgentContractSchema, PipelineSchema, SkillContractSchema } from "./schema.js";
@@ -53,15 +53,40 @@ export function frontmatterLite(source: string): { name?: string; tools: string[
 }
 
 function walk(dir: string, match: (p: string) => boolean): string[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((e) => {
-    const p = join(dir, e);
-    return statSync(p).isDirectory() ? walk(p, match) : match(p) ? [p] : [];
-  });
+  try {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir).flatMap((e) => {
+      const p = join(dir, e);
+      try {
+        return statSync(p).isDirectory() ? walk(p, match) : match(p) ? [p] : [];
+      } catch {
+        // broken symlink etc.: still surface files that match so the caller can report them
+        return match(p) ? [p] : [];
+      }
+    });
+  } catch {
+    return [];
+  }
 }
 
-function loadUnit(root: string, file: string, kind: "agent" | "skill", name: string, errors: Violation[]): Unit {
-  const source = readFileSync(file, "utf-8");
+function lstatOk(file: string): boolean {
+  try {
+    lstatSync(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function tryRead(file: string): string | Error {
+  try {
+    return readFileSync(file, "utf-8");
+  } catch (e) {
+    return e as Error;
+  }
+}
+
+function loadUnit(root: string, file: string, kind: "agent" | "skill", name: string, source: string, errors: Violation[]): Unit {
   const rel = relative(root, file);
   const unit: Unit = { kind, name, file: rel, tools: frontmatterLite(source).tools, source, sections: parseSections(source), contract: null, contractLine: 0 };
   const found = extractContract(source);
@@ -100,17 +125,40 @@ export function loadModel(root: string): Model {
   const units = new Map<string, Unit>();
   const skillAliases = new Set<string>();
 
+  const register = (file: string, kind: "agent" | "skill", fallbackName: string, source: string | Error): string | null => {
+    const rel = relative(root, file);
+    if (typeof source !== "string") {
+      errors.push(violation("CONTRACT", fallbackName, "-", "unreadable", rel, 1, source.message));
+      return null;
+    }
+    const name = kind === "agent" ? frontmatterLite(source).name ?? fallbackName : fallbackName;
+    const existing = units.get(name);
+    if (existing) {
+      errors.push(violation("CONTRACT", name, "-", "duplicate-name", rel, 1, `${name} is also defined in ${existing.file}`));
+      return null;
+    }
+    units.set(name, loadUnit(root, file, kind, name, source, errors));
+    return name;
+  };
+
   for (const file of walk(join(root, ".claude", "agents"), (p) => p.endsWith(".md"))) {
-    const name = frontmatterLite(readFileSync(file, "utf-8")).name ?? file.split("/").pop()!.replace(/\.md$/, "");
-    units.set(name, loadUnit(root, file, "agent", name, errors));
+    register(file, "agent", basename(file, ".md"), tryRead(file));
   }
   const skillsDir = join(root, ".claude", "skills");
-  for (const dir of existsSync(skillsDir) ? readdirSync(skillsDir) : []) {
+  let skillDirs: string[] = [];
+  try {
+    skillDirs = existsSync(skillsDir) ? readdirSync(skillsDir) : [];
+  } catch {
+    skillDirs = [];
+  }
+  for (const dir of skillDirs) {
     const file = join(skillsDir, dir, "SKILL.md");
-    if (!existsSync(file)) continue;
-    units.set(dir, loadUnit(root, file, "skill", dir, errors));
+    const source = tryRead(file);
+    if (typeof source !== "string" && !existsSync(join(skillsDir, dir))) continue;
+    if (typeof source !== "string" && (source as NodeJS.ErrnoException).code === "ENOENT" && !lstatOk(file)) continue;
+    if (register(file, "skill", dir, source) === null) continue;
     skillAliases.add(dir);
-    const fmName = frontmatterLite(readFileSync(file, "utf-8")).name;
+    const fmName = frontmatterLite(source as string).name;
     if (fmName) skillAliases.add(fmName);
   }
 
@@ -137,7 +185,9 @@ export function loadModel(root: string): Model {
 
   const matrixIds = new Set<string>();
   for (const f of walk(join(root, "docs", "superpowers", "specs"), (p) => p.endsWith("-audit-remediation-matrix.md"))) {
-    for (const m of readFileSync(f, "utf-8").matchAll(/^\|\s*((?:AUD-\d{3}[a-z]?|CO-\d{2}|NEW-\d{2}))\s*\|/gm)) matrixIds.add(m[1]!);
+    const text = tryRead(f);
+    if (typeof text !== "string") continue;
+    for (const m of text.matchAll(/^\|\s*((?:AUD-\d{3}[a-z]?|CO-\d{2}|NEW-\d{2}))\s*\|/gm)) matrixIds.add(m[1]!);
   }
 
   const declaredEvents = new Set<string>(
@@ -150,7 +200,10 @@ export function loadModel(root: string): Model {
   const docs = [
     ...walk(join(root, "HANDBOOK"), (p) => p.endsWith(".md")),
     ...["CLAUDE.md", "README.md"].map((f) => join(root, f)).filter((f) => existsSync(f)),
-  ].map((f) => ({ file: relative(root, f), source: readFileSync(f, "utf-8") }));
+  ].flatMap((f) => {
+    const source = tryRead(f);
+    return typeof source !== "string" ? [] : [{ file: relative(root, f), source }];
+  });
 
   return {
     root,

@@ -1,5 +1,7 @@
 import { extractContract, frontmatterLite, loadModel, parseSections } from '@qa/alignment';
-import { contractBlock, makeRepo, MIN_PIPELINE } from './helpers';
+import * as fs from 'fs';
+import * as path from 'path';
+import { contractBlock, makeRepo } from './helpers';
 
 const okAgent = { contract: 1, phase: 'design', dispatchedBy: [], dispatch: { none: 'test only' }, reviewedBy: { none: 'test only' } };
 
@@ -65,5 +67,28 @@ describe('loadModel', () => {
     expect(loadModel(t.root).loadErrors.map((v) => v.key)).toContain('CONTRACT:qa-y:-:invalid-yaml');
     t.cleanup();
   });
-  void MIN_PIPELINE;
+  it('keeps the first unit and reports duplicate names', () => {
+    const t = makeRepo({
+      agents: {
+        'qa-dup': { contract: okAgent },
+        'qa-other': { dir: 'tier2', contract: okAgent, body: '# x\n' },
+      },
+      skills: { 'qa-x': { contract: { contract: 1, kind: 'query' } } },
+    });
+    fs.writeFileSync(path.join(t.root, '.claude/agents/tier2/copy.md'), '---\nname: qa-dup\n---\n# dup\n');
+    fs.writeFileSync(path.join(t.root, '.claude/agents/tier2/qa-x.md'), '---\nname: qa-x\n---\n# x\n');
+    const m = loadModel(t.root);
+    const keys = m.loadErrors.map((v) => v.key).filter((k) => k.endsWith('duplicate-name')).sort();
+    expect(keys).toEqual(['CONTRACT:qa-dup:-:duplicate-name', 'CONTRACT:qa-x:-:duplicate-name']);
+    expect([...m.units.keys()].filter((k) => k === 'qa-dup')).toHaveLength(1);
+    t.cleanup();
+  });
+  it('reports unreadable files without throwing', () => {
+    const t = makeRepo({ agents: { 'qa-ok': { contract: okAgent } } });
+    fs.symlinkSync('/nonexistent/nowhere', path.join(t.root, '.claude/agents/tier1-phase/qa-broken.md'));
+    const m = loadModel(t.root);
+    expect(m.loadErrors.map((v) => v.key)).toContain('CONTRACT:qa-broken:-:unreadable');
+    expect(m.units.has('qa-ok')).toBe(true);
+    t.cleanup();
+  });
 });
