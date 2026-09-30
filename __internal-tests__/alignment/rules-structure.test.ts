@@ -16,7 +16,7 @@ it('CONTRACT: unknown units, unknown phase, phase mismatch', () => {
   expect(keys(contractRule(loadModel(t.root)))).toEqual([
     'CONTRACT:qa-a:nowhere:unknown-phase',
     'CONTRACT:qa-a:qa-ghost:unknown-unit',
-    'CONTRACT:qa-b:crosscutting:phase-mismatch',
+    'CONTRACT:qa-b:design:phase-mismatch',
   ]);
   t.cleanup();
 });
@@ -61,5 +61,81 @@ it('SPV: pairing, missing, dispatched together, reciprocity, orphan, pipeline mi
     'SPV:qa-w2:qa-w2-spv:missing-spv',
     'SPV:qa-w2:qa-w2-spv:not-paired',
   ]);
+  t.cleanup();
+});
+
+const cc = (extra: object = {}) => ({ contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], dispatch: none, reviewedBy: none, ...extra } });
+
+it('CONTRACT: agent listed in two phases', () => {
+  const t = makeRepo({
+    agents: { 'qa-a': { contract: { contract: 1, phase: 'design', dispatchedBy: [], dispatch: none, reviewedBy: none } } },
+    pipeline: { ...MIN_PIPELINE, phases: [{ id: 'design', agents: ['qa-a'] }, { id: 'build', agents: ['qa-a'] }] },
+  });
+  expect(keys(contractRule(loadModel(t.root)))).toEqual([
+    'CONTRACT:qa-a:-:multi-phase',
+    'CONTRACT:qa-a:build:phase-mismatch',
+  ]);
+  t.cleanup();
+});
+
+it('DISPATCH: skill as dispatcher', () => {
+  const t = makeRepo({
+    skills: { 'qa-go': { contract: { contract: 1, kind: 'execution', dispatches: ['qa-a', 'qa-b'] } } },
+    agents: {
+      'qa-a': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-go'], reviewedBy: none } },
+      'qa-b': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], reviewedBy: none } },
+    },
+  });
+  expect(keys(dispatchRule(loadModel(t.root)))).toEqual(['DISPATCH:qa-b:qa-go:undeclared-dispatcher']);
+  t.cleanup();
+});
+
+it('DISPATCH: unloaded dispatcher does not cause undispatched', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-broken': { contract: null },
+      'qa-a': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-broken'], reviewedBy: none } },
+    },
+  });
+  expect(keys(dispatchRule(loadModel(t.root)))).toEqual([]);
+  t.cleanup();
+});
+
+it('SPV: shared SPV via spvPairs is consistent', () => {
+  const ws = ['qa-w1', 'qa-w2', 'qa-w3'];
+  const agents: Record<string, any> = {
+    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-shared-spv'] }),
+    'qa-shared-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
+  };
+  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'design', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-shared-spv' } };
+  const t = makeRepo({ agents, pipeline: { ...pipe(ws), spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-shared-spv'])) } });
+  const got = keys(spvRule(loadModel(t.root)));
+  // pairedSpv is the runtime rule; any pair-mismatch is the only tolerated output
+  expect(got.filter((k) => !k.startsWith('SPV:pipeline:'))).toEqual([]);
+  t.cleanup();
+});
+
+it('SPV: unloaded worker causes no spurious violations', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-orchestrator': cc({ dispatches: ['qa-w1-spv'] }),
+      'qa-w1': { contract: null },
+      'qa-w1-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ['qa-w1'] } },
+    },
+  });
+  expect(keys(spvRule(loadModel(t.root)))).toEqual([]);
+  t.cleanup();
+});
+
+it('SPV: not dispatched together', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-orchestrator': cc({ dispatches: ['qa-w1'] }),
+      'qa-other': cc({ dispatches: ['qa-w1-spv'] }),
+      'qa-w1': { contract: { contract: 1, phase: 'design', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-w1-spv' } },
+      'qa-w1-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-other'], reviewedBy: none, reviews: ['qa-w1'] } },
+    },
+  });
+  expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-w1:qa-w1-spv:not-dispatched-together']);
   t.cleanup();
 });
