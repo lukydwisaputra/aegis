@@ -213,12 +213,26 @@ reports `…:anchor-missing` instead of passing. Reword an anchor only together 
 `packages/@qa/alignment/src/rules/pipeline.ts`. Other graph checks: dispatching needs the
 `Agent`/`Skill` tool and writing needs `Write`/`Edit`; a producer counts only when a pipeline phase
 or execution skill reaches it; same-phase units must not read each other's writes; a worker with an
-SPV lists task.claim and work-report.submit in its `cli` field; an event emitted only by units that nothing
-reaches is `EVENT:<event>:<emitter>:unreachable-emitter`.
+SPV lists task.claim and work-report.submit in its `cli` field; a reachable unit that awaits an event
+whose only emitters nothing reaches is `EVENT:<awaiting unit>:<event>:unreachable-emitter`.
 
 **Named event consumers:** prose that says an event is processed, consumed or handled by a named unit
 requires that unit to list the event in `awaits`
-(`EVENT:<emitter>:<event>:named-consumer-missing`).
+(`EVENT:<emitting unit>:<event>:named-consumer-missing`). Limits: it covers only events the unit itself
+emits; the verb must come after a "that" or "which" clause; and prose that names no consumer at all
+also counts (the message says "an unnamed consumer").
+
+**When the ratchet or guard is red:**
+
+1. `pnpm aegis align --baseline-draft --rule <RULE>` prints the candidate key and note for one rule.
+2. A baseline entry is `{key, ids, note}`. `ids` must be open or in-spec matrix IDs, and the entry goes
+   in its rule's `# --- RULE ---` section in key order. A new violation class needs a new `AUD-11N`
+   row in the matrix first.
+3. Reproduce the guard locally with `pnpm exec tsx scripts/check-baseline-growth.ts --base main`. The
+   `baseline-growth` and `contract-only-fix` labels must exist in the repository.
+4. New agent: `tools` in the frontmatter must match `dispatches` and `writes` (`missing-tool`); a
+   reviewed worker lists task.claim and work-report.submit in `cli`; config it reads goes in `config`;
+   any escape hatch needs a `pipeline.yaml#escapes` entry.
 
 **Reverse checks** report what the docs or config name that nothing backs: a key in
 `aegis.config.json` that nothing reads (`CONFIG:aegis.config.json:<key>:unused`), an `@qa/<name>`
