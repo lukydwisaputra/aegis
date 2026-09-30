@@ -276,3 +276,7 @@ Owner overlaps (one violation class, two IDs — close them together):
 | AH-20 | CONFIG_REF also anchors the dotted `aegis.config.json.x.y` form (owner P5) | open |
 | AH-21 | Designer vocabulary is checked both ways (prose technique lists ⊆ designerEmits), not by any backticked token (owner P5) | open |
 | AH-22 | Dedupe `escapeRe` (anchors.ts/reverse.ts); namedConsumerRule uses `proseLines`; a single contract-block parser; `freshness.ts` counts only `*.ts` under src and tolerates stat errors (owner P5) | open |
+| AH-23 | Shrink guard `any`-mode evidence (doc/config subjects) accepts a blank-line-only change; require a non-blank changed line, as HANDBOOK 14.11 states (`shrink.ts:178`) — owner P5 | open |
+| AH-24 | HANDBOOK 14.11: config-anchor wording (backticked last segment anywhere, or a word on a line naming the file); local guard recipe uses `git fetch` and `--base origin/main` consistently — owner P5 | open |
+| AH-25 | Guard reads head `baseline.yaml`/`pipeline.yaml` from the working tree but diffs HEAD; read both from HEAD, or document commit-first (`scripts/check-baseline-growth.ts`) — owner P5 | open |
+| AH-26 | DOC-REF does not parse `pnpm -F <pkg>` / `--filter` forms; CLAUDE.md:27 uses a non-existent filter `aegis-internal-tests` (package is `@aegis/internal-tests`) — owner P5 | open |
