@@ -3,3 +3,4 @@ export * from "./types.js";
 export * from "./load.js";
 export * from "./paths.js";
 export * from "./cli-records.js";
+export * from "./rules/structure.js";
