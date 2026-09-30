@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { configRule, docRefRule, driftRule, frontmatterLite, loadModel, parseSections } from '@qa/alignment';
+import { configRule, docRefRule, driftRule, frontmatterLite, loadModel, parseSections, trackedFiles } from '@qa/alignment';
 import { contractBlock, makeRepo, MIN_PIPELINE } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
@@ -130,6 +130,28 @@ describe('Task 7 classification: checker false positives pinned', () => {
   it('DOC-REF: nonAgentNames allowlists CI job and artifact names in docs/*.md', () => {
     const t = makeRepo({ pipeline: { ...MIN_PIPELINE, nonAgentNames: ['qa-api'] }, docs: { 'docs/D12.md': 'jobs:\n  qa-api:\n  qa-web:\n' } });
     expect(keys(docRefRule(loadModel(t.root)))).toEqual(['DOC-REF:docs/D12.md:qa-web:unknown']);
+    t.cleanup();
+  });
+});
+
+describe('Task 7 fix round 1', () => {
+  it('DRIFT: a violation bullet skips only its leading clause; a parenthetical remedy path is still checked', () => {
+    const body = [
+      '# A', '## Quality Standards (SPV rejects if violated)',
+      '- Temporary files created inside `{run}/tmp/` (temp files belong in `tests/qa/fixtures/files/` and must be deleted)',
+      '- Probe script written to `tests/qa/specs/` (any `inspect-*.spec.ts` one-shot file)',
+      '- `{run}/x.json` skipped — the remedy is `{run}/remedy.json`',
+    ].join('\n') + '\n';
+    expect(driftKeys({ 'qa-a': { body, contract: ag() } })).toEqual([
+      'DRIFT:qa-a:{run}/remedy.json:path-not-in-contract',
+      'DRIFT:qa-a:{tests}/qa/fixtures/files/**:path-not-in-contract',
+    ]);
+  });
+
+  it('AH-12: trackedFiles ignores inherited GIT_* variables (hooks, rebase -x, bisect run)', () => {
+    const t = makeRepo({ agents: { 'qa-a': { contract: ag() } } });
+    const gitDir = execFileSync('git', ['rev-parse', '--absolute-git-dir'], { encoding: 'utf-8' }).trim();
+    expect(trackedFiles(t.root, { ...process.env, GIT_DIR: gitDir, GIT_WORK_TREE: t.root })).toBeNull();
     t.cleanup();
   });
 });

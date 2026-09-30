@@ -40,8 +40,13 @@ function affirmed(line: string): string {
     .join(" ");
 }
 
-/** A section whose bullets are the conditions an SPV rejects: prohibited actions, not contract paths. */
+/**
+ * A section whose bullets are the conditions an SPV rejects. Each bullet's leading clause (up to the first
+ * `(`, `;` or `—`) states the prohibited action and is not a contract path; the parenthetical or remedy text
+ * after it ("temp files belong in `x/`", "— must be `y`") is still checked.
+ */
 const VIOLATION_SECTION = /\bSPV rejects if violated\b/i;
+const violationRemedy = (line: string) => line.replace(/^(\s*(?:[-*]|\d+\.)\s+)[^(;—]*/, "$1");
 
 /** Which contract list a prose path must appear in: Inputs → reads, Outputs → writes, else either. */
 export type PathSide = "reads" | "writes" | "either";
@@ -76,11 +81,12 @@ export function prosePaths(u: Unit, names: Set<string> = new Set()): Array<{ pat
     if (own !== null) for (const path of pathsIn(own)) out.push({ path, line, side: "either" });
   }
   for (const sec of proseSections(u)) {
-    if (VIOLATION_SECTION.test(sec.heading)) continue;
+    const violations = VIOLATION_SECTION.test(sec.heading);
     const side = sideOf(u, sec.heading);
     const narrow = u.kind === "skill" || !/^(Inputs|Outputs)/.test(sec.heading);
-    sec.text.split("\n").forEach((text, i) => {
-      if (/\b(testDir|testMatch|outputDir)\b/.test(text)) return;
+    sec.text.split("\n").forEach((raw, i) => {
+      if (/\b(testDir|testMatch|outputDir)\b/.test(raw)) return;
+      const text = violations ? violationRemedy(raw) : raw;
       const own = narrow ? ownPart(text, u.name, names) : text;
       if (own === null) return;
       const scan = narrow ? affirmed(own) : own;

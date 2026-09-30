@@ -78,9 +78,11 @@ export function existsWithContent(path: string): boolean {
 }
 
 /** Tracked paths when `root` is the top of a git work tree; null otherwise (spec §7 AH-12). */
-export function trackedFiles(root: string): Tracked | null {
+export function trackedFiles(root: string, env: NodeJS.ProcessEnv = process.env): Tracked | null {
   try {
-    const opts = { cwd: root, encoding: "utf-8" as const, stdio: ["ignore", "pipe", "ignore"] as ["ignore", "pipe", "ignore"], maxBuffer: 256 * 1024 * 1024 };
+    // Inherited GIT_DIR / GIT_WORK_TREE (hooks, `rebase -x`, `bisect run`) would point git at another repo.
+    const clean = Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith("GIT_")));
+    const opts = { cwd: root, env: clean, encoding: "utf-8" as const, stdio: ["ignore", "pipe", "ignore"] as ["ignore", "pipe", "ignore"], maxBuffer: 256 * 1024 * 1024 };
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], opts).trim();
     if (realpathSync(top) !== realpathSync(root)) return null;
     const files = new Set(execFileSync("git", ["ls-files", "-z", "--cached"], opts).split("\0").filter(Boolean));
