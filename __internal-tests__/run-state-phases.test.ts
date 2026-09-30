@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { addTask, busPath, claimTask, completePhase, completeRun, createRun, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { ORCH, PROFILE, workTask, writeRunFile } from './helpers/pipeline';
+import { ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
 let t: TmpAegis;
 let runId: string;
@@ -24,6 +24,14 @@ async function passScan(profile: unknown = PROFILE) {
   await workTask(t.root, runId, 'T-scan-1', 'qa-context-scanner', null);
   return completePhase(t.root, runId, 'scan', ORCH);
 }
+/** Scan passed, dev-test-review skipped, Requirements in progress with its outputs written. */
+async function toRequirements() {
+  await passScan();
+  await completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true });
+  await startPhase(t.root, runId, 'requirements', ORCH);
+  for (const f of ['requirements/ambiguity-report.json', 'requirements/testability-scores.json']) writeRunFile(t.root, runId, f, {});
+}
+const RA = 'qa-requirements-analyst';
 
 it('a new full run starts at intake; start and complete are recorded by the CLI', async () => {
   expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'start-phase', phase: 'intake' });
@@ -45,20 +53,62 @@ describe('phase barrier (spec §6.1)', () => {
     await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ message: expect.stringMatching(/target-profile.json is invalid/) });
   });
 
-  it('refuses a reviewed agent whose latest attempt has no passing review', async () => {
-    await passScan();
-    await completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true });
-    await startPhase(t.root, runId, 'requirements', ORCH);
-    for (const f of ['requirements/ambiguity-report.json', 'requirements/testability-scores.json']) writeRunFile(t.root, runId, f, {});
-    await workTask(t.root, runId, 'T-requirements-1', 'qa-requirements-analyst', 'qa-requirements-analyst-spv', 'requested-changes');
+  it('refuses a task reopened by a requested-changes review', async () => {
+    await toRequirements();
+    await workTask(t.root, runId, 'T-requirements-1', RA, `${RA}-spv`, 'requested-changes');
     await expect(completePhase(t.root, runId, 'requirements', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/T-requirements-1 is pending/) });
   });
 
-  it('records not-applicable only with a CLI-computed reason', async () => {
-    await passScan({ ...PROFILE, existingTests: { files: ['src/a.test.ts'] } });
-    await expect(completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true })).rejects.toMatchObject({ code: 'barrier' });
-    await expect(completePhase(t.root, runId, 'requirements', ORCH, { notApplicable: true })).rejects.toMatchObject({ code: 'out-of-order' });
+  it('refuses a done task of a reviewed agent with no review (spec §6.1 item 2)', async () => {
+    await toRequirements();
+    await workTask(t.root, runId, 'T-requirements-1', RA, null);
+    await expect(completePhase(t.root, runId, 'requirements', ORCH)).rejects.toMatchObject({
+      code: 'barrier',
+      message: expect.stringMatching(/task T-requirements-1: attempt 1 of qa-requirements-analyst has no passing review/),
+    });
+  });
+
+  it('checks the latest attempt: a passed attempt 1 does not cover an unreviewed attempt 2', async () => {
+    await toRequirements();
+    await workTask(t.root, runId, 'T-requirements-1', RA, `${RA}-spv`, 'passed');
+    writeRunFile(t.root, runId, `reports/work/${RA}.T-requirements-1.2.json`, workReport(RA, 'T-requirements-1'));
+    const err = await completePhase(t.root, runId, 'requirements', ORCH).catch((e: Error) => e);
+    expect(err).toMatchObject({ code: 'barrier', message: expect.stringMatching(/attempt 2 of qa-requirements-analyst has no passing review/) });
+    expect((err as Error).message).not.toMatch(/attempt 1/);
+  });
+
+  it('an accept-with-risk escalation decision satisfies the review check for that attempt only', async () => {
+    await toRequirements();
+    await workTask(t.root, runId, 'T-requirements-1', RA, null);
+    writeRunFile(t.root, runId, `reports/review/${RA}.T-requirements-1.1.escalation.json`, { decision: 'rework' });
+    await expect(completePhase(t.root, runId, 'requirements', ORCH)).rejects.toMatchObject({ message: expect.stringMatching(/attempt 1 of qa-requirements-analyst has no passing review/) });
+    writeRunFile(t.root, runId, `reports/review/${RA}.T-requirements-1.1.escalation.json`, { decision: 'accept-with-risk' });
+    expect((await completePhase(t.root, runId, 'requirements', ORCH)).phases.requirements).toMatchObject({ status: 'completed' });
+  });
+
+  it('refuses a failed task, even of an agent without an SPV, unless accepted with risk', async () => {
+    await startPhase(t.root, runId, 'scan', ORCH);
     writeRunFile(t.root, runId, 'target-profile.json', PROFILE);
+    await workTask(t.root, runId, 'T-scan-1', 'qa-context-scanner', null, 'passed', 'failed');
+    await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/task T-scan-1 failed/) });
+    writeRunFile(t.root, runId, 'reports/review/qa-context-scanner.T-scan-1.1.escalation.json', { decision: 'accept-with-risk' });
+    expect((await completePhase(t.root, runId, 'scan', ORCH)).phases.scan).toMatchObject({ status: 'completed' });
+  });
+
+  it('records not-applicable only with a CLI-computed reason, from the Scan snapshot', async () => {
+    const scanned = await passScan({ ...PROFILE, existingTests: { files: ['src/a.test.ts'] } });
+    expect(scanned.phases.scan).toMatchObject({ status: 'completed', existingTestsCount: 1 });
+    const applicable = { code: 'barrier', message: 'phase dev-test-review is applicable to this run; it cannot be skipped' };
+    await expect(completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true })).rejects.toMatchObject(applicable);
+    await expect(completePhase(t.root, runId, 'requirements', ORCH, { notApplicable: true })).rejects.toMatchObject({ code: 'out-of-order' });
+    // Rewriting the profile after Scan does not flip the decision: the snapshot recorded at Scan wins.
+    writeRunFile(t.root, runId, 'target-profile.json', PROFILE);
+    await expect(completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true })).rejects.toMatchObject(applicable);
+    expect(readRun(t.root, runId).phases['dev-test-review']).toMatchObject({ status: 'pending' });
+  });
+
+  it('skips dev-test-review when Scan found no existing tests', async () => {
+    expect((await passScan()).phases.scan).toMatchObject({ existingTestsCount: 0 });
     const s = await completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true });
     expect(s.phases['dev-test-review']).toMatchObject({ status: 'not-applicable', reason: 'target-profile.json#existingTests.files is empty' });
     expect(types()).toContain('run.phase.not-applicable');
@@ -69,8 +119,9 @@ describe('phase barrier (spec §6.1)', () => {
     const lines = readLines(busPath(t.root, runId));
     lines[0] = lines[0]!.replace('"environment":"development"', '"environment":"staging"');
     fs.writeFileSync(busPath(t.root, runId), lines.join('\n') + '\n');
-    await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'integrity-failed' });
-    expect(readRun(t.root, runId).status).toBe('blocked');
+    await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'integrity-failed', message: expect.stringMatching(/^event log does not verify: /) });
+    expect(readRun(t.root, runId)).toMatchObject({ status: 'blocked', blockedBy: [expect.objectContaining({ kind: 'integrity' })] });
+    expect(types()).toContain('integrity.violation');
   });
 });
 
@@ -111,7 +162,10 @@ describe('run complete (AUD-025/028)', () => {
     const s = readRun(t.root, runId);
     for (const [id, p] of Object.entries(s.phases)) if (p?.status === 'pending') s.phases[id as 'intake'] = { status: 'completed' };
     fs.writeFileSync(runFile(), JSON.stringify({ ...s, status: 'running', gates: { G2: { status: 'approved', decisions: 1 } } }));
-    await expect(completeRun(t.root, runId, ORCH)).rejects.toMatchObject({ code: 'barrier' });
+    await expect(completeRun(t.root, runId, ORCH)).rejects.toMatchObject({
+      code: 'barrier',
+      message: 'execution-summary.json#totals must hold non-negative integer passed, failed and blocked counts',
+    });
     writeRunFile(t.root, runId, 'execution-summary.json', { totals: { passed: 3, failed: 1, blocked: 0 } });
     expect((await completeRun(t.root, runId, ORCH)).status).toBe('completed');
     expect(JSON.parse(readLines(busPath(t.root, runId)).pop()!)).toMatchObject({ type: 'run.completed', summary: { passed: 3, failed: 1, blocked: 0, defectsOpened: 0 } });

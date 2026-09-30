@@ -44,11 +44,19 @@ export const review = (reviewer: string, agent: string, taskId: string, verdict:
 });
 
 /** One worker task through the SPV loop: add (orchestrator), claim + submit + release (worker), review (SPV, if any). */
-export async function workTask(root: string, runId: string, taskId: string, agent: string, spv: string | null, verdict: 'passed' | 'requested-changes' = 'passed') {
+export async function workTask(
+  root: string,
+  runId: string,
+  taskId: string,
+  agent: string,
+  spv: string | null,
+  verdict: 'passed' | 'requested-changes' = 'passed',
+  result: 'done' | 'failed' = 'done',
+) {
   await addTask(root, runId, { id: taskId, title: `task ${taskId}` }, ORCH);
   await claimTask(root, runId, taskId, agent);
   await submitWorkReport(root, runId, tmpJson(root, `wr-${taskId}.json`, workReport(agent, taskId)), agent);
-  await releaseTask(root, runId, taskId, 'done', agent);
+  await releaseTask(root, runId, taskId, result, agent);
   if (spv !== null) await submitReview(root, runId, tmpJson(root, `rv-${taskId}.json`, review(spv, agent, taskId, verdict)), spv);
 }
 

@@ -12,7 +12,14 @@ export const CycleTypeSchema = z.enum(["full", "smoke"]);
 const Iso = z.string().datetime({ offset: false });
 
 export const PhaseRecordSchema = z
-  .object({ status: PhaseStatusSchema, startedAt: Iso.optional(), completedAt: Iso.optional(), reason: z.string().min(1).optional() })
+  .object({
+    status: PhaseStatusSchema,
+    startedAt: Iso.optional(),
+    completedAt: Iso.optional(),
+    reason: z.string().min(1).optional(),
+    // Scan only: target-profile.json#existingTests.files.length when Scan completed; dev-test-review's not-applicable reads this snapshot.
+    existingTestsCount: z.number().int().nonnegative().optional(),
+  })
   .strict();
 
 export const GateStatusSchema = z.enum(["open", ...GateDecisionValueSchema.options]);

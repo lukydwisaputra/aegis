@@ -124,10 +124,9 @@ export function notApplicableReason(root: string, runId: string, phase: PhaseId)
     return readRunConfig(root).compliance.length === 0 ? "aegis.config.json#compliance is empty" : null;
   }
   if (phase === "dev-test-review") {
-    const file = join(runDir(root, runId), "target-profile.json");
-    if (!existsSync(file)) return null;
-    const profile = ScanProfileSchema.safeParse(loadJson(file));
-    return profile.success && profile.data.existingTests.files.length === 0 ? "target-profile.json#existingTests.files is empty" : null;
+    // The snapshot Scan recorded when it passed its barrier, not the file: a later rewrite cannot force a skip.
+    const count = readRun(root, runId).phases.scan?.existingTestsCount;
+    return count === 0 ? "target-profile.json#existingTests.files is empty" : null;
   }
   return null;
 }
@@ -165,8 +164,14 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       continue;
     }
     const latest = Math.max(...attempts);
+    // An accept-with-risk decision by the owner covers the latest attempt, failed or unreviewed.
+    if (acceptedWithRisk(root, runId, agent, t.id, latest)) continue;
+    if (t.status === "failed") {
+      problems.push(`task ${t.id} failed (attempt ${latest} of ${agent}); only an accept-with-risk escalation decision lets the phase complete`);
+      continue;
+    }
     if (SPV_NONE.has(agent)) continue;
-    if (!reviewPassed(root, runId, agent, t.id, latest) && !acceptedWithRisk(root, runId, agent, t.id, latest)) {
+    if (!reviewPassed(root, runId, agent, t.id, latest)) {
       problems.push(`task ${t.id}: attempt ${latest} of ${agent} has no passing review`);
     }
   }
@@ -201,6 +206,13 @@ export function preflightProblem(root: string, runId: string, state: RunState): 
   return null;
 }
 
+/** target-profile.json#existingTests.files.length; called only after the Scan barrier validated the profile. */
+function scanExistingTestsCount(root: string, runId: string): number {
+  const profile = ScanProfileSchema.safeParse(loadJson(join(runDir(root, runId), "target-profile.json")));
+  if (!profile.success) throw new RunStateError("barrier", `output target-profile.json is invalid: ${formatIssues(profile.error.issues)}`);
+  return profile.data.existingTests.files.length;
+}
+
 export interface CompletePhaseOptions {
   notApplicable?: boolean;
   now?: Date;
@@ -233,12 +245,14 @@ export async function completePhase(root: string, runId: string, phase: string, 
     }
     const problems = await barrierProblems(root, runId, state, id);
     if (problems.length > 0) throw new RunStateError("barrier", `phase ${id} cannot complete: ${problems.join("; ")}`);
+    let snapshot = {};
     if (id === "scan") {
       const preflight = preflightProblem(root, runId, state);
       if (preflight !== null) return { preflight };
+      snapshot = { existingTestsCount: scanExistingTestsCount(root, runId) };
     }
     const record = state.phases[id]!;
-    const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, status: "completed", completedAt: ts } }, updatedAt: ts };
+    const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, ...snapshot, status: "completed", completedAt: ts } }, updatedAt: ts };
     writeRun(root, next);
     await appendChained({ type: "run.phase.completed", ts, runId, phase: id, result: "done" }, busPath(root, runId), { emittedBy: caller, runId });
     return { state: next };
