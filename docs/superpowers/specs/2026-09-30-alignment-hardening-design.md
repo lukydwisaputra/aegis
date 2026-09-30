@@ -215,10 +215,7 @@ A rule that cannot find its anchor line (heading or line missing) reports
   reads (grep of `packages/**/src` and `apps/**/src` for the key's last segment), gives
   `CONFIG:aegis.config.json:<key>:unused` (AUD-007). Only top-level and second-level keys are
   checked.
-- **Unconsumed event.** An event that is emitted but that no unit awaits, and that is not in a
-  `sinkEvents` allowlist in pipeline.yaml, gives `EVENT:<event>:-:no-consumer` (AUD-027).
-  `sinkEvents` initially holds events consumed by packages (rollup and metrics). The implementer
-  derives it from package sources.
+- **Named event consumers.** (Narrowed at planning: events.jsonl is an audit trail read in full, so an event with no awaiter is not a defect in itself, and a blanket rule would add about 150 misattributed keys.) When a unit's prose says an event it emits is processed, consumed or handled by a unit, that unit must list the event in `awaits`. A consumer that is named only by a phrase, with no unit, also counts. Violations take the form `EVENT:<event>:<emitter>:named-consumer-missing` (AUD-027).
 - **DOC-REF on names.** `@qa/<name>` in docs must be a package in `packages/@qa/`; `pnpm <script>`
   must be a root `package.json` script or a workspace package script. Violations:
   `DOC-REF:<file>:@qa/<x>:unknown-package` and `DOC-REF:<file>:<script>:unknown-script`
@@ -263,7 +260,7 @@ These are carried as small items inside the tasks above, with no behaviour chang
   out undoable becomes `wontfix — reason`.
 - **HANDBOOK 14.11** is updated for:
   - the new rules (ESCAPE, anchors);
-  - `escapes`, `writePolicy` and `sinkEvents` in pipeline.yaml;
+  - `escapes` and `writePolicy` in pipeline.yaml;
   - the `rmw` path field;
   - the `contract-only-fix` label and the shrink guard.
 
