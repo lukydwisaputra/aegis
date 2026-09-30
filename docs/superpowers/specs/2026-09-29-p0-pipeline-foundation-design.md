@@ -521,6 +521,7 @@ Each slice is independently mergeable and leaves the repo green.
 | 004 | §3.1 closure draft/final split |
 | 005, 006 | §3.1 Intake phase; CLI task wraps taskmaster at `runs/{id}/taskmaster/` |
 | 007, 008, 009, 010 | §3.2 |
+| 045 (moved from P1) | §3.2 gate identifiers unified (G1/G2/G3) |
 | 011 | §3.1, §5.1 flaky from rollup |
 | 012 | §4.6 |
 | 013 | D14, §6.3 |
