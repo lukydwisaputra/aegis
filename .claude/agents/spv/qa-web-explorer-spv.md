@@ -60,6 +60,7 @@ reads:
   - "{run}/reports/work/qa-web-explorer.json"
   - "{run}/discovery-report.{md,json}"
   - "{tests}/qa/pages/**/*.ts"
+  - "{tests}/qa/specs/**"
   - "{run}/evidence/discovery/**"
   - "agent-memory/qa-web-explorer/lessons.md"
 writes: []

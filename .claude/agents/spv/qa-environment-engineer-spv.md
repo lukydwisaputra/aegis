@@ -69,6 +69,10 @@ reads:
   - "{tests}/qa/global-teardown.ts"
   - "{tests}/qa/factories/*.ts"
   - "{target}/playwright.config.ts"
+  - "{run}/events.jsonl"
+  - "{run}/target-profile.json"
+  - "{tests}/qa/state/*.json"
+  - "{target}/.gitignore"
   - "agent-memory/qa-environment-engineer/lessons.md"
 writes: []
 emits:
