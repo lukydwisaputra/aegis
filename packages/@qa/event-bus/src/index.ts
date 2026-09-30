@@ -12,6 +12,7 @@ import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 import lockfile from "proper-lockfile";
 import { AegisEventSchema, type AegisEvent } from "@qa/contracts";
+import { EventBusRefusal } from "./chain.js";
 
 // ─── Stale lock threshold ─────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export async function append(event: AegisEvent, busPath: string): Promise<void> 
     };
     // Best-effort: write error without schema validation (already failed)
     _forceAppend(JSON.stringify(errEvent), busPath);
-    throw new Error(`EventBus schema validation failed: ${parsed.error.message}`);
+    throw new EventBusRefusal(`EventBus schema validation failed: ${parsed.error.message}`);
   }
 
   const dir = dirname(busPath);

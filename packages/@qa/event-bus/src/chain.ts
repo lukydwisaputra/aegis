@@ -6,6 +6,17 @@ import { AegisEventSchema, EventEnvelopeSchema, GENESIS_HASH } from "@qa/contrac
 
 const ENVELOPE_KEYS = new Set(["seq", "prevHash", "emittedBy", "runId"]);
 
+/**
+ * The bus refused an event on validation (schema, undeclared fields, caller-set envelope fields,
+ * runId conflict, invalid context). Nothing was written. I/O and torn-tail failures stay plain Errors.
+ */
+export class EventBusRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EventBusRefusal";
+  }
+}
+
 export interface ChainContext {
   emittedBy: string;
   runId: string;
@@ -60,24 +71,24 @@ export async function appendChained(
 ): Promise<Record<string, unknown>> {
   const envelopeCheck = EventEnvelopeSchema.pick({ emittedBy: true, runId: true }).safeParse(ctx);
   if (!envelopeCheck.success) {
-    throw new Error(`EventBus chain context invalid: ${envelopeCheck.error.message}`);
+    throw new EventBusRefusal(`EventBus chain context invalid: ${envelopeCheck.error.message}`);
   }
   const spoofed = ["seq", "prevHash", "emittedBy"].filter((k) => k in event);
   if (spoofed.length > 0) {
-    throw new Error(`EventBus: envelope field(s) are set by the bus, not the caller: ${spoofed.join(", ")}`);
+    throw new EventBusRefusal(`EventBus: envelope field(s) are set by the bus, not the caller: ${spoofed.join(", ")}`);
   }
   if ("runId" in event && event["runId"] !== ctx.runId) {
-    throw new Error(`EventBus: event.runId="${String(event["runId"])}" conflicts with caller runId="${ctx.runId}"`);
+    throw new EventBusRefusal(`EventBus: event.runId="${String(event["runId"])}" conflicts with caller runId="${ctx.runId}"`);
   }
 
   const parsed = AegisEventSchema.safeParse(event);
   if (!parsed.success) {
-    throw new Error(`EventBus schema validation failed: ${parsed.error.message}`);
+    throw new EventBusRefusal(`EventBus schema validation failed: ${parsed.error.message}`);
   }
   const kept = parsed.data as Record<string, unknown>;
   const stripped = Object.keys(event).filter((k) => !(k in kept) && !ENVELOPE_KEYS.has(k));
   if (stripped.length > 0) {
-    throw new Error(`EventBus: undeclared field(s) for "${String(kept["type"])}": ${stripped.join(", ")}`);
+    throw new EventBusRefusal(`EventBus: undeclared field(s) for "${String(kept["type"])}": ${stripped.join(", ")}`);
   }
 
   const dir = dirname(busPath);

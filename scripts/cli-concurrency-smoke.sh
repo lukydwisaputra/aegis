@@ -84,11 +84,25 @@ grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-run-created: ex
 expect_refusal "forged-phase" invalid-input qa-orchestrator event append --type run.phase.started --json '{"phase":"scan"}'
 grep -q "recorded by the CLI" <<<"$err" || fail "contract forged-phase: expected the reserved-type refusal"
 expect_refusal "agent-stop" caller-forbidden qa-orchestrator run stop --reason "agent tried"
+expect_refusal "unknown-type" invalid-input qa-web-explorer event append --type made.up --json '{}'
+grep -q "schema validation failed" <<<"$err" || fail "contract unknown-type: expected the bus schema refusal"
 expect_refusal "bad-module" invalid-input qa-test-designer id next --kind TC --module au-th
 expect_refusal "claim-traversal" invalid-input qa-ui-specialist task claim --task ../evil
 
-# overwrite detection: a log replaced by a hand-written line must not verify (and blocks the run)
+# a torn tail is not a refusal: exit 1 (internal), nothing appended
 RUN_ID="$(tr -d '[:space:]' < "$TMP/runs/.active")"
+BUS="$TMP/runs/$RUN_ID/events.jsonl"
+cp "$BUS" "$TMP/bus.good"
+printf '%s' '{"seq":99,"prevH' >> "$BUS"
+set +e
+err=$(AEGIS_AGENT=qa-web-explorer node "$AEGIS" event append --type discovery.step-complete --json '{"step":"scan","artifact":"discovery/scan.json"}' 2>&1 >/dev/null)
+tt=$?
+set -e
+echo "torn-tail append rc=$tt $err" | head -c 300; echo
+{ [ "$tt" = 1 ] && grep -q '"error":"internal"' <<<"$err" && grep -q "torn tail" <<<"$err"; } || fail "torn tail: expected exit 1 + internal"
+cp "$TMP/bus.good" "$BUS"
+
+# overwrite detection: a log replaced by a hand-written line must not verify (and blocks the run)
 printf '%s\n' '{"type":"run.created","ts":"2026-09-29T00:00:00.000Z","runId":"'"$RUN_ID"'","profile":"full","environment":"development","modules":["AUTH"]}' \
   > "$TMP/runs/$RUN_ID/events.jsonl"
 set +e

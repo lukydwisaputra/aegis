@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { appendChained, hashLine, readLines, verifyChain } from '@qa/event-bus';
+import { append, appendChained, EventBusRefusal, hashLine, readLines, verifyChain } from '@qa/event-bus';
 import { GENESIS_HASH } from '@qa/contracts';
 
 const TS = '2026-09-29T00:00:00.000Z';
@@ -167,5 +167,34 @@ describe('appendChained hardening', () => {
     const errs = verifyChain(bus).errors;
     expect(errs.length).toBeGreaterThan(0);
     expect(errs.every((e) => e.startsWith('line 2:'))).toBe(true);
+  });
+});
+
+describe('EventBusRefusal (R8)', () => {
+  it.each([
+    ['schema invalid', () => ({ type: 'made.up', ts: TS }), ctx],
+    ['undeclared field', () => ({ ...blocked('a'), reasn: 'typo' }), ctx],
+    ['envelope field set by caller', () => ({ ...blocked('a'), seq: 5 }), ctx],
+    ['runId conflict', () => ({ ...blocked('a'), runId: 'RUN-20260929-002' }), ctx],
+    ['context invalid', () => blocked('a'), { emittedBy: '', runId: 'not-a-run' }],
+  ])('a validation refusal (%s) is an EventBusRefusal and writes nothing', async (_label, event, context) => {
+    const err = await appendChained(event(), bus, context).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(EventBusRefusal);
+    expect(err).toBeInstanceOf(Error);
+    expect(fs.existsSync(bus) ? fs.readFileSync(bus, 'utf8') : '').toBe('');
+  });
+
+  it('a torn tail is a plain Error, not a refusal', async () => {
+    await appendChained(blocked('a'), bus, ctx);
+    fs.appendFileSync(bus, '{"seq":2,"prevH');
+    const err = await appendChained(blocked('b'), bus, ctx).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(EventBusRefusal);
+    expect((err as Error).message).toMatch(/torn tail/);
+  });
+
+  it('the legacy append refuses an invalid event with an EventBusRefusal', async () => {
+    const err = await append({ type: 'made.up', ts: TS } as never, bus).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(EventBusRefusal);
   });
 });
