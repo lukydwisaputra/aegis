@@ -27,8 +27,8 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | 1a-H | ALIGN-H | Alignment checker hardening (AH-01..17) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
 | 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
 | 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |
-| 3 | P0a-1 | Phases, gates, barrier, orchestrator rewrite | P1 |
-| 4 | P0a-2 | Agents onto the CLI (released together with P0a-1 — AUD-097) | P0a-1 |
+| 3 | P0a-1 | Phases, gates, barrier, orchestrator rewrite; + AUD-045 gate naming (moved from P1), minimal `TargetProfileSchema` (P0 spec §6.2; P1 AUD-031 extends it); declares its own new event fields | — (wave A, parallel with 1b and P1; merges only together with P0a-2) |
+| 4 | P0a-2 | Agents onto the CLI (released together with P0a-1 — AUD-097) | P0a-1, P1 |
 | 5 | P0b-2 | Hooks H1–H4, legacy writers onto the chain | P0a-2 |
 | 6 | P0c | Rollup, trace, retest; execution skills | P0b-2 |
 | 7 | P4 | Object-level authorization (IDOR / integer-ID) feature | P0c, P1 |
@@ -39,41 +39,42 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 
 ## P0 — Pipeline foundation & hard enforcement
 
-| ID | Finding | Evidence | Sev | Status |
-|----|---------|----------|-----|--------|
-| AUD-001 | Requirements runs before Discovery but requires `target-profile.json#sourceInventory` | qa-orchestrator.md:47; qa-requirements-analyst.md:27,64,76 | HIGH | in-spec |
-| AUD-002 | Preflight requires `targetIsSingleProject` before any dispatch, but only the scanner (Discovery) writes it | qa-orchestrator.md:43,116; HANDBOOK/17:20 | HIGH | in-spec |
-| AUD-003 | Web explorer (Discovery) requires `auth.fixture.ts` produced in Environment | qa-web-explorer.md:56; qa-environment-engineer.md:34 | HIGH | in-spec |
-| AUD-004 | Closure requires compliance reports; compliance requires `closure.json` (circular) | qa-closure-reporter.md:34,74,99; qa-compliance-cmmi.md:23; qa-compliance-istqb.md:22 | HIGH | in-spec |
-| AUD-005 | `runs/{id}/intake/**` has no producer | qa-requirements-analyst.md:25-26; qa-test-planner.md:33; qa-web-explorer.md:57 | HIGH | in-spec |
-| AUD-006 | `runs/{id}/taskmaster.json` has no producer; taskmaster-client reads `.taskmaster/tasks/*.json`; claim/release unused in practice | qa-orchestrator.md:25; taskmaster-client/src | HIGH | in-spec |
-| AUD-007 | `aegis.config.json#gates` never read; `--skip-gates-ci` has 3 meanings; no `gate.skipped` event | qa-start SKILL:24; docs/D05:23; qa-orchestrator-spv.md:27 | HIGH | in-spec |
-| AUD-008 | Gate 2 / Gate 3 position contradictory across orchestrator, closure-reporter, HANDBOOK/03, HANDBOOK/04 | qa-orchestrator.md:19,59,60,65; HANDBOOK/04:23 | HIGH | in-spec |
-| AUD-009 | Gate decision file: two paths (`gates/` vs run root), no writer, no schema, verdict vocab mismatch (approved vs GO/NO-GO) | qa-orchestrator.md:30; CLAUDE.md:101,125; signoff run.mjs:62 | HIGH | in-spec |
-| AUD-010 | Phases progressed while gates were `deferred` (onecare-crc waves 6–11, 18 events, no gate-1 decision) | onecare-crc-v1 events.jsonl; batch-review-waves6-11.md | CRIT | in-spec |
-| AUD-011 | Closure hard-requires `flaky.json`; only producer (cicd-evaluator) never dispatched; `blocking.dependency` has no listener | qa-closure-reporter.md:33; qa-metrics-collector.md:61; qa-cicd-evaluator.md:28 | HIGH | in-spec |
-| AUD-012 | SPV dispatch is prompt-only; skills dispatch specialists directly, bypassing executor and SPVs | qa-smoke:28; qa-rerun-failed:29; qa-regression:27; qa-watch:28; qa-run-specialist:27; qa-run-phase:27 | HIGH | in-spec |
-| AUD-013 | SPV fast-path `escalateOnFinding` claimed implemented in orchestrator; it is not | model-policy.yaml:117-135 | MED | in-spec |
-| AUD-014 | SPV output location undefined (`reviews/` vs `reports/work/`); SPVs have only `[Read, Bash]`; curator/CMMI read `reviews/*.json` nobody writes; `review.passed-with-notes` never emitted | qa-curator.md:23; qa-compliance-cmmi.md:22 | MED | in-spec |
-| AUD-015 | SPV reject-twice escalation "human gate" undefined; `task.escalated` unused; lesson-piping owner conflicts | qa-orchestrator.md:73-74; qa-test-executor.md:9; HANDBOOK/13:91 | MED | in-spec |
-| AUD-016 | `task.released` emitted by no worker; SPV trigger inconsistent (`task.released` vs `run.phase.completed`) | CLAUDE.md:99; HANDBOOK/13:82; qa-orchestrator.md:69 | MED | in-spec |
-| AUD-017 | Concurrency cap hardcoded 4; config `parallelism.maxSpecialists=2` never read | qa-orchestrator.md:3,21,62,95,110; qa-test-executor.md:3,19,80,89,121,139; qa-start:23 | MED | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
-| AUD-018 | Agents have no invocation path to `@qa/*` packages (event-bus, ids, taskmaster, agent-memory); `require.resolve` fails from root → events.jsonl hand-written | require.resolve('@qa/event-bus') MODULE_NOT_FOUND | HIGH | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
-| AUD-019 | Territory hook non-functional: reads nonexistent env vars, PostToolUse cannot block, empty agent name passes | .claude/settings.json | HIGH | in-spec |
-| AUD-020 | No enforcement for events.jsonl direct writes or brand exposure | .claude/settings.json | HIGH | in-spec |
-| AUD-021 | Main thread does worker work: MTH never dispatched orchestrator; CH interactive; SCH white-box DB; SCS coordinator-mcp reruns | MTH transcript f28b9186; commhub reports/work/README.md; onecare-schedule whitebox-merge-summary.md; scs-finance events | HIGH | in-spec |
-| AUD-022 | Runaway agent (SCS): nested orchestrator, edited contracts/events.ts, pnpm-lock +4277, overwrote events.jsonl (14 events lost) | scs-finance RUN-20260707-001 events.jsonl | CRIT | in-spec |
-| AUD-023 | Run state machine broken: `run.json` status stale, nothing sets `running`, `/qa-stop` refuses, `stop-requested` sentinel polled by nobody, aborted runs not resumable | qa-stop:9,23; qa-resume:19,22 | MED | in-spec |
-| AUD-024 | `/qa-resume` does not re-dispatch metrics-collector, does not check gates; `--resume-from` undocumented in orchestrator | qa-resume:24; qa-orchestrator.md:41 | MED | in-spec |
-| AUD-025 | `run.completed` emitted at different points (qa-start after closure vs orchestrator after exec+curator); `run.created` emitted twice | qa-start:31,36; qa-orchestrator.md:101,120,125 | MED | in-spec |
-| AUD-026 | Run path resolution: SCS evidence landed in boilerplate `aegis/runs/`; MTH run written outside `aegis/runs` | aegis/runs/RUN-20260707-001; multi-tenant-helpdesk-ticketing/runs | MED | in-spec |
-| AUD-027 | `rtm.append-link` processed by a "post-design RTM updater" that does not exist | qa-defect-manager.md:121 | MED | in-spec |
-| AUD-028 | Real run skipped Triage, Executive Report, Curator and still emitted RunCompleted (no completion barrier) | scs-finance RUN-20260707-001 | HIGH | in-spec |
-| AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
-| AUD-062 | `qa-run-phase`: missing phases, expects `test-cases.json`, writes to unused `runs/{run}/{phase}/` | qa-run-phase:19,26 | MED | in-spec |
-| AUD-063 | `/qa-smoke` is a separate pipeline (no executor/env/exploratory); no smoke thresholds; `--include-security` re-adds email; exit code unimplementable | qa-smoke:27-29 | MED | in-spec |
-| AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report; templates/ absent from git (only empty untracked dirs) — _qa-init-project/qa-ci-bootstrap template reads unresolved | MED | in-spec |
-| AUD-056a | Execution skills read stale `execution/results.json` (qa-rerun-failed, qa-regression, qa-record-manual) | qa-rerun-failed:25; qa-regression:28; qa-record-manual:29 | HIGH | in-spec |
+| ID | Finding | Evidence | Sev | Owner | Status |
+|----|---------|----------|-----|-------|--------|
+| AUD-001 | Requirements runs before Discovery but requires `target-profile.json#sourceInventory` | qa-orchestrator.md:47; qa-requirements-analyst.md:27,64,76 | HIGH | P0a-1 / P0a-2 | in-spec |
+| AUD-002 | Preflight requires `targetIsSingleProject` before any dispatch, but only the scanner (Discovery) writes it | qa-orchestrator.md:43,116; HANDBOOK/17:20 | HIGH | P0a-1 / P0a-2 | in-spec |
+| AUD-003 | Web explorer (Discovery) requires `auth.fixture.ts` produced in Environment | qa-web-explorer.md:56; qa-environment-engineer.md:34 | HIGH | P0a-1 / P0a-2 | in-spec |
+| AUD-004 | Closure requires compliance reports; compliance requires `closure.json` (circular) | qa-closure-reporter.md:34,74,99; qa-compliance-cmmi.md:23; qa-compliance-istqb.md:22 | HIGH | P0a-1 / P0c | in-spec |
+| AUD-005 | `runs/{id}/intake/**` has no producer | qa-requirements-analyst.md:25-26; qa-test-planner.md:33; qa-web-explorer.md:57 | HIGH | P0a-1 | in-spec |
+| AUD-006 | `runs/{id}/taskmaster.json` has no producer; taskmaster-client reads `.taskmaster/tasks/*.json`; claim/release unused in practice | qa-orchestrator.md:25; taskmaster-client/src | HIGH | P0a-1 | in-spec |
+| AUD-007 | `aegis.config.json#gates` never read; `--skip-gates-ci` has 3 meanings; no `gate.skipped` event | qa-start SKILL:24; docs/D05:23; qa-orchestrator-spv.md:27 | HIGH | P0a-1 | in-spec |
+| AUD-008 | Gate 2 / Gate 3 position contradictory across orchestrator, closure-reporter, HANDBOOK/03, HANDBOOK/04 | qa-orchestrator.md:19,59,60,65; HANDBOOK/04:23 | HIGH | P0a-1 | in-spec |
+| AUD-009 | Gate decision file: two paths (`gates/` vs run root), no writer, no schema, verdict vocab mismatch (approved vs GO/NO-GO) | qa-orchestrator.md:30; CLAUDE.md:101,125; signoff run.mjs:62 | HIGH | P0a-1 | in-spec |
+| AUD-010 | Phases progressed while gates were `deferred` (onecare-crc waves 6–11, 18 events, no gate-1 decision) | onecare-crc-v1 events.jsonl; batch-review-waves6-11.md | CRIT | P0a-1 | in-spec |
+| AUD-011 | Closure hard-requires `flaky.json`; only producer (cicd-evaluator) never dispatched; `blocking.dependency` has no listener | qa-closure-reporter.md:33; qa-metrics-collector.md:61; qa-cicd-evaluator.md:28 | HIGH | P0c | in-spec |
+| AUD-012 | SPV dispatch is prompt-only; skills dispatch specialists directly, bypassing executor and SPVs | qa-smoke:28; qa-rerun-failed:29; qa-regression:27; qa-watch:28; qa-run-specialist:27; qa-run-phase:27 | HIGH | P0c | in-spec |
+| AUD-013 | SPV fast-path `escalateOnFinding` claimed implemented in orchestrator; it is not | model-policy.yaml:117-135 | MED | P0a-1 | in-spec |
+| AUD-014 | SPV output location undefined (`reviews/` vs `reports/work/`); SPVs have only `[Read, Bash]`; curator/CMMI read `reviews/*.json` nobody writes; `review.passed-with-notes` never emitted | qa-curator.md:23; qa-compliance-cmmi.md:22 | MED | P0a-2 | in-spec |
+| AUD-015 | SPV reject-twice escalation "human gate" undefined; `task.escalated` unused; lesson-piping owner conflicts | qa-orchestrator.md:73-74; qa-test-executor.md:9; HANDBOOK/13:91 | MED | P0a-1 | in-spec |
+| AUD-016 | `task.released` emitted by no worker; SPV trigger inconsistent (`task.released` vs `run.phase.completed`) | CLAUDE.md:99; HANDBOOK/13:82; qa-orchestrator.md:69 | MED | P0a-2 | in-spec |
+| AUD-017 | Concurrency cap hardcoded 4; config `parallelism.maxSpecialists=2` never read | qa-orchestrator.md:3,21,62,95,110; qa-test-executor.md:3,19,80,89,121,139; qa-start:23 | MED | P0a-2 | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
+| AUD-018 | Agents have no invocation path to `@qa/*` packages (event-bus, ids, taskmaster, agent-memory); `require.resolve` fails from root → events.jsonl hand-written | require.resolve('@qa/event-bus') MODULE_NOT_FOUND | HIGH | P0a-2 | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
+| AUD-019 | Territory hook non-functional: reads nonexistent env vars, PostToolUse cannot block, empty agent name passes | .claude/settings.json | HIGH | P0b-2 | in-spec |
+| AUD-020 | No enforcement for events.jsonl direct writes or brand exposure | .claude/settings.json | HIGH | P0b-2 | in-spec |
+| AUD-021 | Main thread does worker work: MTH never dispatched orchestrator; CH interactive; SCH white-box DB; SCS coordinator-mcp reruns | MTH transcript f28b9186; commhub reports/work/README.md; onecare-schedule whitebox-merge-summary.md; scs-finance events | HIGH | P0b-2 / P0c | in-spec |
+| AUD-022 | Runaway agent (SCS): nested orchestrator, edited contracts/events.ts, pnpm-lock +4277, overwrote events.jsonl (14 events lost) | scs-finance RUN-20260707-001 events.jsonl | CRIT | P0b-2 | in-spec |
+| AUD-023 | Run state machine broken: `run.json` status stale, nothing sets `running`, `/qa-stop` refuses, `stop-requested` sentinel polled by nobody, aborted runs not resumable | qa-stop:9,23; qa-resume:19,22 | MED | P0a-1 | in-spec |
+| AUD-024 | `/qa-resume` does not re-dispatch metrics-collector, does not check gates; `--resume-from` undocumented in orchestrator | qa-resume:24; qa-orchestrator.md:41 | MED | P0a-1 | in-spec |
+| AUD-025 | `run.completed` emitted at different points (qa-start after closure vs orchestrator after exec+curator); `run.created` emitted twice | qa-start:31,36; qa-orchestrator.md:101,120,125 | MED | P0a-1 | in-spec |
+| AUD-026 | Run path resolution: SCS evidence landed in boilerplate `aegis/runs/`; MTH run written outside `aegis/runs` | aegis/runs/RUN-20260707-001; multi-tenant-helpdesk-ticketing/runs | MED | P0b-2 | in-spec |
+| AUD-027 | `rtm.append-link` processed by a "post-design RTM updater" that does not exist | qa-defect-manager.md:121 | MED | P0c | in-spec |
+| AUD-028 | Real run skipped Triage, Executive Report, Curator and still emitted RunCompleted (no completion barrier) | scs-finance RUN-20260707-001 | HIGH | P0a-1 | in-spec |
+| AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | P0a-2 | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
+| AUD-062 | `qa-run-phase`: missing phases, expects `test-cases.json`, writes to unused `runs/{run}/{phase}/` | qa-run-phase:19,26 | MED | P0c | in-spec |
+| AUD-063 | `/qa-smoke` is a separate pipeline (no executor/env/exploratory); no smoke thresholds; `--include-security` re-adds email; exit code unimplementable | qa-smoke:27-29 | MED | P0c | in-spec |
+| AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report; templates/ absent from git (only empty untracked dirs) — _qa-init-project/qa-ci-bootstrap template reads unresolved | MED | P0c | in-spec |
+| AUD-056a | Execution skills read stale `execution/results.json` (qa-rerun-failed, qa-regression, qa-record-manual) | qa-rerun-failed:25; qa-regression:28; qa-record-manual:29 | HIGH | P0c | in-spec |
+| AUD-045 | Gate naming inconsistent: camelCase (config), kebab (events.ts:888), numbered (files) | aegis.config.json:15; events.ts:888 | LOW | P0a-1 | in-spec |
 
 ## P1 — Contracts & vocabulary
 
@@ -92,7 +93,6 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | AUD-042 | `token.used` emitted by nobody → token/cost metrics empty | qa-metrics-collector.md | LOW | open |
 | AUD-043 | Config keys read by agents but absent: `target.supabase.rolesToTest`, `github.defaultReviewers`, `target.sourceDirs`, `modelOverrides` | qa-context-scanner.md:35; qa-environment-engineer.md:64; qa-github-planner.md:41 | MED | open |
 | AUD-044 | Metrics collector subscribes to legacy `PhaseCompleted` | qa-metrics-collector.md:33 | LOW | open |
-| AUD-045 | Gate naming inconsistent: camelCase (config), kebab (events.ts:888), numbered (files) | aegis.config.json:15; events.ts:888 | LOW | open |
 
 ## P2 — Roster: orphans, SPV coverage, profiles, unused packages
 
@@ -161,11 +161,11 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 
 | ID | Requirement | Owner | Status |
 |----|-------------|-------|--------|
-| NEW-01 | User stories + AC (happy/rejection/edge) as first-class artefacts with IDs | P0 | in-spec |
-| NEW-02 | Developer-test review (qa-dev-test-reviewer + SPV, mutation testing) before design | P0 | in-spec |
-| NEW-03 | Traceability T0–T5 (docs → plan → TC → script → result) enforced | P0 | in-spec |
-| NEW-04 | Main thread is a router to Aegis commands | P0 | in-spec |
-| NEW-05 | Retest / defect re-verify commands with automatic rollup + closure regeneration | P0 | in-spec |
+| NEW-01 | User stories + AC (happy/rejection/edge) as first-class artefacts with IDs | P0a-2 | in-spec |
+| NEW-02 | Developer-test review (qa-dev-test-reviewer + SPV, mutation testing) before design | P0a-2 | in-spec |
+| NEW-03 | Traceability T0–T5 (docs → plan → TC → script → result) enforced | P0c | in-spec |
+| NEW-04 | Main thread is a router to Aegis commands | P0c | in-spec |
+| NEW-05 | Retest / defect re-verify commands with automatic rollup + closure regeneration | P0c | in-spec |
 | NEW-06 | Framework-defect proposals from curator when a command is broken/missing | P2 | open |
 
 ## Carry-overs from P0b-1 (to be closed by the named slice)
@@ -176,13 +176,13 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | CO-02 | Sanctioned `aegis integrity repair-tail` (a torn tail bricks every append; ack itself appends) | P0b-2 |
 | CO-03 | Integrity: re-anchor checkpoint at ack (acked checkpoint error names only seq); seed checkpoint at `createRun`; close createRun/verify race (append `run.created` first or wrap in integrity.lock) | P0b-2 |
 | CO-04 | taskmaster per-task `LOCK_OPTIONS` (5 retries) leaks raw ELOCKED; commander validation errors → JSON envelope via `exitOverride` | P0b-2 |
-| CO-05 | Direct `event append` now refuses every `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` type and `artifact.created`; agents that emit `run.phase.*`, `gate.evaluated`, `task.blocked` today need CLI commands for them (`aegis phase …`, `aegis gate …`, `aegis task block`) before they are wired to the CLI | P0a / P0b-2 |
-| CO-06 | `currentPhase` enum + `RunStateSchema.strict()`; replace `blockedReason` string stacking with a list of causes | P0a |
-| CO-07 | `/qa-escalation` must clear the escalation marker; escalation on a completed run loses lessons; escalation block currently resumable with no decision | P0a |
-| CO-08 | Claims accepted on `created`/`awaiting-gate` runs; agents may call `run create/stop/resume`; SPV↔worker pairing needs the role table (qa-cicd-spv/qa-github-spv) | P0a / P0b-2 |
+| CO-05 | Direct `event append` now refuses every `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` type and `artifact.created`; agents that emit `run.phase.*`, `gate.evaluated`, `task.blocked` today need CLI commands for them (`aegis phase …`, `aegis gate …`, `aegis task block`) before they are wired to the CLI | P0a-1 (`aegis phase`/`gate` commands) / P0a-2 (`task block`, agent wiring) |
+| CO-06 | `currentPhase` enum + `RunStateSchema.strict()`; replace `blockedReason` string stacking with a list of causes | P0a-1 |
+| CO-07 | `/qa-escalation` must clear the escalation marker; escalation on a completed run loses lessons; escalation block currently resumable with no decision | P0a-1 |
+| CO-08 | Claims accepted on `created`/`awaiting-gate` runs; agents may call `run create/stop/resume`; SPV↔worker pairing needs the role table (qa-cicd-spv/qa-github-spv) | P0a-1 / P0b-2 |
 | CO-09 | Full-log read per append (tail read); reopen emits no event; review events lack attempt/path; state written before event; uncapped violation `errors` array | P0c |
 | CO-11 | Finish AUD-017/018/040: remove hardcoded "4" (qa-test-executor.md:3,19,80; CLAUDE.md:69,98), tell agents to use `pnpm aegis` (H4 cheat-sheet + agent edits), build `apps/cli/dist` automatically (prepare script) so `pnpm aegis` works on a fresh clone | P0a-2 / P0b-2 |
-| CO-12 | `submitReview`: a reopen that fails after the review is recorded surfaces as an error with no retry path; `releaseTask` rollback is skipped if the task changed meanwhile | P0a |
+| CO-12 | `submitReview`: a reopen that fails after the review is recorded surfaces as an error with no retry path; `releaseTask` rollback is skipped if the task changed meanwhile | P0a-1 |
 | CO-10 | Show acknowledged errors in `run resume` output; multi-process lock proof runs only via `pnpm test:smoke` (run in CI since 1a') | P0b-2 |
 
 ## Gaps found in the pre-merge alignment audit (2026-09-29, after P0b-1)
