@@ -152,6 +152,11 @@ export function loadModel(root: string): Model {
     skillDirs = [];
   }
   for (const dir of skillDirs) {
+    try {
+      if (!statSync(join(skillsDir, dir)).isDirectory()) continue; // README.md, .DS_Store: not skill units
+    } catch {
+      continue; // broken symlink: nothing to load
+    }
     const file = join(skillsDir, dir, "SKILL.md");
     const source = tryRead(file);
     if (typeof source !== "string" && !existsSync(join(skillsDir, dir))) continue;
@@ -195,7 +200,12 @@ export function loadModel(root: string): Model {
   );
 
   const pkgDir = join(root, "packages", "@qa");
-  const packageNames = new Set(existsSync(pkgDir) ? readdirSync(pkgDir) : []);
+  let packageNames = new Set<string>();
+  try {
+    packageNames = new Set(existsSync(pkgDir) ? readdirSync(pkgDir) : []);
+  } catch {
+    packageNames = new Set();
+  }
 
   const docs = [
     ...walk(join(root, "HANDBOOK"), (p) => p.endsWith(".md")),

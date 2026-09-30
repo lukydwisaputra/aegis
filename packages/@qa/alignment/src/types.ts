@@ -2,9 +2,12 @@ import type { AgentContract, PathEntry, Pipeline, SkillContract } from "./schema
 
 export const SPECIAL_PHASES: ReadonlySet<string> = new Set(["crosscutting", "spv", "devops", "tooling"]);
 
-export type RuleId =
-  | "CONTRACT" | "DISPATCH" | "SPV" | "PRODUCER" | "CONSUMER" | "EVENT" | "CLI"
-  | "WRITE-POLICY" | "ROUTE" | "ENV" | "CONFIG" | "SKILL" | "DRIFT" | "DOC-REF";
+export const RULE_IDS = [
+  "CONTRACT", "DISPATCH", "SPV", "PRODUCER", "CONSUMER", "EVENT", "CLI",
+  "WRITE-POLICY", "ROUTE", "ENV", "CONFIG", "SKILL", "DRIFT", "DOC-REF",
+] as const;
+
+export type RuleId = (typeof RULE_IDS)[number];
 
 export interface Section {
   heading: string;

@@ -30,12 +30,12 @@ export function producerRule(m: Model): Violation[] {
   const sources = allSources(m);
   const hasTarget = (m.pipeline?.sources.target.length ?? 0) > 0;
   const writers = [...m.units.values()].flatMap((u) => (u.contract?.writes ?? []).map((w) => ({ u, path: pathOf(w) })));
-  for (const u of m.units.values()) {
+  for (const u of [...m.units.values()].filter((x) => x.kind === "agent")) {
     for (const p of new Set(writers.filter((w) => w.u === u && isTooBroad(w.path)).map((w) => normalizePath(w.path)))) {
       out.push(violation("PRODUCER", u.name, p, "too-broad", u.file, u.contractLine, `${p} is too broad to index as a producer`));
     }
   }
-  const indexed = writers.filter((w) => !isTooBroad(w.path));
+  const indexed = writers.filter((w) => w.u.kind === "skill" || !isTooBroad(w.path));
   for (const r of [...m.units.values()].filter(isAgentContract)) {
     const rp = unitPhase(m, r, idx);
     for (const e of r.contract.reads) {
@@ -63,12 +63,14 @@ export function producerRule(m: Model): Violation[] {
 export function consumerRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const allReaders = [...m.units.values()].flatMap((u) => (u.contract?.reads ?? []).map((r) => ({ u, path: pathOf(r) })));
-  for (const u of m.units.values()) {
+  const sources = allSources(m);
+  for (const u of [...m.units.values()].filter((x) => x.kind === "agent")) {
     for (const p of new Set(allReaders.filter((r) => r.u === u && isTooBroad(r.path)).map((r) => normalizePath(r.path)))) {
+      if (sources.some((s) => matches(s, p))) continue;
       out.push(violation("CONSUMER", u.name, p, "too-broad", u.file, u.contractLine, `${p} is too broad to index as a reader`));
     }
   }
-  const readers = allReaders.filter((r) => !isTooBroad(r.path));
+  const readers = allReaders.filter((r) => r.u.kind === "skill" || !isTooBroad(r.path));
   for (const w of [...m.units.values()].filter(isAgentContract)) {
     for (const e of w.contract.writes) {
       if (terminal(e) || isTooBroad(pathOf(e))) continue;
@@ -131,7 +133,7 @@ export function writePolicyRule(m: Model): Violation[] {
       if (cliOnly.some((s) => matches(s, p))) reason = "cli-only";
       else if (matches("{tests}/**", p) && !overlaps("{tests}/qa/**", p)) reason = "outside-tests-qa";
       else if (p.startsWith("{target}/")) reason = "target-source";
-      else if (!WRITABLE.some((w) => overlaps(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
+      else if (!WRITABLE.some((w) => matches(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
       if (reason !== null) out.push(violation("WRITE-POLICY", u.name, p, reason, u.file, u.contractLine, `write to ${p} violates the write policy (${reason})`));
     }
   }

@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { baselineDraft, checkAlignment, formatReport } from "@qa/alignment";
+import { BaselineError, baselineDraft, checkAlignment, filterReport, formatReport, RULE_IDS } from "@qa/alignment";
 import { findAegisRoot, RunStateError } from "@qa/run-state";
 
 export function alignCommand(): Command {
@@ -10,13 +10,23 @@ export function alignCommand(): Command {
     .option("--baseline-draft", "print a candidate baseline (ids must be assigned by hand)")
     .action((o: { json?: boolean; rule?: string; baselineDraft?: boolean }) => {
       try {
+        if (o.rule !== undefined && !(RULE_IDS as readonly string[]).includes(o.rule)) {
+          process.stderr.write(JSON.stringify({ error: "invalid-input", message: `unknown rule ${o.rule}; expected one of ${RULE_IDS.join(", ")}` }) + "\n");
+          process.exitCode = 2;
+          return;
+        }
         const report = checkAlignment(findAegisRoot());
-        const shown = o.rule === undefined ? report : { ...report, violations: report.violations.filter((v) => v.rule === o.rule) };
+        const shown = o.rule === undefined ? report : filterReport(report, o.rule);
         if (o.baselineDraft === true) process.stdout.write(baselineDraft(shown));
         else if (o.json === true) process.stdout.write(JSON.stringify(shown, null, 2) + "\n");
         else process.stdout.write(formatReport(shown) + "\n");
         process.exitCode = report.ratchet.ok ? 0 : 2;
       } catch (e) {
+        if (e instanceof BaselineError) {
+          process.stderr.write(JSON.stringify({ error: "baseline-invalid", message: e.message }) + "\n");
+          process.exitCode = 2;
+          return;
+        }
         const code = e instanceof RunStateError ? 2 : 1;
         process.stderr.write(JSON.stringify({ error: e instanceof RunStateError ? e.code : "internal", message: (e as Error).message }) + "\n");
         process.exitCode = code;

@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { parse as parseYaml } from "yaml";
 import { join } from "node:path";
 import { TestTechniqueSchema, TestTypeSchema } from "@qa/contracts";
 import { CLI_COMMANDS, OWNER_COMMANDS, OWNER_ONLY, type CliCommand } from "@qa/run-state";
@@ -61,10 +62,22 @@ export function routeRule(m: Model): Violation[] {
 export function envRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const map = m.pipeline?.envSpecialists ?? {};
-  const envs = (m.aegisConfig["environments"] ?? {}) as Record<string, { allowedSpecialists?: string[]; forbiddenSpecialists?: string[] }>;
+  const raw = m.aegisConfig["environments"];
+  const envs = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   for (const [env, cfg] of Object.entries(envs)) {
-    for (const name of [...(cfg.allowedSpecialists ?? []), ...(cfg.forbiddenSpecialists ?? [])]) {
-      if (name !== "*" && map[name] === undefined) {
+    if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) continue;
+    const names: unknown[] = [];
+    for (const field of ["allowedSpecialists", "forbiddenSpecialists"] as const) {
+      const list = (cfg as Record<string, unknown>)[field];
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) {
+        out.push(violation("ENV", env, field, "not-a-list", "aegis.config.json", 1, `${field} of ${env} must be a list`));
+        continue;
+      }
+      names.push(...list);
+    }
+    for (const name of names) {
+      if (typeof name === "string" && name !== "*" && !Object.hasOwn(map, name)) {
         out.push(violation("ENV", env, name, "unmapped", "aegis.config.json", 1, `${name} maps to no agent`));
       }
     }
@@ -75,10 +88,21 @@ export function envRule(m: Model): Violation[] {
 function hasPath(obj: unknown, dotted: string): boolean {
   let cur: unknown = obj;
   for (const k of dotted.split(".")) {
-    if (cur === null || typeof cur !== "object" || !(k in (cur as Record<string, unknown>))) return false;
+    if (cur === null || typeof cur !== "object" || !Object.hasOwn(cur as object, k)) return false;
     cur = (cur as Record<string, unknown>)[k];
   }
   return true;
+}
+
+function readStructured(root: string, file: string): unknown {
+  try {
+    const text = readFileSync(join(root, file), "utf-8");
+    if (file.endsWith(".json")) return JSON.parse(text);
+    if (file.endsWith(".yaml") || file.endsWith(".yml")) return parseYaml(text);
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 export function configRule(m: Model): Violation[] {
@@ -87,9 +111,10 @@ export function configRule(m: Model): Violation[] {
     for (const ref of u.contract?.config ?? []) {
       const [file, key] = ref.split("#") as [string, string | undefined];
       let ok: boolean;
-      if (key !== undefined && file === "aegis.config.json") ok = hasPath(m.aegisConfig, key);
-      else if (key !== undefined && file === "thresholds.yaml") ok = hasPath(m.thresholds, key);
-      else ok = existsSync(join(m.root, file));
+      if (key === undefined) ok = existsSync(join(m.root, file));
+      else if (file === "aegis.config.json") ok = hasPath(m.aegisConfig, key);
+      else if (file === "thresholds.yaml") ok = hasPath(m.thresholds, key);
+      else ok = hasPath(readStructured(m.root, file), key);
       if (!ok) out.push(violation("CONFIG", u.name, ref, "missing", u.file, u.contractLine, `${ref} does not exist`));
     }
   }

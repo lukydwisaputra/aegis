@@ -16,19 +16,29 @@ export interface AlignmentReport {
   violations: Violation[];
   ratchet: RatchetResult;
   counts: Record<string, number>;
+  filter?: string;
+}
+
+const byKey = (a: Violation, b: Violation) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+
+export function filterReport(r: AlignmentReport, rule: string): AlignmentReport {
+  const violations = r.violations.filter((v) => v.rule === rule);
+  const counts: Record<string, number> = {};
+  for (const v of violations) counts[v.rule] = (counts[v.rule] ?? 0) + 1;
+  return { ...r, violations, counts, filter: rule };
 }
 
 export function checkAlignment(root: string): AlignmentReport {
   const m = loadModel(root);
   const all = [...m.loadErrors, ...ALL_RULES.flatMap((r) => r(m))];
-  const unique = [...new Map(all.map((v) => [v.key, v])).values()].sort((a, b) => a.key.localeCompare(b.key));
+  const unique = [...new Map(all.map((v) => [v.key, v])).values()].sort(byKey);
   const counts: Record<string, number> = {};
   for (const v of unique) counts[v.rule] = (counts[v.rule] ?? 0) + 1;
   return { violations: unique, ratchet: ratchet(unique, loadBaseline(root), m.matrixIds), counts };
 }
 
 export function formatReport(r: AlignmentReport): string {
-  const lines = [`violations: ${r.violations.length}`];
+  const lines = [`violations: ${r.violations.length}${r.filter !== undefined ? ` (filtered: ${r.filter})` : ""}`];
   for (const [rule, n] of Object.entries(r.counts).sort()) lines.push(`  ${rule.padEnd(13)} ${n}`);
   lines.push(`ratchet: ${r.ratchet.ok ? "ok" : "FAILED"}`);
   for (const v of r.ratchet.unexpected) lines.push(`  + add or fix  ${v.key}  (${v.file}:${v.line}) ${v.message}`);

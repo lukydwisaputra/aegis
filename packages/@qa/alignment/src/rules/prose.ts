@@ -18,7 +18,7 @@ function lineOf(sec: Section, offset: number): number {
 const FAMILY = /qa-[a-z0-9-]*-[{*]/;
 
 function skipPathLine(line: string, self: string, names: Set<string>): boolean {
-  if (/never|must not/i.test(line) || FAMILY.test(line)) return true;
+  if (/\b(never|must not)\b/i.test(line) || FAMILY.test(line)) return true;
   for (const t of line.matchAll(/qa-[a-z0-9-]+/g)) {
     if (t[0] !== self && names.has(t[0])) return true;
   }
@@ -132,6 +132,7 @@ export function docRefRule(m: Model): Violation[] {
         if (/^\.(?:ya?ml|md|json|ts)\b/.test(after)) continue;
         const key = `/${t}`;
         if (m.skillAliases.has(t) || m.skillAliases.has(`_${t}`) || seen.has(key)) continue;
+        if (sc[1]!.endsWith("-") && [...m.skillAliases].some((a) => a.startsWith(`${t}-`))) continue;
         seen.add(key);
         out.push(violation("DOC-REF", file, key, "unknown-command", file, i + 1, `${key} is not a skill`));
       }
