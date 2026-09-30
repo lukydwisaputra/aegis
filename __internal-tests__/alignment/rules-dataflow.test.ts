@@ -247,3 +247,23 @@ it('AH-11/AUD-027: an event whose prose names a consumer that does not await it 
   ]);
   t.cleanup();
 });
+
+it('AUD-027 controls: frontmatter, contract block, masked verbs and an earlier clause are handled', () => {
+  const raw = (name: string, desc: string, body: string, contractComment: string, emits: string[]) =>
+    `---\nname: ${name}\ndescription: "${desc}"\nmodelTier: implementation\ntools: [Read]\n---\n# ${name}\n\n## Your Role\n\n${body}\n\n## Contract (machine-checked)\n\n\`\`\`yaml\n${contractComment}\ncontract: 1\nphase: crosscutting\ndispatchedBy: []\ndispatch: {none: test only}\nreviewedBy: {none: test only}\nemits:\n${emits.map((e) => `  - {event: ${e}, via: append}`).join('\n')}\n\`\`\`\n`;
+  const t = makeRepo({
+    agents: { 'qa-b': { contract: ag('crosscutting', {}) } },
+    files: {
+      // frontmatter + contract comment carry the phrasing; body is clean
+      '.claude/agents/tier1-phase/qa-e.md': raw('qa-e', 'Emits `rtm.append-link` that qa-b processes', 'Nothing relevant here.', '# Emits `rtm.append-link` that qa-b processes', ['rtm.append-link']),
+      // masked verbs: backticked span and dotted event token after which
+      '.claude/agents/tier1-phase/qa-m.md': raw('qa-m', 'plain', 'Emits `test.passed`, which uses `consumes` mode.\nEmits `x.y`, which process.done signals.', '', ['test.passed', 'x.y']),
+      // earlier clause (before E) must not hide the valid clause after E
+      // a clause that starts before E does not count for E
+      '.claude/agents/tier1-phase/qa-p.md': raw('qa-p', 'plain', 'A step that handles retries emits `early.event` for the audit trail.', '', ['early.event']),
+      '.claude/agents/tier1-phase/qa-l.md': raw('qa-l', 'plain', 'A step that handles retries emits `late.event`, which qa-b consumes.', '', ['late.event']),
+    },
+  });
+  expect(keys(namedConsumerRule(loadModel(t.root)))).toEqual(['EVENT:qa-l:late.event:named-consumer-missing']);
+  t.cleanup();
+});

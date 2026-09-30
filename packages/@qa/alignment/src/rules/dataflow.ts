@@ -1,7 +1,7 @@
 import { pathExists } from "../load.js";
 import { isCliRecordedEventType } from "@qa/run-state";
 import { CLI_RECORDS, commandRecords } from "../cli-records.js";
-import { proseLines } from "../markdown.js";
+import { CONTRACT_HEADING, proseLines } from "../markdown.js";
 import { isTooBroad, matches, normalizePath, overlaps } from "../paths.js";
 import type { AgentContract, PathEntry } from "../schema.js";
 import { isAgentContract, isSkillContract, pathOf, SPECIAL_PHASES, violation, type Model, type Unit, type Violation } from "../types.js";
@@ -322,7 +322,7 @@ export function namedConsumerRule(m: Model): Violation[] {
       const close = lines.findIndex((l, k) => k > 0 && l.trim() === "---");
       start = close >= 0 ? close + 1 : 0;
     }
-    const heading = lines.findIndex((l) => l.startsWith("## Contract (machine-checked)"));
+    const heading = lines.findIndex((l) => l.startsWith(CONTRACT_HEADING));
     const end = heading >= 0 ? heading : lines.length;
     for (const ev of new Set(c.emits.map((e) => e.event))) {
       const re = new RegExp(`(^|[^a-z0-9.-])${ev.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9-]|$)`);
@@ -330,8 +330,8 @@ export function namedConsumerRule(m: Model): Violation[] {
         const line = lines[i]!;
         const hit = re.exec(line);
         if (hit === null) continue;
-        const rel = RELATIVE_CONSUMER.exec(mask(line));
-        if (rel === null || rel.index < hit.index) continue;
+        // Search only the text from E onward, so an earlier "that … handles" cannot swallow (or hide) a clause after E.
+        if (!RELATIVE_CONSUMER.test(mask(line).slice(hit.index))) continue;
         const named = [...line.matchAll(/qa-[a-z0-9-]+/g)].map((x) => x[0]).filter((n) => n !== u.name && m.units.has(n));
         if (named.some((n) => m.units.get(n)?.contract?.awaits.includes(ev))) continue;
         out.push(violation("EVENT", u.name, ev, "named-consumer-missing", u.file, i + 1, `${u.name} says ${ev} is processed by ${named.join(", ") || "an unnamed consumer"}, which does not await it`));

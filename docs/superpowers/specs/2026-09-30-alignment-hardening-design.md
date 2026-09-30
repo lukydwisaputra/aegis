@@ -215,7 +215,7 @@ A rule that cannot find its anchor line (heading or line missing) reports
   reads (grep of `packages/**/src` and `apps/**/src` for the key's last segment), gives
   `CONFIG:aegis.config.json:<key>:unused` (AUD-007). Only top-level and second-level keys are
   checked.
-- **Named event consumers.** (Narrowed at planning: events.jsonl is an audit trail read in full, so an event with no awaiter is not a defect in itself, and a blanket rule would add about 150 misattributed keys.) When a unit's prose says an event it emits is processed, consumed or handled by a unit, that unit must list the event in `awaits`. A consumer that is named only by a phrase, with no unit, also counts. Violations take the form `EVENT:<event>:<emitter>:named-consumer-missing` (AUD-027).
+- **Named event consumers.** (Narrowed at planning: events.jsonl is an audit trail read in full, so an event with no awaiter is not a defect in itself, and a blanket rule would add about 150 misattributed keys.) When a unit's prose says an event it emits is processed, consumed or handled by a unit, that unit must list the event in `awaits`. A consumer that is named only by a phrase, with no unit, also counts. Violations take the form `EVENT:<emitter>:<event>:named-consumer-missing` (AUD-027).
 - **DOC-REF on names.** `@qa/<name>` in docs must be a package in `packages/@qa/`; `pnpm <script>`
   must be a root `package.json` script or a workspace package script. Violations:
   `DOC-REF:<file>:@qa/<x>:unknown-package` and `DOC-REF:<file>:<script>:unknown-script`
