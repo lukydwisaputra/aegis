@@ -5,3 +5,4 @@ export * from "./paths.js";
 export * from "./cli-records.js";
 export * from "./rules/structure.js";
 export * from "./rules/config.js";
+export * from "./rules/dataflow.js";
