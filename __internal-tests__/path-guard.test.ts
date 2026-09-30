@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { assertWritable, assertEnvSafe, assertAegisOwnership, PathGuardError } from '@qa/path-guard';
+import { assertWritable, assertEnvSafe, assertAegisOwnership, validateConfig, PathGuardError } from '@qa/path-guard';
 
 let aegisRoot: string;
 
@@ -90,5 +90,24 @@ describe('@qa/path-guard', () => {
         assertAegisOwnership('non-qa-agent', '/tmp/some-other-path/file.json', aegisRoot)
       ).not.toThrow();
     });
+  });
+});
+
+describe('assertEnvSafe() canonical names (AUD-036/037)', () => {
+  const reason = (fn: () => void) => { try { fn(); return 'ok'; } catch (e) { return (e as PathGuardError).reason; } };
+  const safe = (env: string, specialist: string, mutates = false) => reason(() => assertEnvSafe(env, { mutates, specialist }, aegisRoot));
+  beforeEach(() => {
+    fs.writeFileSync(path.join(aegisRoot, 'aegis.config.json'), JSON.stringify({ environments: {
+      production: { mutating: false, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['qa-email-specialist'] }, testing: { allowedSpecialists: ['*'] } } }));
+  });
+  it('normalises agent and short names on both sides', () =>
+    expect([safe('production', 'qa-ui-specialist'), safe('production', 'api'), safe('production', 'email')]).toEqual(['ok', 'ok', 'specialist-blocked']));
+  it('refuses a specialist missing from allowedSpecialists; "*" allows all', () =>
+    expect([safe('production', 'qa-accessibility-specialist'), safe('testing', 'qa-performance-specialist', true)]).toEqual(['specialist-blocked', 'ok']));
+  it('treats mutating: false as read-only', () => expect(safe('production', 'ui', true)).toBe('env-read-only'));
+  it('validateConfig reports unknown specialist names', () => {
+    fs.writeFileSync(path.join(aegisRoot, 'aegis.config.json'), JSON.stringify({ targetProjectRoot: '..', environments: {
+      development: {}, staging: {}, production: { readOnly: true }, testing: { allowedSpecialists: ['functional'] } } }));
+    expect(validateConfig(aegisRoot).errors).toContain('aegis.config.json environments.testing.allowedSpecialists: unknown specialist "functional"');
   });
 });

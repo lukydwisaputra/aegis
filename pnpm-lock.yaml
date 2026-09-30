@@ -367,6 +367,9 @@ importers:
       '@qa/ids':
         specifier: workspace:*
         version: link:../ids
+      '@qa/path-guard':
+        specifier: workspace:*
+        version: link:../path-guard
       '@qa/taskmaster-client':
         specifier: workspace:*
         version: link:../taskmaster-client

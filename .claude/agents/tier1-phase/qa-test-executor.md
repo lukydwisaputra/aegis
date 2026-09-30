@@ -89,6 +89,7 @@ Exploratory testing runs **before** any scripted specialist. Immediately after t
    - The exploratory findings from step 3 (uncovered defects + notes) relevant to this specialist's scope
    
    Monitor `runs/{runId}/concurrency.json`. Do not dispatch if 4 specialists are already active.
+   A specialist's task claim is refused when the run's environment does not allow it (`aegis.config.json#environments.{env}.allowedSpecialists` / `aegis.config.json#environments.{env}.forbiddenSpecialists`, matched by short name; read-only environments also refuse mutating specialists). Do not dispatch such a specialist: mark its TCs `blocked` in the execution summary with the reason.
 
 6. **Validate evidence quality.** As specialists complete and emit `specialist.completed`, spot-check their evidence in `runs/{runId}/evidence/{TC-ID}/`:
    - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `har.sanitization-required`)
@@ -228,4 +229,6 @@ dispatches:
   - qa-feature-flag-specialist-spv
 config:
   - aegis.config.json#artifacts
+  - aegis.config.json#environments.{env}.allowedSpecialists
+  - aegis.config.json#environments.{env}.forbiddenSpecialists
 ```
