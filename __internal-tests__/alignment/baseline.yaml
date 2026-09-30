@@ -89,12 +89,6 @@ entries:
   - key: "CLI:qa-github-planner:work-report.submit:handoff-missing"
     ids: [AUD-083, AUD-111]
     note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-orchestrator:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-orchestrator:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   - key: "CLI:qa-performance-specialist:task.claim:handoff-missing"
     ids: [AUD-081]
     note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
@@ -274,19 +268,13 @@ entries:
   - key: "CONSUMER:qa-event-bus:{run}/events.jsonl.lock:unread"
     ids: [AUD-048]
     note: "no one reads {run}/events.jsonl.lock"
-  - key: "CONSUMER:qa-orchestrator:{run}/COMPLETE:unread"
-    ids: [AUD-028]
-    note: "no one reads {run}/COMPLETE"
-  - key: "CONSUMER:qa-orchestrator:{run}/taskmaster.json:unread"
-    ids: [AUD-006]
-    note: "no one reads {run}/taskmaster.json"
   - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
     ids: [NEW-01]
     note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
+  - key: "CONSUMER:qa-test-executor:{run}/concurrency.json:unread"
+    ids: [AUD-017]
+    note: "no one reads {run}/concurrency.json (the orchestrator stopped reading it; P0a-2 removes the ledger, the CLI enforces the cap)"
   # --- CONTRACT ---
-  - key: "CONTRACT:pipeline:G3:gate-position"
-    ids: [AUD-008]
-    note: "prose places G3 after triage; pipeline.yaml puts it after closure"
   # --- DISPATCH ---
   - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
     ids: [AUD-046]
@@ -330,9 +318,6 @@ entries:
   - key: "DISPATCH:qa-knowledge-librarian:qa-orchestrator:not-reciprocal"
     ids: [AUD-047]
     note: "qa-orchestrator does not list qa-knowledge-librarian in dispatches"
-  - key: "DISPATCH:qa-orchestrator-spv:-:undispatched"
-    ids: [AUD-049]
-    note: "nothing dispatches this agent"
   - key: "DISPATCH:qa-ui-designer-spv:-:undispatched"
     ids: [AUD-050]
     note: "nothing dispatches this agent"
@@ -817,36 +802,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
     ids: [AUD-042b]
     note: "nobody emits token.used"
-  - key: "EVENT:qa-orchestrator-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-orchestrator-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-orchestrator:gate.closed:cli-recorded"
-    ids: [AUD-103]
-    note: "gate.closed is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:gate.opened:cli-recorded"
-    ids: [AUD-103]
-    note: "gate.opened is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.blocked:cli-recorded"
-    ids: [AUD-103]
-    note: "run.blocked is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.completed:cli-recorded"
-    ids: [AUD-103]
-    note: "run.completed is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.created:cli-recorded"
-    ids: [AUD-103]
-    note: "run.created is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.phase.started:cli-recorded"
-    ids: [AUD-103]
-    note: "run.phase.started is recorded by the CLI"
   - key: "EVENT:qa-performance-specialist-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
@@ -1175,12 +1130,6 @@ entries:
   - key: "PRODUCER:qa-closure-reporter-spv:{run}/reports/work/qa-closure-reporter.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-closure-reporter.json is a work report, but no worker qa-closure-reporter-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-closure-reporter:qa-compliance-cmmi:same-phase-cycle"
-    ids: [AUD-004]
-    note: "qa-closure-reporter and qa-compliance-cmmi run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
-  - key: "PRODUCER:qa-closure-reporter:qa-compliance-istqb:same-phase-cycle"
-    ids: [AUD-004]
-    note: "qa-closure-reporter and qa-compliance-istqb run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
   - key: "PRODUCER:qa-compliance-cmmi:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
@@ -1202,9 +1151,6 @@ entries:
   - key: "PRODUCER:qa-executive-reporter-spv:{run}/reports/work/qa-executive-reporter.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-executive-reporter.json is a work report, but no worker qa-executive-reporter-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-executive-reporter:{run}/gates/gate-{1,2,3}-decision.json:none"
-    ids: [AUD-009]
-    note: "nothing produces {run}/gates/gate-{1,2,3}-decision.json"
   - key: "PRODUCER:qa-exploratory-specialist-spv:{run}/reports/work/qa-exploratory-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-exploratory-specialist.json is a work report, but no worker qa-exploratory-specialist-spv reviews lists work-report.submit"
@@ -1229,15 +1175,6 @@ entries:
   - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-planner.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-github-planner.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-orchestrator-spv:{run}/reports/work/qa-orchestrator.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-orchestrator.json is a work report, but no worker qa-orchestrator-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-orchestrator:{run}/gates/gate-{N}-decision.json:none"
-    ids: [AUD-009]
-    note: "nothing produces {run}/gates/gate-{N}-decision.json"
-  - key: "PRODUCER:qa-orchestrator:{run}/taskmaster.json:none"
-    ids: [AUD-006]
-    note: "nothing produces {run}/taskmaster.json"
   - key: "PRODUCER:qa-performance-specialist-spv:{run}/reports/work/qa-performance-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-performance-specialist.json is a work report, but no worker qa-performance-specialist-spv reviews lists work-report.submit"
@@ -1247,12 +1184,6 @@ entries:
   - key: "PRODUCER:qa-requirements-analyst-spv:{run}/reports/work/qa-requirements-analyst.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-requirements-analyst.json is a work report, but no worker qa-requirements-analyst-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-requirements-analyst:{run}/intake/requirements/**:none"
-    ids: [AUD-005]
-    note: "nothing produces {run}/intake/requirements/**"
-  - key: "PRODUCER:qa-requirements-analyst:{run}/target-profile.json:later-phase"
-    ids: [AUD-001]
-    note: "{run}/target-profile.json is only produced in a later phase"
   - key: "PRODUCER:qa-responsive-specialist-spv:{run}/reports/work/qa-responsive-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-responsive-specialist.json is a work report, but no worker qa-responsive-specialist-spv reviews lists work-report.submit"
@@ -1268,9 +1199,6 @@ entries:
   - key: "PRODUCER:qa-test-planner-spv:{run}/reports/work/qa-test-planner.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-test-planner.json is a work report, but no worker qa-test-planner-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-test-planner:{run}/intake/**:none"
-    ids: [AUD-005]
-    note: "nothing produces {run}/intake/**"
   - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
@@ -1283,9 +1211,6 @@ entries:
   - key: "PRODUCER:qa-web-explorer-spv:{run}/reports/work/qa-web-explorer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-web-explorer.json is a work report, but no worker qa-web-explorer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-web-explorer:{run}/intake/requirements/**:none"
-    ids: [AUD-005]
-    note: "nothing produces {run}/intake/requirements/**"
   - key: "PRODUCER:qa-web-explorer:{tests}/qa/fixtures/auth.fixture.ts:later-phase"
     ids: [AUD-003]
     note: "{tests}/qa/fixtures/auth.fixture.ts is only produced in a later phase"
@@ -1294,15 +1219,9 @@ entries:
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
     ids: [AUD-061, AUD-057]
     note: "config/model-policy.yaml does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-executive-slides:{run}/gates/gate-3-decision.json:unresolved"
-    ids: [AUD-060, AUD-009]
-    note: "{run}/gates/gate-3-decision.json does not exist and nothing produces it"
   - key: "SKILL:_qa-report-executive-slides:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-signoff-pdf:{run}/gates/gate-3-decision.json:unresolved"
-    ids: [AUD-060, AUD-009]
-    note: "{run}/gates/gate-3-decision.json does not exist and nothing produces it"
   - key: "SKILL:_qa-report-signoff-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
@@ -1450,9 +1369,6 @@ entries:
   - key: "SKILL:qa-status:promotions/pending/**:unresolved"
     ids: [AUD-059]
     note: "promotions/pending/** does not exist and nothing produces it"
-  - key: "SKILL:qa-status:{run}/gates/**:unresolved"
-    ids: [AUD-009]
-    note: "{run}/gates/** does not exist and nothing produces it"
   - key: "SKILL:qa-watch:qa-api-specialist:direct-dispatch"
     ids: [AUD-012]
     note: "execution skill dispatches qa-api-specialist directly"
@@ -1599,12 +1515,6 @@ entries:
   - key: "WRITE-POLICY:qa-impact:reports/impact-{REQ-id}.md:not-writable"
     ids: [AUD-068]
     note: "write to reports/impact-{REQ-id}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-orchestrator:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-orchestrator:{run}/reports/work/qa-orchestrator.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-orchestrator.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-promote-stage:{run}/run.json:cli-only"
     ids: [AUD-099]
     note: "write to {run}/run.json violates the write policy (cli-only)"

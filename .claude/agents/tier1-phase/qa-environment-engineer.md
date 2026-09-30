@@ -140,7 +140,7 @@ For `RUN-20260524-001` (<target-project>, Supabase backend, 4 roles): `global-se
 ```yaml
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
-phase: environment
+phase: env-data
 dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-environment-engineer-spv
 reads:

@@ -1,26 +1,40 @@
 pipeline: 1
 phases:
+  - id: intake
+    agents: []
+  - id: scan
+    agents: [qa-context-scanner]
+  - id: dev-test-review  # qa-dev-test-reviewer arrives in P0a-2
+    agents: []
   - id: requirements
     agents: [qa-requirements-analyst]
-  - id: discovery
-    agents: [qa-context-scanner, qa-web-explorer]
+  - id: env-auth  # qa-environment-engineer (scope=auth): listed once, under env-data (single-phase checker)
+    agents: []
+  - id: explore
+    agents: [qa-web-explorer]
   - id: planning
     agents: [qa-test-planner]
     gateAfter: G1
   - id: design
     agents: [qa-test-designer]
-  - id: environment
+  - id: env-data
     agents: [qa-environment-engineer]
   - id: execution
     agents: [qa-test-executor]
   - id: triage
     agents: [qa-defect-manager]
     gateAfter: G2
-  - id: closure
+  - id: closure-draft
     agents: [qa-closure-reporter]
+  - id: compliance  # qa-compliance-* are crosscutting; the orchestrator places them "during Compliance"
+    agents: []
+  - id: closure-final  # qa-closure-reporter final pass: listed once, under closure-draft
+    agents: []
     gateAfter: G3
   - id: executive
     agents: [qa-executive-reporter]
+  - id: curator  # qa-curator is crosscutting; placed "during Curator"
+    agents: []
 routing:
   byType:
     Functional: qa-ui-specialist
@@ -70,6 +84,8 @@ sources:
     - "{run}/taskmaster/**"
     - "{run}/reports/work/**"
     - "{run}/reports/review/**"
+    - "{run}/gates/**"
+    - "{run}/intake/**"
   owner: []
   target:
     - "{target}/**"
