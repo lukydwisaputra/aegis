@@ -19,18 +19,15 @@ import {
 } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
-import { assertCallerAllowed, ORCHESTRATOR } from "./caller.js";
+import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
-import { describeStep, nextStep, parsePhase, reviewPassed } from "./phases.js";
+import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
-import { readRun, supersededAttempt, withRunLock, writeRun } from "./run.js";
-import { attemptsIn, workDir } from "./submit.js";
+import { commitRun, readRun, withRunLock, writeRun } from "./run.js";
+import { workDir } from "./submit.js";
 import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
-
-/** The orchestrator's gate-precondition task for `gate` (created in the gated phase, reviewed by qa-orchestrator-spv). */
-export const gateTaskId = (gate: GateId): string => `T-GATE-${gate}`;
 
 export const gatesDir = (root: string, runId: string): string => join(runDir(root, runId), "gates");
 export const gateDecisionPath = (root: string, runId: string, gate: GateId): string =>
@@ -43,16 +40,6 @@ export function parseGate(gate: string): GateId {
   return parsed.data;
 }
 
-/** The latest T-GATE-{gate} attempt, newer than any a rejection superseded, has a passing qa-orchestrator-spv review. */
-function gateReviewPassed(root: string, runId: string, state: RunState, gate: GateId): boolean {
-  const taskId = gateTaskId(gate);
-  const attempts = attemptsIn(workDir(root, runId), ORCHESTRATOR, taskId);
-  if (attempts.length === 0) return false;
-  const latest = Math.max(...attempts);
-  if (latest <= supersededAttempt(state, ORCHESTRATOR, taskId)) return false;
-  return reviewPassed(root, runId, ORCHESTRATOR, taskId, latest);
-}
-
 /** Lock order: integrity.lock -> run.lock (verify), then run.lock -> event-bus lock. */
 export async function openGate(root: string, runId: string, gateArg: string, caller: string, now?: Date): Promise<RunState> {
   assertCallerAllowed(caller, "gate.open");
@@ -63,14 +50,13 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
     const state = readRun(root, runId);
     const step = nextStep(state);
     if (step.kind !== "open-gate" || step.gate !== gate) throw new RunStateError("out-of-order", `cannot open ${gate}: ${describeStep(step)}`);
-    if (!gateReviewPassed(root, runId, state, gate)) {
+    if (!gateTaskPassed(root, runId, state, gate)) {
       throw new RunStateError("barrier", `gate ${gate} needs a passing qa-orchestrator-spv review of task ${gateTaskId(gate)}`);
     }
     const ts = iso(now);
     const prev = state.gates[gate];
     const next: RunState = { ...state, status: "awaiting-gate", gates: { ...state.gates, [gate]: { status: "open", openedAt: ts, decisions: prev?.decisions ?? 0 } }, updatedAt: ts };
-    writeRun(root, next);
-    await appendChained({ type: "gate.opened", ts, runId, gate }, busPath(root, runId), { emittedBy: caller, runId });
+    await commitRun(root, state, next, () => appendChained({ type: "gate.opened", ts, runId, gate }, busPath(root, runId), { emittedBy: caller, runId }));
     return next;
   });
 }
@@ -198,18 +184,14 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
       ...(reopen !== undefined ? { phases: reopenPhases(open, reopen, gate), currentPhase: null } : {}),
       updatedAt: ts,
     };
-    writeRun(root, next);
-    try {
-      await appendChained(
+    // Unrecorded: the gate goes back to open so the same decision can be retried (publishDecision overwrites it).
+    await commitRun(root, open, next, () =>
+      appendChained(
         { type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note, ...(reopen !== undefined ? { reopenPhase: reopen } : {}) },
         busPath(root, runId),
         { emittedBy: caller, runId }
-      );
-    } catch (e) {
-      // Unrecorded: put the gate back to open so the same decision can be retried (publishDecision overwrites it).
-      writeRun(root, open);
-      throw e;
-    }
+      )
+    );
     return decision;
   });
 }
@@ -289,8 +271,10 @@ export async function autoDecideGate(root: string, runId: string, gateArg: strin
     const decision: GateDecision = { runId, gate, label: GATE_LABELS[gate], sequence, decision: value, note, decidedBy: "auto", decidedAt: ts, metrics };
     publishDecision(root, runId, decision);
     const next: RunState = { ...state, gates: { ...state.gates, [gate]: { status: value, decidedAt: ts, decisions: sequence } }, updatedAt: ts };
-    writeRun(root, next);
-    await appendChained({ type: "gate.auto-decided", ts, runId, gate, decision: value, sequence, metrics }, busPath(root, runId), { emittedBy: caller, runId });
+    // A retry after a failed append republishes the same sequence, which overwrites the decision file.
+    await commitRun(root, state, next, () =>
+      appendChained({ type: "gate.auto-decided", ts, runId, gate, decision: value, sequence, metrics }, busPath(root, runId), { emittedBy: caller, runId })
+    );
     return decision;
   });
 }

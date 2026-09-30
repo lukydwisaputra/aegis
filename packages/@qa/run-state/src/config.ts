@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
 
 export interface AegisSettings {
   profile: "full" | "lite";
   maxSpecialists: number;
   environments: string[];
+  /** Environments with `readOnly: true` or `mutating: false`. */
+  readOnlyEnvironments: string[];
 }
 
 interface RawConfig {
@@ -29,6 +32,9 @@ export function readSettings(root: string): AegisSettings {
     profile: raw.profile === "lite" ? "lite" : "full",
     maxSpecialists: cap,
     environments: Object.keys(raw.environments ?? {}),
+    readOnlyEnvironments: Object.entries(raw.environments ?? {})
+      .filter(([, env]) => env !== null && typeof env === "object" && isReadOnlyEnvironment(env as EnvironmentSpecialistConfig))
+      .map(([name]) => name),
   };
 }
 

@@ -7,8 +7,8 @@ import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
 import { busPath, taskmasterDir } from "./paths.js";
-import { readRun, withRunLock, writeRun } from "./run.js";
-import { attemptsIn, reviewDir, workDir } from "./submit.js";
+import { commitRun, readRun, withRunLock } from "./run.js";
+import { attemptsIn, escalationFile, escalationMarker, reviewDir, workDir } from "./submit.js";
 import { TASK_ID } from "./tasks.js";
 import { atomicWrite, formatIssues, iso } from "./util.js";
 
@@ -20,8 +20,6 @@ export interface DecideEscalationInput {
   reason: string;
   now?: Date;
 }
-
-const escalationFile = (agent: string, taskId: string, attempt: number): string => `${agent}.${taskId}.${attempt}.escalation.json`;
 
 /**
  * The owner's escalation decision for one attempt, validated (EscalationDecisionSchema) and matched to the
@@ -52,8 +50,6 @@ export function readEscalationDecision(
   return { decision: d };
 }
 
-const markerFile = (root: string, runId: string, agent: string, taskId: string): string => join(reviewDir(root, runId), `${agent}.${taskId}.escalated`);
-
 /** The agent whose escalation marker (`{agent}.{taskId}.escalated`) is open for `taskId`. */
 function escalatedAgent(root: string, runId: string, taskId: string): string {
   const dir = reviewDir(root, runId);
@@ -63,11 +59,16 @@ function escalatedAgent(root: string, runId: string, taskId: string): string {
   return agents[0]!;
 }
 
+/** Gate-precondition tasks (T-GATE-G1..G3) must pass their review: accept-with-risk never covers them. */
+const GATE_TASK = /^T-GATE-/;
+
 /**
  * Owner decision on an escalated task (spec §4.5, CO-07). Records reports/review/{agent}.{taskId}.{attempt}.escalation.json,
- * clears the marker so a later rejection can escalate again, and removes the escalation block cause.
- * retry → the task goes back to pending for another attempt; accept-with-risk → the barrier accepts the attempt;
- * abort → the run stops.
+ * removes the escalation block cause and, once escalation.decided is recorded, clears the marker so a later rejection
+ * can escalate again. retry → the task goes back to pending for another attempt; accept-with-risk → the barrier accepts
+ * the attempt (never for a T-GATE task); abort → the run stops for good (an escalation-abort cause; resume refuses it).
+ * A stopped run stays stopped. If the event cannot be recorded, run.json and the decision file are put back and the
+ * marker stays, so the decision can be retried.
  * Lock order: submit.lock (agent/task) -> run.lock -> task-file lock -> event-bus lock.
  */
 export async function decideEscalation(root: string, runId: string, input: DecideEscalationInput, caller: string): Promise<RunState> {
@@ -75,11 +76,14 @@ export async function decideEscalation(root: string, runId: string, input: Decid
   if (!TASK_ID.test(input.taskId)) throw new RunStateError("invalid-input", `task id "${input.taskId}" must match ${TASK_ID.source}`);
   const reason = input.reason.trim();
   if (reason === "") throw new RunStateError("invalid-input", "an escalation decision needs a reason");
+  if (input.decision === "accept-with-risk" && GATE_TASK.test(input.taskId)) {
+    throw new RunStateError("invalid-input", `${input.taskId} is a gate task: accept-with-risk is not allowed; decide retry or abort`);
+  }
   const agent = escalatedAgent(root, runId, input.taskId);
   return withSubmitLock(root, runId, agent, input.taskId, () =>
     withRunLock(root, runId, async () => {
       // Re-check under the lock: a concurrent decision may have cleared the marker since it was found.
-      if (!existsSync(markerFile(root, runId, agent, input.taskId))) {
+      if (!existsSync(escalationMarker(root, runId, agent, input.taskId))) {
         throw new RunStateError("invalid-input", `task ${input.taskId} has no open escalation`);
       }
       const state = readRun(root, runId);
@@ -90,24 +94,33 @@ export async function decideEscalation(root: string, runId: string, input: Decid
         taskId: input.taskId, agent, attempt, decision: input.decision, reason, decidedBy: caller, decidedAt: ts,
       });
       if (!record.success) throw new RunStateError("invalid-input", `escalation decision invalid: ${formatIssues(record.error.issues)}`);
-      atomicWrite(join(reviewDir(root, runId), escalationFile(agent, input.taskId, attempt)), JSON.stringify(record.data, null, 2) + "\n");
-      // Reopen before the marker goes: a failed reopen leaves the escalation open, so the same decision can be retried.
+      const decisionFile = join(reviewDir(root, runId), escalationFile(agent, input.taskId, attempt));
+      atomicWrite(decisionFile, JSON.stringify(record.data, null, 2) + "\n");
+      // Reopen before the event: a failed reopen leaves the escalation open, so the same decision can be retried.
       if (input.decision === "retry") {
         const client = createTaskmasterClient(taskmasterDir(root, runId));
         if ((await client.get(input.taskId))?.status !== "pending") await client.reopen(input.taskId);
       }
-      rmSync(markerFile(root, runId, agent, input.taskId), { force: true });
 
-      const blockedBy = state.blockedBy.filter((c) => !(c.kind === "escalation" && c.taskId === input.taskId));
       const abort = input.decision === "abort";
-      const status: RunState["status"] = abort ? "stopped" : blockedBy.length > 0 ? "blocked" : state.status === "blocked" ? "running" : state.status;
+      const kept = state.blockedBy.filter((c) => !(c.kind === "escalation" && c.taskId === input.taskId));
+      const blockedBy = abort ? [...kept, { kind: "escalation-abort" as const, reason: `escalation abort: task ${input.taskId} (${agent}): ${reason}`, since: ts, taskId: input.taskId, agent }] : kept;
+      const status: RunState["status"] =
+        abort || state.stopRequested ? "stopped" : blockedBy.length > 0 ? "blocked" : state.status === "blocked" ? "running" : state.status;
       const next: RunState = { ...state, status, blockedBy, ...(abort ? { stopRequested: true } : {}), updatedAt: ts };
-      writeRun(root, next);
-      await appendChained(
-        { type: "escalation.decided", ts, runId, taskId: input.taskId, agent, decision: input.decision, reason },
-        busPath(root, runId),
-        { emittedBy: caller, runId }
-      );
+      try {
+        await commitRun(root, state, next, () =>
+          appendChained(
+            { type: "escalation.decided", ts, runId, taskId: input.taskId, agent, decision: input.decision, reason },
+            busPath(root, runId),
+            { emittedBy: caller, runId }
+          )
+        );
+      } catch (e) {
+        rmSync(decisionFile, { force: true });
+        throw e;
+      }
+      rmSync(escalationMarker(root, runId, agent, input.taskId), { force: true });
       return next;
     })
   );

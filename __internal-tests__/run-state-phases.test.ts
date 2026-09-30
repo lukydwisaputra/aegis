@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { readLines } from '@qa/event-bus';
-import { addTask, busPath, claimTask, completePhase, completeRun, createRun, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
+import { addTask, busPath, claimTask, completePhase, completeRun, createRun, decideEscalation, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { escalationDecision, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
@@ -86,12 +86,12 @@ describe('phase barrier (spec §6.1)', () => {
     expect((await completePhase(t.root, runId, 'requirements', ORCH)).phases.requirements).toMatchObject({ status: 'completed' });
   });
 
-  it('refuses a failed task, even of an agent without an SPV, unless accepted with risk', async () => {
+  it('a failed task, even of an agent without an SPV, escalates; only accept-with-risk lets the phase complete', async () => {
     await startPhase(t.root, runId, 'scan', ORCH);
     writeRunFile(t.root, runId, 'target-profile.json', PROFILE);
     await workTask(t.root, runId, 'T-scan-1', 'qa-context-scanner', null, 'passed', 'failed');
-    await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/task T-scan-1 failed/) });
-    writeRunFile(t.root, runId, 'reports/review/qa-context-scanner.T-scan-1.1.escalation.json', escalationDecision('qa-context-scanner', 'T-scan-1', 1, 'accept-with-risk'));
+    await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'out-of-order', message: expect.stringMatching(/blocked \(escalation\)/) });
+    await decideEscalation(t.root, runId, { taskId: 'T-scan-1', decision: 'accept-with-risk', reason: 'Scanner gap accepted for the pilot' }, 'owner');
     expect((await completePhase(t.root, runId, 'scan', ORCH)).phases.scan).toMatchObject({ status: 'completed' });
   });
 

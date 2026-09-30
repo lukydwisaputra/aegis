@@ -81,6 +81,20 @@ export function writeRun(root: string, state: RunState): void {
 }
 
 /**
+ * Write `next`, then record the event that says so. If recording fails, `prior` is written back, so run.json never
+ * claims a change the log does not hold and the same command can be retried. Call it under run.lock.
+ */
+export async function commitRun(root: string, prior: RunState, next: RunState, record: () => Promise<unknown>): Promise<void> {
+  writeRun(root, next);
+  try {
+    await record();
+  } catch (e) {
+    writeRun(root, prior);
+    throw e;
+  }
+}
+
+/**
  * Serialises run.json read-modify-write per run.
  * Lock order (never invert; never take run.lock while holding the bus lock):
  *   integrity.lock -> run.lock -> event-bus lock (verify; resume with an acknowledgement);
@@ -180,8 +194,7 @@ export async function requestStop(root: string, runId: string, reason: string, c
     if (state.status === "completed") throw new RunStateError("run-not-active", `run ${runId} is already completed`);
     const ts = iso(now);
     const next: RunState = { ...state, status: "stopped", stopRequested: true, updatedAt: ts };
-    writeRun(root, next);
-    await appendChained({ type: "run.stop.requested", ts, runId, reason }, busPath(root, runId), { emittedBy: caller, runId });
+    await commitRun(root, state, next, () => appendChained({ type: "run.stop.requested", ts, runId, reason }, busPath(root, runId), { emittedBy: caller, runId }));
     return next;
   });
 }
@@ -194,19 +207,26 @@ export async function recordIntegrityCheckpoint(root: string, runId: string, che
   });
 }
 
-/** Rule-driven block (escalation, integrity, preflight). Not a CLI command, so no caller check. Causes accumulate (CO-06). */
+/**
+ * Rule-driven block (escalation, integrity, preflight). Not a CLI command, so no caller check. Causes accumulate (CO-06).
+ * A stopped run stays stopped: the cause is recorded, and resume refuses until it is resolved.
+ * If run.blocked cannot be recorded, run.json is restored (the caller undoes its own step, e.g. the escalation marker)
+ * except for an integrity block, which fails closed: the log is already broken, so the block stays.
+ */
 export async function blockRun(root: string, runId: string, cause: BlockInput, caller: string, now?: Date): Promise<RunState> {
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     if (state.status === "completed") throw new RunStateError("run-not-active", `run ${runId} is completed`);
     const ts = iso(now);
     const entry: BlockCause = { ...cause, since: ts };
-    const next: RunState = { ...state, status: "blocked", blockedBy: [...state.blockedBy, entry], updatedAt: ts };
-    writeRun(root, next);
-    await appendChained(
-      { type: "run.blocked", ts, runId, reason: cause.reason, ...(state.currentPhase !== null ? { phase: state.currentPhase } : {}) },
-      busPath(root, runId),
-      { emittedBy: caller, runId }
+    const status: RunState["status"] = state.stopRequested ? "stopped" : "blocked";
+    const next: RunState = { ...state, status, blockedBy: [...state.blockedBy, entry], updatedAt: ts };
+    await commitRun(root, cause.kind === "integrity" ? next : state, next, () =>
+      appendChained(
+        { type: "run.blocked", ts, runId, reason: cause.reason, ...(state.currentPhase !== null ? { phase: state.currentPhase } : {}) },
+        busPath(root, runId),
+        { emittedBy: caller, runId }
+      )
     );
     return next;
   });
@@ -230,6 +250,10 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
     const state = readRun(root, runId);
     if (state.status !== "stopped" && state.status !== "blocked") {
       throw new RunStateError("run-not-active", `run ${runId} is "${state.status}"; only stopped or blocked runs can be resumed`);
+    }
+    const abort = state.blockedBy.find((c) => c.kind === "escalation-abort");
+    if (abort !== undefined) {
+      throw new RunStateError("run-not-active", `run ${runId} was aborted by the escalation decision on ${abort.taskId ?? "a task"} (aborted: start a new run)`);
     }
     const escalations = state.blockedBy.filter((c) => c.kind === "escalation");
     if (escalations.length > 0) {
@@ -268,9 +292,8 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
       ...(acknowledged !== undefined ? { integrityAcknowledged: acknowledged } : {}),
       updatedAt: ts,
     };
-    writeRun(root, next);
+    await commitRun(root, state, next, () => appendChained({ type: "run.resumed", ts, runId, phase: state.currentPhase ?? "intake" }, bus, { emittedBy: caller, runId }));
     writeActiveRun(root, runId);
-    await appendChained({ type: "run.resumed", ts, runId, phase: state.currentPhase ?? "intake" }, bus, { emittedBy: caller, runId });
     return next;
   });
 }

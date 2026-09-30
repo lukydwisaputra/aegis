@@ -121,6 +121,45 @@ function rejectionsSoFar(dir: string, agent: string, taskId: string, floor: numb
   }).length;
 }
 
+/** reports/review/{agent}.{taskId}.{attempt}.escalation.json: the owner's decision on one escalated attempt. */
+export const escalationFile = (agent: string, taskId: string, attempt: number): string => `${agent}.${taskId}.${attempt}.escalation.json`;
+
+export const escalationMarker = (root: string, runId: string, agent: string, taskId: string): string =>
+  join(reviewDir(root, runId), `${agent}.${taskId}.escalated`);
+
+/**
+ * Open the escalation of `agent`/`taskId` exactly once: only the creator of the marker blocks the run, then runs
+ * `after` (an extra event). Returns false when the escalation is already open. On failure the marker is removed.
+ * Used by the 3rd rejection (submitReview) and by a failed release (releaseTask).
+ */
+export async function openEscalation(
+  root: string,
+  runId: string,
+  agent: string,
+  taskId: string,
+  why: string,
+  caller: string,
+  now?: Date,
+  after?: () => Promise<unknown>
+): Promise<boolean> {
+  const marker = escalationMarker(root, runId, agent, taskId);
+  fs.mkdirSync(reviewDir(root, runId), { recursive: true });
+  try {
+    fs.writeFileSync(marker, `${iso(now)}\n`, { encoding: "utf-8", flag: "wx" });
+  } catch (e) {
+    if (isExists(e)) return false;
+    throw e;
+  }
+  try {
+    await blockRun(root, runId, { kind: "escalation", reason: `escalation: task ${taskId} (${agent}) ${why}; owner decision required via /qa-escalation`, taskId, agent }, caller, now);
+    if (after !== undefined) await after();
+    return true;
+  } catch (e) {
+    fs.rmSync(marker, { force: true });
+    throw e;
+  }
+}
+
 /** Exactly-once: only the creator of the marker blocks the run and emits task.escalated. */
 async function escalateOnce(
   root: string,
@@ -131,31 +170,13 @@ async function escalateOnce(
   caller: string,
   now?: Date
 ): Promise<boolean> {
-  const marker = join(reviewDir(root, runId), `${agent}.${taskId}.escalated`);
-  try {
-    fs.writeFileSync(marker, `${iso(now)}\n`, { encoding: "utf-8", flag: "wx" });
-  } catch (e) {
-    if (isExists(e)) return false;
-    throw e;
-  }
-  try {
-    await blockRun(
-      root,
-      runId,
-      { kind: "escalation", reason: `escalation: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`, taskId, agent },
-      caller,
-      now
-    );
-    await appendChained(
+  return openEscalation(root, runId, agent, taskId, `rejected ${rejections} times`, caller, now, () =>
+    appendChained(
       { type: "task.escalated", ts: iso(now), taskId, agent, rejectionCount: rejections },
       busPath(root, runId),
       { emittedBy: caller, runId }
-    );
-    return true;
-  } catch (e) {
-    fs.rmSync(marker, { force: true });
-    throw e;
-  }
+    )
+  );
 }
 
 export async function submitReview(root: string, runId: string, file: string, caller: string, now?: Date): Promise<ReviewResult> {

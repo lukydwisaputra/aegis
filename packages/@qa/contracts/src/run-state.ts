@@ -27,7 +27,8 @@ export const GateRecordSchema = z
   .object({ status: GateStatusSchema, openedAt: Iso.optional(), decidedAt: Iso.optional(), decisions: z.number().int().nonnegative() })
   .strict();
 
-export const BlockKindSchema = z.enum(["integrity", "escalation", "preflight"]);
+// escalation-abort: the owner aborted an escalated task; the run is terminal (resume refuses it).
+export const BlockKindSchema = z.enum(["integrity", "escalation", "preflight", "escalation-abort"]);
 export const BlockCauseSchema = z
   .object({ kind: BlockKindSchema, reason: z.string().min(1), since: Iso, taskId: z.string().optional(), agent: z.string().optional() })
   .strict();

@@ -80,7 +80,10 @@ describe('human gates (spec §3.2)', () => {
     await planning('requested-changes');
     await expect(completePhase(t.root, runId, 'planning', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/T-GATE-G1/) });
     await t.cleanup(); await full(); await planning(null);
-    await completePhase(t.root, runId, 'planning', ORCH);
+    await expect(completePhase(t.root, runId, 'planning', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/gate task T-GATE-G1 is missing/) });
+    // Forcing the phase closed does not let the gate open without the gate task's review either.
+    const s = readRun(t.root, runId);
+    fs.writeFileSync(runFile(), JSON.stringify({ ...s, currentPhase: null, phases: { ...s.phases, planning: { status: 'completed' } } }));
     await expect(openGate(t.root, runId, 'G1', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/T-GATE-G1/) });
     await expect(decideGate(t.root, runId, { gate: 'G1', decision: 'approved', note: 'early' }, 'owner')).rejects.toMatchObject({ code: 'out-of-order' });
     await expect(autoDecideGate(t.root, runId, 'G1', ORCH)).rejects.toMatchObject({ code: 'out-of-order' });

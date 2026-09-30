@@ -44,7 +44,9 @@ function walk(dir: string, rel: string, out: string[], skip: string): void {
  * Copy target files matching `globs` (aegis.config.json#intake.sources, or --intake) into `intakeDir`,
  * keeping their target-relative paths (spec §6.3). Always creates `intakeDir`; returns the copied paths.
  */
-export function copyIntake(root: string, targetProjectRoot: string, globs: string[], intakeDir: string): string[] {
+export function copyIntake(root: string, targetProjectRoot: string, sources: string[], intakeDir: string): string[] {
+  // Paths are target-relative: a leading "./" names the same files, so it is stripped (the walk never yields one).
+  const globs = sources.map((g) => g.replace(/^(?:\.\/)+/, ""));
   globs.forEach(assertSafeGlob);
   mkdirSync(intakeDir, { recursive: true });
   const target = resolve(root, targetProjectRoot);

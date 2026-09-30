@@ -87,7 +87,8 @@ it('still catches tampering that happens after an acknowledgement', async () => 
   expect(report.ok).toBe(false);
   expect(report.errors.join('\n')).not.toMatch(/line 2:/);
   for (const e of report.errors) expect(Number(/^line (\d+):/.exec(e)?.[1])).toBeGreaterThan(through);
-  expect(readRun(t.root, runId).status).toBe('blocked');
+  // The run was stopped first: it stays stopped, with the integrity cause recorded (M1).
+  expect(readRun(t.root, runId)).toMatchObject({ status: 'stopped', blockedBy: [expect.objectContaining({ kind: 'integrity' })] });
 });
 
 it('reports an invalid run.json without throwing', async () => {

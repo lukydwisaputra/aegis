@@ -10,7 +10,7 @@ import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun, supersededAttempt, withRunLock } from "./run.js";
-import { attemptsIn, reviewDir, workDir } from "./submit.js";
+import { attemptsIn, escalationFile, escalationMarker, openEscalation, reviewDir, workDir } from "./submit.js";
 import { iso, withFileLock } from "./util.js";
 
 export const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -170,6 +170,26 @@ function assertWorkSubmittedThisClaim(root: string, runId: string, agent: string
   }
 }
 
+/** `failed` means the agent could not complete the task: the owner decides (retry, accept-with-risk, abort) via /qa-escalation. */
+function escalateFailedRelease(root: string, runId: string, agent: string, taskId: string, attempt: number, now?: Date): Promise<boolean> {
+  return openEscalation(root, runId, agent, taskId, `was released failed (attempt ${attempt})`, agent, now);
+}
+
+/** The latest attempt of a failed task whose escalation was never opened nor decided (a crash after task.released). */
+function unescalatedFailure(root: string, runId: string, task: Task, agent: string): number | null {
+  if (task.status !== "failed" || task.claimedBy !== agent) return null;
+  const attempts = attemptsIn(workDir(root, runId), agent, task.id);
+  if (attempts.length === 0) return null;
+  const latest = Math.max(...attempts);
+  if (existsSync(escalationMarker(root, runId, agent, task.id)) || existsSync(join(reviewDir(root, runId), escalationFile(agent, task.id, latest)))) return null;
+  return latest;
+}
+
+/**
+ * Release a claimed task. `failed` always opens an escalation for the latest attempt (the run blocks until the owner
+ * decides), for reviewed agents and agents without an SPV alike. Releasing an already-failed task failed again
+ * re-drives an escalation that was never recorded.
+ */
 export async function releaseTask(
   root: string,
   runId: string,
@@ -184,6 +204,11 @@ export async function releaseTask(
   // CO-12: the submit lock excludes a concurrent reopen by review submit, so a rollback is never skipped silently.
   return withSubmitLock(root, runId, caller, taskId, () => withClaimsLock(root, runId, async () => {
     const task = await mustGet(root, runId, taskId);
+    const lost = result === "failed" ? unescalatedFailure(root, runId, task, caller) : null;
+    if (lost !== null) {
+      await escalateFailedRelease(root, runId, caller, taskId, lost, now);
+      return mustGet(root, runId, taskId);
+    }
     if (task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${taskId} is not in progress under ${caller}`);
     }
@@ -193,6 +218,10 @@ export async function releaseTask(
     await appendOrRollback(c, task, result, () =>
       appendChained({ type: "task.released", ts: iso(now), taskId, agent: caller, result }, busPath(root, runId), { emittedBy: caller, runId })
     );
+    if (result === "failed") {
+      const attempts = attemptsIn(workDir(root, runId), caller, taskId);
+      await escalateFailedRelease(root, runId, caller, taskId, Math.max(...attempts), now);
+    }
     return mustGet(root, runId, taskId);
   }));
 }
