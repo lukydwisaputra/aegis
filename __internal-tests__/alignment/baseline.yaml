@@ -274,9 +274,6 @@ entries:
   - key: "CONSUMER:qa-event-bus:{run}/events.jsonl.lock:unread"
     ids: [AUD-048]
     note: "no one reads {run}/events.jsonl.lock"
-  - key: "CONSUMER:qa-metrics-collector:{run}/reports/metrics/token-usage.jsonl:unread"
-    ids: [AUD-042]
-    note: "no one reads {run}/reports/metrics/token-usage.jsonl"
   - key: "CONSUMER:qa-orchestrator:{run}/COMPLETE:unread"
     ids: [AUD-028]
     note: "no one reads {run}/COMPLETE"
@@ -808,12 +805,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-metrics-collector:PhaseCompleted:no-emitter"
-    ids: [AUD-044]
-    note: "nobody emits PhaseCompleted"
-  - key: "EVENT:qa-metrics-collector:PhaseCompleted:undeclared"
-    ids: [AUD-044]
-    note: "PhaseCompleted is not a declared event"
   - key: "EVENT:qa-metrics-collector:defect.closed:no-emitter"
     ids: [AUD-102]
     note: "nobody emits defect.closed"
@@ -824,7 +815,7 @@ entries:
     ids: [AUD-011]
     note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
   - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
-    ids: [AUD-042]
+    ids: [AUD-042b]
     note: "nobody emits token.used"
   - key: "EVENT:qa-orchestrator-spv:-:appends-without-cli"
     ids: [AUD-018, CO-11]

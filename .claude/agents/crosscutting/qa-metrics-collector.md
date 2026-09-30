@@ -26,11 +26,11 @@ You are **read-only** on all source artefacts. You write only to `runs/{runId}/r
 ## Metrics to Collect
 
 ### Token Usage (from `token.used` events)
-Per event: `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`
+Per event (fields `agent`, `model`, `input`, `output`, `cached`): one row `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`, with `usdCost` computed from the model-policy rates.
 Rollup: totals per agent, per model tier, per phase.
 Output: `runs/{runId}/reports/metrics/token-usage.jsonl` (append-mode, one row per event).
 
-### Cycle Time (from `run.phase.started`, `PhaseCompleted` events)
+### Cycle Time (from `run.phase.started`, `run.phase.completed` events)
 Per phase: `{ phase, startedAt, completedAt, durationMs, agentName }`
 Rollup: total wall-clock, bottleneck phase (longest duration).
 Output: `runs/{runId}/reports/metrics/cycle-time.json`.
@@ -116,7 +116,6 @@ awaits:
   - token.used
   - run.phase.started
   - devops.flake-detected
-  - PhaseCompleted
   - defect.opened
   - defect.closed
   - defect.reopened

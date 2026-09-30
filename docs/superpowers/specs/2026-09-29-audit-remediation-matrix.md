@@ -11,7 +11,7 @@ owning sub-project. A sub-project spec must list and close every ID it owns.
 Status values: `open` · `in-spec` · `fixed` · `wontfix` (with reason).
 
 IDs AUD-029 and AUD-030 are intentionally unused (merged into AUD-014 and AUD-077 during dedup).
-AUD-040, 062, 063, 064 moved to P0 and AUD-056 split into 056a (P0) / 056b (P3) when the P0 spec was written.
+AUD-040, 062, 063, 064 moved to P0 and AUD-056 split into 056a (P0) / 056b (P3) when the P0 spec was written. AUD-042 split into 042 (P1, consumer) / 042b (P0b-2, emitter) by the P1 spec.
 
 Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
 
@@ -75,6 +75,7 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report; templates/ absent from git (only empty untracked dirs) — _qa-init-project/qa-ci-bootstrap template reads unresolved | MED | P0c | in-spec |
 | AUD-056a | Execution skills read stale `execution/results.json` (qa-rerun-failed, qa-regression, qa-record-manual) | qa-rerun-failed:25; qa-regression:28; qa-record-manual:29 | HIGH | P0c | in-spec |
 | AUD-045 | Gate naming inconsistent: camelCase (config), kebab (events.ts:888), numbered (files) | aegis.config.json:15; events.ts:888 | LOW | P0a-1 | in-spec |
+| AUD-042b | `token.used` has no emitter: record per-subagent token usage from a SubagentStop hook (transcript usage) through the CLI; split from AUD-042 by the P1 spec | qa-metrics-collector.md:28 | LOW | P0b-2 | open |
 
 ## P1 — Contracts & vocabulary
 
