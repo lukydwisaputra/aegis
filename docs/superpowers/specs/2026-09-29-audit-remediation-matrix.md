@@ -23,7 +23,8 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 |-------|----|-------------|-----------|
 | done | P0b-1 | Contracts & CLI skeleton (run-state, event chain) | — |
 | 1a | ALIGN | Alignment checker: contracts per agent/skill, `pipeline.yaml`, ratchet baseline (every violation owned by a matrix ID) | P0b-1 |
-| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs | — |
+| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need a label) | ALIGN |
+| 1a-H | ALIGN-H | Alignment checker hardening (AH-01..14) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
 | 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
 | 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |
 | 3 | P0a-1 | Phases, gates, barrier, orchestrator rewrite | P1 |
@@ -237,3 +238,22 @@ deleting baseline lines):
   only the HANDBOOK/08 `qa-compliance-gdpr-spv` reference is tracked (DOC-REF).
 - AUD-056a — the SKILL rule ignores reads of paths the skill itself writes (spec §4 narrowing), so an
   execution skill reading its own stale `execution/results.json` is not flagged.
+
+## Alignment checker hardening (slice 1a-H, from the ALIGN final review)
+
+| ID | Item |
+|----|------|
+| AH-01 | DRIFT anchors every contract field to prose: backticked `aegis <noun> <verb>` ↔ `cli`; `aegis.config.json#…`, `thresholds.yaml`, `config/*.yaml` ↔ `config`; `emits.via`, skill `kind`, `runs` |
+| AH-02 | Escape hatches (`dispatch: {none}`, `reviewedBy: {none}`, `optional`, `terminal`, non-pipeline `phase`) reported as their own ratcheted class |
+| AH-03 | `pipeline.yaml` anchored to prose: executor routing lines, designer technique vocabulary, orchestrator phase table; every route target ∈ executor `dispatches`; route reachable from `designerEmits` (AUD-008, 032/033/035) |
+| AH-04 | Typed ID placeholders: `{TC}.json` must not overlap `{TC}-result.json` / `{TC}-{viewport}-result.json` (AUD-087) |
+| AH-05 | Tool checks: `dispatches` agents ⇒ Agent tool, skills ⇒ Skill tool, `writes` ⇒ Write/Edit |
+| AH-06 | Producer reachability: a producer nothing dispatches does not satisfy a read (AUD-011) |
+| AH-07 | A unit's own writes count as producer for its own read-modify-write reads (re-check PRODUCER:qa-test-executor:{run}/concurrency.json) |
+| AH-08 | Same-phase cycles detected; revisit compliance `phase: crosscutting` vs "during Closure" prose (AUD-004) |
+| AH-09 | DRIFT scope: all agent sections, undeclared event names in prose, aegis-root paths, HANDBOOK.md, docs/*.md, frontmatter `description` (AUD-092) |
+| AH-10 | Worker→SPV handoff verified: reviewed workers need `work-report.submit` / `task.claim` in `cli` (AUD-081/083) |
+| AH-11 | Reverse checks: config keys nothing reads (AUD-007), events nobody consumes (AUD-027), package names / pnpm scripts in docs (AUD-066/073), agent counts (AUD-075) |
+| AH-12 | Existence checks read git-tracked files, not the working tree (untracked `config/`, `artifacts/` flip entries locally) |
+| AH-13 | `WRITABLE` table moves from `dataflow.ts` into `pipeline.yaml` (single copy of the write policy; `sandbox/**` vs CLAUDE.md) |
+| AH-14 | Code debt: reuse the existing frontmatter scalar parser; exact `CLI_RECORDS` per-command test; `aegis align` resolves `@qa/contracts` from source or fails on stale dist; dedupe `allSources`; loader dead branch; `via: owner|none`; CLI smoke test; per-slice grouping in report output; secondary IDs AUD-023/024/025 on skill `run.*` EVENT entries; event-bus `appends-without-cli` → AUD-048; overlaps AUD-105↔043, AUD-101/103↔CO-05; `_qa-init-project` HANDBOOK.md allowance; CRLF frontmatter; heading inside fenced example; `**/qa-x**` / `[/qa-x]` lookbehind; own Process-only paths lost by whole-line skip; SPV `lessons.md` vs `lessons.json` naming (AUD-074) |
