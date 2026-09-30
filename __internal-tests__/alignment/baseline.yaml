@@ -1399,7 +1399,7 @@ entries:
     ids: [AUD-059, AUD-068]
     note: "write to skills/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-record-manual:manual-{date}/**:not-writable"
-    ids: [AUD-068, AUD-056a]
+    ids: [AUD-068]
     note: "write to manual-{date}/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-regenerate-report:{run}/run.json:cli-only"
     ids: [AUD-099]

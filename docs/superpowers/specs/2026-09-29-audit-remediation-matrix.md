@@ -229,3 +229,11 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-110 | Execution skills invoke other skills directly instead of routing through the orchestrator/CLI | qa-start SKILL:28 `/qa-health`; qa-promote-stage SKILL:25 `/qa-gate-check`; qa-regression SKILL:29 `qa-compare` | MED | P0c | open |
 | AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis task submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
 | AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
+
+Known detection gaps (open items the checker cannot see; their slices close them by review, not by
+deleting baseline lines):
+
+- AUD-052 — `reviewedBy: {none: …}` is accepted by design, so agents without an SPV are not flagged;
+  only the HANDBOOK/08 `qa-compliance-gdpr-spv` reference is tracked (DOC-REF).
+- AUD-056a — the SKILL rule ignores reads of paths the skill itself writes (spec §4 narrowing), so an
+  execution skill reading its own stale `execution/results.json` is not flagged.
