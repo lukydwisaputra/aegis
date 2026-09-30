@@ -45,3 +45,29 @@ You review dashboard design work from `qa-ui-designer`. You verify the designer 
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: []
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-ui-designer]
+reads:
+  - "{run}/reports/work/qa-ui-designer.json"
+  - "apps/dashboard/src/components/**"
+  - "apps/dashboard/src/styles/globals.css"
+  - "apps/dashboard/components.json"
+  - aegis.config.json
+  - "agent-memory/qa-ui-designer/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: [git]
+dispatches: []
+config: [aegis.config.json#dashboard.showFrameworkBranding]
+```

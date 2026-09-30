@@ -46,3 +46,30 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-closure-reporter]
+reads:
+  - "{run}/reports/work/qa-closure-reporter.json"
+  - "{run}/reports/closure/closure.{md,json}"
+  - "{run}/reports/metrics/*.json"
+  - "{run}/events.jsonl"
+  - "{run}/defects/*.json"
+  - "{run}/cases/*.json"
+  - "agent-memory/qa-closure-reporter/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: [grep]
+dispatches: []
+config: []
+```

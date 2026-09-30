@@ -44,3 +44,27 @@ You review the ambiguity reports and testability scores produced by `qa-requirem
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-requirements-analyst]
+reads:
+  - "{run}/reports/work/qa-requirements-analyst.json"
+  - "{run}/requirements/ambiguity-report.{md,json}"
+  - "{run}/requirements/testability-scores.json"
+  - "agent-memory/qa-requirements-analyst/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -52,3 +52,31 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-environment-engineer]
+reads:
+  - "{run}/reports/work/qa-environment-engineer.json"
+  - "{run}/env-setup-report.{md,json}"
+  - "{tests}/qa/fixtures/auth.fixture.ts"
+  - "{tests}/qa/global-setup.ts"
+  - "{tests}/qa/global-teardown.ts"
+  - "{tests}/qa/factories/*.ts"
+  - "{target}/playwright.config.ts"
+  - "agent-memory/qa-environment-engineer/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: [aegis.config.json#browsers]
+```

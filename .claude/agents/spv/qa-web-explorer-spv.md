@@ -47,3 +47,28 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-orchestrator]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-web-explorer]
+reads:
+  - "{run}/reports/work/qa-web-explorer.json"
+  - "{run}/discovery-report.{md,json}"
+  - "{tests}/qa/pages/**/*.ts"
+  - "{run}/evidence/discovery/**"
+  - "agent-memory/qa-web-explorer/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: [aegis.config.json#discovery.skipPatterns]
+```
