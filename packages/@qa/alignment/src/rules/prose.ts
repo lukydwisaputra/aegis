@@ -1,6 +1,5 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { CONTRACT_HEADING, frontmatterLite } from "../load.js";
+import { CONTRACT_HEADING, existsWithContent, frontmatterLite } from "../load.js";
 import { normalizePath, overlaps, staticPrefix } from "../paths.js";
 import { isAgentContract, isSkillContract, pathOf, violation, type Model, type Section, type Unit, type Violation } from "../types.js";
 
@@ -94,7 +93,7 @@ export function skillRule(m: Model): Violation[] {
     for (const e of u.contract.reads) {
       const p = normalizePath(pathOf(e));
       const prefix = staticPrefix(p.startsWith("{aegis}/") ? p.slice(8) : p);
-      const onDisk = prefix !== "" && !prefix.startsWith("{") && existsSync(join(m.root, prefix));
+      const onDisk = prefix !== "" && !prefix.startsWith("{") && existsWithContent(join(m.root, prefix));
       if (onDisk || writes.some((w) => overlaps(w, p)) || sources.some((x) => overlaps(x, p))) continue;
       out.push(violation("SKILL", u.name, p, "unresolved", u.file, u.contractLine, `${p} does not exist and nothing produces it`));
     }

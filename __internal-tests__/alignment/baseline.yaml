@@ -1129,6 +1129,9 @@ entries:
   - key: "SKILL:qa-doctor:config/thresholds.yaml:unresolved"
     ids: [AUD-057]
     note: "config/thresholds.yaml does not exist and nothing produces it"
+  - key: "SKILL:qa-doctor:templates/**:unresolved"
+    ids: [AUD-064]
+    note: "templates/** does not exist and nothing produces it (templates/ is not in git)"
   - key: "SKILL:qa-dry-run:config/cost-estimates.yaml:unresolved"
     ids: [AUD-057]
     note: "config/cost-estimates.yaml does not exist and nothing produces it"

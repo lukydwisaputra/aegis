@@ -69,6 +69,22 @@ function walk(dir: string, match: (p: string) => boolean): string[] {
   }
 }
 
+/**
+ * A file, or a directory holding at least one file somewhere below it. Git does not track empty
+ * directories, so an empty one exists only in this checkout and must not count (clean-clone parity).
+ * OS metadata files (`.DS_Store`, `Thumbs.db`) are never tracked and do not count as content.
+ */
+const OS_JUNK = new Set([".DS_Store", "Thumbs.db"]);
+
+export function existsWithContent(path: string): boolean {
+  try {
+    if (!statSync(path).isDirectory()) return true;
+    return readdirSync(path).some((e) => !OS_JUNK.has(e) && existsWithContent(join(path, e)));
+  } catch {
+    return false;
+  }
+}
+
 function lstatOk(file: string): boolean {
   try {
     lstatSync(file);

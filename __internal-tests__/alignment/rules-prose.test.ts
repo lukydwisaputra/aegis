@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { docRefRule, driftRule, loadModel, skillRule } from '@qa/alignment';
 import { makeRepo, MIN_PIPELINE } from './helpers';
 
@@ -147,5 +149,16 @@ it('DOC-REF: qa-report-x and /qa-report-x do not resolve to the internal skill _
     'DOC-REF:HANDBOOK/03.md:/qa-report-x:unknown-command',
     'DOC-REF:HANDBOOK/03.md:qa-report-x:unknown',
   ]);
+  t.cleanup();
+});
+
+it('SKILL: an on-disk read must contain a file; an empty (untracked) directory counts as absent', () => {
+  const t = makeRepo({
+    skills: { 'qa-s': { contract: { contract: 1, kind: 'query', reads: ['templates/**', 'knowledge/**'] } } },
+    files: { 'knowledge/a/b.md': 'x' },
+  });
+  fs.mkdirSync(path.join(t.root, 'templates/empty/deeper'), { recursive: true });
+  fs.writeFileSync(path.join(t.root, 'templates/.DS_Store'), 'x');
+  expect(keys(skillRule(loadModel(t.root)))).toEqual(['SKILL:qa-s:templates/**:unresolved']);
   t.cleanup();
 });
