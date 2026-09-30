@@ -78,6 +78,10 @@ nonAgentNames:
   - qa-e2e # Playwright project name (qa-environment-engineer.md:61, HANDBOOK/17:76)
   - qa-automated # GitHub label (qa-github-planner.md:40)
   - qa-build-toc # pnpm script in package.json (CLAUDE.md:36 `pnpm qa-build-toc`), not the _qa-build-toc skill
+  - qa-results # CI artifact name prefix (docs/D12-cicd-workflow.md:64 `qa-results-${{ github.run_id }}`)
+  - qa-api # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:167)
+  - qa-web # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:171)
+  - qa-admin # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:176)
 # Every escape hatch a contract uses, with its reason (ESCAPE rule). A new entry needs the baseline-growth label.
 escapes:
   - {unit: _qa-report-executive-slides, field: terminal, value: "{run}/reports/executive-deck.pdf", reason: "SKILL.md:12 renders the final stakeholder deck"}

@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { join } from "node:path";
 import { TestTechniqueSchema, TestTypeSchema } from "@qa/contracts";
 import { CLI_COMMANDS, OWNER_COMMANDS, OWNER_ONLY, type CliCommand } from "@qa/run-state";
+import { pathExists } from "../load.js";
 import { isAgentContract, violation, type Model, type Violation } from "../types.js";
 
 const COMMANDS: ReadonlySet<string> = new Set(CLI_COMMANDS);
@@ -118,10 +119,10 @@ export function configRule(m: Model): Violation[] {
     for (const ref of u.contract?.config ?? []) {
       const [file, key] = ref.split("#") as [string, string | undefined];
       let ok: boolean;
-      if (key === undefined) ok = existsSync(join(m.root, file));
+      if (key === undefined) ok = pathExists(m, file);
       else if (file === "aegis.config.json") ok = hasPath(m.aegisConfig, key);
       else if (file === "thresholds.yaml") ok = hasPath(m.thresholds, key);
-      else ok = hasPath(readStructured(m.root, file), key);
+      else ok = pathExists(m, file) && hasPath(readStructured(m.root, file), key);
       if (!ok) out.push(violation("CONFIG", u.name, ref, "missing", u.file, u.contractLine, `${ref} does not exist`));
     }
   }

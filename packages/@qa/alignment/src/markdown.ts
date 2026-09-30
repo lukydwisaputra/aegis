@@ -5,13 +5,17 @@
 
 export const CONTRACT_HEADING = "## Contract (machine-checked)";
 
-export function frontmatterLite(source: string): { name?: string; tools: string[] } {
-  const m = /^---\n([\s\S]*?)\n---\n/.exec(source);
-  const block = m?.[1] ?? "";
-  const name = /^name:\s*(.+)$/m.exec(block)?.[1]?.trim();
+/** The one frontmatter scalar parser (AH-14): name, description, inline tools list. CRLF-safe; surrounding quotes stripped. */
+export function frontmatterLite(source: string): { name?: string; description?: string; tools: string[] } {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(source);
+  const block = (m?.[1] ?? "").replace(/\r/g, "");
+  const scalar = (k: string) => new RegExp(`^${k}:\\s*(.+)$`, "m").exec(block)?.[1]?.trim().replace(/^(["'])(.*)\1$/, "$2");
+  const name = scalar("name");
+  const description = scalar("description");
   const tools = /^tools:\s*\[(.*)\]\s*$/m.exec(block)?.[1];
   return {
     ...(name !== undefined ? { name } : {}),
+    ...(description !== undefined ? { description } : {}),
     tools: tools === undefined ? [] : tools.split(",").map((t) => t.trim()).filter(Boolean),
   };
 }

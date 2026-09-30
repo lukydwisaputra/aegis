@@ -1,10 +1,11 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { AegisEventSchema } from "@qa/contracts";
 import { AgentContractSchema, PipelineSchema, SkillContractSchema } from "./schema.js";
 import type { Pipeline } from "./schema.js";
-import { violation, type Model, type Section, type Unit, type Violation } from "./types.js";
+import { violation, type Model, type Section, type Tracked, type Unit, type Violation } from "./types.js";
 import { CONTRACT_HEADING, frontmatterLite } from "./markdown.js";
 
 export function extractContract(source: string): { yaml: string; line: number } | "missing" | "duplicate" | "no-fence" {
@@ -28,8 +29,11 @@ export function parseSections(source: string): Section[] {
   const lines = source.split("\n");
   const out: Section[] = [];
   let cur: Section | null = null;
+  let fence: string | null = null;
   lines.forEach((l, i) => {
-    if (l.startsWith("## ")) {
+    const f = /^\s*(```|~~~)/.exec(l);
+    if (f !== null) fence = fence === null ? f[1]! : fence === f[1] ? null : fence;
+    if (fence === null && f === null && l.startsWith("## ")) {
       if (cur) out.push(cur);
       cur = { heading: l.slice(3).trim(), text: "", startLine: i + 1 };
     } else if (cur) {
@@ -71,6 +75,31 @@ export function existsWithContent(path: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Tracked paths when `root` is the top of a git work tree; null otherwise (spec §7 AH-12). */
+export function trackedFiles(root: string): Tracked | null {
+  try {
+    const opts = { cwd: root, encoding: "utf-8" as const, stdio: ["ignore", "pipe", "ignore"] as ["ignore", "pipe", "ignore"], maxBuffer: 256 * 1024 * 1024 };
+    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], opts).trim();
+    if (realpathSync(top) !== realpathSync(root)) return null;
+    const files = new Set(execFileSync("git", ["ls-files", "-z", "--cached"], opts).split("\0").filter(Boolean));
+    const dirs = new Set<string>();
+    for (const f of files) {
+      const parts = f.split("/");
+      for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
+    }
+    return { files, dirs };
+  } catch {
+    return null;
+  }
+}
+
+/** A tracked file or a directory holding one; the filesystem check when the root is not a git work tree. */
+export function pathExists(m: { root: string; tracked: Tracked | null }, rel: string): boolean {
+  const p = rel.replace(/^\.\//, "").replace(/\/+$/, "");
+  if (m.tracked === null) return existsWithContent(join(m.root, p));
+  return m.tracked.files.has(p) || m.tracked.dirs.has(p);
 }
 
 function lstatOk(file: string): boolean {
@@ -149,7 +178,6 @@ function readJson(file: string): Record<string, unknown> {
 export function loadModel(root: string): Model {
   const errors: Violation[] = [];
   const units = new Map<string, Unit>();
-  const skillAliases = new Set<string>();
 
   const register = (file: string, kind: "agent" | "skill", fallbackName: string, source: string | Error): string | null => {
     const rel = relative(root, file);
@@ -185,12 +213,8 @@ export function loadModel(root: string): Model {
     }
     const file = join(skillsDir, dir, "SKILL.md");
     const source = tryRead(file);
-    if (typeof source !== "string" && !existsSync(join(skillsDir, dir))) continue;
     if (typeof source !== "string" && (source as NodeJS.ErrnoException).code === "ENOENT" && !lstatOk(file)) continue;
-    if (register(file, "skill", dir, source) === null) continue;
-    skillAliases.add(dir);
-    const fmName = frontmatterLite(source as string).name;
-    if (fmName) skillAliases.add(fmName);
+    register(file, "skill", dir, source);
   }
 
   let pipeline: Pipeline | null = null;
@@ -229,18 +253,29 @@ export function loadModel(root: string): Model {
     AegisEventSchema.options.map((o) => (o.shape.type as { value: string }).value)
   );
 
+  const tracked = trackedFiles(root);
+  const isTracked = (abs: string) => tracked === null || tracked.files.has(relative(root, abs));
+  let topDocs: string[] = [];
+  try {
+    topDocs = readdirSync(join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => join(root, "docs", f));
+  } catch {
+    topDocs = [];
+  }
   const docs = [
     ...walk(join(root, "HANDBOOK"), (p) => p.endsWith(".md")),
-    ...["CLAUDE.md", "README.md"].map((f) => join(root, f)).filter((f) => existsSync(f)),
-  ].flatMap((f) => {
-    const source = tryRead(f);
-    return typeof source !== "string" ? [] : [{ file: relative(root, f), source }];
-  });
+    ...["CLAUDE.md", "HANDBOOK.md", "README.md"].map((f) => join(root, f)).filter((f) => existsSync(f)),
+    ...topDocs,
+  ]
+    .filter(isTracked)
+    .flatMap((f) => {
+      const source = tryRead(f);
+      return typeof source !== "string" ? [] : [{ file: relative(root, f), source }];
+    });
 
   return {
     root,
     units,
-    skillAliases,
+    tracked,
     pipeline,
     aegisConfig: readJson(join(root, "aegis.config.json")),
     thresholds,

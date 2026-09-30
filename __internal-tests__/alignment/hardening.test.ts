@@ -18,7 +18,7 @@ describe('8h item 1: loader', () => {
     fs.writeFileSync(path.join(t.root, '.claude/skills/.DS_Store'), 'x');
     const m = loadModel(t.root);
     expect(m.loadErrors.map((v) => v.key).filter((k) => /README|DS_Store/.test(k))).toEqual([]);
-    expect([...m.skillAliases]).toEqual([]);
+    expect([...m.units.keys()]).toEqual(['qa-a']);
     t.cleanup();
   });
 });

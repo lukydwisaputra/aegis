@@ -113,12 +113,14 @@ it('SPV: shared SPV via spvPairs is consistent', () => {
   t.cleanup();
 });
 
-it('DISPATCH: skill alias (dir _qa-x, name qa-x) resolves', () => {
+it('AH-17: qa-x does not resolve to the skill _qa-x (no x → _x fallback, no frontmatter alias)', () => {
   const t = makeRepo({
     skills: { '_qa-x': { name: 'qa-x', contract: { contract: 1, kind: 'internal', dispatches: ['qa-a'] } } },
     agents: { 'qa-a': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-x'], reviewedBy: none } } },
   });
-  expect(keys(dispatchRule(loadModel(t.root)))).toEqual([]);
+  const m = loadModel(t.root);
+  expect(keys(dispatchRule(m))).toEqual(['DISPATCH:qa-a:_qa-x:undeclared-dispatcher']);
+  expect(keys(contractRule(m))).toEqual(['CONTRACT:qa-a:qa-x:unknown-unit']);
   t.cleanup();
 });
 

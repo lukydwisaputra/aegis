@@ -1,5 +1,4 @@
-import { join } from "node:path";
-import { existsWithContent } from "../load.js";
+import { pathExists } from "../load.js";
 import { isCliRecordedEventType } from "@qa/run-state";
 import { CLI_RECORDS, commandRecords } from "../cli-records.js";
 import { proseLines } from "../markdown.js";
@@ -95,7 +94,7 @@ const hasPlaceholder = (p: string) => /[{*]/.test(p.startsWith("{aegis}/") ? p.s
 export function missingRepoSource(m: Model, p: string): boolean {
   const repo = m.pipeline?.sources.repo ?? [];
   if (hasPlaceholder(p) || !repo.some((s) => overlaps(s, p)) || patternSources(m).some((s) => overlaps(s, p))) return false;
-  return !existsWithContent(join(m.root, p.startsWith("{aegis}/") ? p.slice("{aegis}/".length) : p));
+  return !pathExists(m, p.startsWith("{aegis}/") ? p.slice("{aegis}/".length) : p);
 }
 
 const optional = (e: PathEntry) => typeof e !== "string" && e.optional === true;
