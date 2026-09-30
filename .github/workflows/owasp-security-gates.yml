@@ -1,0 +1,37 @@
+name: OWASP Security Gates
+
+# Thin caller. Every gate, and the logic inside it, is defined once in shared-ci --
+# see decisions/2026-09-04-shared-ci-is-defined-once-and-everything-follows.md in wd-infra.
+# This file carries only what is genuinely local: when to run, and this repo's parameters.
+# A behaviour change belongs in shared-ci, never here.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  security-gates:
+    uses: WerkDone-Pte-Ltd/shared-ci/.github/workflows/owasp-security-gates.yml@main
+    secrets: inherit
+    with:
+      node_version: '22'
+      package_manager: pnpm
+      pnpm_version: '11.5.2'
+      audit_level: high
+      audit_production_only: true
+      run_dependency_audit: true
+      run_secret_scan: true
+      run_semgrep: true
+      run_eslint_security: true
+      run_ai_code_guard: true
+      post_pr_summary: true
+      run_rls_audit: false # no Supabase in this repo

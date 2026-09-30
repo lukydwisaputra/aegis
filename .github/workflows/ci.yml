@@ -1,0 +1,41 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # pnpm version is read from package.json "packageManager" (pnpm@11.5.2).
+      # Do NOT also set `with: version:` — action-setup@v4 errors on a double-specified version.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Baseline-growth guard
+        if: github.event_name == 'pull_request'
+        env:
+          ALLOW_BASELINE_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'baseline-growth') }}
+          BASE_REF: ${{ github.base_ref }}
+        run: pnpm exec tsx scripts/check-baseline-growth.ts --base "origin/$BASE_REF"
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm test:smoke
+      - run: pnpm aegis align
