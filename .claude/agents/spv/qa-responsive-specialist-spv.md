@@ -45,3 +45,29 @@ You review responsive/viewport test results from `qa-responsive-specialist`. You
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-responsive-specialist]
+reads:
+  - "{run}/reports/work/qa-responsive-specialist.json"
+  - "{tests}/qa/**"
+  - "{run}/cases/*.json"
+  - "{run}/defects/*.json"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-responsive-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

@@ -43,3 +43,29 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-exploratory-specialist]
+reads:
+  - "{run}/reports/work/qa-exploratory-specialist.json"
+  - "{run}/reports/exploratory/{session-id}-notes.{md,json}"
+  - "{run}/defects/*.json"
+  - "{run}/evidence/{DEF}/**"
+  - "sandbox/{date}-{slug}/**"
+  - "agent-memory/qa-exploratory-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

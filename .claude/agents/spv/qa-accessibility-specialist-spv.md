@@ -44,3 +44,30 @@ You review accessibility test files and reports from `qa-accessibility-specialis
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-accessibility-specialist]
+reads:
+  - "{run}/reports/work/qa-accessibility-specialist.json"
+  - "{tests}/qa/a11y/**"
+  - "{run}/evidence/**"
+  - "{run}/defects/*.json"
+  - "{tests}/qa/**"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-accessibility-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

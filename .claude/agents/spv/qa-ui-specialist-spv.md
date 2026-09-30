@@ -52,3 +52,33 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 ## Events You Emit
 
 - `review.passed` / `review.requested-changes`
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+phase: spv
+dispatchedBy: [qa-test-executor]
+reviewedBy: {none: "not stated in prose"}
+reviews: [qa-ui-specialist]
+reads:
+  - "{run}/reports/work/qa-ui-specialist.json"
+  - "{tests}/qa/specs/{url-path}/**"
+  - "{tests}/qa/pages/{url-path}/**"
+  - "{tests}/qa/fixtures/auth.fixture"
+  - "{tests}/qa/**"
+  - "{run}/evidence/**"
+  - "{run}/proposed-changes/**"
+  - "{target}/playwright.config.ts"
+  - "{run}/events.jsonl"
+  - "agent-memory/qa-ui-specialist/lessons.md"
+writes: []
+emits:
+  - {event: review.passed, via: append}
+  - {event: review.requested-changes, via: append}
+awaits: []
+cli: []
+runs: [grep]
+dispatches: []
+config: []
+```
