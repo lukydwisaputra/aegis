@@ -18,7 +18,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-realtime-specialist.json` — work report
-- Real-time test files at `tests/`
+- Real-time test files at `tests/qa/api/{feature}.realtime.test.ts`
 - `target-profile.json` — for feature detection
 - `agent-memory/qa-realtime-specialist/lessons.md`
 
@@ -54,7 +54,8 @@ reviewedBy: {none: "not stated in prose"}
 reviews: [qa-realtime-specialist]
 reads:
   - "{run}/reports/work/qa-realtime-specialist.json"
-  - "{tests}/**"
+  - "{tests}/qa/api/{feature}.realtime.test.ts"
+  - "{tests}/qa/**"
   - "{run}/target-profile.json"
   - "{run}/events.jsonl"
   - "agent-memory/qa-realtime-specialist/lessons.md"

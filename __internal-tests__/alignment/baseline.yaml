@@ -298,9 +298,6 @@ entries:
   - key: "CONSUMER:qa-curator:{run}/pending-promotions/skill-{name}.json:unread"
     ids: [AUD-059]
     note: "no one reads {run}/pending-promotions/skill-{name}.json"
-  - key: "CONSUMER:qa-database-specialist-spv:{tests}/**:too-broad"
-    ids: [AUD-109]
-    note: "{tests}/** is too broad to index as a reader"
   - key: "CONSUMER:qa-environment-engineer:{run}/playwright-output/**:unread"
     ids: [AUD-108]
     note: "no one reads {run}/playwright-output/**"
@@ -316,9 +313,6 @@ entries:
   - key: "CONSUMER:qa-orchestrator:{run}/taskmaster.json:unread"
     ids: [AUD-006]
     note: "no one reads {run}/taskmaster.json"
-  - key: "CONSUMER:qa-realtime-specialist-spv:{tests}/**:too-broad"
-    ids: [AUD-109]
-    note: "{tests}/** is too broad to index as a reader"
   - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
     ids: [NEW-01]
     note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
@@ -512,9 +506,6 @@ entries:
     ids: [AUD-073]
     note: "pnpm qa-health is not a root or workspace script, bin or pnpm command"
   # --- DRIFT ---
-  - key: "DRIFT:qa-database-specialist:aegis.config.json#environments.{env}.readOnly:config-not-in-prose"
-    ids: [AUD-114]
-    note: "contract config lists aegis.config.json#environments.{env}.readOnly; prose never names it"
   # --- ENV ---
   - key: "ENV:testing:functional:unmapped"
     ids: [AUD-036]
@@ -1208,9 +1199,6 @@ entries:
   - key: "PRODUCER:qa-accessibility-specialist-spv:{run}/reports/work/qa-accessibility-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-accessibility-specialist.json is a work report, but no worker qa-accessibility-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-accessibility-specialist-spv:{tests}/qa/a11y/**:none"
-    ids: [AUD-109]
-    note: "nothing produces {tests}/qa/a11y/**"
   - key: "PRODUCER:qa-api-specialist-spv:{run}/reports/work/qa-api-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-api-specialist.json is a work report, but no worker qa-api-specialist-spv reviews lists work-report.submit"
