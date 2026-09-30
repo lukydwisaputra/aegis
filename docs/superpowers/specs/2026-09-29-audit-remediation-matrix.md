@@ -254,7 +254,7 @@ Owner overlaps (one violation class, two IDs — close them together):
 
 | ID | Item | Status |
 |----|------|--------|
-| AH-01 | DRIFT anchors every contract field to prose: backticked `aegis <noun> <verb>` ↔ `cli`; `aegis.config.json#…`, `thresholds.yaml`, `config/*.yaml` ↔ `config`; `emits.via`, skill `kind`, `runs` | fixed |
+| AH-01 | DRIFT anchors every contract field to prose: backticked `aegis <noun> <verb>` ↔ `cli`; `aegis.config.json#…`, `thresholds.yaml`, `config/*.yaml` ↔ `config`; `emits.via`, skill `kind`, `runs` (partial: prose written as `aegis.config.json.a.b`, dots instead of `#`, 14 uses, is not anchored by CONFIG_REF; see AH-20) | fixed |
 | AH-02 | Escape hatches (`dispatch: {none}`, `reviewedBy: {none}`, `optional`, `terminal`, non-pipeline `phase`) reported as their own ratcheted class (partial: a non-pipeline `phase` is not an escape hatch; the special phases crosscutting, spv, devops and tooling are a fixed four-value category checked by CONTRACT unknown-phase, not a free escape) | fixed |
 | AH-03 | `pipeline.yaml` anchored to prose: executor routing lines, designer technique vocabulary, orchestrator phase table; every route target ∈ executor `dispatches`; route reachable from `designerEmits` (AUD-008, 032/033/035) | fixed |
 | AH-04 | Typed ID placeholders: `{TC}.json` must not overlap `{TC}-result.json` / `{TC}-{viewport}-result.json` (AUD-087) | fixed |
@@ -271,3 +271,8 @@ Owner overlaps (one violation class, two IDs — close them together):
 | AH-15 | cli-only / `{tests}` write checks use `overlaps`, not `matches` (`{run}/events*.jsonl` passes today) — `dataflow.ts` | fixed |
 | AH-16 | DOC-REF checks `_qa-*` tokens and `/_qa-*` slash commands against skill directory names (leading underscore skipped today) — `prose.ts` | fixed |
 | AH-17 | `unitFor`/`known()` drop the `x`→`_x` fallback and frontmatter-name aliases (contradicts F7; `dispatches: qa-report-technical-pdf` passes) — `structure.ts` | fixed |
+| AH-18 | `writePolicy.writable/units` and `externalScripts` entries count as growth in the guard (like `escapes`), and `writePolicy.units` keys are validated against unit names (owner P5) | open |
+| AH-19 | Shrink-guard evidence accepts a prose change in the other unit that mentions the key's detail (PRODUCER/CONSUMER/DISPATCH/EVENT pairs) (owner P5) | open |
+| AH-20 | CONFIG_REF also anchors the dotted `aegis.config.json.x.y` form (owner P5) | open |
+| AH-21 | Designer vocabulary is checked both ways (prose technique lists ⊆ designerEmits), not by any backticked token (owner P5) | open |
+| AH-22 | Dedupe `escapeRe` (anchors.ts/reverse.ts); namedConsumerRule uses `proseLines`; a single contract-block parser; `freshness.ts` counts only `*.ts` under src and tolerates stat errors (owner P5) | open |
