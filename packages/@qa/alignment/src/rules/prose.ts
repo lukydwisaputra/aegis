@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { CONTRACT_HEADING } from "../load.js";
+import { CONTRACT_HEADING, frontmatterLite } from "../load.js";
 import { normalizePath, overlaps, staticPrefix } from "../paths.js";
 import { isAgentContract, isSkillContract, pathOf, violation, type Model, type Section, type Unit, type Violation } from "../types.js";
 
@@ -151,9 +151,19 @@ export function driftRule(m: Model): Violation[] {
 export function docRefRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const allow = new Set(m.pipeline?.nonAgentNames ?? []);
-  const valid = (t: string) => m.units.has(t) || m.skillAliases.has(t) || m.skillAliases.has(`_${t}`) || allow.has(t);
-  const files = [...m.docs, ...[...m.units.values()].map((u) => ({ file: u.file, source: u.source }))];
-  for (const { file, source } of files) {
+  // A skill is invoked by its directory name: `qa-report-x` / `/qa-report-x` do not reach `_qa-report-x`,
+  // even when that skill's frontmatter says `name: qa-report-x`.
+  const skillDirs = new Set([...m.units.values()].filter((u) => u.kind === "skill").map((u) => u.name));
+  const valid = (t: string) => m.units.has(t) || allow.has(t);
+  // A unit's own file may use its own frontmatter name (title line, `name:`); nowhere else resolves through it.
+  const files: Array<{ file: string; source: string; self?: string }> = [
+    ...m.docs,
+    ...[...m.units.values()].map((u) => {
+      const self = frontmatterLite(u.source).name;
+      return self !== undefined ? { file: u.file, source: u.source, self } : { file: u.file, source: u.source };
+    }),
+  ];
+  for (const { file, source, self } of files) {
     const seen = new Set<string>();
     source.split("\n").forEach((line, i) => {
       for (const sc of line.matchAll(/(?<=^|[\s`(])\/(qa-[a-z0-9-]+)/g)) {
@@ -161,8 +171,8 @@ export function docRefRule(m: Model): Violation[] {
         const after = line.slice((sc.index ?? 0) + sc[0].length);
         if (/^\.(?:ya?ml|md|json|ts)\b/.test(after)) continue;
         const key = `/${t}`;
-        if (m.skillAliases.has(t) || m.skillAliases.has(`_${t}`) || seen.has(key)) continue;
-        if (sc[1]!.endsWith("-") && [...m.skillAliases].some((a) => a.startsWith(`${t}-`))) continue;
+        if (skillDirs.has(t) || t === self || seen.has(key)) continue;
+        if (sc[1]!.endsWith("-") && [...skillDirs].some((a) => a.startsWith(`${t}-`))) continue;
         seen.add(key);
         out.push(violation("DOC-REF", file, key, "unknown-command", file, i + 1, `${key} is not a skill`));
       }
@@ -171,7 +181,7 @@ export function docRefRule(m: Model): Violation[] {
         if (mt[0].endsWith("-") && [...m.units.keys()].some((n) => n.startsWith(`${t}-`))) continue;
         const after = line.slice((mt.index ?? 0) + mt[0].length);
         if (/^\.(?:ya?ml|md|json|ts)\b/.test(after)) continue;
-        if (valid(t) || seen.has(t)) continue;
+        if (valid(t) || t === self || seen.has(t)) continue;
         seen.add(t);
         out.push(violation("DOC-REF", file, t, "unknown", file, i + 1, `${t} is not an agent, skill, package or allowlisted name`));
       }

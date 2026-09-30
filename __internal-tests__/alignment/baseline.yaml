@@ -191,6 +191,15 @@ entries:
   - key: "DOC-REF:.claude/agents/spv/qa-closure-reporter-spv.md:qa-executor:unknown"
     ids: [AUD-076]
     note: "qa-executor is not an agent, skill, package or allowlisted name"
+  - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-executive-slides:unknown"
+    ids: [AUD-060]
+    note: "qa-report-executive-slides is not an agent, skill, package or allowlisted name (skill is _qa-report-executive-slides)"
+  - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-signoff-pdf:unknown"
+    ids: [AUD-060]
+    note: "qa-report-signoff-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-signoff-pdf)"
+  - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
+    ids: [AUD-060]
+    note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
   - key: "DOC-REF:CLAUDE.md:qa-director:unknown"
     ids: [AUD-076]
     note: "qa-director is not an agent, skill, package or allowlisted name"

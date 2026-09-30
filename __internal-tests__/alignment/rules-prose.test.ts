@@ -134,3 +134,18 @@ it('DRIFT paths: Outputs must be in writes, Inputs in reads, Process in either',
   expect(mk('Process', '1. Read `{run}/in.json`, write `{run}/out.json`.')).toEqual([]);
   expect(mk('Process', '1. Write `{run}/other.json`.')).toEqual(['DRIFT:qa-a:{run}/other.json:path-not-in-contract']);
 });
+
+it('DOC-REF: qa-report-x and /qa-report-x do not resolve to the internal skill _qa-report-x', () => {
+  const t = makeRepo({
+    skills: {
+      '_qa-report-x': { name: 'qa-report-x', contract: { contract: 1, kind: 'internal' } },
+      'qa-start': { contract: { contract: 1, kind: 'execution' } },
+    },
+    docs: { 'HANDBOOK/03.md': 'Skill to invoke: `qa-report-x`.\nRun /qa-report-x.\nThe `_qa-report-x` skill, qa-start and /qa-start are fine.\n' },
+  });
+  expect(keys(docRefRule(loadModel(t.root)))).toEqual([
+    'DOC-REF:HANDBOOK/03.md:/qa-report-x:unknown-command',
+    'DOC-REF:HANDBOOK/03.md:qa-report-x:unknown',
+  ]);
+  t.cleanup();
+});
