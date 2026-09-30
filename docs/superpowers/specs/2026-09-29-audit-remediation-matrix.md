@@ -23,8 +23,8 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 |-------|----|-------------|-----------|
 | done | P0b-1 | Contracts & CLI skeleton (run-state, event chain) | — |
 | 1a | ALIGN | Alignment checker: contracts per agent/skill, `pipeline.yaml`, ratchet baseline (every violation owned by a matrix ID) | P0b-1 |
-| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need a label) | ALIGN |
-| 1a-H | ALIGN-H | Alignment checker hardening (AH-01..14) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
+| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need a label) ; fix `pnpm-workspace.yaml` `allowBuilds.esbuild` placeholder (fresh-clone install/build/test fail on pnpm 11) | ALIGN |
+| 1a-H | ALIGN-H | Alignment checker hardening (AH-01..17) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
 | 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
 | 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |
 | 3 | P0a-1 | Phases, gates, barrier, orchestrator rewrite | P1 |
@@ -228,7 +228,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-108 | Artefact written that no agent reads and that is not marked terminal | qa-environment-engineer.md:56 `runs/{runId}/playwright-output` | LOW | P0c | open |
 | AUD-109 | Agent inputs name paths no producer writes or too vague to trace | qa-accessibility-specialist-spv.md:21 `tests/qa/a11y/` (specialist writes `tests/qa/specs/{url-path}/a11y.spec.ts`); qa-database-specialist-spv.md:21 and qa-realtime-specialist-spv.md:21 `tests/` | LOW | QW | open |
 | AUD-110 | Execution skills invoke other skills directly instead of routing through the orchestrator/CLI | qa-start SKILL:28 `/qa-health`; qa-promote-stage SKILL:25 `/qa-gate-check`; qa-regression SKILL:29 `qa-compare` | MED | P0c | open |
-| AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis task submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
+| AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
 | AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
 
 Known detection gaps (open items the checker cannot see; their slices close them by review, not by
@@ -254,6 +254,9 @@ deleting baseline lines):
 | AH-09 | DRIFT scope: all agent sections, undeclared event names in prose, aegis-root paths, HANDBOOK.md, docs/*.md, frontmatter `description` (AUD-092) |
 | AH-10 | Worker→SPV handoff verified: reviewed workers need `work-report.submit` / `task.claim` in `cli` (AUD-081/083) |
 | AH-11 | Reverse checks: config keys nothing reads (AUD-007), events nobody consumes (AUD-027), package names / pnpm scripts in docs (AUD-066/073), agent counts (AUD-075) |
-| AH-12 | Existence checks read git-tracked files, not the working tree (untracked `config/`, `artifacts/` flip entries locally) |
+| AH-12 | Existence checks and doc loading read git-tracked files, not the working tree (untracked `config/`, `artifacts/` flip entries locally; gitignored `README.md` is scanned by DOC-REF) |
 | AH-13 | `WRITABLE` table moves from `dataflow.ts` into `pipeline.yaml` (single copy of the write policy; `sandbox/**` vs CLAUDE.md) |
-| AH-14 | Code debt: reuse the existing frontmatter scalar parser; exact `CLI_RECORDS` per-command test; `aegis align` resolves `@qa/contracts` from source or fails on stale dist; dedupe `allSources`; loader dead branch; `via: owner|none`; CLI smoke test; per-slice grouping in report output; secondary IDs AUD-023/024/025 on skill `run.*` EVENT entries; event-bus `appends-without-cli` → AUD-048; overlaps AUD-105↔043, AUD-101/103↔CO-05; `_qa-init-project` HANDBOOK.md allowance; CRLF frontmatter; heading inside fenced example; `**/qa-x**` / `[/qa-x]` lookbehind; own Process-only paths lost by whole-line skip; SPV `lessons.md` vs `lessons.json` naming (AUD-074) |
+| AH-14 | Code debt: reuse the existing frontmatter scalar parser; exact `CLI_RECORDS` per-command test; `aegis align` resolves `@qa/contracts` from source or fails on stale dist; dedupe `allSources`; loader dead branch; `via: owner|none`; CLI smoke test; per-slice grouping in report output; secondary IDs AUD-023/024/025 on skill `run.*` EVENT entries; event-bus `appends-without-cli` → AUD-048; overlaps AUD-105↔043, AUD-101/103↔CO-05; `_qa-init-project` HANDBOOK.md allowance; CRLF frontmatter; heading inside fenced example; `**/qa-x**` / `[/qa-x]` lookbehind; own Process-only paths lost by whole-line skip; SPV `lessons.md` vs `lessons.json` naming (AUD-074); declare `yaml` in `__internal-tests__/package.json` devDependencies |
+| AH-15 | cli-only / `{tests}` write checks use `overlaps`, not `matches` (`{run}/events*.jsonl` passes today) — `dataflow.ts` |
+| AH-16 | DOC-REF checks `_qa-*` tokens and `/_qa-*` slash commands against skill directory names (leading underscore skipped today) — `prose.ts` |
+| AH-17 | `unitFor`/`known()` drop the `x`→`_x` fallback and frontmatter-name aliases (contradicts F7; `dispatches: qa-report-technical-pdf` passes) — `structure.ts` |

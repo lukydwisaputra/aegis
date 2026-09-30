@@ -178,7 +178,7 @@ written in the `none` text or the PR description.
 | `routing` → `byType` / `byTechnique` | Adding a specialist, or a test type / technique it serves |
 | `routing` → `designerEmits` / `techniqueWithoutSpecialist` | The test designer produces a new type or technique |
 | `envSpecialists` | Environments refer to a specialist by a short name |
-| `spvPairs` | An SPV is not named `<agent>-spv` |
+| `spvPairs` | An SPV is not named `<agent>-spv` — also update `SHARED_SPV` in `packages/@qa/run-state/src/caller.ts`, or SPV reports `pair-mismatch` |
 | `sources` | A path is produced outside any agent (`cli`, `owner`, `target`, `repo`); a concrete `repo` read must exist on disk |
 | `nonAgentNames` | A `qa-*` token in the docs is not an agent or skill (labels, project names) |
 
