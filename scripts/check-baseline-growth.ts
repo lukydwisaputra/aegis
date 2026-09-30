@@ -26,7 +26,13 @@ try {
   baseYaml = null;
 }
 
-const added = baselineGrowth(baseYaml, readFileSync(BASELINE, "utf-8"));
+let added: string[];
+try {
+  added = baselineGrowth(baseYaml, readFileSync(BASELINE, "utf-8"));
+} catch (e) {
+  console.log(`::error title=Baseline-growth guard COULD NOT RUN::${e instanceof Error ? e.message : String(e)}`);
+  process.exit(2);
+}
 if (added.length === 0) {
   console.log("baseline-growth: no new baseline keys");
   process.exit(0);

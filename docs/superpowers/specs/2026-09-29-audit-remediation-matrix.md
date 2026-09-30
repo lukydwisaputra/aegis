@@ -23,7 +23,7 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 |-------|----|-------------|-----------|
 | done | P0b-1 | Contracts & CLI skeleton (run-state, event chain) | — |
 | 1a | ALIGN | Alignment checker: contracts per agent/skill, `pipeline.yaml`, ratchet baseline (every violation owned by a matrix ID) | P0b-1 |
-| 1a' | CI | Minimal GitHub Actions (`.github/workflows/ci.yml`): typecheck, `pnpm test`, build, `pnpm test:smoke`, `pnpm aegis align` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need the `baseline-growth` label); OWASP security-gates caller; fix `pnpm-workspace.yaml` `allowBuilds.esbuild` placeholder (fresh-clone install/build/test fail on pnpm 11) | ALIGN |
+| 1a' | CI | Minimal GitHub Actions (`.github/workflows/ci.yml`): build, typecheck, `pnpm test`, `pnpm test:smoke`, `pnpm aegis align` on PRs; baseline-growth guard (added `baseline.yaml` keys vs `main` need the `baseline-growth` label); OWASP gates: see CI-02; fix `pnpm-workspace.yaml` `allowBuilds.esbuild` placeholder (fresh-clone install/build/test fail on pnpm 11) | ALIGN |
 | 1a-H | ALIGN-H | Alignment checker hardening (AH-01..17) — before 1b so no baseline line is "fixed" by a contract-only edit | ALIGN |
 | 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
 | 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |

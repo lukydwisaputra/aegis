@@ -71,5 +71,5 @@ Steps, in order:
 - **`actionlint`** on both workflows, if available through `pnpm dlx` or brew. Otherwise say so.
 - **On the PR:**
   - `CI / build` must be green on Node 22;
-  - the OWASP run is reported as FOUND, COULD NOT RUN, or green;
+  - the OWASP run was reported as COULD NOT RUN (access) and the caller removed (CI-02);
   - the required-check name is reported to the owner. Stage-0 has no rulesets, so it is set manually.
