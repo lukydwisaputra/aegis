@@ -11,7 +11,7 @@ This handbook is the complete guide to the Aegis QA framework. Read it cover-to-
 | 2 | [Getting Started](HANDBOOK/02-getting-started.md) | Three onboarding tracks: fresh installer (~30 min), teammate after clone (~5 min), and CI/CD wiring (~10 min). Every step has a verify command. |
 | 3 | [Architecture](HANDBOOK/03-architecture.md) | Orchestrator, tiers, SPVs, model tiers, Taskmaster, event bus, path-guard, and the three human gates. |
 | 4 | [STLC Walkthrough](HANDBOOK/04-stlc-walkthrough.md) | What happens when `/qa-start` runs: a nine-phase breakdown (Requirements → Discovery → Planning → Design → Environment → Execution → Triage → Closure → Executive Report), illustrated with the Login/SSO feature. |
-| 5 | [Commands](HANDBOOK/05-commands.md) | All 28 user commands in 6 groups: each with purpose, flags table, and a worked example. |
+| 5 | [Commands](HANDBOOK/05-commands.md) | The core user commands in 6 groups: each with purpose, flags table, and a worked example. |
 | 6 | [Agent Roster](HANDBOOK/06-agents.md) | All agents in full mode: Orchestrator (1), Tier-1 phase managers (8), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes. |
 | 7 | [Templates and Standardization](HANDBOOK/07-templates-and-standardization.md) | ID scheme, severity/priority dual-format, defect report fields, test case fields, RTM columns, naming conventions, and test data. |
 | 8 | [Compliance](HANDBOOK/08-compliance.md) | ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, and PDPA: tag formats per regulation, parallel reviewer workflow, and how findings appear in reports. |

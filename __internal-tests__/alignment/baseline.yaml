@@ -445,66 +445,6 @@ entries:
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-worktree-manager:unknown"
     ids: [AUD-076]
     note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-books:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-books is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-evaluate:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-evaluate is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-implement:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-implement is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-plan:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-plan is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ci-status:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ci-status is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-close:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-close is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash-export:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-export is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash-open:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-open is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash-refresh:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-refresh is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-dash:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-close:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-close is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-list:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-list is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-report:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-report is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-triage:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-triage is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect-update:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect-update is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-defect:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-defect is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-forget:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-forget is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-ingest:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-ingest is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-lessons:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-lessons is not a skill"
-  - key: "DOC-REF:HANDBOOK/05-commands.md:/qa-reset-agent:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-reset-agent is not a skill"
   - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
@@ -541,15 +481,9 @@ entries:
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-worktree-manager:unknown"
     ids: [AUD-076]
     note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/07-templates-and-standardization.md:qa-defect-reporter:unknown"
-    ids: [AUD-106]
-    note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/08-compliance.md:qa-compliance-gdpr-spv:unknown"
     ids: [AUD-052]
     note: "qa-compliance-gdpr-spv is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:/qa-dash-export:unknown-command"
-    ids: [AUD-107]
-    note: "/qa-dash-export is not a skill"
   - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
@@ -559,9 +493,6 @@ entries:
   - key: "DOC-REF:HANDBOOK/14-extending.md:@qa/templates:unknown-package"
     ids: [AUD-066]
     note: "@qa/templates is not a package in packages/@qa/"
-  - key: "DOC-REF:HANDBOOK/16-glossary.md:qa-sandbox-manager:unknown"
-    ids: [AUD-106]
-    note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:docs/D02-teammate-onboarding.md:@qa/templates:unknown-package"
     ids: [AUD-066]
     note: "@qa/templates is not a package in packages/@qa/"

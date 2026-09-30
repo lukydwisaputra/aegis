@@ -66,17 +66,9 @@ PDFs are generated using a headless Chromium print pipeline. They respect the `d
 
 ### 9.4 Operational Rollups
 
-The weekly rollup aggregates data across all runs in the week. It shows:
-
-- Defect escape rate (defects found post-merge / total defects)
-- Mean time to resolution (MTTR) per severity level
-- Test coverage trend (week-over-week)
-- Top 5 recurring defect patterns
-- Agent lesson adoption rate
-
-Generate a rollup on demand:
+Rollups are per run. `qa-metrics-collector` writes them to `runs/<RUN-ID>/reports/metrics/` (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `agent-reliability.json` and others) as each phase completes, and `qa-closure-reporter` reads them into the closure report. No command aggregates a calendar week; to see the trend between two runs, diff them:
 ```bash
-/qa-dash-export --rollup --week 2026-W21
+/qa-compare RUN-20260516-001 RUN-20260523-001 --focus=defects,coverage
 ```
 
 ---
