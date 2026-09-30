@@ -23,10 +23,12 @@ The only way a human gate is decided. A full cycle pauses at three gates — G1 
 | `--run` | active run | Run to decide |
 
 ## Behaviour
-1. Run `AEGIS_AGENT=owner pnpm aegis run status` and confirm the named gate is open. If it is not, print the run's `next` step and stop.
+Every command below takes `--run <id>` when the owner gave `--run`; without it the CLI uses the active run.
+
+1. Run `AEGIS_AGENT=owner pnpm aegis run status [--run <id>]` and confirm the named gate is open. If it is not, print the run's `next` step and stop.
 2. Show the owner what the gate covers before recording anything: G1 the plan and risk register, G2 the triaged defects, G3 the closure report and residual risks.
-3. Run `AEGIS_AGENT=owner pnpm aegis gate decide --gate G<N> --decision <decision> --note "<note>"` (plus `--reopen-phase <phase>` when rejected). The CLI writes the gate decision file, keeps any earlier decision as history, records `gate.decided` and sets the run back to running; a rejection resets the phases from the reopen phase onward.
-4. Dispatch `qa-orchestrator` so the run continues from its next step.
+3. Run `AEGIS_AGENT=owner pnpm aegis gate decide --gate G<N> --decision <decision> --note "<note>" [--run <id>]` (plus `--reopen-phase <phase>` when rejected). The CLI writes the gate decision file, keeps any earlier decision as history, records `gate.decided` and sets the run back to running; a rejection resets the phases from the reopen phase onward.
+4. Dispatch `qa-orchestrator` for the same run so it continues from its next step.
 5. Relay the orchestrator's status to the owner.
 
 ## Events emitted

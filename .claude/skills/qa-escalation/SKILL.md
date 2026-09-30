@@ -6,7 +6,9 @@ description: Decide a task that its SPV rejected three times (retry, accept with
 # /qa-escalation
 
 ## Purpose
-When an SPV rejects the same task for the third time, the CLI records `task.escalated` and blocks the run. Only the owner can unblock it, here. The decision is recorded, the escalation is cleared (a later third rejection escalates again) and the run continues or stops. `/qa-resume` refuses a run blocked by an undecided escalation.
+When an SPV rejects the same task for the third time, the CLI records `task.escalated` and blocks the run. Only the owner can unblock it, here. The decision is recorded, the escalation is cleared (the next rejection escalates again, because retry keeps the round) and the run continues or stops. `/qa-resume` refuses a run blocked by an undecided escalation.
+
+`accept-with-risk` on a gate task (`T-GATE-G<N>`) cannot open the gate: the gate opens only after a passed `qa-orchestrator-spv` review of that task. Use `retry` for gate tasks.
 
 ## Usage
 ```
@@ -22,9 +24,11 @@ When an SPV rejects the same task for the third time, the CLI records `task.esca
 | `--run` | active run | Run to decide |
 
 ## Behaviour
-1. Run `AEGIS_AGENT=owner pnpm aegis run status`; show the escalated task, the worker and the three SPV findings from `runs/{run}/reports/review/`.
-2. Run `AEGIS_AGENT=owner pnpm aegis escalation decide --task <task-id> --decision <decision> --reason "<reason>"`. The CLI records the decision next to the reviews, clears the escalation, and — for `retry` — reopens the task.
-3. For `retry` or `accept-with-risk`, dispatch `qa-orchestrator` so the run continues. For `abort`, the run is stopped; report its state and stop.
+Every command below takes `--run <id>` when the owner gave `--run`; without it the CLI uses the active run.
+
+1. Run `AEGIS_AGENT=owner pnpm aegis run status [--run <id>]`; show the escalated task, the worker and the three SPV findings from `runs/{run}/reports/review/`.
+2. Run `AEGIS_AGENT=owner pnpm aegis escalation decide --task <task-id> --decision <decision> --reason "<reason>" [--run <id>]`. The CLI records the decision next to the reviews, clears the escalation, and — for `retry` — reopens the task.
+3. For `retry` or `accept-with-risk`, dispatch `qa-orchestrator` for the same run so it continues. For `abort`, the run is stopped; report its state and stop.
 
 ## Events emitted
 - `escalation.decided` — recorded by the CLI, never appended by this skill

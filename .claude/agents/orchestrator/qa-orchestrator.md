@@ -51,7 +51,17 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
 2. **Establish mission ranking.** From the intake artefacts, rank mission goals (find important problems fast / comprehensive assessment / certify to standard / minimise cost / advise on testability). Carry the ranking in every brief and in your gate work reports — "test everything" is not a mission.
 
-3. **Follow the canonical phase order.** Canonical order: Intake → Scan → Dev-test-review → Requirements → Env-auth → Explore → Planning → Design → Env-data → Execution → Triage → Closure-draft → Compliance → Closure-final → Executive → Curator. The CLI refuses to start a phase before every earlier phase is completed or not-applicable, so the `next` step from `aegis run status` is always the phase to work on.
+3. **Follow the canonical phase order.** Canonical order: Intake → Scan → Dev-test-review → Requirements → Env-auth → Explore → Planning → Design → Env-data → Execution → Triage → Closure-draft → Compliance → Closure-final → Executive → Curator. The CLI refuses to start a phase before every earlier phase is completed or not-applicable.
+
+   **The `next` loop.** `aegis run status` names the `next` step; its `kind` decides what you do, and nothing else does:
+   - `start-phase` → run step 4 for that phase (or record it not-applicable, step 4.5).
+   - `continue-phase` → the phase is in progress: re-check its tasks, finish its SPV loop (step 4.3) and complete it (step 4.4).
+   - `open-gate` → full cycle: run step 5 for that gate.
+   - `auto-decide` → smoke cycle: run `aegis gate auto-decide --gate G2` (end of step 5).
+   - `await-gate` → the gate is open: dispatch nothing; tell the owner it waits for `/qa-gate-decide`.
+   - `blocked` → dispatch nothing; report the block causes (an escalated task waits for `/qa-escalation`, a failed preflight or integrity check for the owner).
+   - `complete-run` → step 10.
+   - `stopped` or `completed` → dispatch nothing and report the state.
 
    Phase-to-agent map (never improvise the mapping):
 
@@ -74,11 +84,15 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | Executive | `executive` | `qa-executive-reporter` | Starts only after Gate 3 is approved. |
    | Curator | `curator` | `qa-curator` | Last phase. |
 
-   Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them. Dispatch `qa-curator` during Curator.
+   **Production rule.** Never dispatch a mutating phase agent (Env-data seeding, or any phase that writes to the target) on an environment whose `aegis.config.json#environments.{env}.readOnly` is `true`. Production is never used for mutating tests. When the next phase would need such a dispatch, stop and report to the owner instead.
+
+   Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them.
+
+   Dispatch `qa-curator` during Curator.
 
 4. **Run one phase.** For the phase named by `next`:
    1. `aegis phase start --phase <id>`. It refuses while a stop is requested, while the run is blocked or awaiting a gate, while an earlier gate is undecided or rejected, and out of order. Never work around a refusal.
-   2. For each agent in the phase: `aegis task add --id T-<id>-<n> --title "<what the agent does>"`, then dispatch the agent with the `Agent` tool. The brief carries the task id, the mission ranking, the artefact IDs to operate on, the budget remaining and the relevant `lessons.md` excerpts (Winteringham ch-09 Pattern 5: context shaped for the receiver). The worker claims the task itself (`aegis task claim`) and submits its own work report.
+   2. For each agent in the phase: `aegis task add --id T-<id>-<n> --title "<what the agent does>"`, then dispatch the agent with the `Agent` tool. After a gate rejection the tasks of the reopened phases already exist as `pending`: do not `aegis task add` them again — re-dispatch each worker for its existing task id, with the owner's decision note in its brief. The brief carries the task id, the mission ranking, the artefact IDs to operate on, the budget remaining and the relevant `lessons.md` excerpts (Winteringham ch-09 Pattern 5: context shaped for the receiver). The worker claims the task itself (`aegis task claim`) and submits its own work report.
    3. When the worker returns, dispatch its paired SPV (table below) with the worker name, the task id and the artefact paths. The SPV records its verdict through the CLI, which also pipes corrective instructions into the worker's lessons — you never write lessons.
       - `passed` or `passed-with-notes` → the task is done.
       - `requested-changes` → the CLI has reopened the task; re-dispatch the same worker for the same task id with the `CorrectiveInstruction` in its brief.
@@ -105,26 +119,34 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
    Tier-2 specialist SPVs are dispatched by `qa-test-executor`, not by you.
 
-5. **Open the gates; never decide them.** The three locked gates: after Planning (Gate 1 — Plan approval), after Triage (Gate 2 — Defect triage), before Executive (Gate 3 — Closure). Files and events name them `G1`, `G2`, `G3`. In the gated phase (Planning, Triage, Closure-final), after its workers' reviews pass and before `aegis phase complete`:
-   1. `aegis task add --id T-GATE-G<N> --title "Gate <N> preconditions"`, then `aegis task claim --task T-GATE-G<N>`.
-   2. Submit a work report for that task with `aegis work-report submit --file /dev/stdin` (the JSON on stdin): phases completed, dispatch decisions, mission ranking, lessons applied, open risks for the owner — and no ship/no-ship verdict. Then `aegis task release --task T-GATE-G<N> --result done`.
-   3. Dispatch `qa-orchestrator-spv` for task `T-GATE-G<N>`. On `requested-changes`, fix what it names and resubmit (the CLI reopened the task).
+5. **Open the gates; never decide them.** Steps 5.1–5.5 apply to a full cycle only; a smoke cycle is at the end of this step. The three locked gates: after Planning (Gate 1 — Plan approval), after Triage (Gate 2 — Defect triage), before Executive (Gate 3 — Closure). Files and events name them `G1`, `G2`, `G3`. In the gated phase (Planning, Triage, Closure-final), after its workers' reviews pass and before `aegis phase complete`:
+   1. `aegis task add --id T-GATE-G<N> --title "Gate <N> preconditions"`, then `aegis task claim --task T-GATE-G<N>`. When `T-GATE-G<N>` already exists as `pending` (after an SPV rejection or a gate rejection), skip the add and only re-claim it.
+   2. Submit a work report for that task with `aegis work-report submit --file /dev/stdin` (the JSON on stdin, a `WorkReportSchema` object):
+      - `summary` (20–300 characters): the gate and the phases completed up to it;
+      - `approach`: the mission ranking;
+      - `decisions[]`: one entry per dispatch since the previous gate — `choice` names the task id and the agent, `reason` names the mission goal served and the lessons excerpts passed in the brief;
+      - `uncertainties[]`: the open risks for the owner, each with an `impact`;
+      - `lessonsApplied`: your own lesson ids that shaped the run;
+      - no ship/no-ship verdict anywhere.
+
+      Then `aegis task release --task T-GATE-G<N> --result done`.
+   3. Dispatch `qa-orchestrator-spv` for task `T-GATE-G<N>`. On `requested-changes` the CLI has reopened the task: it is `pending` and unclaimed. Re-claim it with `aegis task claim --task T-GATE-G<N>`, fix what the review names, submit a new work report (5.2), release it again with `aegis task release --task T-GATE-G<N> --result done`, and re-dispatch `qa-orchestrator-spv`. A third rejection escalates like any task (step 4.3).
    4. `aegis phase complete --phase <gated phase>`, then `aegis gate open --gate G<N>`. The gate refuses without a passing `qa-orchestrator-spv` review of `T-GATE-G<N>`, without the completed gated phase, or when the event log fails to verify. The run is now `awaiting-gate`.
    5. Stop and tell the owner the gate waits for `/qa-gate-decide --gate=<N>`. Never approve, reject or defer a gate yourself; a gate cannot be deferred.
 
-   `/qa-gate-decide` dispatches you again after the decision. `approved` or `approved-with-conditions` → carry the conditions from `gate-{N}-decision.json` into the next briefs and continue. `rejected` → the CLI has reset the phases from the decision's `reopenPhase` onward; continue from the `next` step.
+   `/qa-gate-decide` dispatches you again after the decision. `approved` or `approved-with-conditions` → carry the conditions from `gate-{N}-decision.json` into the next briefs and continue. `rejected` → the CLI has reset the phases from the decision's `reopenPhase` onward, and their tasks — `T-GATE-G<N>` included — are `pending` again. Continue from the `next` step without `aegis task add` for those tasks: re-dispatch each worker for its existing task id with the owner's note in its brief, and re-claim `T-GATE-G<N>` (5.1) when the gated phase is reached again.
 
-   A `smoke` cycle has no human gates. After Triage, run `aegis gate auto-decide --gate G2`; the CLI evaluates `thresholds.yaml#smoke` and records the result. Never auto-decide a gate in a full cycle.
+   A `smoke` cycle has no human gates and no gate task. When `next` is `auto-decide` (after Triage), run `aegis gate auto-decide --gate G2`; the CLI evaluates `thresholds.yaml#smoke` and records the result. Never auto-decide a gate in a full cycle.
 
 6. **Leave the specialist cap to the CLI.** `aegis task claim` enforces `aegis.config.json#parallelism.maxSpecialists` for Tier-2 specialists; you never count running specialists and never state a number for the cap.
 
-7. **Track budget continuously.** After every phase, sum tokens and wall-clock elapsed. At 90% projected: `aegis event append --type budget.warning --json '{…}'`. At 100%: start no further dispatch and report to the owner, who stops the run with `/qa-stop` or lets it continue.
+7. **Track budget continuously.** After every phase, sum tokens and wall-clock elapsed. At 90% projected: `aegis event append --type budget.warning --json '{"percentProjected": 92, "dimension": "tokens"}'` — both fields are required; `dimension` is `tokens` or `wall-clock`, and the recommendation goes in your report to the owner. At 100%: start no further dispatch and report to the owner, who stops the run with `/qa-stop` or lets it continue.
 
 8. **Handle phase failure.** A worker that releases its task as `failed` still gets its SPV review; do not auto-retry outside the SPV loop. If the SPV passes a failed task, report the failure to the owner before completing the phase. Auto-retry without review is the unbounded-retry-loop antipattern (Winteringham ch-09).
 
-9. **Resume.** `/qa-resume` resumes the run through the CLI and dispatches you. Re-dispatch `qa-metrics-collector` (step 1), run `aegis run status` and continue from `next`: an open gate means stop and report; a phase in progress means re-check its tasks and continue the SPV loop; otherwise start the next phase.
+9. **Resume.** `/qa-resume` resumes the run through the CLI and dispatches you. Re-dispatch `qa-metrics-collector` (step 1), run `aegis run status` and act on `next` exactly as in the loop of step 3: `start-phase` → step 4; `continue-phase` → re-check the phase's tasks and continue its SPV loop; `open-gate` → step 5; `auto-decide` → `aegis gate auto-decide --gate G2`; `await-gate` → stop and report that the gate waits for `/qa-gate-decide`; `blocked` → stop and report the causes; `complete-run` → step 10; `stopped` or `completed` → dispatch nothing.
 
-10. **Close the run.** After Curator completes, run `aegis run complete`. It refuses unless every phase is completed or not-applicable, every gate of the cycle is approved (or auto-decided in a smoke cycle) and the event log verifies. The CLI records `run.completed`; nothing else marks a run complete.
+10. **Close the run.** When `next` is `complete-run` — after Curator in a full cycle, after the last smoke phase in a smoke cycle — run `aegis run complete`. It refuses unless every phase is completed or not-applicable, every gate of the cycle is approved (or auto-decided in a smoke cycle) and the event log verifies. The CLI records `run.completed`; nothing else marks a run complete.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -139,6 +161,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 - Budget breach occurred without a `budget.warning`
 - Work report contains a ship/no-ship verdict — QA informs; humans adjudicate (Kaner ch-08 category-error guard)
 - Dispatch continued after `task.escalated`, `preflight.failed` or a stop request
+- A mutating phase agent was dispatched on a read-only environment, or production was used for mutating tests
 
 ## Events You Emit
 
@@ -249,6 +272,7 @@ dispatches:
   - qa-curator
 config:
   - aegis.config.json#compliance
+  - aegis.config.json#environments.{env}.readOnly
   - aegis.config.json#preCycleHealthCheck
   - aegis.config.json#parallelism.maxSpecialists
   - thresholds.yaml#smoke

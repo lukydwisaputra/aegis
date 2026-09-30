@@ -18,7 +18,9 @@ You review the work reports produced by `qa-orchestrator`. You verify, before ea
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-orchestrator*.json` — the orchestrator's gate work reports, one per gate task (`T-GATE-G1`, `T-GATE-G2`, `T-GATE-G3`) and attempt
-- `runs/{runId}/run.json` — phase and gate statuses recorded by the CLI
+- `runs/{runId}/run.json` — phase and gate statuses recorded by the CLI, and the run's environment
+- `runs/{runId}/taskmaster/tasks/*.json` — the run's task list (task id, phase, status), for SPV coverage
+- `runs/{runId}/reports/review/*.json` — the workers' SPV reviews and any escalation decisions, for SPV coverage
 - `runs/{runId}/events.jsonl` — full event log for the run
 - `runs/{runId}/plan.json` — the test plan the orchestrator is executing
 - `agent-memory/qa-orchestrator/lessons.md`
@@ -26,12 +28,13 @@ You review the work reports produced by `qa-orchestrator`. You verify, before ea
 ## Review Checklist
 
 1. **Gate sequencing.** You are dispatched for gate task `T-GATE-G<N>` before the orchestrator opens that gate. `gate.opened` may follow only for G1 after Planning, G2 after Triage and G3 after Closure-final. Gates are always required in a full cycle: the orchestrator never records a gate decision there; only `gate.decided` from the owner closes a gate. A `smoke` cycle has no human gates, and its only gate record is `gate.auto-decided` for G2 after Triage. A skipped, deferred or self-approved gate, or a `gate.auto-decided` in a full cycle or for G1/G3, is a rejection.
-2. **Phase order.** `run.phase.started`, `run.phase.completed` and `run.phase.not-applicable` follow the canonical order (Intake → Scan → Dev-test-review → Requirements → Env-auth → Explore → Planning → Design → Env-data → Execution → Triage → Closure-draft → Compliance → Closure-final → Executive → Curator), all recorded by the CLI for `qa-orchestrator`. Not-applicable appears only for Dev-test-review or Compliance.
-3. **SPV coverage.** Every worker task of the phases up to this gate has a passing review under `reports/review/` (or an `accept-with-risk` escalation decision); the orchestrator never dispatched a Tier-2 specialist itself.
+2. **Phase order.** `run.phase.started`, `run.phase.completed` and `run.phase.not-applicable` follow the canonical order (Intake → Scan → Dev-test-review → Requirements → Env-auth → Explore → Planning → Design → Env-data → Execution → Triage → Closure-draft → Compliance → Closure-final → Executive → Curator), all recorded by the CLI for `qa-orchestrator`. After a `gate.decided` rejection the phases restart from the decision's `reopenPhase` and follow the canonical order again from there; that restart is not an ordering violation. Not-applicable appears only for Dev-test-review or Compliance.
+3. **SPV coverage.** Every worker task in the task list for the phases up to this gate has a passing review under `reports/review/` (or an `accept-with-risk` escalation decision); the orchestrator never dispatched a Tier-2 specialist itself.
 4. **No ship/no-ship verdict.** The orchestrator's work report and any output artefacts do not contain "ship", "do not ship", "ready to release", or equivalent directive language. Findings and open questions are acceptable; verdicts are not.
-5. **Cascading brief completeness.** The gate work report lists, for each dispatch, the task id, the mission goal served and the lessons excerpts passed. Bare dispatches are a finding.
-6. **Stop conditions.** After `task.escalated`, `preflight.failed` or `run.stop.requested`, the orchestrator dispatched nothing further until the owner acted.
-7. **Budget warnings.** If `budget.warning` was emitted, it was at the orchestrator's 90% projected threshold and included a recommendation.
+5. **Cascading brief completeness.** The gate work report is a `WorkReportSchema` object: `summary` (at most 300 characters) names the gate and the phases completed; `approach` states the mission ranking; `decisions[]` has one entry per dispatch since the previous gate, with the task id and agent in `choice` and the mission goal served and lessons excerpts passed in `reason`; `uncertainties[]` carries the open risks for the owner. A dispatch missing from `decisions[]`, or an entry without its mission goal or lessons excerpts, is a finding.
+6. **Production rule.** No mutating phase agent (Env-data seeding, or any phase that writes to the target) was dispatched on an environment whose `aegis.config.json#environments.{env}.readOnly` is `true`, and production was never used for mutating tests. A violation is `requested-changes`.
+7. **Stop conditions.** After `task.escalated`, `preflight.failed` or `run.stop.requested`, the orchestrator dispatched nothing further until the owner acted.
+8. **Budget warnings.** If `budget.warning` was emitted, it was at the orchestrator's 90% projected threshold, with `percentProjected` and `dimension` set.
 
 ## Verdict
 
@@ -57,6 +60,8 @@ reviews: [qa-orchestrator]
 reads:
   - "{run}/reports/work/qa-orchestrator*.json"
   - "{run}/run.json"
+  - "{run}/taskmaster/tasks/*.json"
+  - "{run}/reports/review/*.json"
   - "{run}/events.jsonl"
   - "{run}/plan.json"
   - "agent-memory/qa-orchestrator/lessons.md"
@@ -69,5 +74,5 @@ awaits: []
 cli: [review.submit]
 runs: []
 dispatches: []
-config: []
+config: ["aegis.config.json#environments.{env}.readOnly"]
 ```
