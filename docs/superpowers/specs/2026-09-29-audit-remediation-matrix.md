@@ -17,15 +17,24 @@ Specs: P0 → `2026-09-29-p0-pipeline-foundation-design.md`.
 
 ## Sub-projects
 
-| ID | Sub-project | Depends on |
-|----|-------------|-----------|
-| P0 | Pipeline foundation & hard enforcement | — |
-| P1 | Contracts & vocabulary | P0 |
-| P2 | Roster: orphans, SPV coverage, profiles, unused packages | P0, P1 |
-| P3 | Skills & path drift | P0, P1 |
-| P4 | Object-level authorization (IDOR / integer-ID) feature | P0, P1 |
-| P5 | Invariant tests & documentation | P0–P4 |
-| P6 | Rollout to sibling projects | P0–P5 |
+Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → PR re-review → merge):
+
+| Order | ID | Sub-project | Depends on |
+|-------|----|-------------|-----------|
+| done | P0b-1 | Contracts & CLI skeleton (run-state, event chain) | — |
+| 1a | ALIGN | Alignment checker: contracts per agent/skill, `pipeline.yaml`, ratchet baseline (every violation owned by a matrix ID) | P0b-1 |
+| 1a' | CI | Minimal GitHub Actions: `pnpm test` + `pnpm test:smoke` on PRs | — |
+| 1b | QW | Quick wins: mechanical doc/path/config fixes, each deleting baseline lines | ALIGN |
+| 2 | P1 | Contracts & vocabulary (before agent rewrites so designer/executor are rewritten once) | ALIGN |
+| 3 | P0a-1 | Phases, gates, barrier, orchestrator rewrite | P1 |
+| 4 | P0a-2 | Agents onto the CLI (released together with P0a-1 — AUD-097) | P0a-1 |
+| 5 | P0b-2 | Hooks H1–H4, legacy writers onto the chain | P0a-2 |
+| 6 | P0c | Rollup, trace, retest; execution skills | P0b-2 |
+| 7 | P4 | Object-level authorization (IDOR / integer-ID) feature | P0c, P1 |
+| 8 | P2 | Roster: orphans, SPV coverage, profiles, unused packages | P0a-2 |
+| 9 | P3 | Query skills & path drift | P0c |
+| 10 | P5 | Invariant tests & documentation → baseline empty | all above |
+| 11 | P6 | Rollout to sibling projects | P5 |
 
 ## P0 — Pipeline foundation & hard enforcement
 
