@@ -190,6 +190,7 @@ rule with `pnpm aegis align --rule <RULE>`, or everything with `pnpm aegis align
 
 1. Fix a new violation in the prose. Baselining a new key is allowed only for an open or in-spec
    matrix item, and the PR must call it out.
+   CI enforces this: a PR that adds keys to the baseline fails unless it carries the `baseline-growth` label. The guard runs from the PR's own code, so it is a review aid, not a tamper-proof control: a PR that edits `.github/workflows/ci.yml`, `scripts/check-baseline-growth.ts` or `packages/@qa/alignment/**` needs the same scrutiny as one that grows the baseline.
 2. Delete a stale entry only in the same commit as the prose or code change that fixed it. Never
    edit a contract block alone to make an entry stale.
 3. An entry that names a `fixed` or `wontfix` matrix ID fails as `closed-id`; an ID missing from
