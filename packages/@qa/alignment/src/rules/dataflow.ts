@@ -4,7 +4,8 @@ import { isTooBroad, matches, normalizePath, overlaps } from "../paths.js";
 import type { PathEntry } from "../schema.js";
 import { isAgentContract, pathOf, violation, type Model, type Unit, type Violation } from "../types.js";
 
-const WRITABLE = ["{run}/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**", "sandbox/**"];
+// CLAUDE.md write table: aegis/runs/** (not only a single run), ../tests/** limited to tests/qa/** (HANDBOOK/17).
+const WRITABLE = ["{run}/**", "runs/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**", "sandbox/**"];
 
 function phaseIndex(m: Model): Map<string, number> {
   const idx = new Map<string, number>();
@@ -125,7 +126,7 @@ export function writePolicyRule(m: Model): Violation[] {
     const extra: string[] = [];
     if (u.kind === "skill") {
       extra.push(...(src?.repo ?? []), ...(src?.owner ?? []));
-      if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(".claude/**", "HANDBOOK/**", "docs/**");
+      if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(".claude/**", "HANDBOOK/**", "HANDBOOK.md", "docs/**");
     }
     for (const e of u.contract?.writes ?? []) {
       const p = normalizePath(pathOf(e));

@@ -158,3 +158,20 @@ describe('fix round 1', () => {
     t.cleanup();
   });
 });
+
+it('WRITE-POLICY: runs/** is writable (CLAUDE.md aegis/runs/**); internal skills may write HANDBOOK.md', () => {
+  const sk = (kind: string, writes: string[]) => ({ contract: { contract: 1, kind, writes } });
+  const t = makeRepo({
+    skills: {
+      'qa-q': sk('query', ['runs/**', 'runs/{runId}/run.json', 'HANDBOOK.md']),
+      'qa-i': sk('internal', ['HANDBOOK.md', 'README.md']),
+    },
+    pipeline: ppl({ cli: ['{run}/run.json'] }),
+  });
+  expect(wp(t)).toEqual([
+    'WRITE-POLICY:qa-i:README.md:not-writable',
+    'WRITE-POLICY:qa-q:HANDBOOK.md:not-writable',
+    'WRITE-POLICY:qa-q:{run}/run.json:cli-only',
+  ]);
+  t.cleanup();
+});
