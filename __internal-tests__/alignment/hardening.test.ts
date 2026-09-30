@@ -21,13 +21,6 @@ describe('8h item 1: loader', () => {
     expect([...m.skillAliases]).toEqual([]);
     t.cleanup();
   });
-  it('tolerates packages/@qa being a file', () => {
-    const t = makeRepo({ agents: { 'qa-a': { contract: ag({}) } } });
-    fs.mkdirSync(path.join(t.root, 'packages'), { recursive: true });
-    fs.writeFileSync(path.join(t.root, 'packages/@qa'), 'not a dir');
-    expect(loadModel(t.root).packageNames.size).toBe(0);
-    t.cleanup();
-  });
 });
 
 describe('8h item 2: config', () => {

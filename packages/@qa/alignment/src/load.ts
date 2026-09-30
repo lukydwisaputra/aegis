@@ -225,14 +225,6 @@ export function loadModel(root: string): Model {
     AegisEventSchema.options.map((o) => (o.shape.type as { value: string }).value)
   );
 
-  const pkgDir = join(root, "packages", "@qa");
-  let packageNames = new Set<string>();
-  try {
-    packageNames = new Set(existsSync(pkgDir) ? readdirSync(pkgDir) : []);
-  } catch {
-    packageNames = new Set();
-  }
-
   const docs = [
     ...walk(join(root, "HANDBOOK"), (p) => p.endsWith(".md")),
     ...["CLAUDE.md", "README.md"].map((f) => join(root, f)).filter((f) => existsSync(f)),
@@ -251,7 +243,6 @@ export function loadModel(root: string): Model {
     matrixIds,
     matrixStatus,
     declaredEvents,
-    packageNames,
     docs,
     loadErrors: errors,
   };

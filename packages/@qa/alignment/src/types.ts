@@ -36,7 +36,6 @@ export interface Model {
   matrixIds: Set<string>;
   matrixStatus: Map<string, string>; // ID → Status cell ("open" when the table has no Status column)
   declaredEvents: Set<string>;
-  packageNames: Set<string>; // "@qa/<dir>" dir names
   docs: Array<{ file: string; source: string }>; // HANDBOOK/**, CLAUDE.md, README.md
   loadErrors: Violation[];
 }
