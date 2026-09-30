@@ -38,3 +38,24 @@ Gracefully terminates an in-progress QA pipeline run. Signals all active sub-age
 /qa-stop --run=RUN-2026-05-24-001 --reason="hotfix deployed, restarting with new scope"
 ```
 Cleanly aborts run 001 with a recorded reason, preserving all partial artifacts for later resume.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads: []
+writes:
+  - "{run}/stop-requested"
+  - "{run}/.lock"
+  - "{run}/run.json"
+emits:
+  - {event: run.stop.requested, via: append}
+  - {event: run.aborted, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

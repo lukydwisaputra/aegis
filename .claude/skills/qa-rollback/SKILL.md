@@ -40,3 +40,25 @@ Handles production incident response by orchestrating three parallel actions: tr
 /qa-rollback --reason="Payment API returning 500s in production" --to-tag=v1.4.2
 ```
 Prepares revert instructions to v1.4.2, creates a Sev1 incident defect, and scaffolds the postmortem.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads: []
+writes:
+  - "artifacts/defects/**"
+  - "postmortems/{date}-rollback.md"
+emits:
+  - {event: rollback.initiated, via: append}
+  - {event: incident.defect.created, via: append}
+  - {event: postmortem.scaffolded, via: append}
+awaits: []
+cli: []
+runs:
+  - git
+dispatches: []
+config: []
+```

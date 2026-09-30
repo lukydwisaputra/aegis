@@ -62,3 +62,23 @@ Same, but scoped to just `onecare-schedule` — useful right after that project'
 /qa-push-reports --project=onecare-schedule --force
 ```
 Re-exports every run currently under `onecare-schedule/aegis/runs/`, overwriting what's already in the collector (matches `export-run.sh`'s existing overwrite-warn behavior).
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "/Users/lukydwisaputra/Desktop/QA/*/aegis/runs/**"
+  - "/Users/lukydwisaputra/Desktop/QA/testing-reports/manifest.json"
+writes: []
+emits: []
+awaits: []
+cli: []
+runs:
+  - scripts/export-run.sh
+dispatches: []
+config:
+  - aegis.config.json#collector.path
+```

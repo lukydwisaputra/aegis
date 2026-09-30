@@ -38,3 +38,23 @@ Bridges manual testing with the automated QA pipeline's artifact store. When a t
 /qa-record-manual TC-AUTH-042 --result=fail --notes="TOTP input not accepting copy-paste" --evidence=screenshots/TC-AUTH-042.png
 ```
 Records a manual fail result for TC-AUTH-042 with a screenshot attached.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "artifacts/test-cases/**"
+writes:
+  - "{run}/evidence/{TC-ID}/**"
+  - "{run}/execution/results.json"
+emits:
+  - {event: manual.test.recorded, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

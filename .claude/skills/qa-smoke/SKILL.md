@@ -40,3 +40,23 @@ Executes a fast, focused subset of the automated QA pipeline designed to act as 
 /qa-smoke --module=AUTH --include-security --env=testing
 ```
 Runs a ~12-minute smoke cycle for the AUTH module including a security scan.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads: []
+writes: []
+emits:
+  - {event: smoke.started, via: append}
+  - {event: smoke.passed, via: append}
+  - {event: smoke.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config:
+  - config/thresholds.yaml
+```

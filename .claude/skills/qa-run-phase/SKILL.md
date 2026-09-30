@@ -39,3 +39,25 @@ Allows surgical execution of one STLC phase without running the full pipeline. U
 /qa-run-phase --phase=closure --run=RUN-2026-05-24-001 --inputs-from=RUN-2026-05-24-001
 ```
 Re-runs only the closure phase for run 001, regenerating the closure report from its existing execution results.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "{run}/test-cases.json"
+writes:
+  - "{run}/{phase}/**"
+  - "{run}/run.json"
+emits:
+  - {event: run.phase.started, via: append}
+  - {event: run.phase.completed, via: append}
+  - {event: run.phase.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

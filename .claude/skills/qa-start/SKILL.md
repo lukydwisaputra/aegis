@@ -47,3 +47,31 @@ Kicks off a complete Software Testing Life Cycle run — requirements analysis, 
 /qa-start --module=AUTH --env=staging --type=Functional --apps=prospect --max-parallel=6
 ```
 Creates RUN-2026-05-24-001, runs full STLC for the AUTH module of the prospect app against staging.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "{target}/package.json"
+writes:
+  - "{run}/run.json"
+  - "{run}/.lock"
+emits:
+  - {event: preflight.failed, via: append}
+  - {event: run.created, via: append}
+  - {event: run.phase.started, via: append}
+  - {event: run.phase.completed, via: append}
+  - {event: run.completed, via: append}
+  - {event: run.aborted, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-orchestrator, qa-health]
+config:
+  - aegis.config.json#targetProjectRoot
+  - aegis.config.json#preCycleHealthCheck
+  - config/environments.yaml
+```

@@ -38,3 +38,25 @@ Parses a QA book, standards document, or internal guide and splits it into struc
 /qa-ingest-book --book=docs/istqb-foundation.pdf --auto-chapters
 ```
 Ingests the ISTQB Foundation syllabus PDF, splitting by chapter headings into the knowledge base.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: query
+dispatchedBy: []
+reads:
+  - "knowledge/index.json"
+writes:
+  - "knowledge/{book-slug}/{NNN}.json"
+  - "knowledge/index.json"
+emits:
+  - {event: book.ingest.started, via: append}
+  - {event: book.chunk.written, via: append}
+  - {event: book.ingest.completed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: []
+config: []
+```

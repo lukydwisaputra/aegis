@@ -40,3 +40,26 @@ Runs the full regression suite — all test cases tagged for regression (via `re
 /qa-regression --priority=P0,P1 --module=BILLING --against=RUN-2026-05-20-003
 ```
 Runs P0/P1 regression TCs for BILLING and compares results against run 003.
+
+## Contract (machine-checked)
+
+```yaml
+contract: 1
+kind: execution
+dispatchedBy: []
+reads:
+  - "artifacts/test-cases/**"
+writes:
+  - "{run}/execution/results.json"
+emits:
+  - {event: regression.started, via: append}
+  - {event: regression.completed, via: append}
+  - {event: regression.passed, via: append}
+  - {event: regression.failed, via: append}
+awaits: []
+cli: []
+runs: []
+dispatches: [qa-compare]
+config:
+  - thresholds.yaml
+```
