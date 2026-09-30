@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { resolve, join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import pc from "picocolors";
 
@@ -23,6 +23,13 @@ export function doctorCommand(): Command {
         name: "aegis.config.json present",
         pass: existsSync(join(aegisRoot, "aegis.config.json")),
         fix: "Run: aegis init <target-dir>",
+      });
+
+      // 1b. no legacy gates switch (gates are mandatory in full cycles; P0 spec §3.2)
+      checks.push({
+        name: 'aegis.config.json has no legacy "gates" key',
+        pass: !hasLegacyGates(join(aegisRoot, "aegis.config.json")),
+        fix: 'Delete the "gates" block from aegis.config.json — human gates cannot be disabled',
       });
 
       // 2. .gitignore present
@@ -85,6 +92,14 @@ export function doctorCommand(): Command {
         process.exitCode = 1;
       }
     });
+}
+
+function hasLegacyGates(configPath: string): boolean {
+  try {
+    return "gates" in (JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>);
+  } catch {
+    return false;
+  }
 }
 
 function checkCommand(cmd: string): boolean {

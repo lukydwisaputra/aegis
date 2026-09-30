@@ -12,7 +12,7 @@
   "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 2 },
-  "gates": { "planApproval": true, "defectTriage": true, "closure": true },
+  "intake": { "sources": [] },
   "target": {
     "platform": "generic",
     "apps": [],

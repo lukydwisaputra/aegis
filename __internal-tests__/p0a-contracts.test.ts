@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { AegisEventSchema, GATE_AFTER, GateDecisionSchema, PHASE_IDS, TargetProfileCoreSchema, gateNumber } from '@qa/contracts';
 
 const TS = '2026-09-30T08:00:00.000Z';
@@ -38,4 +40,10 @@ describe('P0a-1 contracts', () => {
     for (const e of events) expect(AegisEventSchema.parse(e)).toEqual(e);
     expect(AegisEventSchema.safeParse({ type: 'gate.opened', ts: TS, runId: RUN, gate: 'plan-approval' }).success).toBe(false);
   });
+});
+
+it('aegis.config.json has no gates switch and declares intake.sources (AUD-007, spec §6.3)', () => {
+  const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'aegis.config.json'), 'utf8'));
+  expect(cfg).not.toHaveProperty('gates');
+  expect(cfg.intake).toEqual({ sources: [] });
 });
