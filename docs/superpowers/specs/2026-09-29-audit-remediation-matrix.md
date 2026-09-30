@@ -166,12 +166,13 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | CO-02 | Sanctioned `aegis integrity repair-tail` (a torn tail bricks every append; ack itself appends) | P0b-2 |
 | CO-03 | Integrity: re-anchor checkpoint at ack (acked checkpoint error names only seq); seed checkpoint at `createRun`; close createRun/verify race (append `run.created` first or wrap in integrity.lock) | P0b-2 |
 | CO-04 | taskmaster per-task `LOCK_OPTIONS` (5 retries) leaks raw ELOCKED; commander validation errors → JSON envelope via `exitOverride` | P0b-2 |
-| CO-05 | `RESERVED_EVENT_TYPES` must grow with `run.phase.*`, `gate.*`, `manual.*`, escalation events (F5 test + smoke use `run.phase.started` as agent-owned) | P0a |
+| CO-05 | Direct `event append` now refuses every `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` type and `artifact.created`; agents that emit `run.phase.*`, `gate.evaluated`, `task.blocked` today need CLI commands for them (`aegis phase …`, `aegis gate …`, `aegis task block`) before they are wired to the CLI | P0a / P0b-2 |
 | CO-06 | `currentPhase` enum + `RunStateSchema.strict()`; replace `blockedReason` string stacking with a list of causes | P0a |
 | CO-07 | `/qa-escalation` must clear the escalation marker; escalation on a completed run loses lessons; escalation block currently resumable with no decision | P0a |
 | CO-08 | Claims accepted on `created`/`awaiting-gate` runs; agents may call `run create/stop/resume`; SPV↔worker pairing needs the role table (qa-cicd-spv/qa-github-spv) | P0a / P0b-2 |
 | CO-09 | Full-log read per append (tail read); reopen emits no event; review events lack attempt/path; state written before event; uncapped violation `errors` array | P0c |
 | CO-11 | Finish AUD-017/018/040: remove hardcoded "4" (qa-test-executor.md:3,19,80; CLAUDE.md:69,98), tell agents to use `pnpm aegis` (H4 cheat-sheet + agent edits), build `apps/cli/dist` automatically (prepare script) so `pnpm aegis` works on a fresh clone | P0a-2 / P0b-2 |
+| CO-12 | `submitReview`: a reopen that fails after the review is recorded surfaces as an error with no retry path; `releaseTask` rollback is skipped if the task changed meanwhile | P0a |
 | CO-10 | Show acknowledged errors in `run resume` output; multi-process lock proof runs only via `pnpm test:smoke` (no CI yet) | P0b-2 |
 
 ## Gaps found in the pre-merge alignment audit (2026-09-29, after P0b-1)

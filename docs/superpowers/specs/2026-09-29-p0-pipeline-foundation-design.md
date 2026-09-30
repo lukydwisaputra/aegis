@@ -101,7 +101,7 @@ Three layers:
 
 | # | Phase | Agent(s) | Consumes | Produces | Gate after |
 |---|-------|----------|----------|----------|-----------|
-| 0 | Intake | qa-orchestrator (via `aegis run create`) | command args, `aegis.config.json`, target docs paths | `run.json`, `intake/requirements/**`, `intake/prd.md` (copied from target), `taskmaster/tasks/*.json` | — |
+| 0 | Intake | the invoking skill (`aegis run create`, as owner) then qa-orchestrator | command args, `aegis.config.json`, target docs paths | `run.json`, `intake/requirements/**`, `intake/prd.md` (copied from target), `taskmaster/tasks/*.json` | — |
 | 1 | Scan | qa-context-scanner | target source | `target-profile.json` (incl. `targetIsSingleProject`, `sourceInventory`, `existingTests`) | preflight check |
 | 2 | Dev-test review | qa-dev-test-reviewer (NEW) | `target-profile.json#existingTests`, target test files, source | `dev-test-review.json` | — |
 | 3 | Requirements | qa-requirements-analyst | `intake/**`, `target-profile.json`, `dev-test-review.json` | `requirements/ambiguity-report.json`, `requirements/testability-scores.json`, `stories/{STORY-ID}.json` | — |
