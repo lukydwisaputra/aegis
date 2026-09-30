@@ -36,9 +36,9 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 ## Process
 
-1. **DAST (OWASP ZAP):** Run ZAP in automated mode against the target environment. Use the ZAP API to configure the scan scope (include: `aegis.config.json.target.sourceDirs` URL paths; exclude: admin/delete endpoints). Map ZAP alert IDs to WSTG categories and CWE IDs.
+1. **DAST (OWASP ZAP):** Run ZAP in automated mode against the target environment. Use the ZAP API to configure the scan scope (include: the route and API-handler paths in target-profile.json `sourceInventory`; exclude: admin/delete endpoints). Map ZAP alert IDs to WSTG categories and CWE IDs.
 
-2. **SAST (Semgrep):** Run `semgrep --config=p/owasp-top-ten --json` over the source directories. Filter results to ERROR-level findings for the TC. Map rule IDs to CWE.
+2. **SAST (Semgrep):** Run `semgrep --config=p/owasp-top-ten --json` over the source directories (`aegis.config.json#sourceDirs`). Filter results to ERROR-level findings for the TC. Map rule IDs to CWE.
 
 3. **Dependency scan (npm audit / Trivy):** Run `pnpm audit --json`. Flag CRITICAL and HIGH CVEs as test failures. Map CVE IDs to CWE where available.
 
@@ -92,5 +92,5 @@ cli: []
 runs: [zap, semgrep, pnpm, gitleaks, trivy]
 dispatches: []
 config:
-  - aegis.config.json#target.sourceDirs
+  - aegis.config.json#sourceDirs
 ```

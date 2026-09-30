@@ -207,18 +207,6 @@ entries:
   - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
     ids: [AUD-007]
     note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
-  - key: "CONFIG:qa-cicd-implementer:aegis.config.json#environments.{env}.secretsRef:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#environments.{env}.secretsRef does not exist"
-  - key: "CONFIG:qa-context-scanner:aegis.config.json#target.supabase.rolesToTest:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase.rolesToTest does not exist"
-  - key: "CONFIG:qa-database-specialist:aegis.config.json#target.supabase.rolesToTest:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase.rolesToTest does not exist"
-  - key: "CONFIG:qa-database-specialist:aegis.config.json#target.supabase:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase does not exist"
   - key: "CONFIG:qa-doctor:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
@@ -231,24 +219,12 @@ entries:
   - key: "CONFIG:qa-dry-run:config/cost-estimates.yaml:missing"
     ids: [AUD-057]
     note: "config/cost-estimates.yaml does not exist"
-  - key: "CONFIG:qa-environment-engineer:aegis.config.json#target.supabase.rolesToTest:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#target.supabase.rolesToTest does not exist"
   - key: "CONFIG:qa-export:config/integrations.yaml:missing"
     ids: [AUD-057]
     note: "config/integrations.yaml does not exist"
   - key: "CONFIG:qa-gate-check:config/thresholds.yaml:missing"
     ids: [AUD-057]
     note: "config/thresholds.yaml does not exist"
-  - key: "CONFIG:qa-github-implementer:aegis.config.json#github.defaultReviewers:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#github.defaultReviewers does not exist"
-  - key: "CONFIG:qa-github-implementer:aegis.config.json#github.labels:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#github.labels does not exist"
-  - key: "CONFIG:qa-github-planner:aegis.config.json#github.defaultReviewers:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#github.defaultReviewers does not exist"
   - key: "CONFIG:qa-help:config/commands.yaml:missing"
     ids: [AUD-057, AUD-095]
     note: "config/commands.yaml does not exist"
@@ -264,18 +240,12 @@ entries:
   - key: "CONFIG:qa-run-specialist:config/model-policy.yaml:missing"
     ids: [AUD-057]
     note: "config/model-policy.yaml does not exist"
-  - key: "CONFIG:qa-security-specialist:aegis.config.json#target.sourceDirs:missing"
-    ids: [AUD-043, AUD-105]
-    note: "aegis.config.json#target.sourceDirs does not exist"
   - key: "CONFIG:qa-smoke:config/thresholds.yaml:missing"
     ids: [AUD-057]
     note: "config/thresholds.yaml does not exist"
   - key: "CONFIG:qa-start:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
-  - key: "CONFIG:qa-web-explorer:aegis.config.json#discovery.allowedDestructive:missing"
-    ids: [AUD-043]
-    note: "aegis.config.json#discovery.allowedDestructive does not exist"
   # --- CONSUMER ---
   - key: "CONSUMER:qa-cicd-evaluator:{run}/devops/ci-summary.json:unread"
     ids: [AUD-046]
@@ -412,9 +382,6 @@ entries:
   - key: "DOC-REF:CLAUDE.md:tier2-specialist=16:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"2 \u2014 Specialists\" claims 16; .claude/agents/tier2-specialist has 14"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/agent-core:unknown-package"
-    ids: [AUD-066]
-    note: "@qa/agent-core is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/taskmaster:unknown-package"
     ids: [AUD-066]
     note: "@qa/taskmaster is not a package in packages/@qa/"
