@@ -7,6 +7,7 @@ import {
   TestCaseSchema,
   UserStorySchema,
 } from '@qa/contracts';
+import { OUTPUT_SCHEMAS } from '@qa/run-state';
 import { ac, CANDIDATE, DEV_TEST_REVIEW, devTest, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 
 const TS = '2026-10-01T08:00:00.000Z';
@@ -162,10 +163,41 @@ describe('ExecutionSummaryCoreSchema and P0a-2 events', () => {
 
 describe('EnvAuthReportSchema (P0 spec §3.1 Env-auth, scope=auth)', () => {
   const R = ENV_AUTH_REPORT;
-  it('accepts the scope=auth report, and a PARTIAL or FAILED one that says why', () => {
+  const PARTIAL = { ...R, skipped: [{ item: 'role manager', reason: 'no credentials file for manager' }], health: 'PARTIAL' };
+  const FAILED = { ...R, roles: [], playwrightCliVersion: null, smokePing: { url: 'http://localhost:5173', status: null, ok: false }, health: 'FAILED' };
+
+  it('accepts the scope=auth report, and a PARTIAL one that says why', () => {
     expect(ok(EnvAuthReportSchema, R)).toBe(true);
-    expect(ok(EnvAuthReportSchema, { ...R, skipped: [{ item: 'role manager', reason: 'no credentials file for manager' }], health: 'PARTIAL' })).toBe(true);
-    expect(ok(EnvAuthReportSchema, { ...R, roles: [], playwrightCliVersion: null, smokePing: { url: 'http://localhost:5173', status: null, ok: false }, health: 'FAILED' })).toBe(true);
+    expect(ok(EnvAuthReportSchema, PARTIAL)).toBe(true);
+  });
+
+  it('the Env-auth barrier refuses a FAILED report; PARTIAL completes (fix round 1 ruling)', () => {
+    const barrier = OUTPUT_SCHEMAS['env-auth-report.json']!;
+    expect(ok(EnvAuthReportSchema, FAILED)).toBe(true); // a well-formed report of a scope that could not complete
+    expect(ok(barrier, FAILED)).toBe(false);
+    expect(barrier.safeParse(FAILED).error?.issues.map((i) => i.path.join('.'))).toEqual(['health']);
+    expect(ok(barrier, PARTIAL)).toBe(true);
+    expect(ok(barrier, R)).toBe(true);
+    expect(ok(barrier, { ...R, health: 'OK' })).toBe(false);
+  });
+
+  it('smokePing.ok holds exactly when the status is 2xx', () => {
+    const ping = (status: number | null, pingOk: boolean) => ({ ...PARTIAL, smokePing: { url: 'http://localhost:5173', status, ok: pingOk } });
+    expect(ok(EnvAuthReportSchema, ping(200, true))).toBe(true);
+    expect(ok(EnvAuthReportSchema, ping(299, true))).toBe(true);
+    expect(ok(EnvAuthReportSchema, ping(503, false))).toBe(true);
+    expect(ok(EnvAuthReportSchema, ping(null, false))).toBe(true);
+    expect(ok(EnvAuthReportSchema, ping(300, true))).toBe(false);
+    expect(ok(EnvAuthReportSchema, ping(199, true))).toBe(false);
+    expect(ok(EnvAuthReportSchema, ping(null, true))).toBe(false);
+    expect(ok(EnvAuthReportSchema, ping(200, false))).toBe(false);
+    expect(ok(EnvAuthReportSchema, ping(204, false))).toBe(false);
+  });
+
+  it('browsers and playwrightProjects entries are unique', () => {
+    expect(ok(EnvAuthReportSchema, { ...R, browsers: ['chromium', 'chromium'] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, playwrightProjects: ['qa-e2e', 'qa-e2e'] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, playwrightProjects: ['qa-e2e-chromium', 'qa-e2e-firefox'] })).toBe(true);
   });
 
   it('is strict and refuses blank text', () => {

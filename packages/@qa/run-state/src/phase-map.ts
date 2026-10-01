@@ -44,11 +44,18 @@ export const PHASE_OUTPUTS: Readonly<Partial<Record<PhaseId, readonly string[]>>
   "closure-final": ["reports/closure/closure.json"],
 };
 
+// A FAILED env-auth report is well-formed, but the scope could not complete: the worker releases `failed` and the
+// owner retries or aborts through the escalation, so FAILED never completes Env-auth. PARTIAL completes.
+const EnvAuthBarrierSchema = EnvAuthReportSchema.refine((r) => r.health !== "FAILED", {
+  path: ["health"],
+  message: "FAILED never completes env-auth; the scope=auth task is released failed and the owner retries or aborts",
+});
+
 // Outputs with a contract schema are validated, not only checked for existence.
 export const OUTPUT_SCHEMAS: Readonly<Record<string, OutputSchema>> = {
   "target-profile.json": ScanProfileSchema,
   "dev-test-review.json": DevTestReviewSchema,
-  "env-auth-report.json": EnvAuthReportSchema,
+  "env-auth-report.json": EnvAuthBarrierSchema,
   "execution-summary.json": ExecutionSummaryCoreSchema,
 };
 

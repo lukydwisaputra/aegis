@@ -20,6 +20,7 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 - `runs/{runId}/reports/work/qa-environment-engineer*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/env-auth-report.{md,json}` — the scope=auth report
 - `runs/{runId}/env-setup-report.{md,json}` — the scope=data report
+- `runs/{runId}/cases/*.json` — scope=data: the approved test cases, to check that every factory or seed they need exists
 - `tests/qa/fixtures/auth.fixture.ts` — the generated auth fixture
 - `tests/qa/global-setup.ts` and `tests/qa/global-teardown.ts`
 - `tests/qa/factories/*.ts` — data factories
@@ -35,8 +36,8 @@ The brief names the scope you review. `scope=auth` (Env-auth): items 1–4 and 6
 3. **Halt-on-login-fail.** `global-setup.ts` validates each saved `storageState` contains the expected session token/cookie. Calls `process.exit(1)` (or equivalent halt) if any role fails login.
 4. **State files gitignored.** `tests/qa/state/*.json` must appear in the project's `.gitignore`. If the env-auth-report does not confirm this, flag it.
 5. **Factory create+cleanup pairs.** Each factory in `tests/qa/factories/` exports both `create()` and `cleanup()` (or equivalent). Factories without cleanup = requested-changes.
-6. **Smoke ping results.** `env-auth-report.json` shows that smoke pings hit all configured environments and received expected HTTP status codes. Failed smoke pings with no resolution = requested-changes.
-7. **Playwright Agent CLI install.** `env-auth-report.json` confirms that `@playwright/cli` was installed and `playwright-cli install --skills` ran successfully. If absent, flag as requested-changes — `qa-web-explorer` and `qa-exploratory-specialist` cannot function without it.
+6. **Smoke ping result.** In `env-auth-report.json` the target smoke ping succeeded (`env-auth-report.json#smokePing.ok` is true, with its 2xx status). A failed smoke ping with no resolution = requested-changes. Details the schema does not hold (response time, retries, notes) are in `env-auth-report.md`.
+7. **Playwright Agent CLI install.** In `env-auth-report.json` the field `playwrightCliVersion` is non-null; `env-auth-report.md` records that `playwright-cli install --skills` ran successfully. If either is absent, flag as requested-changes — `qa-web-explorer` and `qa-exploratory-specialist` cannot function without it.
 8. **Browser matrix.** `playwright.config.ts` `projects:` block contains Chromium + Firefox + WebKit (unless overridden in `aegis.config.json.browsers`). Missing browsers = passed-with-notes.
 9. **Playwright `outputDir`.** `playwright.config.ts` must explicitly set `outputDir` to the canonical `aegis/runs/{runId}/playwright-output` path. Missing `outputDir` (Playwright falls back to `test-results/` inside the target project) = requested-changes. `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) = requested-changes.
 10. **Artifact capture config.** `playwright.config.ts` must explicitly set `screenshot: 'always'`, `video: 'retain-on-failure'`, and `trace: 'on-first-retry'`. Any of these three left unset (relying on Playwright defaults) = requested-changes — this is the root cause of "no screenshots/videos generated" in real runs.
@@ -73,6 +74,7 @@ reads:
   - "{run}/reports/work/qa-environment-engineer*.json"
   - "{run}/env-auth-report.{md,json}"
   - "{run}/env-setup-report.{md,json}"
+  - "{run}/cases/*.json"
   - "{tests}/qa/fixtures/auth.fixture.ts"
   - "{tests}/qa/global-setup.ts"
   - "{tests}/qa/global-teardown.ts"

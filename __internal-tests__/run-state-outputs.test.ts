@@ -50,7 +50,10 @@ describe('phase output sets and schemas (spec §6.1 item 6, P0a-2)', () => {
     await expect(complete('env-auth')).rejects.toMatchObject(refusal(/env-auth-report.json is missing/));
     writeRunFile(t.root, runId, 'env-auth-report.json', { ...ENV_AUTH_REPORT, health: 'OK' });
     await expect(complete('env-auth')).rejects.toMatchObject(refusal(/env-auth-report.json is invalid: health/));
-    writeRunFile(t.root, runId, 'env-auth-report.json', ENV_AUTH_REPORT);
+    const failed = { ...ENV_AUTH_REPORT, roles: [], playwrightCliVersion: null, smokePing: { url: 'http://localhost:5173', status: null, ok: false }, health: 'FAILED' };
+    writeRunFile(t.root, runId, 'env-auth-report.json', failed);
+    await expect(complete('env-auth')).rejects.toMatchObject(refusal(/env-auth-report.json is invalid: health: .*FAILED/));
+    writeRunFile(t.root, runId, 'env-auth-report.json', { ...ENV_AUTH_REPORT, skipped: [{ item: 'role manager', reason: 'no credentials file for manager' }], health: 'PARTIAL' });
     expect((await complete('env-auth')).phases['env-auth']).toMatchObject({ status: 'completed' });
   });
 

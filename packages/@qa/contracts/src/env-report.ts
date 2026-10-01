@@ -29,14 +29,20 @@ export const EnvAuthReportSchema = z
   })
   .strict()
   .superRefine((r, ctx) => {
-    const seen = new Set<string>();
-    r.roles.forEach((x, i) => {
-      if (seen.has(x.role)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["roles", i, "role"], message: `role ${x.role} is listed twice` });
-      seen.add(x.role);
-    });
+    const unique = (values: string[], field: string) => {
+      const seen = new Set<string>();
+      values.forEach((v, i) => {
+        if (seen.has(v)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field, i], message: `${v} is listed twice` });
+        seen.add(v);
+      });
+    };
+    unique(r.browsers, "browsers");
+    unique(r.playwrightProjects, "playwrightProjects");
+    unique(r.roles.map((x) => x.role), "roles");
+    // ok holds exactly when the target answered 2xx.
     const { status, ok } = r.smokePing;
-    if (ok && (status === null || status < 200 || status > 299)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["smokePing", "ok"], message: "a passing smoke ping needs a 2xx status" });
+    if (ok !== (status !== null && status >= 200 && status < 300)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["smokePing", "ok"], message: "ok must be true exactly when status is 2xx" });
     }
     if (r.health !== "READY") return;
     if (!ok) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["health"], message: "READY needs a passing smoke ping" });
