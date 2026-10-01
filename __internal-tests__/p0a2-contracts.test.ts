@@ -117,6 +117,13 @@ describe('P0a-2 contract hardening (fix round 1)', () => {
     expect(ok(DefectCandidateSchema, { ...CANDIDATE, observed: ' '.repeat(15) })).toBe(false);
     expect(ok(DefectCandidateSchema, { ...CANDIDATE, title: ' '.repeat(15) })).toBe(false);
     expect(ok(DefectCandidateSchema, { ...CANDIDATE, evidence: ['  '] })).toBe(false);
+    // Final wave (parked B, Task 1): expected, action, behaviour and notApplicable.rejection.
+    expect(ok(DefectCandidateSchema, { ...CANDIDATE, expected: ' '.repeat(15) })).toBe(false);
+    expect(ok(DefectCandidateSchema, { ...CANDIDATE, reproductionSteps: [{ step: 1, action: '   ' }] })).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, tests: [devTest({ behaviour: ' '.repeat(20) })] })).toBe(false);
+    const noRejection = { ...STORY, acceptanceCriteria: STORY.acceptanceCriteria.filter((c) => c.category !== 'rejection') };
+    expect(ok(UserStorySchema, { ...noRejection, notApplicable: { rejection: 'no input can be refused here' } })).toBe(true);
+    expect(ok(UserStorySchema, { ...noRejection, notApplicable: { rejection: ' '.repeat(12) } })).toBe(false);
   });
 
   it('mutation threshold floor is 60 (owner), ceiling 100; a score under the threshold is not adequate', () => {

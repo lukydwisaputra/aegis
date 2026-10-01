@@ -76,6 +76,20 @@ describe('human gates (spec §3.2)', () => {
     await expect(startPhase(t.root, runId, 'design', ORCH)).resolves.toMatchObject({ currentPhase: 'design' });
   });
 
+  // Final wave (parked B, Task 0): the closure-final barrier asks for T-GATE-G3 the same way.
+  it('closure-final needs a passing review of T-GATE-G3 before it completes and G3 opens', async () => {
+    const approved = { status: 'approved', decisions: 1 };
+    fastForward(t.root, runId, 'closure-final', { G1: approved, G2: approved });
+    await startPhase(t.root, runId, 'closure-final', ORCH);
+    writeRunFile(t.root, runId, 'reports/closure/closure.json', {});
+    await workTask(t.root, runId, 'T-closure-final-1', 'qa-closure-reporter', 'qa-closure-reporter-spv');
+    await expect(completePhase(t.root, runId, 'closure-final', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/gate task T-GATE-G3 is missing/) });
+    await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');
+    await completePhase(t.root, runId, 'closure-final', ORCH);
+    expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'open-gate', gate: 'G3' });
+    expect(await openGate(t.root, runId, 'G3', ORCH)).toMatchObject({ status: 'awaiting-gate', gates: { G3: { status: 'open' } } });
+  });
+
   it('opening needs a passing qa-orchestrator-spv review of T-GATE-G1, which is part of the planning barrier', async () => {
     await planning('requested-changes');
     await expect(completePhase(t.root, runId, 'planning', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/T-GATE-G1/) });

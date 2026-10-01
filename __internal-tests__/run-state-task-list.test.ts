@@ -115,6 +115,38 @@ describe('listTasks', () => {
     });
   });
 
+  // Final-wave (parked B, Task 5): the remaining review-state rows.
+  it('reports an in-progress claim with its claimer and no attempt yet', async () => {
+    await add('T-intake-2', UI);
+    await claimTask(t.root, runId, 'T-intake-2', UI);
+    expect((await byId())['T-intake-2']).toMatchObject({ status: 'in-progress', claimedBy: UI, latestAttempt: 0, reviewState: 'none' });
+  });
+
+  it('reports passed-with-notes as passed', async () => {
+    await add('T-intake-2', UI);
+    await attempt('T-intake-2', UI);
+    const notes = { ...review(`${UI}-spv`, UI, 'T-intake-2', 'requested-changes'), verdict: 'passed-with-notes' };
+    await submitReview(t.root, runId, tmp(notes), `${UI}-spv`);
+    expect((await byId())['T-intake-2']).toMatchObject({ status: 'done', reviewState: 'passed' });
+  });
+
+  it('reports an abort decision as escalated', async () => {
+    await add('T-intake-2', UI);
+    await attempt('T-intake-2', UI, 'failed');
+    await decideEscalation(t.root, runId, { taskId: 'T-intake-2', decision: 'abort', reason: 'Target withdrawn' }, 'owner');
+    expect((await byId('owner'))['T-intake-2']).toMatchObject({ reviewState: 'escalated', escalationDecision: { decision: 'abort', reason: 'Target withdrawn' } });
+  });
+
+  it('reports an attempt superseded by a gate rejection as none', async () => {
+    await add('T-intake-2', UI);
+    await attempt('T-intake-2', UI);
+    await reviewed('T-intake-2', UI, 'passed');
+    const runJson = path.join(runDir(t.root, runId), 'run.json');
+    const state = JSON.parse(fs.readFileSync(runJson, 'utf8'));
+    fs.writeFileSync(runJson, JSON.stringify({ ...state, supersededAttempts: { 'T-intake-2': { [UI]: 1 } } }));
+    expect((await byId())['T-intake-2']).toMatchObject({ latestAttempt: 1, reviewState: 'none' });
+  });
+
   it('lets any caller list, and writes nothing (no task directory is created for a run without tasks)', async () => {
     expect(thrownCode(() => assertCallerAllowed('owner', 'task.list'))).toBeUndefined();
     expect(thrownCode(() => assertCallerAllowed('qa-ui-specialist-spv', 'task.list'))).toBeUndefined();
