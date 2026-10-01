@@ -1,14 +1,15 @@
 import { z } from "zod";
-import { RunIdSchema } from "./ids.js";
+import { NonBlank } from "./non-blank.js";
+import { AcceptanceCriterionIdSchema, RunIdSchema } from "./ids.js";
 
 // ─── Developer-test review (P0 spec §3.4, NEW-02) ─────────────────────────────
 
-const S = z.string().min(1);
+const S = NonBlank();
 const N = z.number().int().nonnegative();
 const Score = z.number().min(0).max(100);
-const Reason = z.string().min(10).max(500);
+const Reason = NonBlank(10).pipe(z.string().max(500));
 /** A developer test: "<file path>#<test name>". */
-export const DevTestRefSchema = z.string().regex(/^[^#\s][^#]*#.+$/, "dev-test ref format: <path>#<test name>");
+export const DevTestRefSchema = z.string().regex(/^[^#\s][^#]*#\s*\S.*$/, "dev-test ref format: <path>#<test name>");
 
 export const DevTestVerdictSchema = z.enum(["adequate", "weak", "wrong", "unmapped"]);
 export type DevTestVerdict = z.infer<typeof DevTestVerdictSchema>;
@@ -20,7 +21,7 @@ export const DevTestEntrySchema = z
     framework: S,
     // What the test exercises, named as in target-profile.json#sourceInventory.
     subject: z.object({ kind: z.enum(["route", "component", "api-handler", "function", "module"]), ref: S }).strict(),
-    behaviour: z.string().min(10).max(300),
+    behaviour: NonBlank(10).pipe(z.string().max(300)),
     // Intake requirement text this behaviour maps to (acceptance criteria do not exist yet).
     requirementRefs: z.array(S).default([]),
     verdict: DevTestVerdictSchema,
@@ -30,6 +31,9 @@ export const DevTestEntrySchema = z
     mutationScore: Score.nullable(),
     // The requirement a `wrong` test contradicts.
     contradicts: S.optional(),
+    // Static evidence for a non-unit test: the criteria it covers and how the reviewer established that (no mutation score exists for it).
+    coversAcIds: z.array(AcceptanceCriterionIdSchema).default([]),
+    evidenceNote: NonBlank(10).optional(),
   })
   .strict();
 export type DevTestEntry = z.infer<typeof DevTestEntrySchema>;
@@ -39,7 +43,8 @@ export const MutationSummarySchema = z.discriminatedUnion("status", [
     .object({
       status: z.literal("ran"),
       tool: z.literal("stryker"),
-      threshold: Score,
+      // Owner floor: config may raise the threshold, never lower it below 60.
+      threshold: z.number().min(60).max(100),
       score: Score,
       killed: N,
       survived: N,
@@ -78,6 +83,9 @@ export const DevTestReviewSchema = z
     }
     review.tests.forEach((t, i) => {
       if (t.verdict === "wrong" && t.contradicts === undefined) issue(["tests", i, "contradicts"], "a wrong test names the requirement it contradicts");
+      if (t.kind !== "unit" && t.verdict === "adequate" && (t.coversAcIds.length === 0 || t.evidenceNote === undefined)) {
+        issue(["tests", i, "evidenceNote"], "a non-unit test is adequate only with recorded static evidence: coversAcIds and evidenceNote");
+      }
       if (t.kind !== "unit" && t.mutationScore !== null) issue(["tests", i, "mutationScore"], "only unit tests carry a mutation score");
       if (t.kind !== "unit") return;
       if (review.mutation.status === "skipped" && t.mutationScore !== null) issue(["tests", i, "mutationScore"], "mutation testing was skipped, so the score is null");

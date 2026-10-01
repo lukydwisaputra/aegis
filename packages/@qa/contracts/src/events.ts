@@ -1615,7 +1615,8 @@ export const DevTestReviewCompleteEventSchema = EventBase.extend({
 
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
-export const AegisEventSchema = z.discriminatedUnion("type", [
+/** The raw discriminated union: use `.options` to enumerate event types. Parse with AegisEventSchema, which adds cross-field rules. */
+export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RunCreatedEventSchema,
   RunPhaseStartedEventSchema,
   RunPhaseCompletedEventSchema,
@@ -1838,5 +1839,11 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   DevTestReviewCompleteEventSchema,
 ]);
 
+/** Every event parser uses this: the union plus the rules a single object schema cannot carry. */
+export const AegisEventSchema = AegisEventUnionSchema.superRefine((e, ctx) => {
+  if (e.type === "tc.proposal" && e.storyId === undefined && e.acIds.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["storyId"], message: "a tc.proposal names a storyId or at least one acId" });
+  }
+});
 export type AegisEvent = z.infer<typeof AegisEventSchema>;
 export type AegisEventType = AegisEvent["type"];

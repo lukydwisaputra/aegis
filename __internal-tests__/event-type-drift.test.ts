@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { AegisEventSchema } from '@qa/contracts';
+import { AegisEventUnionSchema } from '@qa/contracts';
 
 /**
  * Guards against event-type drift.
@@ -61,7 +61,7 @@ function isNonEvent(name: string): boolean {
 }
 
 function declaredTypes(): Set<string> {
-  const options = (AegisEventSchema as unknown as { options: Array<{ shape: { type: { value: string } } }> }).options;
+  const options = (AegisEventUnionSchema as unknown as { options: Array<{ shape: { type: { value: string } } }> }).options;
   return new Set(options.map((o) => o.shape.type.value));
 }
 
@@ -178,7 +178,7 @@ describe('@qa/contracts — event type drift', () => {
   });
 
   it('declares no duplicate type literals', () => {
-    const options = (AegisEventSchema as unknown as { options: Array<{ shape: { type: { value: string } } }> }).options;
+    const options = (AegisEventUnionSchema as unknown as { options: Array<{ shape: { type: { value: string } } }> }).options;
     expect(options.length).toBe(declared.size);
   });
 });

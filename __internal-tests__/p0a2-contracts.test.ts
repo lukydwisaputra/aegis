@@ -75,6 +75,50 @@ describe('DevTestReviewSchema (P0 spec §3.4, NEW-02)', () => {
   });
 });
 
+describe('P0a-2 contract hardening (fix round 1)', () => {
+  const skipped = { status: 'skipped', tool: 'stryker', reason: 'the target runs its unit tests with ava (unsupported)' };
+  const weak = devTest({ verdict: 'weak', mutationScore: null });
+  const weakSummary = { adequate: 0, weak: 1, wrong: 0, unmapped: 0 };
+  const e2e = (over: object = {}) => devTest({ kind: 'e2e', framework: 'playwright', mutationScore: null, coversAcIds: ['AC-AUTH-003-H1'], evidenceNote: 'read the spec: it follows the reset link and asserts the mail', ...over });
+
+  it('whitespace-only text never passes', () => {
+    const noEdge = { ...STORY, acceptanceCriteria: STORY.acceptanceCriteria.slice(0, 2) };
+    expect(ok(UserStorySchema, { ...noEdge, notApplicable: { edge: ' '.repeat(12) } })).toBe(false);
+    expect(ok(UserStorySchema, { ...STORY, asA: '     ' })).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: { ...skipped, reason: ' '.repeat(20) }, tests: [weak], summary: weakSummary })).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, tests: [devTest({ reason: ' '.repeat(20) })] })).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, tests: [devTest({ ref: 'src/a.test.ts#   ' })] })).toBe(false);
+    expect(ok(DefectCandidateSchema, { ...CANDIDATE, observed: ' '.repeat(15) })).toBe(false);
+    expect(ok(DefectCandidateSchema, { ...CANDIDATE, title: ' '.repeat(15) })).toBe(false);
+    expect(ok(DefectCandidateSchema, { ...CANDIDATE, evidence: ['  '] })).toBe(false);
+  });
+
+  it('mutation threshold floor is 60 (owner), ceiling 100; a score under the threshold is not adequate', () => {
+    const ran = DEV_TEST_REVIEW.mutation;
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: { ...ran, threshold: 59 } })).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: { ...ran, threshold: 101 } })).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: { ...ran, threshold: 70 } })).toBe(true);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: { ...ran, threshold: 80 } })).toBe(false);
+  });
+
+  it('a non-unit test is adequate only with covered ACs and an evidence note', () => {
+    const summary = { adequate: 1, weak: 0, wrong: 0, unmapped: 0 };
+    const review = (t: object) => ({ ...DEV_TEST_REVIEW, tests: [t], summary });
+    expect(ok(DevTestReviewSchema, review(e2e()))).toBe(true);
+    expect(ok(DevTestReviewSchema, review(e2e({ evidenceNote: undefined })))).toBe(false);
+    expect(ok(DevTestReviewSchema, review(e2e({ evidenceNote: ' '.repeat(15) })))).toBe(false);
+    expect(ok(DevTestReviewSchema, review(e2e({ coversAcIds: [] })))).toBe(false);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, tests: [e2e({ verdict: 'weak', coversAcIds: [], evidenceNote: undefined })], summary: weakSummary })).toBe(true);
+  });
+
+  it('tc.proposal names a story or an AC', () => {
+    const base = { type: 'tc.proposal', ts: TS, title: 'Reset with an expired link', rationale: 'the session showed an expired link reusing the old token' };
+    expect(ok(AegisEventSchema, base)).toBe(false);
+    expect(ok(AegisEventSchema, { ...base, storyId: 'STORY-AUTH-003' })).toBe(true);
+    expect(ok(AegisEventSchema, { ...base, acIds: ['AC-AUTH-003-R1'] })).toBe(true);
+  });
+});
+
 describe('DefectCandidateSchema (AUD-084)', () => {
   it('accepts a candidate from a finder; refuses other sources, long titles and missing evidence', () => {
     expect(ok(DefectCandidateSchema, CANDIDATE)).toBe(true);

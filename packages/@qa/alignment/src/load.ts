@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { AegisEventSchema } from "@qa/contracts";
+import { AegisEventUnionSchema } from "@qa/contracts";
 import { AgentContractSchema, PipelineSchema, SkillContractSchema } from "./schema.js";
 import type { Pipeline } from "./schema.js";
 import { violation, type Model, type Section, type Tracked, type Unit, type Violation } from "./types.js";
@@ -282,7 +282,7 @@ export function loadModel(root: string): Model {
   }
 
   const declaredEvents = new Set<string>(
-    AegisEventSchema.options.map((o) => (o.shape.type as { value: string }).value)
+    AegisEventUnionSchema.options.map((o) => (o.shape.type as { value: string }).value)
   );
 
   const tracked = trackedFiles(root);

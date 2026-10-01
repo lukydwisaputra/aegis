@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NonBlank } from "./non-blank.js";
 import { AcceptanceCriterionIdSchema, RequirementIdSchema, StoryIdSchema } from "./ids.js";
 
 // ─── User stories and acceptance criteria (P0 spec §3.3, NEW-01) ──────────────
@@ -9,8 +10,8 @@ export type AcceptanceCategory = z.infer<typeof AcceptanceCategorySchema>;
 /** The letter an AC id carries for its category: AC-AUTH-003-H1 / -R1 / -E1. */
 export const ACCEPTANCE_LETTER: Readonly<Record<AcceptanceCategory, "H" | "R" | "E">> = { happy: "H", rejection: "R", edge: "E" };
 
-const Clause = z.string().min(3);
-const Reason = z.string().min(10);
+const Clause = NonBlank(3);
+const Reason = NonBlank(10);
 
 export const AcceptanceCriterionSchema = z
   .object({
@@ -30,7 +31,7 @@ export const UserStorySchema = z
     asA: Clause,
     iWant: Clause,
     soThat: Clause,
-    source: z.object({ kind: z.enum(["intake", "derived"]), ref: z.string().min(1) }).strict(),
+    source: z.object({ kind: z.enum(["intake", "derived"]), ref: NonBlank() }).strict(),
     // true → Gate 1 asks the owner to confirm the story.
     derived: z.boolean(),
     requirementIds: z.array(RequirementIdSchema).default([]),
