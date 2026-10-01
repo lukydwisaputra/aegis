@@ -53,7 +53,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 ## Quality Standards (SPV rejects if violated)
 
-- On production (`readOnly`): a factory `create()`, a state-changing request (POST/PUT/PATCH/DELETE) or any write — only read-only smoke runs there
+- On production (`readOnly`): a factory `create()`, a state-changing request (POST/PUT/PATCH/DELETE) or any write to the target — only read-only smoke runs there
 - Credentials hardcoded (must use `aegis/secrets/` ref)
 - Response body not asserted (status code alone is insufficient)
 - HAR with unsanitised headers in evidence

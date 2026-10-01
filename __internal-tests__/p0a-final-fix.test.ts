@@ -1,10 +1,11 @@
-import { AegisEventSchema, EnvAuthReportSchema } from '@qa/contracts';
-import { copyIntake, SPV_NONE } from '@qa/run-state';
+import { AegisEventSchema, DefectCandidateSchema, EnvAuthReportSchema } from '@qa/contracts';
+import { spawnSync } from 'child_process';
+import { copyIntake, PHASE_OUTPUT_SETS, SPV_NONE } from '@qa/run-state';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { parse } from 'yaml';
-import { ENV_AUTH_REPORT } from './helpers/p0a2-fixtures';
+import { CANDIDATE, ENV_AUTH_REPORT } from './helpers/p0a2-fixtures';
 
 // P0a final fix wave: the prose facts of the final whole-branch review (I1-I5, M1-M9) pinned against the schemas,
 // barriers and CLI behaviour they describe.
@@ -158,4 +159,87 @@ describe('I5: the intake readers use the layout copyIntake produces', () => {
       expect(prose(rel)).not.toMatch(/intake\/requirements|intake\/prd\.md/);
     },
   );
+});
+
+describe('A5, M2: the shared defect-candidate field text matches DefectCandidateSchema and the Explore barrier', () => {
+  const PRODUCERS = ['tier2-specialist/qa-web-explorer.md', 'tier2-specialist/qa-exploratory-specialist.md', 'tier2-specialist/qa-responsive-specialist.md'];
+  const SHARED = /`source` \(your agent name\), `taskId`.*?the Explore barrier refuses any other name\)/;
+  const texts = PRODUCERS.map((f) => SHARED.exec(prose(f))?.[0]);
+  it('all three producers carry the same text', () => {
+    expect(texts.every((t) => t !== undefined)).toBe(true);
+    expect(new Set(texts).size).toBe(1);
+  });
+  it('states the file-name rule the barrier enforces', () => {
+    const set = PHASE_OUTPUT_SETS.explore!.find((s) => s.dir === 'defect-candidates')!;
+    expect(texts[0]).toContain('`' + set.file.source + '`');
+    expect(set.file.test('web-explorer-broken-logo.json')).toBe(true);
+    for (const bad of ['Broken.json', 'a_b.json', 'a.b.json', '-a.json']) expect(set.file.test(bad)).toBe(false);
+  });
+  it('states the field rules the schema enforces', () => {
+    const t = texts[0]!;
+    expect(t).toMatch(/`proposedType` \(`UI`, `A11Y` or `EXP`\)/);
+    expect(t).toMatch(/`observed` and `expected` \(each at least 10 characters\)/);
+    expect(t).toMatch(/`severityHint` \(`Sev1` to `Sev5`\)/);
+    expect(t).toMatch(/`TaskRefSchema`/);
+    expect(t).toMatch(/at least one `\{step, action\}`, `step` a positive integer/);
+    expect(t).toMatch(/no other key is allowed \(the object is strict\)/);
+    expect(ok(DefectCandidateSchema, CANDIDATE)).toBe(true);
+    for (const bad of [
+      { proposedType: 'SEC' }, { observed: 'too short' }, { expected: 'too short' }, { severityHint: 'Sev6' }, { taskId: 'explore-1' },
+      { reproductionSteps: [] }, { reproductionSteps: [{ step: 0, action: 'open' }] }, { reproductionSteps: [{ step: 1.5, action: 'open' }] }, { extra: 1 },
+    ]) expect(ok(DefectCandidateSchema, { ...CANDIDATE, ...bad })).toBe(false);
+  });
+});
+
+describe('M6, A3: the dev-test sandbox copy keeps no dotenv file, secret or QA file', () => {
+  const REVIEWER = 'tier1-phase/qa-dev-test-reviewer.md';
+  it('shows the multi-segment repo-dir derivation (../.. -> QA/aegis)', () => {
+    expect(prose(REVIEWER)).toMatch(/with `\.\.\/\.\.`, the last two directory names of the repo's path, such as `QA\/aegis`/);
+  });
+  it('SPV check 6 verifies the dotenv excludes', () => {
+    expect(prose('spv/qa-dev-test-reviewer-spv.md')).toMatch(/6\. \*\*Read-only target, clean copy\.\*\*.*`--exclude \.env --exclude '\.env\.\*'`/);
+  });
+  const hasRsync = spawnSync('rsync', ['--version']).status === 0;
+  (hasRsync ? it : it.skip)("the prose's rsync command, run as written, copies only what it should", () => {
+    const cmd = /`(rsync -a [^`]+)`/.exec(prose(REVIEWER))![1]!;
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'p0a-rsync-'));
+    try {
+      const target = path.join(base, 't');
+      const files = ['.env', '.env.local', '.env.example', 'src/a.ts', 'src/sub/.env', 'src/sub/.env.test', 'QA/aegis/secrets/.env.staging', 'QA/aegis/runs/x.json',
+        'tests/qa/a.spec.ts', 'tests/unit.test.ts', '.git/HEAD', 'node_modules/x/i.js', 'node_modules/.cache/c'];
+      for (const f of files) { fs.mkdirSync(path.dirname(path.join(target, f)), { recursive: true }); fs.writeFileSync(path.join(target, f), 'x'); }
+      const out = path.join(base, 'out');
+      const run = cmd.replace('/<repo dir>/', '/QA/aegis/').replace('/<QA tests dir>/', '/tests/qa/').replace('<target>/', `${target}/`)
+        .replace('sandbox/{date}-dev-test-review/target/', `${out}/`);
+      expect(spawnSync('sh', ['-c', run]).status).toBe(0);
+      const copied = (fs.readdirSync(out, { recursive: true }) as string[]).filter((f) => fs.statSync(path.join(out, f)).isFile()).sort();
+      expect(copied).toEqual(['.env.example', 'node_modules/x/i.js', 'src/a.ts', 'tests/unit.test.ts']);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('M9: a defect never carries the candidate file or an agent name in evidenceRef', () => {
+  it('the defect manager uses a neutral reference and its SPV checks it', () => {
+    expect(prose('tier1-phase/qa-defect-manager.md')).toMatch(/`evidenceRef` in its `originConfirmation`: for a defect opened from a candidate it is a neutral reference.*never the candidate's file path/);
+    expect(prose('spv/qa-defect-manager-spv.md')).toMatch(/`evidenceRef` names the candidate's file, its path or an agent name .* = requested-changes/);
+  });
+});
+
+describe('A1, A2, A6: parked prose', () => {
+  it('A1: production forbids writes to the target, not run-side writes', () => {
+    expect(prose('tier2-specialist/qa-api-specialist.md')).toMatch(/or any write to the target — only read-only smoke/);
+    expect(prose('tier2-specialist/qa-ui-specialist.md')).toMatch(/or any write to the target — only read-only smoke/);
+    expect(prose('spv/qa-ui-specialist-spv.md')).toMatch(/18\. \*\*Production is read-only smoke\.\*\*.*no write to the target/);
+  });
+  it('A2: /qa-regenerate-report offers only the reports it writes', () => {
+    const skill = fs.readFileSync(path.join(__dirname, '..', '.claude', 'skills', 'qa-regenerate-report', 'SKILL.md'), 'utf8');
+    expect(skill).not.toMatch(/token-usage,|`token-usage`|CLI owns the work reports, the reviews and the metrics/);
+    expect(skill).toMatch(/qa-metrics-collector owns the metrics files/);
+  });
+  it('A6: the curator runs before run completion; CMMI and curator skip escalation decisions', () => {
+    expect(prose('crosscutting/qa-curator.md')).not.toMatch(/after `run\.completed` is emitted/);
+    for (const f of ['crosscutting/qa-curator.md', 'compliance/qa-compliance-cmmi.md']) expect(prose(f)).toMatch(/skip the owner's `\*\.escalation\.json` decision files/);
+  });
 });

@@ -79,6 +79,10 @@ describe('DevTestReviewSchema (P0 spec §3.4, NEW-02)', () => {
     expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 72 }))).toBe(true);
     expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 64 }))).toBe(false);
     expect(ok(DevTestReviewSchema, withRun({ killed: 18, timeout: 0, survived: 5, noCoverage: 2, score: 72.4 }))).toBe(true);
+    // The ±0.5 rounding tolerance: its edge 72.5 passes, a recorded 73 against a formula value of 72 is refused.
+    expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 72.5 }))).toBe(true);
+    expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 73 }))).toBe(false);
+    expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 71 }))).toBe(false);
     expect(ok(DevTestReviewSchema, withRun({ killed: 0, timeout: 0, survived: 0, noCoverage: 0, score: 0 }))).toBe(false);
   });
 

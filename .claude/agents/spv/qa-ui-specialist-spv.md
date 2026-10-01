@@ -42,7 +42,7 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 15. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 16. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 17. **Flaky discipline.** Spec does not use `waitForTimeout` or hard sleeps. Assertions are Playwright web-first assertions (`expect(locator).toBeVisible()` etc., which auto-wait) rather than non-web-first assertions. Any `waitForTimeout` / hard sleep, or non-web-first assertion = requested-changes.
-18. **Production is read-only smoke.** On a production (`readOnly`) run, the work report shows only read-only smoke TCs executed: no factory `create()`, no state-changing form submit, no write. Any such action on production = requested-changes.
+18. **Production is read-only smoke.** On a production (`readOnly`) run, the work report shows only read-only smoke TCs executed: no factory `create()`, no state-changing form submit, no write to the target (run-side results and evidence are still written). Any such action on production = requested-changes.
 
 ## Verdict
 

@@ -19,7 +19,7 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 
 - `runs/{runId}/plan.{md,json}` — test plan (V&V plan equivalent)
 - `runs/{runId}/reports/work/*.json` — worker work reports (process evidence)
-- `runs/{runId}/reports/review/*.json` — SPV reviews (peer review evidence), recorded by the SPVs through the CLI
+- `runs/{runId}/reports/review/*.json` — SPV reviews (peer review evidence), recorded by the SPVs through the CLI (skip the owner's `*.escalation.json` decision files there: they are not reviews)
 - `runs/{runId}/reports/closure/closure.json` — closure report
 - `agent-memory/qa-compliance-cmmi/lessons.json`
 - `knowledge/synthesis/compliance-and-regulations.md`

@@ -38,7 +38,7 @@ Output: `runs/{runId}/reports/metrics/cycle-time.json`.
 ### Coverage
 - **Requirements coverage**: `requirementId`s covered by ≥1 TC / total `requirementId`s in plan.
 - **Test execution coverage**: TCs executed / TCs planned.
-- **Code coverage**: from unit-specialist work report (if available).
+- **Code coverage**: from the unit specialist's work reports, `runs/{runId}/reports/work/qa-unit-specialist.*.json` (one per task and attempt; the highest attempt per task counts), if available.
 Rollup: percentage per type.
 Output: `runs/{runId}/reports/metrics/coverage.json`.
 
@@ -66,7 +66,7 @@ Output: `runs/{runId}/reports/metrics/flaky.json`.
 
 1. **On start:** open `events.jsonl` tail and begin accumulating events.
 2. **On each `run.phase.completed` / `discovery.step-complete` / `execution.complete` event:** write the intermediate rollup for that phase's metrics to `runs/{runId}/reports/metrics/`. By the time the Closure phase runs, all execution-phase metric files already exist on disk — `qa-closure-reporter` reads them directly. There is **no `MetricsFinalized` event** and no re-trigger; closure-reporter does not wait on a finalize signal.
-3. **On `run.completed` event:** write the final rollups for all metric files (this happens after Closure — it is for the curator and dashboard, not for closure-reporter).
+3. **On `run.completed` event:** write the final rollups for all metric files and append `metrics.cycle-complete`. This runs after the run is complete, so it touches files only — the metric files under `runs/{runId}/reports/metrics/` — and changes no run state (the event append is still accepted). The curator, in the final Curator phase, reads the per-phase rollups of step 2; this final pass is for the dashboard, not for closure-reporter.
 4. **On-demand query:** if dispatched mid-run, read from the beginning of `events.jsonl` and return current state.
 
 ## Quality Standards
@@ -98,7 +98,7 @@ reads:
   - "{run}/cases/*.json"
   - "{run}/defects/*.json"
   - "{run}/plan.json"
-  - {path: "{run}/reports/work/qa-unit-specialist.json", optional: true}
+  - {path: "{run}/reports/work/qa-unit-specialist.*.json", optional: true}
   - ".claude/model-policy.yaml"
 writes:
   - "{run}/reports/metrics/token-usage.jsonl"
