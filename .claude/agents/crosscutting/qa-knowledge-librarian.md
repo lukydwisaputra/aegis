@@ -61,6 +61,10 @@ The active query is passed by the orchestrator in the dispatch brief.
 - Never modify knowledge files — only read them
 - Response must fit in a single tool return (≤2000 chars) to stay context-lean
 
+## Recording Events
+
+You run without a task of your own: you never claim or release one and submit no work report. Append every event under "Events You Emit" with `AEGIS_AGENT=qa-knowledge-librarian pnpm aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`.
+
 ## Events You Emit
 
 - `knowledge.queried` — includes query topic, sources consulted, hitCount (for coverage analytics)
@@ -81,7 +85,7 @@ writes: []
 emits:
   - {event: knowledge.queried, via: append}
 awaits: []
-cli: []
+cli: [event.append]
 runs: []
 dispatches: []
 config: []

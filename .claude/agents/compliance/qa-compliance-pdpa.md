@@ -3,7 +3,7 @@ name: qa-compliance-pdpa
 description: Reviews test artefacts against Singapore PDPA (Personal Data Protection Act 2012, amended 2020). Evaluates coverage of the 9 data protection obligations, the Do Not Call (DNC) provisions, and the Mandatory Data Breach Notification (MDBN) requirements. Produces PDPA-Sec{N} tagged gap report.
 modelTier: planning
 model: claude-opus-4-8
-tools: [Read, Write]
+tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md
   - agent-memory/qa-compliance-pdpa/lessons.md
@@ -83,6 +83,16 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 - Do not assert whether the app IS PDPA-compliant — identify testing coverage gaps
 - Singapore-specific data (NRIC pattern `[STFG]XXXXXXX[A-Z]`) must NEVER appear in test data — flag as Sev1 if found
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-pdpa pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-compliance-pdpa`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **No review yet.** No SPV reviews your task yet; the phase barrier accepts your released work report without one.
+
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
@@ -108,7 +118,7 @@ writes:
 emits:
   - {event: compliance.review-complete, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config: []

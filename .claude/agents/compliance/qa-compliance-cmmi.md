@@ -3,7 +3,7 @@ name: qa-compliance-cmmi
 description: Reviews the QA process itself against CMMI V&V (Verification and Validation) process area at Maturity Level 2-3. Evaluates whether testing practices meet CMMI SP (Specific Practices) for verification planning, peer review, and validation. Produces CMMI-{process-area}-{practice} tagged gap report.
 modelTier: planning
 model: claude-opus-4-8
-tools: [Read, Write]
+tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md
   - agent-memory/qa-compliance-cmmi/lessons.md
@@ -19,7 +19,7 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 
 - `runs/{runId}/plan.{md,json}` — test plan (V&V plan equivalent)
 - `runs/{runId}/reports/work/*.json` — worker work reports (process evidence)
-- `runs/{runId}/reviews/*.json` — SPV reviews (peer review evidence)
+- `runs/{runId}/reports/review/*.json` — SPV reviews (peer review evidence), recorded by the SPVs through the CLI
 - `runs/{runId}/reports/closure/closure.json` — closure report
 - `agent-memory/qa-compliance-cmmi/lessons.json`
 - `knowledge/synthesis/compliance-and-regulations.md`
@@ -61,6 +61,16 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 - "Partially Implemented" is distinct from "Not Implemented" — document the partial evidence
 - ML2 baseline required; ML3 practices are aspirational and noted as improvement opportunities, not gaps
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-cmmi pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-compliance-cmmi`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **No review yet.** No SPV reviews your task yet; the phase barrier accepts your released work report without one.
+
 ## Events You Emit
 
 - `compliance.review-complete` — includes regulation, practicesCovered, gaps[], maturityIndicator
@@ -77,7 +87,7 @@ reviewedBy:
 reads:
   - "{run}/plan.{md,json}"
   - "{run}/reports/work/*.json"
-  - "{run}/reviews/*.json"
+  - "{run}/reports/review/*.json"
   - "{run}/reports/closure/closure.json"
   - agent-memory/qa-compliance-cmmi/lessons.json
   - knowledge/synthesis/compliance-and-regulations.md
@@ -86,7 +96,7 @@ writes:
 emits:
   - {event: compliance.review-complete, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config: []

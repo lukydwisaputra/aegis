@@ -75,6 +75,10 @@ Output: `runs/{runId}/reports/metrics/flaky.json`.
 - Token cost calculation uses model-specific rates from `aegis/.claude/model-policy.yaml`
 - If an event is malformed, emit `metrics.parse-error` and continue (no crash)
 
+## Recording Events
+
+You run without a task of your own: you never claim or release one and submit no work report. Append every event under "Events You Emit" with `AEGIS_AGENT=qa-metrics-collector pnpm aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`.
+
 ## Events You Emit
 
 - `metrics.phase-rollup` — after each phase completes
@@ -119,7 +123,7 @@ awaits:
   - defect.opened
   - defect.closed
   - defect.reopened
-cli: []
+cli: [event.append]
 runs: []
 dispatches: []
 config:
