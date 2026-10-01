@@ -44,6 +44,17 @@ describe('I1: the executor on a read-only environment (no env-setup report)', ()
   });
 });
 
+describe('Residual nits', () => {
+  it('the env engineer names the JSON key health for both reports', () => {
+    expect((prose(ENV_ENGINEER).match(/health status in the JSON key `health`/g) ?? []).length).toBe(2);
+  });
+  it('D13: the dispatcher re-dispatches on the verdict; the CLI records it', () => {
+    const d13 = fs.readFileSync(path.join(__dirname, '..', 'docs', 'D13-spv-review-pattern.md'), 'utf8');
+    expect(d13).toMatch(/records the verdict \(review\.\*\)/);
+    expect(d13).toMatch(/the dispatcher then re-dispatches on the verdict/);
+  });
+});
+
 describe('M1: env.ready carries rolesToTest, browserProjects and factoriesCreated on both scopes', () => {
   const auth = { type: 'env.ready', ts: TS, rolesToTest: ['admin'], browserProjects: ['qa-e2e'] };
   it('accepts scope=auth with factoriesCreated 0 and refuses it without the field', () => {
@@ -110,19 +121,43 @@ describe('I4: a developer-covered TC has an execution path', () => {
   it('the executor routes it to one specialist, unit when the developer test is a unit test', () => {
     const para = prose(EXECUTOR).split('\n').find((l) => l.includes('**Developer-covered TCs.** A TC with `coveredBy`'))!;
     expect(para).toMatch(/exactly one specialist for it and no technique overlay/);
-    expect(para).toMatch(/qa-unit-specialist when that test's `kind` .* is `unit`, otherwise the TC's primary `testType` specialist/);
+    // Residual round: routed by the developer test's kind, never by testType, so every target has the run rule.
+    expect(para).toMatch(/never by the TC's `testType`: `unit` → qa-unit-specialist, `e2e` → qa-ui-specialist, `api`, `integration` or `other` → qa-api-specialist/);
+    expect(para).not.toMatch(/primary `testType` specialist/);
     expect(read(EXECUTOR, '{run}/dev-test-review.json')).toEqual({ path: '{run}/dev-test-review.json', optional: true });
   });
   it('unit, api and ui carry the same one-sentence run rule: read-only, no script, result cites the ref', () => {
     const sentences = RUNNERS.map((f) => prose(f).split('\n').find((l) => /^\d+\. \*\*Developer-covered TCs\.\*\*/.test(l))!.replace(/^\d+\. /, ''));
     expect(new Set(sentences).size).toBe(1);
     expect(sentences[0]).toMatch(/read-only with the target's own test command/);
-    expect(sentences[0]).toMatch(/never edit, copy or re-implement that test, and write no QA script/);
+    expect(sentences[0]).toMatch(/Never edit, copy or re-implement that test, and write no QA script/);
     expect(sentences[0]).toMatch(/`runs\/\{runId\}\/cases\/\{TC-ID\}-result\.json` with the `coveredBy` ref as its evidence/);
   });
   it('the executor SPV and the unit SPV check it', () => {
-    expect(prose('spv/qa-test-executor-spv.md')).toMatch(/10\. \*\*Developer-covered TCs\.\*\*.*no QA script was written.*cites the `coveredBy` ref/);
-    expect(prose('spv/qa-unit-specialist-spv.md')).toMatch(/9\. \*\*Developer-covered TCs\.\*\*.*no QA script was written.*cites the `coveredBy` ref/);
+    expect(prose('spv/qa-test-executor-spv.md')).toMatch(/10\. \*\*Developer-covered TCs\.\*\*.*not by `testType`.*no QA script was written.*cites the `coveredBy` ref/);
+    expect(prose('spv/qa-unit-specialist-spv.md')).toMatch(/9\. \*\*Developer-covered TCs\.\*\*.*no QA script written.*cites the `coveredBy` ref/);
+  });
+  it('N1: running the developer test writes nothing into the target, and every SPV of a runner checks it', () => {
+    const sentence = prose(RUNNERS[0]!).split('\n').find((l) => /^\d+\. \*\*Developer-covered TCs\.\*\*/.test(l))!;
+    for (const fact of [
+      /usually `test` for unit tests and `test:e2e` for e2e tests/, /with `CI=true`, no snapshot update and no coverage flag/,
+      /every runner output and report directed under `runs\/\{runId\}\/evidence\/\{TC-ID\}\/` \(for Playwright, `--output`/,
+      /Record the target's `git status --porcelain` before and after the run/,
+      /would build or start the target in place \(such as a Playwright `webServer` that builds `\.next\/`\), do not run it: write the TC `blocked`/,
+    ]) expect(sentence).toMatch(fact);
+    const checks = ['spv/qa-unit-specialist-spv.md', 'spv/qa-api-specialist-spv.md', 'spv/qa-ui-specialist-spv.md'].map(
+      (f) => prose(f).split('\n').find((l) => /^\d+\. \*\*Developer-covered TCs\.\*\*/.test(l))!.replace(/^\d+\. /, ''),
+    );
+    expect(new Set(checks).size).toBe(1);
+    for (const text of [checks[0]!, prose('spv/qa-test-executor-spv.md')]) {
+      expect(text).toMatch(/`CI=true`, no snapshot update and no coverage flag/);
+      expect(text).toMatch(/`git status --porcelain` before and after,? with no change/);
+      expect(text).toMatch(/build or start the target in place .*`blocked`/);
+      expect(text).toMatch(/any change in the target = requested-changes/);
+    }
+    for (const f of ['spv/qa-unit-specialist-spv.md', 'spv/qa-api-specialist-spv.md', 'spv/qa-ui-specialist-spv.md']) {
+      expect(read(f, '{run}/cases/{TC-ID}-result.json')).toBeDefined();
+    }
   });
   it('A4: the designer exempts a developer-covered TC from the 13-criteria check', () => {
     expect(prose('tier1-phase/qa-test-designer.md')).toMatch(/developer-covered TC \(`coveredBy` set, `automationStatus: Automated`\) is exempt from this check/);
@@ -197,7 +232,7 @@ describe('M6, A3: the dev-test sandbox copy keeps no dotenv file, secret or QA f
     expect(prose(REVIEWER)).toMatch(/with `\.\.\/\.\.`, the last two directory names of the repo's path, such as `QA\/aegis`/);
   });
   it('SPV check 6 verifies the dotenv excludes', () => {
-    expect(prose('spv/qa-dev-test-reviewer-spv.md')).toMatch(/6\. \*\*Read-only target, clean copy\.\*\*.*`--exclude \.env --exclude '\.env\.\*'`/);
+    expect(prose('spv/qa-dev-test-reviewer-spv.md')).toMatch(/6\. \*\*Read-only target, clean copy\.\*\*.*`--exclude \.env --exclude '\.env\.\*' --exclude \.envrc --exclude \.dev\.vars`/);
   });
   const hasRsync = spawnSync('rsync', ['--version']).status === 0;
   (hasRsync ? it : it.skip)("the prose's rsync command, run as written, copies only what it should", () => {
@@ -206,7 +241,7 @@ describe('M6, A3: the dev-test sandbox copy keeps no dotenv file, secret or QA f
     try {
       const target = path.join(base, 't');
       const files = ['.env', '.env.local', '.env.example', 'src/a.ts', 'src/sub/.env', 'src/sub/.env.test', 'QA/aegis/secrets/.env.staging', 'QA/aegis/runs/x.json',
-        'tests/qa/a.spec.ts', 'tests/unit.test.ts', '.git/HEAD', 'node_modules/x/i.js', 'node_modules/.cache/c'];
+        'tests/qa/a.spec.ts', 'tests/unit.test.ts', '.git/HEAD', 'node_modules/x/i.js', 'node_modules/.cache/c', '.envrc', 'apps/w/.dev.vars', 'apps/w/.envrc'];
       for (const f of files) { fs.mkdirSync(path.dirname(path.join(target, f)), { recursive: true }); fs.writeFileSync(path.join(target, f), 'x'); }
       const out = path.join(base, 'out');
       const run = cmd.replace('/<repo dir>/', '/QA/aegis/').replace('/<QA tests dir>/', '/tests/qa/').replace('<target>/', `${target}/`)

@@ -24,11 +24,13 @@ SPV (read-only, tools: [Read, Bash]):
   reads: the latest work report + actual artifacts + worker's lessons.md
   submits: aegis review submit (verdict + findings + corrective instructions)
   ↓
-The CLI stores the review under reports/review/, records review.*,
-pipes corrective instructions into the worker's lessons, and acts on the verdict:
+The CLI stores the review under reports/review/, records the verdict (review.*),
+pipes corrective instructions into the worker's lessons, and reopens or escalates
+the task; the dispatcher then re-dispatches on the verdict:
   passed                    → advance
   passed-with-notes         → advance (the lesson is already appended)
-  requested-changes         → the CLI reopened the task; the worker redoes it
+  requested-changes         → the CLI reopened the task; the dispatcher re-dispatches
+                              the worker with the CorrectiveInstruction
   3rd rejection             → the CLI records task.escalated and blocks the run → /qa-escalation
 ```
 

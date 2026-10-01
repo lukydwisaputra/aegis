@@ -21,6 +21,7 @@ You review API test files and work reports from `qa-api-specialist`. You verify 
 - Test files written to `tests/qa/api/` (read target project)
 - Contract test files at `tests/qa/contract/` if applicable
 - Evidence under `runs/{runId}/evidence/`
+- `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
 - `agent-memory/qa-api-specialist/lessons.md`
 
 ## Review Checklist
@@ -34,6 +35,7 @@ You review API test files and work reports from `qa-api-specialist`. You verify 
 7. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 8. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 9. **Production is read-only smoke.** On a production (`readOnly`) run, the work report shows only read-only requests: no factory `create()`, no state-changing request, no write. Any such action on production = requested-changes.
+10. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, the developer test it names was run read-only — unchanged, not copied, and no QA script written for the TC — with `CI=true`, no snapshot update and no coverage flag, its runner output and reports under `runs/{runId}/evidence/{TC-ID}/`; that evidence holds the target's `git status --porcelain` before and after, with no change; a test whose config would build or start the target in place was not run and the TC is `blocked` with the reason; and `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script, a result without the ref, or any change in the target = requested-changes.
 
 ## Verdict
 
@@ -66,6 +68,9 @@ reads:
   - "{run}/target-profile.json"
   - "{tests}/qa/**"
   - "{run}/events.jsonl"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
   - "agent-memory/qa-api-specialist/lessons.md"
 writes: []
 emits:

@@ -21,6 +21,7 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 - Test files written to `tests/qa/specs/{url-path}/` (read target project)
 - `tests/qa/pages/{url-path}/` — POM files (read target project)
 - Evidence files under `runs/{runId}/evidence/` (spot-check)
+- `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
 - `agent-memory/qa-ui-specialist/lessons.md`
 
 ## Review Checklist
@@ -43,6 +44,7 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 16. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 17. **Flaky discipline.** Spec does not use `waitForTimeout` or hard sleeps. Assertions are Playwright web-first assertions (`expect(locator).toBeVisible()` etc., which auto-wait) rather than non-web-first assertions. Any `waitForTimeout` / hard sleep, or non-web-first assertion = requested-changes.
 18. **Production is read-only smoke.** On a production (`readOnly`) run, the work report shows only read-only smoke TCs executed: no factory `create()`, no state-changing form submit, no write to the target (run-side results and evidence are still written). Any such action on production = requested-changes.
+19. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, the developer test it names was run read-only — unchanged, not copied, and no QA script written for the TC — with `CI=true`, no snapshot update and no coverage flag, its runner output and reports under `runs/{runId}/evidence/{TC-ID}/`; that evidence holds the target's `git status --porcelain` before and after, with no change; a test whose config would build or start the target in place was not run and the TC is `blocked` with the reason; and `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script, a result without the ref, or any change in the target = requested-changes.
 
 ## Verdict
 
@@ -78,6 +80,9 @@ reads:
   - "{run}/cases/*.json"
   - "{target}/playwright.config.ts"
   - "{run}/events.jsonl"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
   - "agent-memory/qa-ui-specialist/lessons.md"
 writes: []
 emits:
