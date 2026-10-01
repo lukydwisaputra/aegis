@@ -42,7 +42,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 - `runs/{runId}/cases/{TC-ID}-{viewport}-result.json` — result per TC per viewport
 - `runs/{runId}/evidence/{TC-ID}/{viewport}/` — screenshots per viewport; overwrites previous run's evidence for the same TC
-- `runs/{runId}/defects/{DEF-ID}.{md,json}` — viewport-specific defects; tagged with affected viewport(s)
+- `runs/{runId}/defect-candidates/{slug}.json` — suspected viewport-specific defects, one per file (`DefectCandidateSchema`, with `viewport` and the TC id); qa-defect-manager confirms their origin in Triage
 
 ## Process
 
@@ -62,14 +62,14 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
    - Nav breakdown: hamburger menu not functioning, or desktop nav overflowing → defect
    - Touch targets: interactive elements with `width < 44` or `height < 44` on mobile → a11y defect with `WCAG-2.2-2.5.5`
 
-5. **Auto-tag viewport on defects.** Any defect found only on mobile gets tag `viewport:mobile`. Found on all → `viewport:all`.
+5. **File each breakpoint defect as a candidate.** Write `runs/{runId}/defect-candidates/responsive-{slug}.json` with the TC id, the evidence under `runs/{runId}/evidence/{TC-ID}/{viewport}/` and `viewport` set to where it reproduces (`mobile` when only there, `all` when everywhere). You never open a defect or mint a DEF id.
 
 6. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
 
 ## Quality Standards (SPV rejects if violated)
 
 - TC run on viewport not in its `viewportScope`
-- Viewport-specific defect not tagged with the viewport where it reproduces
+- Breakpoint defect candidate without the viewport where it reproduces, or a defect opened directly
 - Screenshots not captured at each tested viewport
 - Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/{viewport}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
 - Inspection screenshot not deleted after the assertion is written — must be removed immediately; never written to `runs/{runId}/evidence/`
@@ -108,7 +108,7 @@ reads:
 writes:
   - "{run}/cases/{TC-ID}-{viewport}-result.json"
   - "{run}/evidence/{TC-ID}/{viewport}/**"
-  - "{run}/defects/{DEF-ID}.{md,json}"
+  - "{run}/defect-candidates/{slug}.json"
   - "{tests}/qa/specs/{url-path}/responsive.spec.ts"
   - "sandbox/{date}-{slug}/**"
 emits:

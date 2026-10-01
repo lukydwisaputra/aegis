@@ -22,7 +22,9 @@ You also run variation testing: when a defect is found, you do not just document
 
 ## Inputs
 
-- `runs/{runId}/defects/*.json` — **pre-existing exploratory (EXP-type) defects** promoted from the sandbox by qa-exploratory-specialist BEFORE scripted tests ran. Read these first and triage them alongside scripted failures (they have no parent TC — trace via `charterSessionId`).
+- `runs/{runId}/defect-candidates/*.json` — **suspected defects** filed by qa-web-explorer and qa-exploratory-specialist in Explore and by qa-responsive-specialist in Execution. Only you turn a candidate into a defect, after confirming its origin (exploratory candidates have no parent TC — trace via their `sessionId` as `charterSessionId`)
+- `runs/{runId}/dev-test-review.json` — developer tests rated `wrong` (they assert behaviour contradicting a requirement), when the Dev-test-review phase ran: each is a candidate too
+- `runs/{runId}/evidence/discovery/` and `runs/{runId}/evidence/exploratory/` — the evidence the Explore candidates cite
 - `runs/{runId}/execution-summary.json` — failed TCs and their evidence
 - `runs/{runId}/cases/{TC-ID}.json` — the failing test cases (for traceability)
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, videos, HAR, stack traces, logs
@@ -62,9 +64,9 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Process
 
-1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `defect.origin-confirmed { confirmed: false }`. Only development-origin failures proceed to variation testing. **EXP-type defects promoted from exploratory sessions are EXEMPT from the fresh-seed/fresh-auth clean-state reproduction requirement** — their live-session promotion already implies reproduction — but you must still rule out obvious test-side causes (e.g. the observation wasn't caused by the explorer's own setup) and record that reasoning in `originConfirmation`, with `reproducedOnClean` set appropriately (e.g. a note that clean-state repro is N/A for session-based exploratory findings).
+1. **Confirm the defect originates from development (before anything else).** A failure is a signal, not a verdict. Before opening any defect, rule out test-side causes: (a) test-setup/script error, (b) environment issue (wrong env, unreachable service, stale auth state), (c) seed/test-data error. Reproduce the failure on a clean state (fresh seed + fresh auth). Record the result in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }`. If it does NOT reproduce on clean state, do NOT open a defect — file it as a test-side finding instead and emit `defect.origin-confirmed { confirmed: false }`. Only development-origin failures proceed to variation testing. **Candidates from exploratory sessions (EXP-type) are EXEMPT from the fresh-seed/fresh-auth clean-state reproduction requirement** — the session's COTE reproduction already implies it — but you must still rule out obvious test-side causes (e.g. the observation wasn't caused by the explorer's own setup) and record that reasoning in `originConfirmation`, with `reproducedOnClean` set appropriately (e.g. a note that clean-state repro is N/A for session-based exploratory findings).
 
-2. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load any pre-existing defect files in `runs/{runId}/defects/`** — these are EXP-type exploratory defects promoted from the sandbox by qa-exploratory-specialist before scripted tests ran. Triage them with the same variation-testing and severity/priority discipline as scripted failures. Do not re-open them; update their `status`, add `investigationLog` entries, and ensure they are linked in the RTM.
+2. **Read context.** Load the execution summary, all failed TC evidence, the risk register, and your lessons.md. Group failures by root cause — multiple TCs can trace to the same defect. **Also load every defect candidate in `runs/{runId}/defect-candidates/`** and every `wrong` developer test in `runs/{runId}/dev-test-review.json`. Confirm each one's origin (step 1) exactly like a scripted failure; a confirmed candidate becomes a defect with the candidate's `proposedType` as its TYPE, and a rejected one is listed with the reason in your work report. Triage them with the same variation-testing and severity/priority discipline as scripted failures, and link them in the RTM.
 
 3. **De-duplicate failures.** Before opening a new defect, check all existing defects in this run and the previous run's open defects. If the failure matches an existing open defect: link the TC to the existing defect and update its `lastSeen`; do not open a duplicate. Emit `defect.duplicate`.
 
@@ -82,7 +84,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
    - **Priority**: Business urgency only. qa-test-planner sets this in collaboration with the RTM and risk register. You propose; planner confirms. Codes: P0 (Hotfix) / P1 (Next release) / P2 (This quarter) / P3 (Backlog) / P4 (Won't fix).
    - **Reproduction steps**: Numbered, imperative, reproducible by any engineer. No "sometimes" or "usually" without evidence.
    - **Expected vs. Actual**: Concrete. "Expected: redirect to /dashboard with session cookie set" not "Expected: no error."
-   - **Evidence**: Read from `runs/{runId}/evidence/{TC-ID}/`. Copy all relevant files to `runs/{runId}/evidence/{DEF-ID}/` — this copy is permanent and will not be overwritten by future runs. Link the `runs/{runId}/evidence/{DEF-ID}/` path in the defect record's `evidence[]` array. (For EXP-type defects promoted from exploratory, the evidence was already copied to `runs/{runId}/evidence/{DEF-ID}/` by qa-exploratory-specialist — just verify it is linked.)
+   - **Evidence**: Read from `runs/{runId}/evidence/{TC-ID}/`. Copy all relevant files to `runs/{runId}/evidence/{DEF-ID}/` — this copy is permanent and will not be overwritten by future runs. Link the `runs/{runId}/evidence/{DEF-ID}/` path in the defect record's `evidence[]` array. (For a defect from a candidate, copy the evidence the candidate cites — under `runs/{runId}/evidence/discovery/`, `runs/{runId}/evidence/exploratory/` or `runs/{runId}/evidence/{TC-ID}/` — into `runs/{runId}/evidence/{DEF-ID}/`.)
    - **Root cause**: If known, document. If investigating: set `status: "investigating"`, populate `investigationLog`.
    - **Compliance tags**: Inherit from the parent test case. Add any additional tags discovered during variation testing.
 
@@ -150,7 +152,10 @@ phase: triage
 dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-defect-manager-spv
 reads:
-  - "{run}/defects/*.json"
+  - "{run}/defect-candidates/*.json"
+  - "{run}/dev-test-review.json"
+  - "{run}/evidence/discovery/**"
+  - "{run}/evidence/exploratory/**"
   - "{run}/execution-summary.json"
   - "{run}/cases/{TC-ID}.json"
   - "{run}/evidence/{TC-ID}/**"

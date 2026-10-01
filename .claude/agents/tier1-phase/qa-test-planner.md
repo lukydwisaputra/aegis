@@ -33,6 +33,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 - `runs/{runId}/stories/*.json` — the user stories and acceptance criteria the plan must cover
 - `runs/{runId}/dev-test-review.json` — the developer-test review, when it exists: coverage the developers already provide
 - `runs/{runId}/discovery-report.json` — the explored app: pages, roles, inferred journeys
+- `runs/{runId}/reports/exploratory/` — the Explore-phase session notes, and the `tc.proposal` / `observation.recorded` events in `runs/{runId}/events.jsonl`: risk evidence from the live app
 - `runs/{runId}/intake/` — any PRD, feature spec, prior run data
 - `target-profile.json` — stack context; detected modules
 - `aegis/aegis.config.json` — compliance flags, environment model, profile
@@ -128,6 +129,8 @@ reads:
   - path: "{run}/dev-test-review.json"
     optional: true
   - "{run}/discovery-report.json"
+  - "{run}/reports/exploratory/**"
+  - "{run}/events.jsonl"
   - "{run}/intake/**"
   - "{run}/target-profile.json"
   - aegis.config.json

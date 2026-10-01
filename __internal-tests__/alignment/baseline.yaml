@@ -17,12 +17,6 @@ entries:
   - key: "CLI:qa-cicd-planner:work-report.submit:handoff-missing"
     ids: [AUD-083, AUD-111]
     note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-exploratory-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-exploratory-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   - key: "CLI:qa-github-implementer:task.claim:handoff-missing"
     ids: [AUD-081]
     note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
@@ -41,12 +35,6 @@ entries:
   - key: "CLI:qa-ui-designer:work-report.submit:handoff-missing"
     ids: [AUD-083]
     note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-web-explorer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-web-explorer:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   # --- CONFIG ---
   - key: "CONFIG:_qa-build-agents:config/model-policy.yaml:missing"
     ids: [AUD-061, AUD-057]
@@ -75,12 +63,6 @@ entries:
   - key: "CONFIG:aegis.config.json:collector.remote:unused"
     ids: [AUD-007]
     note: "aegis.config.json#collector.remote is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:discovery.destructiveActionHeuristics:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#discovery.destructiveActionHeuristics is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:discovery.enabled:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#discovery.enabled is listed by no contract and read by no package source"
   - key: "CONFIG:qa-doctor:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
@@ -472,18 +454,6 @@ entries:
   - key: "EVENT:qa-event-bus:-:appends-without-cli"
     ids: [AUD-048]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-exploratory-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-exploratory-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-exploratory-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-exploratory-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-export:export.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -679,18 +649,6 @@ entries:
   - key: "EVENT:qa-watch:watch.stopped:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-web-explorer-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-web-explorer-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-web-explorer-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-web-explorer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   # --- PRODUCER ---
   - key: "PRODUCER:qa-cicd-evaluator:{run}/devops/github-results.json:unreachable-producer"
     ids: [AUD-046]
@@ -716,9 +674,6 @@ entries:
   - key: "PRODUCER:qa-curator:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
-  - key: "PRODUCER:qa-exploratory-specialist-spv:{run}/reports/work/qa-exploratory-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-exploratory-specialist.json is a work report, but no worker qa-exploratory-specialist-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-github-implementer:{run}/devops/github-plan.json:unreachable-producer"
     ids: [AUD-046]
     note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
@@ -740,9 +695,6 @@ entries:
   - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-web-explorer-spv:{run}/reports/work/qa-web-explorer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-web-explorer.json is a work report, but no worker qa-web-explorer-spv reviews lists work-report.submit"
   # --- ROUTE ---
   # --- SKILL ---
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"

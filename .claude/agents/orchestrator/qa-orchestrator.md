@@ -75,11 +75,11 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | Dev-test-review | `dev-test-review` | `qa-dev-test-reviewer` | Reviews the developer tests (mutation testing on a sandbox copy) before Requirements. Not-applicable while `target-profile.json#existingTests.files` is empty. |
    | Requirements | `requirements` | `qa-requirements-analyst` | |
    | Env-auth | `env-auth` | `qa-environment-engineer` (scope=auth) | Login per role, save storage state, smoke-ping. Runs on every environment, read-only ones included (it seeds nothing). |
-   | Explore | `explore` | `qa-web-explorer` | Needs the auth fixtures from Env-auth. |
+   | Explore | `explore` | `qa-web-explorer`, then `qa-exploratory-specialist` | Web explorer first (it needs the auth fixtures from Env-auth); then one exploratory task per story or story cluster — see the Explore exception below. |
    | Planning | `planning` | `qa-test-planner` | Followed by Gate 1. |
    | Design | `design` | `qa-test-designer` | |
    | Env-data | `env-data` | `qa-environment-engineer` (scope=data) | Factories and seed data for the approved cases. |
-   | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs; you never dispatch a specialist. |
+   | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs; you never dispatch a specialist in Execution. |
    | Triage | `triage` | `qa-defect-manager` | Followed by Gate 2. |
    | Closure-draft | `closure-draft` | `qa-closure-reporter` (draft pass) | |
    | Compliance | `compliance` | `qa-compliance-*` from `aegis.config.json#compliance` | Not-applicable when the list is empty. |
@@ -88,6 +88,8 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | Curator | `curator` | `qa-curator` | Last phase. |
 
    **Production rule.** Never dispatch a mutating phase agent (Env-data seeding, or any phase that writes to the target) on an environment whose `aegis.config.json#environments.{env}.readOnly` is `true`. Production is never used for mutating tests. On such an environment Env-data is recorded not-applicable (step 4.5): the CLI computes the reason `environment <env> is read-only; no data seeding`. When any other phase would need a mutating dispatch, stop and report to the owner instead.
+
+   **Explore exception.** `qa-exploratory-specialist` is the one Tier-2 specialist you dispatch yourself: in Explore, after `qa-web-explorer` returns, add one task per story or story cluster (`aegis task add --id T-explore-<n> --title "<charter>" --agent qa-exploratory-specialist`) and dispatch it with the stories in its brief, then dispatch its SPV like any worker's. Its claim counts against `aegis.config.json#parallelism.maxSpecialists` and is refused where the environment does not allow `exploratory` (`aegis.config.json#environments.{env}.allowedSpecialists`): on such an environment add no exploratory task — the web explorer alone covers Explore.
 
    Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them.
 
@@ -118,6 +120,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | `qa-closure-reporter` | `qa-closure-reporter-spv` |
    | `qa-executive-reporter` | `qa-executive-reporter-spv` |
    | `qa-web-explorer` | `qa-web-explorer-spv` |
+   | `qa-exploratory-specialist` (Explore only) | `qa-exploratory-specialist-spv` |
    | `qa-dev-test-reviewer` | `qa-dev-test-reviewer-spv` |
    | `qa-context-scanner`, `qa-compliance-*`, `qa-curator` | none yet — the barrier lists them as SPV-less |
 
@@ -160,7 +163,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 - A gate was opened without a passing `qa-orchestrator-spv` review of its gate task
 - Mission-goal ranking missing or generic
 - A dispatched agent received a brief lacking mission ranking, task id or lessons excerpts
-- A worker's task advanced without its paired SPV review, or a specialist was dispatched by the orchestrator
+- A worker's task advanced without its paired SPV review, or the orchestrator dispatched a specialist other than `qa-exploratory-specialist` in Explore
 - `qa-metrics-collector` not dispatched at run start or after a resume
 - Budget breach occurred without a `budget.warning`
 - Work report contains a ship/no-ship verdict — QA informs; humans adjudicate (Kaner ch-08 category-error guard)
@@ -268,6 +271,7 @@ dispatches:
   - qa-requirements-analyst
   - qa-environment-engineer
   - qa-web-explorer
+  - qa-exploratory-specialist
   - qa-test-planner
   - qa-test-designer
   - qa-test-executor
@@ -283,6 +287,7 @@ dispatches:
   - qa-closure-reporter-spv
   - qa-executive-reporter-spv
   - qa-web-explorer-spv
+  - qa-exploratory-specialist-spv
   - qa-dev-test-reviewer-spv
   - qa-orchestrator-spv
   - qa-compliance-iso25010
@@ -295,6 +300,7 @@ dispatches:
 config:
   - aegis.config.json#compliance
   - aegis.config.json#environments.{env}.readOnly
+  - aegis.config.json#environments.{env}.allowedSpecialists
   - aegis.config.json#preCycleHealthCheck
   - aegis.config.json#parallelism.maxSpecialists
   - thresholds.yaml#smoke

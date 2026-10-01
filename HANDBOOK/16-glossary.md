@@ -53,7 +53,7 @@ A structured description of a test: preconditions, steps, expected result, and t
 ### 16.2 STLC Phase Terms
 
 **Discovery**
-Phase 0. Crawling the application to produce a route inventory, auth state matrix, and screenshots. Runs automatically when `discovery.enabled: true`.
+Phase 0. Crawling the application to produce a route inventory, auth state matrix, and screenshots. Runs in every full cycle as the first step of the Explore phase (`qa-web-explorer`).
 
 **Requirement Ingestion**
 Phase 1. Parsing requirements from books, route inventory, and provided files. Produces the RTM skeleton.
