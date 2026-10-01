@@ -1,6 +1,7 @@
 import { AegisEventSchema, EnvAuthReportSchema } from '@qa/contracts';
-import { SPV_NONE } from '@qa/run-state';
+import { copyIntake, SPV_NONE } from '@qa/run-state';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { parse } from 'yaml';
 import { ENV_AUTH_REPORT } from './helpers/p0a2-fixtures';
@@ -131,4 +132,30 @@ describe('M7: the unit specialist reads the developer-test review only when it e
   it('marks the read optional like its peers', () => {
     expect(read('tier2-specialist/qa-unit-specialist.md', '{run}/dev-test-review.json')).toEqual({ path: '{run}/dev-test-review.json', optional: true });
   });
+});
+
+describe('I5: the intake readers use the layout copyIntake produces', () => {
+  it('copyIntake keeps target-relative paths: docs/prd.md lands at intake/docs/prd.md', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'p0a-intake-'));
+    try {
+      const target = path.join(base, 'target');
+      const root = path.join(target, 'aegis');
+      fs.mkdirSync(path.join(target, 'docs'), { recursive: true });
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(target, 'docs', 'prd.md'), '# PRD\n');
+      const intake = path.join(root, 'runs', 'RUN-X', 'intake');
+      expect(copyIntake(root, '..', ['docs/**/*.md'], intake)).toEqual(['docs/prd.md']);
+      expect(fs.existsSync(path.join(intake, 'docs', 'prd.md'))).toBe(true);
+      expect(fs.existsSync(path.join(intake, 'requirements'))).toBe(false);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+  it.each(['tier1-phase/qa-requirements-analyst.md', 'spv/qa-requirements-analyst-spv.md', 'tier2-specialist/qa-web-explorer.md'])(
+    '%s reads {run}/intake/** and no fixed intake sub-layout',
+    (rel) => {
+      expect(read(rel, '{run}/intake/**')).toEqual({ path: '{run}/intake/**' });
+      expect(prose(rel)).not.toMatch(/intake\/requirements|intake\/prd\.md/);
+    },
+  );
 });

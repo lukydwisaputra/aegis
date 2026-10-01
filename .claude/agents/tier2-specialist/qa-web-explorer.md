@@ -54,7 +54,7 @@ In both cases: read the accessibility snapshot after each navigation to extract 
 - `runs/{runId}/target-profile.json` — detected framework, auth method, app list, route inventory; read this to know the app's URL structure before crawling
 - `aegis/aegis.config.json` — `discovery.entryPoints`, `discovery.maxDepth`, `discovery.maxPagesPerRun`, `discovery.rolesToExplore`, `discovery.skipPatterns`
 - `tests/qa/fixtures/auth.fixture.ts` — per-role auth fixtures
-- `runs/{runId}/intake/requirements/` — requirement docs (read to understand what areas to prioritise)
+- `runs/{runId}/intake/**` — the requirement documents the run copied from the target, at their target-relative paths (read to understand what areas to prioritise)
 - `agent-memory/qa-web-explorer/lessons.md`
 
 ## Outputs
@@ -153,7 +153,7 @@ reads:
   - "{run}/target-profile.json"
   - aegis.config.json
   - "{tests}/qa/fixtures/auth.fixture.ts"
-  - "{run}/intake/requirements/**"
+  - "{run}/intake/**"
   - agent-memory/qa-web-explorer/lessons.md
 writes:
   - "{run}/discovery-report.{md,json}"

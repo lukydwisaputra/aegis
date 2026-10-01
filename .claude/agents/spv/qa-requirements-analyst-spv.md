@@ -24,7 +24,7 @@ You review the ambiguity reports and testability scores produced by `qa-requirem
 - `runs/{runId}/requirements/testability-scores.json`
 - `runs/{runId}/stories/*.json` — the user stories and acceptance criteria
 - `runs/{runId}/dev-test-review.json` — the developer-test review, when it exists
-- Source requirements documents from the target project (read-only)
+- `runs/{runId}/intake/**` — the requirement documents the run copied from the target, at their target-relative paths (read-only)
 - `agent-memory/qa-requirements-analyst/lessons.md`
 
 ## Review Checklist
@@ -69,6 +69,7 @@ reads:
   - "{run}/requirements/ambiguity-report.{md,json}"
   - "{run}/requirements/testability-scores.json"
   - "{run}/stories/*.json"
+  - "{run}/intake/**"
   - path: "{run}/dev-test-review.json"
     optional: true
   - "agent-memory/qa-requirements-analyst/lessons.md"

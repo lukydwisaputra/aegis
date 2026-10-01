@@ -22,8 +22,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 ## Inputs
 
-- `runs/{runId}/intake/requirements/` — requirement documents, user stories, AC lists
-- `runs/{runId}/intake/prd.md` — product requirements document if provided
+- `runs/{runId}/intake/**` — every requirement document the run copied from the target (PRDs, feature specs, user stories, AC lists), each at its target-relative path (for example `docs/prd.md` lands at `intake/docs/prd.md`)
 - `target-profile.json` — stack context (framework, roles, auth method) AND `sourceInventory` (routes, components, API handlers, exported functions, existing tests) for source-code grounding
 - `aegis/aegis.config.json` — compliance flags, scope filter
 - `runs/{runId}/dev-test-review.json` — the developer-test review, when the Dev-test-review phase ran: which behaviour developer tests already pin, and which tests contradict a requirement
@@ -38,7 +37,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 ## Process
 
-1. **Inventory all requirements.** Read every file in `runs/{runId}/intake/requirements/`. Extract: requirement ID, description, acceptance criteria, compliance tags, linked user stories.
+1. **Inventory all requirements.** Read every file under `runs/{runId}/intake/**` — the intake sources the run copied, at their target-relative paths. Extract: requirement ID, description, acceptance criteria, compliance tags, linked user stories.
 
 2. **Apply testability heuristics per requirement.** For each:
    - **Observable**: Is the expected output concrete enough to assert? Red flag: "the system should behave correctly."
@@ -122,9 +121,7 @@ phase: requirements
 dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-requirements-analyst-spv
 reads:
-  - "{run}/intake/requirements/**"
-  - path: "{run}/intake/prd.md"
-    optional: true
+  - "{run}/intake/**"
   - "{run}/target-profile.json"
   - aegis.config.json
   - path: "{run}/dev-test-review.json"

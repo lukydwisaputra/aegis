@@ -165,7 +165,6 @@ escapes:
   - {unit: qa-performance-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-realtime-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-requirements-analyst, field: optional, value: "{run}/dev-test-review.json", reason: "qa-requirements-analyst.md:29 read when the Dev-test-review phase ran (not-applicable with no developer tests)"}
-  - {unit: qa-requirements-analyst, field: optional, value: "{run}/intake/prd.md", reason: "qa-requirements-analyst.md:26 product requirements document if provided"}
   - {unit: qa-requirements-analyst-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-requirements-analyst-spv.md:26 the developer-test review, when it exists"}
   - {unit: qa-requirements-analyst-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-responsive-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
