@@ -111,7 +111,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-cicd-planner-spv` | CI/CD workflow files | 85 |
 | `qa-github-planner-spv` | Branch / PR strategy | 85 |
 
-SPVs are read-only (`tools: [Read, Bash]`): they write `review.json` but never edit worker artefacts or `lessons.json`. The **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads the verdict and pipes any corrective instruction into the worker's lessons. All SPVs are **disabled in Lite mode**.
+SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict. All SPVs are **disabled in Lite mode**.
 
 ---
 

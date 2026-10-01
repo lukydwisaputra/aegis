@@ -69,8 +69,8 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 `aegis.config.json` at the repo root is the primary config. Key fields:
 
 - `targetProjectRoot` — relative path to the app under test (default `..`)
-- `testsDir` — where tests are written (default `../tests`)
-- `profile` — `"full"` (63 agents) or `"lite"`
+- `testsDir` — where tests are written (default `../tests/qa`)
+- `profile` — `"full"` (66 agents) or `"lite"`
 - `compliance` — which standards are audited per run
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
@@ -92,7 +92,7 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 | 1 — Phase managers | 9 | Sonnet/Opus | One per STLC phase (requirements → closure), plus the developer-test reviewer |
 | 2 — Specialists | 16 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
 | 2.5 — DevOps | 6 | Sonnet/Opus | GitHub, CI/CD planning & implementation |
-| 3 — SPVs | 25 | Opus | Mirror of Tier 1/2; validate work reports |
+| 3 — SPVs | 24 | Opus | Mirror of Tier 1/2; validate work reports (the 2 DevOps SPVs, `qa-cicd-spv` and `qa-github-spv`, sit in tier 2.5: 26 SPV files in all) |
 | Compliance | 6 | Opus | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
 | Cross-cutting | 4 | Haiku | context-scanner, librarian, event-bus, metrics-collector |
 

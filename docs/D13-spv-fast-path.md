@@ -22,7 +22,7 @@ SPV agents receive a **focused prompt** with only what is needed for review:
   └── CorrectiveInstruction format spec (~200 tokens)
 
 [USER — not cached]
-  ├── work-report.json content
+  ├── the work report the worker submitted with `aegis work-report submit`
   ├── actual artifact excerpts (first 200 lines per file)
   └── worker's lessons.md (to check if they applied known lessons)
 ```

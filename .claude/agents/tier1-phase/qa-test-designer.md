@@ -24,7 +24,7 @@ You translate approved requirements and the test plan into concrete, executable 
 - `runs/{runId}/plan.json` — the approved test plan (post Gate 1)
 - `runs/{runId}/requirements/ambiguity-report.json` — resolved ambiguities
 - `runs/{runId}/requirements/testability-scores.json`
-- `runs/{runId}/discovery-report.json` — URL map, data-testid inventory, inferred user journeys (from qa-web-explorer if Discovery phase ran)
+- `runs/{runId}/discovery-report.json` — URL map, data-testid inventory, inferred user journeys (from qa-web-explorer in the Explore phase)
 - `target-profile.json` — stack, frameworks, auth method, module list, AND `sourceInventory` (routes/components/handlers/functions) for grounding test steps in real source code
 - `aegis/aegis.config.json` — compliance flags, automation policy, manual budget
 - `runs/{runId}/stories/*.json` — the user stories; every acceptance criterion needs at least one TC

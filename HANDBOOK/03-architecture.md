@@ -131,7 +131,7 @@ DevOps agents handle infrastructure and CI/CD concerns (GitHub planning, CI/CD p
 
 SPV agents (named `qa-{worker}-spv`) review worker output. Each SPV is paired with one worker and scores its output on a 0–100 scale across rubric dimensions. If a score falls below the threshold defined in `thresholds.yaml`, the SPV returns the work with inline comments for revision.
 
-SPVs do not rewrite work themselves and are read-only (`tools: [Read, Bash]`). They write a `review.json` verdict; the **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads it and pipes any corrective instruction into the worker's `lessons.json`. This preserves attribution and forces workers to improve their own output.
+SPVs do not rewrite work themselves and are read-only (`tools: [Read, Bash]`). They submit their verdict with `aegis review submit`; the **CLI** stores the review under `reports/review/` and pipes any corrective instruction into the worker's lessons — the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) only dispatches the SPV and acts on the verdict. This preserves attribution and forces workers to improve their own output.
 
 ---
 

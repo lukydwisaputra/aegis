@@ -51,7 +51,7 @@ flowchart TD
         Cases["cases/*.json + rtm.json"]
         PlaywrightCfg["playwright.config.ts<br/>(screenshot:always, video, trace)<br/>tests/fixtures/ + tests/factories/"]
         ExecSummary["execution-summary.json"]
-        Defects["defects/*.json<br/>(scripted + EXP-type)"]
+        Defects["defects/*.json<br/>(confirmed from failures and candidates)"]
         MetricsFiles["reports/metrics/*.json"]
         ClosureFiles["reports/closure/closure.{md,json}"]
         ExecReports["reports/executive/*.pdf"]
@@ -63,7 +63,7 @@ flowchart TD
         Gate3{{"Gate 3<br/>Closure Sign-off"}}
     end
 
-    subgraph Explore["Exploratory (MCP — runs FIRST, blocks scripted)"]
+    subgraph Explore["Explore phase (MCP — story sessions before planning)"]
         Exploratory(["qa-exploratory-specialist<br/>Playwright MCP mandatory"])
         Sandbox["sandbox/{date}-{slug}/<br/>notes + evidence (scratch)"]
         SessionNotes["reports/exploratory/<br/>{session}-notes.md"]

@@ -97,10 +97,10 @@ An honest `uncertainties` list is a signal of quality, not weakness.
 ## Storage location
 
 ```
-runs/{runId}/work-reports/{agentName}-{taskId}.json
+runs/{runId}/reports/work/{agentName}.{taskId}.{n}.json
 ```
 
-The SPV reads this path directly. The orchestrator does not parse work reports — it only checks for their existence as a gate condition before dispatching the SPV.
+The CLI writes it (`aegis work-report submit`, attempt `n` counting up); the SPV reads the highest attempt directly. The orchestrator does not parse work reports — it only checks for their existence as a gate condition before dispatching the SPV.
 
 ---
 

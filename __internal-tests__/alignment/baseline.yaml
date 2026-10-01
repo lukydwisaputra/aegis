@@ -163,9 +163,6 @@ entries:
   - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
     ids: [AUD-060]
     note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
-  - key: "DOC-REF:CLAUDE.md:63 agents:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md claims 63 agents; .claude/agents has 64 agent files"
   - key: "DOC-REF:CLAUDE.md:crosscutting=4:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"Cross-cutting\" claims 4; .claude/agents/crosscutting has 5"
@@ -181,9 +178,6 @@ entries:
   - key: "DOC-REF:CLAUDE.md:qa-specialist:unknown"
     ids: [AUD-076]
     note: "qa-specialist is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:CLAUDE.md:spv=25:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"3 \u2014 SPVs\" claims 25; .claude/agents/spv has 23"
   - key: "DOC-REF:CLAUDE.md:tier2-5-devops=6:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"2.5 \u2014 DevOps\" claims 6; .claude/agents/tier2-5-devops has 7"

@@ -12,15 +12,15 @@ The Software Testing Life Cycle in this framework runs in sixteen phases, in the
 |---|---|---|---|
 | 0 | **Intake** | — (`aegis run create` copies the intake documents) | `run.json`, `intake/**` |
 | 1 | **Scan** | `qa-context-scanner` | `target-profile.json`; the preflight check runs when Scan completes |
-| 2 | **Dev-test-review** | developer-test reviewer (not-applicable when the target has no tests) | `dev-test-review.json` |
-| 3 | **Requirements** | `qa-requirements-analyst` | Ambiguity report, testability scores |
-| 4 | **Env-auth** | `qa-environment-engineer` (scope=auth) | Auth fixtures, per-role storage state |
-| 5 | **Explore** | `qa-web-explorer` | `discovery-report.json`, site map |
+| 2 | **Dev-test-review** | `qa-dev-test-reviewer` (not-applicable when the target has no tests) | `dev-test-review.json` |
+| 3 | **Requirements** | `qa-requirements-analyst` | Ambiguity report, testability scores, user stories with acceptance criteria (`stories/STORY-*.json`) |
+| 4 | **Env-auth** | `qa-environment-engineer` (scope=auth) | Auth fixtures, per-role storage state, `env-auth-report.json` |
+| 5 | **Explore** | `qa-web-explorer`, then `qa-exploratory-specialist` (one session per story or story cluster, where the environment allows it) | `discovery-report.json`, site map, session notes under `reports/exploratory/`, `defect-candidates/*.json` |
 | 6 | **Planning** | `qa-test-planner` | `plan.json`, `risk-register.json` |
 | 7 | **Design** | `qa-test-designer` | Test cases, RTM |
 | 8 | **Env-data** | `qa-environment-engineer` (scope=data) | Factories, seed data, `env-setup-report.json` |
 | 9 | **Execution** | `qa-test-executor` + specialists | Test results, evidence, `execution-summary.json` |
-| 10 | **Triage** | `qa-defect-manager` | Triaged defect reports |
+| 10 | **Triage** | `qa-defect-manager` | Triaged defect reports, from failures and confirmed defect candidates |
 | 11 | **Closure-draft** | `qa-closure-reporter` | Closure draft |
 | 12 | **Compliance** | `qa-compliance-*` (per `aegis.config.json#compliance`; not-applicable when empty) | `reports/compliance/*.json` |
 | 13 | **Closure-final** | `qa-closure-reporter` | `closure.md` + `closure.json` |

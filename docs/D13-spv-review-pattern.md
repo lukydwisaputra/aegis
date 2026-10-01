@@ -7,25 +7,27 @@ Every Tier-1, Tier-2, and Tier-2.5 worker agent has a paired Supervisor (SPV) re
 ## The loop
 
 ```
-Worker claims task
+Worker claims its task: aegis task claim
   ↓
 Worker does work (writes artifacts)
   ↓
-Worker writes work-report.json
+Worker submits its work report: aegis work-report submit
+  (the CLI stores it as reports/work/<agent>.<taskId>.<n>.json)
   ↓
-Worker emits task.released with work-report path
+Worker releases its task: aegis task release (the CLI records task.released)
   ↓
-Dispatcher dispatches the paired SPV:
+Dispatcher dispatches the paired SPV (only after a `done` release):
   • Tier-1 phase agents → dispatched by qa-orchestrator
   • Tier-2 specialists  → dispatched by qa-test-executor
   ↓
 SPV (read-only, tools: [Read, Bash]):
-  reads: work-report.json + actual artifacts + worker's lessons.md
-  writes: review.json (verdict + findings + corrective instructions)
+  reads: the latest work report + actual artifacts + worker's lessons.md
+  submits: aegis review submit (verdict + findings + corrective instructions)
   ↓
-Dispatcher reads the verdict, then:
+The CLI stores the review under reports/review/, records review.*,
+pipes corrective instructions into the worker's lessons, and acts on the verdict:
   passed                    → advance
-  passed-with-notes         → advance (aegis review submit already appended the lesson)
+  passed-with-notes         → advance (the lesson is already appended)
   requested-changes         → the CLI reopened the task; the worker redoes it
   3rd rejection             → the CLI records task.escalated and blocks the run → /qa-escalation
 ```
@@ -34,7 +36,7 @@ Dispatcher reads the verdict, then:
 
 ## Work-report schema
 
-Workers MUST write this before emitting `task.released`:
+Workers MUST submit this with `aegis work-report submit` before `aegis task release` (the release is refused without it):
 
 ```jsonc
 {

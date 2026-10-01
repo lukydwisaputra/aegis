@@ -71,7 +71,7 @@ All reads are unrestricted and concurrent. Agents may read any file at any time 
 `aegis task claim` limits how many Tier-2 specialist agents run simultaneously:
 ```jsonc
 // aegis.config.json
-"parallelism": { "maxSpecialists": 4 }
+"parallelism": { "maxSpecialists": <n> }
 ```
 
 SPV agents run as soon as their paired worker's `aegis task release` records `task.released` — they are naturally parallelizable with the next worker's task.
