@@ -53,12 +53,6 @@ entries:
   - key: "CLI:qa-test-designer:work-report.submit:handoff-missing"
     ids: [AUD-083, AUD-111]
     note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-test-executor:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-test-executor:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   - key: "CLI:qa-ui-designer:task.claim:handoff-missing"
     ids: [AUD-081]
     note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
@@ -178,9 +172,6 @@ entries:
   - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
     ids: [NEW-01]
     note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
-  - key: "CONSUMER:qa-test-executor:{run}/concurrency.json:unread"
-    ids: [AUD-017]
-    note: "no one reads {run}/concurrency.json (the orchestrator stopped reading it; P0a-2 removes the ledger, the CLI enforces the cap)"
   # --- CONTRACT ---
   # --- DISPATCH ---
   - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
@@ -715,18 +706,6 @@ entries:
   - key: "EVENT:qa-test-designer:-:appends-without-cli"
     ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-executor-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-executor-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-test-executor-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-test-executor:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-triage:defect.triaged:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -827,9 +806,6 @@ entries:
   - key: "PRODUCER:qa-test-designer-spv:{run}/reports/work/qa-test-designer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-test-designer.json is a work report, but no worker qa-test-designer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-test-executor-spv:{run}/reports/work/qa-test-executor.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-test-executor.json is a work report, but no worker qa-test-executor-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
@@ -1167,12 +1143,6 @@ entries:
   - key: "WRITE-POLICY:qa-test-designer:{run}/reports/work/qa-test-designer.json:cli-only"
     ids: [AUD-111]
     note: "write to {run}/reports/work/qa-test-designer.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-executor:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-executor:{run}/reports/work/qa-test-executor.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-test-executor.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"

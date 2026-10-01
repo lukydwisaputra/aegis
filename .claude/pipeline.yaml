@@ -162,7 +162,6 @@ escapes:
   - {unit: qa-responsive-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-security-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-test-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-test-executor, field: rmw, value: "{run}/concurrency.json", reason: "qa-test-executor.md:145 sole writer of the ledger; increments on dispatch, decrements on specialist.completed"}
   - {unit: qa-test-executor-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-test-planner-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
