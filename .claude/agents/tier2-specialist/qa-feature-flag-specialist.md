@@ -16,7 +16,7 @@ knowledge_refs:
 
 You generate and run the on/off test matrix for each feature flag in the target. For each flag, you ensure that core user journeys work correctly in both enabled and disabled states. You detect flag system (GrowthBook, LaunchDarkly, Unleash, or Statsig) from `target-profile.json`.
 
-If no flag system is detected, emit `specialist.no-op` and exit gracefully.
+If no flag system is detected, emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4). A no-op is a result, not a failed task.
 
 ## Inputs
 
@@ -32,7 +32,7 @@ If no flag system is detected, emit `specialist.no-op` and exit gracefully.
 
 ## Process
 
-1. **Detect flag system.** If no flag system found in target-profile: emit `specialist.no-op`.
+1. **Detect flag system.** If no flag system found in target-profile: emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4).
 
 2. **Enumerate flags.** Query the flag provider API (using service credentials from secrets) to get the current flag list and their rollout states.
 
