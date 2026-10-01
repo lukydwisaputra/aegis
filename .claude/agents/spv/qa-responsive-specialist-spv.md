@@ -17,7 +17,7 @@ You review responsive/viewport test results from `qa-responsive-specialist`. You
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-responsive-specialist.json` — work report
+- `runs/{runId}/reports/work/qa-responsive-specialist*.json` — the worker's work reports, one file per task and attempt
 - Responsive test files
 - `runs/{runId}/cases/*.json` — TCs with `viewportScope` field
 - `runs/{runId}/defects/*.json` — responsive defects
@@ -42,9 +42,13 @@ You review responsive/viewport test results from `qa-responsive-specialist`. You
 - `passed-with-notes` — missing touch-target or overflow checks; emit CorrectiveInstruction
 - `requested-changes` — missing viewport for `all`-scope TC, no viewport tags on defects, production targeted, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used; block
 
+## Submitting Your Verdict
+
+Review only a released task: `aegis review submit` refuses one still in progress, so tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `AEGIS_AGENT=qa-responsive-specialist-spv pnpm aegis review submit --file /dev/stdin`: `id` (`RV-qa-responsive-specialist-spv-<taskId>`), `reviewer` (`qa-responsive-specialist-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]`, `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`, each with `mistake`, `rootCause` and `correctiveRule` of 20 characters or more), `reviewedAt` and `modelUsed`. The CLI records the `review.*` event, reopens the task on `requested-changes`, pipes every corrective instruction into the worker's lessons, and escalates the task to the owner on the third rejection in a round. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -56,7 +60,7 @@ dispatchedBy: [qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-responsive-specialist]
 reads:
-  - "{run}/reports/work/qa-responsive-specialist.json"
+  - "{run}/reports/work/qa-responsive-specialist*.json"
   - "{tests}/qa/**"
   - "{run}/cases/*.json"
   - "{run}/defects/*.json"
@@ -64,10 +68,11 @@ reads:
   - "agent-memory/qa-responsive-specialist/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: []
 dispatches: []
 config: []

@@ -27,7 +27,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 ## Outputs
 
-- `tests/security/{surface}.security.spec.ts` — Playwright-based DAST trigger scripts
+- `tests/qa/security/{surface}.security.spec.ts` — Playwright-based DAST trigger scripts
 - `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC
 - `runs/{runId}/evidence/{TC-ID}/zap-report.html` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/semgrep-results.json`
@@ -48,7 +48,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 6. **Never log actual secret values.** Gitleaks `--redact` flag must be used; redacted markers only in evidence.
 
-7. **Sandbox for scratch.** ZAP/Semgrep intermediate scan files and investigation scratch go to a sandbox dir (`sandbox/{YYYY-MM-DD}-{slug}/`), cleaned up via `completeSandbox()` at task end — not into `runs/` or `tests/`.
+7. **Sandbox for scratch.** ZAP/Semgrep intermediate scan files and investigation scratch go to a sandbox dir (`sandbox/{YYYY-MM-DD}-{slug}/`), removed at task end with `rm -rf sandbox/{YYYY-MM-DD}-{slug}` — not into `runs/` or `tests/`. Do not call `completeSandbox()` from `@qa/sandbox-manager`: it appends to the event log without the hash chain.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -57,6 +57,16 @@ You run application security tests across four surfaces: dynamic analysis of the
 - Critical or High CVE found but not classified as test failure
 - Finding lacks CWE tag
 - Scan run against production without explicit `--env=staging` verification
+
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-security-specialist pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying the task is already `in-progress` means you hold it from an interrupted dispatch: continue without claiming.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events or `artifact.created`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-security-specialist`), `startedAt`, `completedAt`, `summary` (20–300 characters), `approach`, `decisions[]`, `uncertainties[]`, `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task and your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4. The third rejection in a round escalates to the owner — the CLI does that, not you.
 
 ## Events You Emit
 
@@ -78,7 +88,7 @@ reads:
   - "{target}/**"
   - agent-memory/qa-security-specialist/lessons.md
 writes:
-  - "{tests}/security/{surface}.security.spec.ts"
+  - "{tests}/qa/security/{surface}.security.spec.ts"
   - "{run}/cases/{TC-ID}-result.json"
   - "{run}/evidence/{TC-ID}/**"
   - "sandbox/{date}-{slug}/**"
@@ -88,7 +98,7 @@ emits:
   - {event: security.finding-critical, via: append}
   - {event: secret.leak-detected, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [zap, semgrep, pnpm, gitleaks, trivy]
 dispatches: []
 config:

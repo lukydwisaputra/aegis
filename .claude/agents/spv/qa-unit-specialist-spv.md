@@ -17,7 +17,7 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-unit-specialist.json` — work report
+- `runs/{runId}/reports/work/qa-unit-specialist*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/reports/unit-coverage-gaps.json` — reported coverage gap findings
 - Net-new QA unit test files (`tests/qa/unit/**/*.test.ts` only)
 - Developer unit test files (read-only reference, wherever `target-profile.json.unitTestStyle` says they live) — used only to confirm they were not touched
@@ -38,9 +38,13 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 - `passed-with-notes` — snapshot-only tests, large inline objects; emit CorrectiveInstruction
 - `requested-changes` — implementation testing, mocking the SUT, any write/edit in the developer tree outside `tests/qa/`; block
 
+## Submitting Your Verdict
+
+Review only a released task: `aegis review submit` refuses one still in progress, so tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `AEGIS_AGENT=qa-unit-specialist-spv pnpm aegis review submit --file /dev/stdin`: `id` (`RV-qa-unit-specialist-spv-<taskId>`), `reviewer` (`qa-unit-specialist-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]`, `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`, each with `mistake`, `rootCause` and `correctiveRule` of 20 characters or more), `reviewedAt` and `modelUsed`. The CLI records the `review.*` event, reopens the task on `requested-changes`, pipes every corrective instruction into the worker's lessons, and escalates the task to the owner on the third rejection in a round. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -52,7 +56,7 @@ dispatchedBy: [qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-unit-specialist]
 reads:
-  - "{run}/reports/work/qa-unit-specialist.json"
+  - "{run}/reports/work/qa-unit-specialist*.json"
   - "{run}/reports/unit-coverage-gaps.json"
   - "{tests}/qa/unit/**"
   - "{tests}/qa/factories/**"
@@ -60,10 +64,11 @@ reads:
   - "agent-memory/qa-unit-specialist/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: []
 dispatches: []
 config: []

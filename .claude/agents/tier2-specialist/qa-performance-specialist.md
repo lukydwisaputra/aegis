@@ -45,6 +45,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
    - Define VU ramp (load test: gradual ramp to target load, hold, ramp down)
    - Set `thresholds` block in k6 config from `thresholds.yaml.gates.{env}.performance` values
    - Add checks: HTTP status 200, response time p95 < threshold, error rate < threshold
+   - Serve the k6 web dashboard on the port in `aegis.config.json#ports.k6Dashboard` (`K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_PORT=<port> k6 run …`) so the owner can watch a long run live
 
 4. **Run Lighthouse-CI** for frontend Core Web Vitals. Assert LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (Good tier per web.dev).
 
@@ -52,7 +53,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 6. **Preserve baseline.** Preserve baseline results in `runs/{runId}/evidence/{TC-ID}/baseline/` (one copy per run, never overwritten) so the SPV can run a baseline delta comparison. The overwrite-on-rerun rule applies only to the latest results dir, not the baseline.
 
-7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, cleaned up via `completeSandbox()` once the spec is committed. This cleanup is safe because the durable proof of exploration is the `sandbox.explored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
+7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, removed with `rm -rf sandbox/{date}-{slug}` once the spec is committed (never through `completeSandbox()` from `@qa/sandbox-manager`, which appends to the event log without the hash chain). This cleanup is safe because the durable proof of exploration is the `sandbox.explored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -61,6 +62,16 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 - p95 measured but p99 not measured when TC scope includes both
 - Lighthouse run skipped for any E2E-facing TC
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
+
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-performance-specialist pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying the task is already `in-progress` means you hold it from an interrupted dispatch: continue without claiming.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events or `artifact.created`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-performance-specialist`), `startedAt`, `completedAt`, `summary` (20–300 characters), `approach`, `decisions[]`, `uncertainties[]`, `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task and your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4. The third rejection in a round escalates to the owner — the CLI does that, not you.
 
 ## Events You Emit
 
@@ -93,10 +104,11 @@ emits:
   - {event: sandbox.explored, via: append}
   - {event: execution.blocked, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [k6, lighthouse]
 dispatches: []
 config:
   - thresholds.yaml#gates.{env}.performance
   - aegis.config.json#environments.{env}.readOnly
+  - aegis.config.json#ports.k6Dashboard
 ```

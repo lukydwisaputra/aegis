@@ -17,7 +17,7 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-ui-specialist.json` — work report
+- `runs/{runId}/reports/work/qa-ui-specialist*.json` — the worker's work reports, one file per task and attempt
 - Test files written to `tests/qa/specs/{url-path}/` (read target project)
 - `tests/qa/pages/{url-path}/` — POM files (read target project)
 - Evidence files under `runs/{runId}/evidence/` (spot-check)
@@ -49,9 +49,13 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 - `passed-with-notes` — CSS selector without explanation, missing HAR confirmation; emit CorrectiveInstruction
 - `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `runs/{runId}/evidence/`, inspection screenshots not deleted after use, missing `afterEach` artifact capture, spec suffix mismatched to test type, missing `beforeEach` factory seed when preconditions/testData exist, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used; block
 
+## Submitting Your Verdict
+
+Review only a released task: `aegis review submit` refuses one still in progress, so tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin`: `id` (`RV-qa-ui-specialist-spv-<taskId>`), `reviewer` (`qa-ui-specialist-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]`, `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`, each with `mistake`, `rootCause` and `correctiveRule` of 20 characters or more), `reviewedAt` and `modelUsed`. The CLI records the `review.*` event, reopens the task on `requested-changes`, pipes every corrective instruction into the worker's lessons, and escalates the task to the owner on the third rejection in a round. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -63,7 +67,7 @@ dispatchedBy: [qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-ui-specialist]
 reads:
-  - "{run}/reports/work/qa-ui-specialist.json"
+  - "{run}/reports/work/qa-ui-specialist*.json"
   - "{tests}/qa/specs/{url-path}/**"
   - "{tests}/qa/pages/{url-path}/**"
   - "{tests}/qa/fixtures/auth.fixture.ts"
@@ -76,10 +80,11 @@ reads:
   - "agent-memory/qa-ui-specialist/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: [grep]
 dispatches: []
 config: []
