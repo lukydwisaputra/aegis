@@ -58,7 +58,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
    **The `next` loop.** `aegis run status` names the `next` step; its `kind` decides what you do, and nothing else does:
    - `start-phase` → run step 4 for that phase (or record it not-applicable, step 4.5).
-   - `continue-phase` → the phase is in progress: re-check its tasks and finish its SPV loop (step 4.3). In a gated phase of a full cycle (Planning, Triage, Closure-final) run its gate task next (steps 5.1–5.3); then complete the phase (step 4.4).
+   - `continue-phase` → the phase is in progress: re-check its tasks, re-dispatch every assignee whose task is still `in-progress` (its claim survived: the brief says to skip `aegis task claim` and continue with the work report and release, as in step 9), and finish its SPV loop (step 4.3). In a gated phase of a full cycle (Planning, Triage, Closure-final) run its gate task next (steps 5.1–5.3); then complete the phase (step 4.4).
    - `open-gate` → full cycle: the gated phase is already complete; open the gate (step 5.4 without its `aegis phase complete`) and continue with step 5.5.
    - `auto-decide` → smoke cycle: run `aegis gate auto-decide --gate G2` (end of step 5).
    - `await-gate` → the gate is open: dispatch nothing; tell the owner it waits for `/qa-gate-decide`.
@@ -89,7 +89,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
    **Production rule.** Never dispatch a mutating phase agent (Env-data seeding, or any phase that writes to the target) on an environment whose `aegis.config.json#environments.{env}.readOnly` is `true`. Production is never used for mutating tests. On such an environment Env-data is recorded not-applicable (step 4.5): the CLI computes the reason `environment <env> is read-only; no data seeding`. When any other phase would need a mutating dispatch, stop and report to the owner instead.
 
-   **Explore exception.** `qa-exploratory-specialist` is the one Tier-2 specialist you dispatch yourself: in Explore, after `qa-web-explorer` returns, add one task per story or story cluster (`aegis task add --id T-explore-<n> --title "<charter>" --agent qa-exploratory-specialist`, with n counting up from 2: `T-explore-1` is the web explorer's task) and dispatch it with the stories in its brief, then dispatch its SPV like any worker's. Its claim counts against `aegis.config.json#parallelism.maxSpecialists` and is refused where the environment does not allow `exploratory` (`aegis.config.json#environments.{env}.allowedSpecialists`): on such an environment add no exploratory task — the web explorer alone covers Explore.
+   **Explore exception.** `qa-exploratory-specialist` is the one Tier-2 specialist you dispatch yourself: in Explore, after `qa-web-explorer` returns, add one task per story or story cluster (`aegis task add --id T-explore-<n> --title "<charter>" --agent qa-exploratory-specialist`, with n counting up from 2: `T-explore-1` is the web explorer's task) and dispatch it with the stories in its brief, then dispatch its SPV like any worker's. Its claim counts against `aegis.config.json#parallelism.maxSpecialists` and is refused where the environment does not allow `exploratory` (`aegis.config.json#environments.{env}.allowedSpecialists`): on such an environment add no exploratory task — the web explorer alone covers Explore. An exploratory specialist refused with `cap-reached` returns without work: re-dispatch it for the same task id after another specialist's task is released — never cancel the task or add a new id for it.
 
    Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them.
 
@@ -122,7 +122,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | `qa-web-explorer` | `qa-web-explorer-spv` |
    | `qa-exploratory-specialist` (Explore only) | `qa-exploratory-specialist-spv` |
    | `qa-dev-test-reviewer` | `qa-dev-test-reviewer-spv` |
-   | `qa-context-scanner`, `qa-compliance-*`, `qa-curator` | none yet — the barrier lists them as SPV-less |
+   | `qa-context-scanner`, `qa-compliance-*`, `qa-curator` | none yet — the barrier accepts them without a review (`SPV_NONE` in `@qa/run-state`) |
 
    Tier-2 specialist SPVs are dispatched by `qa-test-executor`, not by you, except `qa-exploratory-specialist-spv` in Explore.
 
@@ -132,7 +132,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
       - `summary` (20–300 characters): the gate and the phases completed up to it;
       - `approach`: the mission ranking;
       - `decisions[]`: one entry per dispatch since the previous gate — `choice` names the task id and the agent, `reason` names the mission goal served and the lessons excerpts passed in the brief;
-      - `uncertainties[]`: the open risks for the owner, each with an `impact`; at G1 also one entry per story with `derived: true` in `runs/{runId}/stories/`, so the owner confirms it by approving the gate;
+      - `uncertainties[]`: the open risks for the owner, each with an `impact`; at G1 also one entry per story with `derived: true` in `runs/{runId}/stories/`, so the owner confirms it by approving the gate, and one entry per BLOCKed requirement the planner listed out of scope (its work report's `uncertainties[]`), so the owner can have it clarified and reject G1 with the reopen phase `requirements`;
       - `lessonsApplied`: your own lesson ids that shaped the run;
       - no ship/no-ship verdict anywhere.
 

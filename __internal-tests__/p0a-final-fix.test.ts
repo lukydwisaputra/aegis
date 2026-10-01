@@ -1,4 +1,5 @@
 import { AegisEventSchema, EnvAuthReportSchema } from '@qa/contracts';
+import { SPV_NONE } from '@qa/run-state';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from 'yaml';
@@ -49,5 +50,55 @@ describe('M1: env.ready carries rolesToTest, browserProjects and factoriesCreate
   });
   it('the prose names all three fields for both scopes', () => {
     expect(prose(ENV_ENGINEER)).toMatch(/`env\.ready`.*both scopes send exactly rolesToTest, browserProjects and factoriesCreated \(0 for scope=auth\)/);
+  });
+});
+
+describe('I2: the orchestrator SPV exempts the SPV-less agents the barrier exempts', () => {
+  it('check 3 cites SPV_NONE instead of a hard-coded list', () => {
+    const check3 = prose('spv/qa-orchestrator-spv.md').split('\n').find((l) => l.startsWith('3. **SPV coverage.**'))!;
+    expect(check3).toContain('`SPV_NONE` (`@qa/run-state`)');
+    expect(check3).toMatch(/released work report is enough/);
+  });
+  it("the orchestrator's SPV-less row names only SPV_NONE agents", () => {
+    const row = prose('orchestrator/qa-orchestrator.md').split('\n').find((l) => l.includes('none yet — the barrier'))!;
+    expect(row).toContain('`SPV_NONE` in `@qa/run-state`');
+    const names = [...row.matchAll(/`(qa-[a-z0-9*-]+)`/g)].map((m) => m[1]!);
+    expect(names.length).toBeGreaterThan(0);
+    for (const n of names) {
+      const re = new RegExp(`^${n.replace('*', '.+')}$`);
+      expect([...SPV_NONE].some((a) => re.test(a))).toBe(true);
+    }
+  });
+});
+
+describe('I3: a BLOCKed requirement is planned out of scope and resolved at G1', () => {
+  it('the planner always writes the plan and names the reopen option the CLI offers', () => {
+    const text = prose('tier1-phase/qa-test-planner.md');
+    expect(text).toMatch(/A BLOCK never stops the plan/);
+    expect(text).toContain('`--reopen-phase requirements`');
+    expect(text).toMatch(/Never release `done` without a plan/);
+    expect(text).not.toMatch(/do not produce a plan/);
+    // The option exists on `aegis gate decide` (behaviour pinned in run-state-gates.test.ts: G1 rejected → requirements).
+    const gate = fs.readFileSync(path.join(__dirname, '..', 'apps', 'cli', 'src', 'commands', 'gate.ts'), 'utf8');
+    expect(gate).toContain('.option("--reopen-phase <id>"');
+  });
+  it('planning.blocked still validates with the BLOCKed requirement ids', () => {
+    expect(ok(AegisEventSchema, { type: 'planning.blocked', ts: TS, reason: 'REQ-AUTH-04 planned out of scope', blockingRequirementIds: ['REQ-AUTH-04'] })).toBe(true);
+  });
+  it('the orchestrator lists the BLOCKed requirements at G1', () => {
+    expect(prose('orchestrator/qa-orchestrator.md')).toMatch(/one entry per BLOCKed requirement the planner listed out of scope/);
+    expect(prose('spv/qa-orchestrator-spv.md')).toMatch(/every BLOCKed requirement the planner listed out of scope/);
+  });
+});
+
+describe('M3, M4: orchestrator re-dispatch rules', () => {
+  const text = prose('orchestrator/qa-orchestrator.md');
+  it('Explore exception: a cap-reached exploratory task is re-dispatched under the same id', () => {
+    const line = text.split('\n').find((l) => l.includes('**Explore exception.**'))!;
+    expect(line).toMatch(/refused with `cap-reached`.*re-dispatch it for the same task id/);
+  });
+  it('continue-phase re-dispatches in-progress assignees', () => {
+    const line = text.split('\n').find((l) => l.includes('`continue-phase` →'))!;
+    expect(line).toMatch(/re-dispatch every assignee whose task is still `in-progress`/);
   });
 });

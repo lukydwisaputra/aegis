@@ -47,7 +47,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 ## Process
 
-1. **Read context.** Load ambiguity report, testability scores, intake artefacts, target profile, lessons.md. If any BLOCK-level ambiguity exists in the ambiguity report, do not produce a plan — emit `planning.blocked` with the list of BLOCKs. A plan built on unresolved BLOCKs is a plan built on false assumptions (Kaner ch-11 revision trigger #1).
+1. **Read context.** Load ambiguity report, testability scores, intake artefacts, target profile, lessons.md. A BLOCK never stops the plan: a plan built on unresolved BLOCKs is a plan built on false assumptions (Kaner ch-11 revision trigger #1), so a BLOCKed requirement is planned out of scope, never in it. List every BLOCKed requirement under the plan's features not to be tested, each as "blocked: <the analyst's clarifying question>", add one `uncertainties[]` entry per BLOCKed requirement to your work report (impact `high`, `wouldUnblockBy` the answer the product team owes), and append `planning.blocked` with their requirement ids. Then plan the rest as usual. The orchestrator carries each one into the Gate 1 work report; once it is clarified the owner rejects Gate 1 through `/qa-gate-decide` with the reopen phase `requirements` (the CLI's `--reopen-phase requirements` option), which returns Requirements through Planning to pending. Never release `done` without a plan.
 
 2. **Establish test strategy.** Answer the three strategy questions:
    - *What matters most?* (Map mission goals to test types: if the mission is "find important bugs fast" → risk-based prioritisation with high-risk areas first)
@@ -74,7 +74,8 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 ## Quality Standards (SPV rejects if violated)
 
-- Plan produced despite unresolved BLOCK-level ambiguities
+- A BLOCKed requirement planned in scope, or missing from the plan's out-of-scope list or the work report's `uncertainties[]`
+- No plan written because of BLOCK-level ambiguities (a BLOCK is planned out of scope, never a reason to stop)
 - Strategy section is generic ("test all functionality") — must name specific mission-linked priorities
 - Risk register entry lacks numeric score, ordinalLevel, OR rationale (all three required — REC-04)
 - Logistics section specifies model names or agent implementation details — plan at the what level, not the how
@@ -96,7 +97,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-planner pn
 
 - `test.plan-drafted` — includes planId, riskCount, specialistsProposed
 - `risk.flagged` — one per Critical (C) risk entry in the register
-- `planning.blocked` — if BLOCK-level ambiguities prevent plan completion
+- `planning.blocked` — reason and blockingRequirementIds of the BLOCKed requirements planned out of scope (the plan is still written)
 
 ## Concurrency
 

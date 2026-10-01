@@ -51,7 +51,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 4. **Score each requirement.** Each O/C/D/U dimension gets PASS / FLAG / BLOCK:
    - PASS: no testability concern
    - FLAG: minor concern; test-designer can proceed with a note
-   - BLOCK: requirement cannot be reliably tested in its current form; qa-test-planner must renegotiate scope before Design begins
+   - BLOCK: requirement cannot be reliably tested in its current form; qa-test-planner plans it out of scope and the owner resolves it at Gate 1 (a BLOCK never stops the cycle)
 
 5. **Draft the ambiguity report.** For every FLAG and every BLOCK, write:
    - Requirement ID and short title
@@ -62,7 +62,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 6. **Identify compliance gaps.** Cross-reference each requirement's compliance tags against the active compliance flags in `aegis.config.json`. If a requirement touches PII handling but carries no GDPR tag, flag it.
 
-7. **Cross-reference against source code.** Read `target-profile.json#sourceInventory`. For each requirement, verify the feature it describes maps to a real route/component/API-handler/exported-function in the source inventory. Flag any requirement that references a feature NOT found in source as `BLOCK` with message "feature not found in source code — verify implementation exists." This grounds testing in the actual codebase, not just documentation, and catches "story built but not implemented" gaps early (the documentation-over-source-code failure mode).
+7. **Cross-reference against source code.** Read `target-profile.json#sourceInventory`. For each requirement, verify the feature it describes maps to a real route/component/API-handler/exported-function in the source inventory. Flag any requirement that references a feature NOT found in source as `BLOCK` with message "feature not found in source code — verify implementation exists." This grounds testing in the actual codebase, not just documentation, and catches "story built but not implemented" gaps early (the documentation-over-source-code failure mode). A BLOCK does not stop the cycle: the planner lists the requirement out of scope with your clarifying question, and Gate 1 asks the owner to resolve it.
 
 8. **Write the user stories.** Group the requirements into user stories (`asA` / `iWant` / `soThat`), one file per story at `runs/{runId}/stories/{STORY-ID}.json`. Mint each story id with `aegis id next --kind STORY --module <MODULE>` and each criterion id with `aegis id next --kind AC --story <STORY-ID> --category happy|rejection|edge`; each criterion is one `given` / `when` / `then`. Every story has at least one `happy` criterion. A story with no `rejection` or no `edge` criterion states why in `notApplicable` — silent omission is a rejection. `source` points at the intake text (`kind: intake`). A story you derive from source code or from developer tests, with no intake text behind it, has `kind: derived` and `derived: true`; Gate 1 asks the owner to confirm it. Read `runs/{runId}/dev-test-review.json` when it exists: behaviour an adequate developer test pins but no requirement states is behaviour the developers assumed — write it as a derived story or raise it as an ambiguity; never copy the behaviour of a `wrong` test into a criterion. Link the developer tests to the criteria you create: for each `adequate` or `weak` test whose `requirementRefs`, `coversRequirementRefs` or `coversAcIds` points at a requirement you turn into a criterion (an adequate unit test carries only `requirementRefs`), add its `ref` to that criterion's `devTestRefs`, so the test designer can build on it.
 
@@ -73,7 +73,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 ## Quality Standards (SPV rejects if violated)
 
 - Testability score missing for any requirement in scope
-- A BLOCK-level flag was not escalated to the work report's "blockers" field
+- A BLOCK-level flag was not escalated to the work report's `uncertainties[]` (impact `high`, with its clarifying question)
 - Ambiguity report contains solutions or design decisions (your job is to ask, not answer)
 - Compliance gap found but not flagged
 - Source cross-reference (step 7) skipped — every requirement must be checked against `target-profile.json#sourceInventory`; a requirement referencing a feature absent from source must be BLOCK-flagged
