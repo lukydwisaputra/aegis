@@ -158,12 +158,17 @@ escapes:
   - {unit: qa-orchestrator-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-performance-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-realtime-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-requirements-analyst, field: optional, value: "{run}/dev-test-review.json", reason: "qa-requirements-analyst.md:29 read when the Dev-test-review phase ran (not-applicable with no developer tests)"}
   - {unit: qa-requirements-analyst, field: optional, value: "{run}/intake/prd.md", reason: "qa-requirements-analyst.md:26 product requirements document if provided"}
+  - {unit: qa-requirements-analyst-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-requirements-analyst-spv.md:26 the developer-test review, when it exists"}
   - {unit: qa-requirements-analyst-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-responsive-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-security-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-designer, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-designer.md:31 the developer-test review, when it exists"}
+  - {unit: qa-test-designer-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-designer-spv.md:24 developer tests a TC may record in coveredBy, when the review exists"}
   - {unit: qa-test-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-test-executor-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-planner, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-planner.md:34 the developer-test review, when it exists"}
   - {unit: qa-test-planner-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}

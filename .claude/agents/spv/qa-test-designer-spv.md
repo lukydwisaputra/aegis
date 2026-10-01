@@ -21,7 +21,7 @@ You review test cases and RTM produced by `qa-test-designer`. You verify that te
 - `runs/{runId}/cases/*.{md,json}` — test cases
 - `runs/{runId}/scenarios/*.json` — the scenarios, for the hierarchy and order checks
 - `runs/{runId}/stories/*.json` — the acceptance criteria every TC traces to
-- `runs/{runId}/dev-test-review.json` — the developer tests a TC may record in `coveredBy`
+- `runs/{runId}/dev-test-review.json` — the developer tests a TC may record in `coveredBy`, when the review exists
 - `runs/{runId}/rtm.{md,json}`
 - `runs/{runId}/plan.json` — for traceability check
 - `agent-memory/qa-test-designer/lessons.md`
@@ -41,7 +41,7 @@ You review test cases and RTM produced by `qa-test-designer`. You verify that te
 11. **Scenario coverage.** Each scenario enumerates acceptance cases, rejection (negative) cases, and edge cases where the requirement admits them. A scenario missing acceptance, rejection, or edge coverage where applicable = requested-changes.
 12. **Seed integrity.** Member TCs reference `scenario.sharedSeed{}` rather than re-declaring `testData`. A TC that references `scenario.sharedSeed` but also redefines conflicting `testData` = requested-changes.
 13. **Acceptance-criteria coverage.** Every criterion in `stories/` has at least one TC, every TC lists at least one criterion in `acIds`, and every `acIds` entry exists. An uncovered criterion or an orphan TC = requested-changes.
-14. **Developer tests built on, not duplicated.** A criterion an adequate developer test covers (named in the criterion's `devTestRefs`) has a TC with `coveredBy` naming that test, and the new TCs around it target combinations, states or sequences the developer test does not. A duplicate of an adequate developer test = passed-with-notes; a `coveredBy` naming a test rated `weak`, `wrong` or `unmapped` = requested-changes.
+14. **Developer tests built on, not duplicated.** A criterion an adequate developer test covers (named in the criterion's `devTestRefs`) has one TC with `automationStatus: Automated` and `coveredBy` naming that test (when several are named, the one pinning the criterion's `then`, the others listed in the work report), and the new TCs around it target combinations, states or sequences the developer test does not. A duplicate of an adequate developer test = passed-with-notes; a `coveredBy` naming a test rated `weak`, `wrong` or `unmapped` = requested-changes.
 
 ## Verdict
 
@@ -72,7 +72,8 @@ reads:
   - "{run}/rtm.{md,json}"
   - "{run}/scenarios/*.json"
   - "{run}/stories/*.json"
-  - "{run}/dev-test-review.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - "{run}/plan.json"
   - "{run}/proposed-changes/**"
   - "{tests}/qa/pages/{url-path}/**"

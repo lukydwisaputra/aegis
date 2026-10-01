@@ -93,7 +93,7 @@ You translate approved requirements and the test plan into concrete, executable 
    - **Coverage per scenario:** each scenario enumerates acceptance cases, rejection (negative) cases, and edge cases where applicable.
    - **Order:** each TC carries `order`; the scenario file lists TCs in a runnable sequence so seed data can be reused across flows.
    - **Acceptance criteria:** every TC lists the criteria it covers in `traceability` → `acIds` (at least one), and every criterion in the stories has at least one TC.
-   - **Build on adequate developer tests:** for a criterion an `adequate` developer test already covers (the criterion's `devTestRefs` names it; its verdict is in the developer-test review), record that test in `traceability` → `coveredBy` (`kind: dev-test`, `ref` as `<path>#<test name>`) instead of writing a duplicate, and spend new TCs on the combinations, state transitions, sequences and cross-module data around it, where nested defects hide. For a `weak` developer test, write complementary TCs as usual; never edit a developer file.
+   - **Build on adequate developer tests:** for a criterion an `adequate` developer test already covers (the criterion's `devTestRefs` names it; its verdict is in the developer-test review), write one TC for that criterion with that test in `traceability` → `coveredBy` (`kind: dev-test`, `ref` as `<path>#<test name>`) and `automationStatus: Automated` — the developer test is its script, so no duplicate script is written. When several adequate tests are named, `coveredBy` takes the one whose assertions pin the criterion's `then`; list the others in your work report. Spend new TCs on the combinations, state transitions, sequences and cross-module data around it, where nested defects hide. For a `weak` developer test, write complementary TCs as usual; never edit a developer file.
    - **Exploration proposals:** turn each `tc.proposal` you accept into a TC, and list each one you decline, with the reason, in your work report.
 
    **testType vs testTechnique:**
@@ -178,7 +178,8 @@ reads:
   - "{run}/target-profile.json"
   - aegis.config.json
   - "{run}/stories/*.json"
-  - "{run}/dev-test-review.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - "{run}/events.jsonl"
   - "agent-memory/qa-test-designer/lessons.md"
 writes:

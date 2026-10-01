@@ -125,7 +125,8 @@ reads:
   - "{run}/requirements/ambiguity-report.json"
   - "{run}/requirements/testability-scores.json"
   - "{run}/stories/*.json"
-  - "{run}/dev-test-review.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - "{run}/discovery-report.json"
   - "{run}/intake/**"
   - "{run}/target-profile.json"

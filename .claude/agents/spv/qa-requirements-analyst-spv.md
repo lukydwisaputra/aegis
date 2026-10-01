@@ -39,7 +39,7 @@ You review the ambiguity reports and testability scores produced by `qa-requirem
 8. **Acceptance-criteria categories.** Every story has a happy criterion, and a rejection and an edge criterion unless `notApplicable` gives a reason that holds for this story. A silent omission, or a reason that does not hold, = requested-changes.
 9. **Derived stories.** Every story written from source or developer tests without intake text is `derived: true` with `source` naming what it came from, so Gate 1 can confirm it. An unflagged derived story = requested-changes.
 10. **Developer tests used.** When `dev-test-review.json` exists, behaviour pinned by adequate developer tests but absent from the requirements appears as a derived story or an ambiguity, and no criterion copies a `wrong` test. A miss = passed-with-notes.
-11. **Developer-test links.** Every `adequate` or `weak` developer test whose `coversRequirementRefs` or `coversAcIds` points at a requirement that became a criterion is listed in that criterion's `devTestRefs`, and every `devTestRefs` entry is a `ref` in `dev-test-review.json` rated `adequate` or `weak`. A missing or unknown link = requested-changes.
+11. **Developer-test links.** Every `adequate` or `weak` developer test whose `requirementRefs`, `coversRequirementRefs` or `coversAcIds` points at a requirement that became a criterion is listed in that criterion's `devTestRefs`, and every `devTestRefs` entry is a `ref` in `dev-test-review.json` rated `adequate` or `weak`. A missing or unknown link = requested-changes.
 
 ## Verdict
 
@@ -69,7 +69,8 @@ reads:
   - "{run}/requirements/ambiguity-report.{md,json}"
   - "{run}/requirements/testability-scores.json"
   - "{run}/stories/*.json"
-  - "{run}/dev-test-review.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - "agent-memory/qa-requirements-analyst/lessons.md"
 writes: []
 emits:
