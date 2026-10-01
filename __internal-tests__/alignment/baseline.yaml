@@ -5,30 +5,6 @@
 baseline: 1
 entries:
   # --- CLI ---
-  - key: "CLI:qa-cicd-implementer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-cicd-implementer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-cicd-planner:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-cicd-planner:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-github-implementer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-github-implementer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-github-planner:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-github-planner:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   - key: "CLI:qa-ui-designer:task.claim:handoff-missing"
     ids: [AUD-081]
     note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
@@ -376,24 +352,6 @@ entries:
   - key: "EVENT:qa-ci-bootstrap:ci.file.written:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-cicd-evaluator:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-implementer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-planner:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-cicd-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
   - key: "EVENT:qa-compare:compare.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -475,21 +433,6 @@ entries:
   - key: "EVENT:qa-gate-check:gate.threshold.evaluated:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-github-implementer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-github-planner:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-github-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-github-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-github-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
   - key: "EVENT:qa-health:health.check.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -662,12 +605,6 @@ entries:
   - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
     ids: [AUD-074]
     note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
-  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-implementer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-cicd-implementer.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-planner.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-cicd-planner.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-compliance-cmmi:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
@@ -686,12 +623,6 @@ entries:
   - key: "PRODUCER:qa-github-spv:{run}/devops/github-results.json:unreachable-producer"
     ids: [AUD-046]
     note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-implementer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-github-implementer.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-planner.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-github-planner.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
@@ -924,21 +855,12 @@ entries:
   - key: "WRITE-POLICY:qa-ci-bootstrap:docs/ci-secrets-setup.md:not-writable"
     ids: [AUD-112, AUD-065]
     note: "write to docs/ci-secrets-setup.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-cicd-evaluator:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-cicd-implementer:{run}/reports/work/qa-cicd-implementer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-cicd-implementer.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.github/workflows/qa-*.yml:target-source"
     ids: [AUD-112, AUD-046]
     note: "write to {target}/.github/workflows/qa-*.yml violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.husky/**:target-source"
     ids: [AUD-112, AUD-046]
     note: "write to {target}/.husky/** violates the write policy (target-source)"
-  - key: "WRITE-POLICY:qa-cicd-planner:{run}/reports/work/qa-cicd-planner.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-cicd-planner.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-compare:comparisons/{runA}-vs-{runB}/comparison.md:not-writable"
     ids: [AUD-068]
     note: "write to comparisons/{runA}-vs-{runB}/comparison.md violates the write policy (not-writable)"
@@ -963,12 +885,6 @@ entries:
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-github-implementer:{run}/reports/work/qa-github-implementer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-github-implementer.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-github-planner:{run}/reports/work/qa-github-planner.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-github-planner.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-health:.gitignore:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to .gitignore violates the write policy (not-writable)"
