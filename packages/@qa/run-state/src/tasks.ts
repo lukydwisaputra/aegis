@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { SPECIALISTS, specialistShortName, type RunState } from "@qa/contracts";
+import { GATE_AFTER, GateIdSchema, SPECIALISTS, specialistShortName, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
 import { PathGuardError, assertEnvSafe } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
@@ -86,6 +86,20 @@ export interface AddTaskInput {
 const GATE_TASK_ID = /^T-GATE-/;
 
 /**
+ * A gate task belongs to its gated phase of a full cycle. Added anywhere else it is tagged with the wrong phase and
+ * wedges the run: the barrier reports it missing, re-adding fails and a gate task cannot be cancelled.
+ */
+function assertGateTaskPhase(state: RunState, taskId: string): void {
+  const gate = GateIdSchema.safeParse(taskId.slice("T-GATE-".length));
+  if (!gate.success) throw new RunStateError("invalid-input", `${taskId} names no gate; gate tasks are T-GATE-G1, T-GATE-G2 and T-GATE-G3`);
+  if (state.cycleType !== "full") throw new RunStateError("invalid-input", `${taskId}: a ${state.cycleType} cycle has no human gate and no gate task`);
+  const gated = GATE_AFTER[gate.data];
+  if (state.currentPhase !== gated) {
+    throw new RunStateError("out-of-order", `${taskId} belongs to phase ${gated}, but phase ${state.currentPhase ?? "(none)"} is in progress`);
+  }
+}
+
+/**
  * Add a task for `input.agent`, tagged with the phase in progress. The caller is recorded as its creator: only the
  * creator may cancel it. Lock: run.lock (a phase cannot complete between the check and the add).
  */
@@ -99,6 +113,7 @@ export async function addTask(root: string, runId: string, input: AddTaskInput, 
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     assertRunAcceptsWork(state);
+    if (GATE_TASK_ID.test(input.id)) assertGateTaskPhase(state, input.id);
     try {
       await client(root, runId).addRootTask({
         id: input.id,

@@ -105,6 +105,11 @@ export async function startPhase(root: string, runId: string, phase: string, cal
     if (step.kind !== "start-phase" || step.phase !== id) {
       throw new RunStateError("out-of-order", `cannot start ${id}: ${describeStep(step)}`);
     }
+    // Production is never used for mutating tests: on a read-only environment Env-data is only ever not-applicable.
+    const readOnly = id === "env-data" ? notApplicableReason(root, runId, id) : null;
+    if (readOnly !== null) {
+      throw new RunStateError("env-blocked", `cannot start env-data: ${readOnly}; record it with aegis phase complete --phase env-data --not-applicable`);
+    }
     const ts = iso(now);
     const next: RunState = {
       ...state,

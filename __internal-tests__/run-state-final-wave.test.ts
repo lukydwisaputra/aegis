@@ -340,7 +340,7 @@ describe('I6: task assignee and cancel', () => {
     await expect(cancelTask(t.root, runId, 'T-design-2', 'again', ORCH)).rejects.toMatchObject({ code: 'invalid-input' });
   });
 
-  it('cancel refuses a claimed task, a task reopened after a claim, and a gate task', async () => {
+  it('cancel refuses a claimed task and a task reopened after a claim', async () => {
     await design();
     await addTask(t.root, runId, { id: 'T-design-1', title: 'd', agent: TD }, ORCH);
     await claimTask(t.root, runId, 'T-design-1', TD);
@@ -350,6 +350,12 @@ describe('I6: task assignee and cancel', () => {
     await reviewed('T-design-1', TD, `${TD}-spv`, 'requested-changes');
     expect(await task('T-design-1')).toMatchObject({ status: 'pending' });
     await expect(cancelTask(t.root, runId, 'T-design-1', 'drop it', ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/was claimed before/) });
+  });
+
+  it('cancel refuses a gate task (added in its gated phase)', async () => {
+    await create();
+    fastForward(t.root, runId, 'planning');
+    await startPhase(t.root, runId, 'planning', ORCH);
     await addTask(t.root, runId, { id: 'T-GATE-G1', title: 'g', agent: ORCH }, ORCH);
     await expect(cancelTask(t.root, runId, 'T-GATE-G1', 'drop it', ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/gate task/) });
   });

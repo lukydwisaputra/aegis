@@ -210,6 +210,10 @@ export async function submitReview(root: string, runId: string, file: string, ca
     if (task?.status === "in-progress") {
       throw new RunStateError("invalid-input", `task ${taskId} is still in progress; release it before review`);
     }
+    // A failed release opened an owner escalation; a review would reopen the task and undo an accept-with-risk.
+    if (task?.status === "failed") {
+      throw new RunStateError("invalid-input", `task ${taskId} was released failed; the owner decides it through /qa-escalation, so it takes no review`);
+    }
     const attempt = Math.max(...worked);
     const dir = reviewDir(root, runId);
     fs.mkdirSync(dir, { recursive: true });
@@ -235,7 +239,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
       const total = rejectionsSoFar(dir, agent, taskId, floor);
       if (total < MAX_ATTEMPTS) {
         // CO-12: re-drive a reopen that failed after this rejection was recorded.
-        if (task?.status !== "done" && task?.status !== "failed") throw already;
+        if (task?.status !== "done") throw already;
         await client.reopen(taskId);
         return { path: relative(runDir(root, runId), out), attempt, verdict: existing.data.verdict, rejections: total, escalated: false, reopened: true, lessons: [] };
       }
@@ -279,7 +283,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
     let reopenError: string | undefined;
     if (rejected && rejections >= MAX_ATTEMPTS) {
       escalated = await escalateOnce(root, runId, agent, taskId, rejections, caller, now);
-    } else if (rejected && (task?.status === "done" || task?.status === "failed")) {
+    } else if (rejected && task?.status === "done") {
       try {
         await client.reopen(taskId);
         reopened = true;
