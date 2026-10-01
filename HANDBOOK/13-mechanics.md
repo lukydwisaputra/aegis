@@ -72,10 +72,10 @@ When `proposeLesson(candidate)` is called:
 ## 13.5 SPV review pipeline
 
 ```
-Worker: task.released event with work-report path
+Worker: aegis work-report submit, then aegis task release (the CLI records task.released)
   ↓
 SPV (dispatched by the dispatcher after task.released):
-  1. Read work-report.json
+  1. Read the worker's latest work report (reports/work/{agent}.{taskId}.{attempt}.json)
   2. Read actual artifact files
   3. Read worker's lessons.md (what should the worker already know?)
   4. Read relevant knowledge synthesis files

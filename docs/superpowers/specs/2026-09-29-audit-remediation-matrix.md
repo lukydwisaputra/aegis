@@ -41,40 +41,40 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 
 | ID | Finding | Evidence | Sev | Owner | Status |
 |----|---------|----------|-----|-------|--------|
-| AUD-001 | Requirements runs before Discovery but requires `target-profile.json#sourceInventory` | qa-orchestrator.md:47; qa-requirements-analyst.md:27,64,76 | HIGH | P0a-1 / P0a-2 | in-spec |
-| AUD-002 | Preflight requires `targetIsSingleProject` before any dispatch, but only the scanner (Discovery) writes it | qa-orchestrator.md:43,116; HANDBOOK/17:20 | HIGH | P0a-1 / P0a-2 | in-spec |
-| AUD-003 | Web explorer (Discovery) requires `auth.fixture.ts` produced in Environment | qa-web-explorer.md:56; qa-environment-engineer.md:34 | HIGH | P0a-1 / P0a-2 | in-spec |
+| AUD-001 | Requirements runs before Discovery but requires `target-profile.json#sourceInventory` | qa-orchestrator.md:47; qa-requirements-analyst.md:27,64,76 | HIGH | P0a-1 / P0a-2 | fixed |
+| AUD-002 | Preflight requires `targetIsSingleProject` before any dispatch, but only the scanner (Discovery) writes it | qa-orchestrator.md:43,116; HANDBOOK/17:20 | HIGH | P0a-1 / P0a-2 | fixed |
+| AUD-003 | Web explorer (Discovery) requires `auth.fixture.ts` produced in Environment | qa-web-explorer.md:56; qa-environment-engineer.md:34 | HIGH | P0a-1 / P0a-2 | fixed |
 | AUD-004 | Closure requires compliance reports; compliance requires `closure.json` (circular) | qa-closure-reporter.md:34,74,99; qa-compliance-cmmi.md:23; qa-compliance-istqb.md:22 | HIGH | P0a-1 / P0c | in-spec |
-| AUD-005 | `runs/{id}/intake/**` has no producer | qa-requirements-analyst.md:25-26; qa-test-planner.md:33; qa-web-explorer.md:57 | HIGH | P0a-1 | in-spec |
-| AUD-006 | `runs/{id}/taskmaster.json` has no producer; taskmaster-client reads `.taskmaster/tasks/*.json`; claim/release unused in practice | qa-orchestrator.md:25; taskmaster-client/src | HIGH | P0a-1 | in-spec |
+| AUD-005 | `runs/{id}/intake/**` has no producer | qa-requirements-analyst.md:25-26; qa-test-planner.md:33; qa-web-explorer.md:57 | HIGH | P0a-1 | fixed — P0a-1 |
+| AUD-006 | `runs/{id}/taskmaster.json` has no producer; taskmaster-client reads `.taskmaster/tasks/*.json`; claim/release unused in practice | qa-orchestrator.md:25; taskmaster-client/src | HIGH | P0a-1 | fixed — P0a-1 |
 | AUD-007 | `aegis.config.json#gates` never read; `--skip-gates-ci` has 3 meanings; no `gate.skipped` event | qa-start SKILL:24; docs/D05:23; qa-orchestrator-spv.md:27 | HIGH | P0a-1 | in-spec |
-| AUD-008 | Gate 2 / Gate 3 position contradictory across orchestrator, closure-reporter, HANDBOOK/03, HANDBOOK/04 | qa-orchestrator.md:19,59,60,65; HANDBOOK/04:23 | HIGH | P0a-1 | in-spec |
-| AUD-009 | Gate decision file: two paths (`gates/` vs run root), no writer, no schema, verdict vocab mismatch (approved vs GO/NO-GO) | qa-orchestrator.md:30; CLAUDE.md:101,125; signoff run.mjs:62 | HIGH | P0a-1 | in-spec |
-| AUD-010 | Phases progressed while gates were `deferred` (onecare-crc waves 6–11, 18 events, no gate-1 decision) | onecare-crc-v1 events.jsonl; batch-review-waves6-11.md | CRIT | P0a-1 | in-spec |
+| AUD-008 | Gate 2 / Gate 3 position contradictory across orchestrator, closure-reporter, HANDBOOK/03, HANDBOOK/04 | qa-orchestrator.md:19,59,60,65; HANDBOOK/04:23 | HIGH | P0a-1 | fixed — P0a-1 |
+| AUD-009 | Gate decision file: two paths (`gates/` vs run root), no writer, no schema, verdict vocab mismatch (approved vs GO/NO-GO) | qa-orchestrator.md:30; CLAUDE.md:101,125; signoff run.mjs:62 | HIGH | P0a-1 | fixed — P0a-1 |
+| AUD-010 | Phases progressed while gates were `deferred` (onecare-crc waves 6–11, 18 events, no gate-1 decision) | onecare-crc-v1 events.jsonl; batch-review-waves6-11.md | CRIT | P0a-1 | fixed — P0a-1 |
 | AUD-011 | Closure hard-requires `flaky.json`; only producer (cicd-evaluator) never dispatched; `blocking.dependency` has no listener | qa-closure-reporter.md:33; qa-metrics-collector.md:61; qa-cicd-evaluator.md:28 | HIGH | P0c | in-spec |
 | AUD-012 | SPV dispatch is prompt-only; skills dispatch specialists directly, bypassing executor and SPVs | qa-smoke:28; qa-rerun-failed:29; qa-regression:27; qa-watch:28; qa-run-specialist:27; qa-run-phase:27 | HIGH | P0c | in-spec |
-| AUD-013 | SPV fast-path `escalateOnFinding` claimed implemented in orchestrator; it is not | model-policy.yaml:117-135 | MED | P0a-1 | in-spec |
-| AUD-014 | SPV output location undefined (`reviews/` vs `reports/work/`); SPVs have only `[Read, Bash]`; curator/CMMI read `reviews/*.json` nobody writes; `review.passed-with-notes` never emitted | qa-curator.md:23; qa-compliance-cmmi.md:22 | MED | P0a-2 | in-spec |
-| AUD-015 | SPV reject-twice escalation "human gate" undefined; `task.escalated` unused; lesson-piping owner conflicts | qa-orchestrator.md:73-74; qa-test-executor.md:9; HANDBOOK/13:91 | MED | P0a-1 | in-spec |
-| AUD-016 | `task.released` emitted by no worker; SPV trigger inconsistent (`task.released` vs `run.phase.completed`) | CLAUDE.md:99; HANDBOOK/13:82; qa-orchestrator.md:69 | MED | P0a-2 | in-spec |
-| AUD-017 | Concurrency cap hardcoded 4; config `parallelism.maxSpecialists=2` never read | qa-orchestrator.md:3,21,62,95,110; qa-test-executor.md:3,19,80,89,121,139; qa-start:23 | MED | P0a-2 | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
-| AUD-018 | Agents have no invocation path to `@qa/*` packages (event-bus, ids, taskmaster, agent-memory); `require.resolve` fails from root → events.jsonl hand-written | require.resolve('@qa/event-bus') MODULE_NOT_FOUND | HIGH | P0a-2 | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
+| AUD-013 | SPV fast-path `escalateOnFinding` claimed implemented in orchestrator; it is not | model-policy.yaml:117-135 | MED | P0a-1 | fixed — P0a-1 |
+| AUD-014 | SPV output location undefined (`reviews/` vs `reports/work/`); SPVs have only `[Read, Bash]`; curator/CMMI read `reviews/*.json` nobody writes; `review.passed-with-notes` never emitted | qa-curator.md:23; qa-compliance-cmmi.md:22 | MED | P0a-2 | fixed |
+| AUD-015 | SPV reject-twice escalation "human gate" undefined; `task.escalated` unused; lesson-piping owner conflicts | qa-orchestrator.md:73-74; qa-test-executor.md:9; HANDBOOK/13:91 | MED | P0a-1 | fixed — P0a-1 |
+| AUD-016 | `task.released` emitted by no worker; SPV trigger inconsistent (`task.released` vs `run.phase.completed`) | CLAUDE.md:99; HANDBOOK/13:82; qa-orchestrator.md:69 | MED | P0a-2 | fixed |
+| AUD-017 | Concurrency cap hardcoded 4; config `parallelism.maxSpecialists=2` never read | qa-orchestrator.md:3,21,62,95,110; qa-test-executor.md:3,19,80,89,121,139; qa-start:23 | MED | P0a-2 | fixed |
+| AUD-018 | Agents have no invocation path to `@qa/*` packages (event-bus, ids, taskmaster, agent-memory); `require.resolve` fails from root → events.jsonl hand-written | require.resolve('@qa/event-bus') MODULE_NOT_FOUND | HIGH | P0a-2 | partial — agent wiring done (P0a-2); H4 cheat-sheet P0b-2 |
 | AUD-019 | Territory hook non-functional: reads nonexistent env vars, PostToolUse cannot block, empty agent name passes | .claude/settings.json | HIGH | P0b-2 | in-spec |
 | AUD-020 | No enforcement for events.jsonl direct writes or brand exposure | .claude/settings.json | HIGH | P0b-2 | in-spec |
 | AUD-021 | Main thread does worker work: MTH never dispatched orchestrator; CH interactive; SCH white-box DB; SCS coordinator-mcp reruns | MTH transcript f28b9186; commhub reports/work/README.md; onecare-schedule whitebox-merge-summary.md; scs-finance events | HIGH | P0b-2 / P0c | in-spec |
 | AUD-022 | Runaway agent (SCS): nested orchestrator, edited contracts/events.ts, pnpm-lock +4277, overwrote events.jsonl (14 events lost) | scs-finance RUN-20260707-001 events.jsonl | CRIT | P0b-2 | in-spec |
-| AUD-023 | Run state machine broken: `run.json` status stale, nothing sets `running`, `/qa-stop` refuses, `stop-requested` sentinel polled by nobody, aborted runs not resumable | qa-stop:9,23; qa-resume:19,22 | MED | P0a-1 | in-spec |
-| AUD-024 | `/qa-resume` does not re-dispatch metrics-collector, does not check gates; `--resume-from` undocumented in orchestrator | qa-resume:24; qa-orchestrator.md:41 | MED | P0a-1 | in-spec |
-| AUD-025 | `run.completed` emitted at different points (qa-start after closure vs orchestrator after exec+curator); `run.created` emitted twice | qa-start:31,36; qa-orchestrator.md:101,120,125 | MED | P0a-1 | in-spec |
+| AUD-023 | Run state machine broken: `run.json` status stale, nothing sets `running`, `/qa-stop` refuses, `stop-requested` sentinel polled by nobody, aborted runs not resumable | qa-stop:9,23; qa-resume:19,22 | MED | P0a-1 | fixed — P0a-1 |
+| AUD-024 | `/qa-resume` does not re-dispatch metrics-collector, does not check gates; `--resume-from` undocumented in orchestrator | qa-resume:24; qa-orchestrator.md:41 | MED | P0a-1 | fixed — P0a-1 |
+| AUD-025 | `run.completed` emitted at different points (qa-start after closure vs orchestrator after exec+curator); `run.created` emitted twice | qa-start:31,36; qa-orchestrator.md:101,120,125 | MED | P0a-1 | fixed — P0a-1 |
 | AUD-026 | Run path resolution: SCS evidence landed in boilerplate `aegis/runs/`; MTH run written outside `aegis/runs` | aegis/runs/RUN-20260707-001; multi-tenant-helpdesk-ticketing/runs | MED | P0b-2 | in-spec |
 | AUD-027 | `rtm.append-link` processed by a "post-design RTM updater" that does not exist | qa-defect-manager.md:121 | MED | P0c | in-spec |
-| AUD-028 | Real run skipped Triage, Executive Report, Curator and still emitted RunCompleted (no completion barrier) | scs-finance RUN-20260707-001 | HIGH | P0a-1 | in-spec |
-| AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | P0a-2 | partial — CLI mechanism (P0b-1); agent wiring P0a-2/P0b-2 |
+| AUD-028 | Real run skipped Triage, Executive Report, Curator and still emitted RunCompleted (no completion barrier) | scs-finance RUN-20260707-001 | HIGH | P0a-1 | fixed — P0a-1 |
+| AUD-040 | Attribution field drift (13+ names: agent/actor/specialist/by/…); no required `agent` field | real-run events across 7 projects | MED | P0a-2 | partial — every agent event goes through `aegis event append` (P0a-2); legacy writers CO-01 (P0b-2) |
 | AUD-062 | `qa-run-phase`: missing phases, expects `test-cases.json`, writes to unused `runs/{run}/{phase}/` | qa-run-phase:19,26 | MED | P0c | in-spec |
 | AUD-063 | `/qa-smoke` is a separate pipeline (no executor/env/exploratory); no smoke thresholds; `--include-security` re-adds email; exit code unimplementable | qa-smoke:27-29 | MED | P0c | in-spec |
 | AUD-064 | Skills reference nonexistent agents ("triage agent", "impact analysis agent", "reporter sub-agent") and `templates/reports/` | qa-triage:9,26; qa-watch:9,26; qa-regenerate-report; templates/ absent from git (only empty untracked dirs) — _qa-init-project/qa-ci-bootstrap template reads unresolved | MED | P0c | in-spec |
 | AUD-056a | Execution skills read stale `execution/results.json` (qa-rerun-failed, qa-regression, qa-record-manual) | qa-rerun-failed:25; qa-regression:28; qa-record-manual:29 | HIGH | P0c | in-spec |
-| AUD-045 | Gate naming inconsistent: camelCase (config), kebab (events.ts:888), numbered (files) | aegis.config.json:15; events.ts:888 | LOW | P0a-1 | in-spec |
+| AUD-045 | Gate naming inconsistent: camelCase (config), kebab (events.ts:888), numbered (files) | aegis.config.json:15; events.ts:888 | LOW | P0a-1 | fixed — P0a-1 |
 | AUD-042b | `token.used` has no emitter: record per-subagent token usage from a SubagentStop hook (transcript usage) through the CLI; split from AUD-042 by the P1 spec | qa-metrics-collector.md:28 | LOW | P0b-2 | open |
 
 ## P1 — Contracts & vocabulary
@@ -162,8 +162,8 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 
 | ID | Requirement | Owner | Status |
 |----|-------------|-------|--------|
-| NEW-01 | User stories + AC (happy/rejection/edge) as first-class artefacts with IDs | P0a-2 | in-spec |
-| NEW-02 | Developer-test review (qa-dev-test-reviewer + SPV, mutation testing) before design | P0a-2 | in-spec |
+| NEW-01 | User stories + AC (happy/rejection/edge) as first-class artefacts with IDs | P0a-2 | fixed |
+| NEW-02 | Developer-test review (qa-dev-test-reviewer + SPV, mutation testing) before design | P0a-2 | fixed |
 | NEW-03 | Traceability T0–T5 (docs → plan → TC → script → result) enforced | P0c | in-spec |
 | NEW-04 | Main thread is a router to Aegis commands | P0c | in-spec |
 | NEW-05 | Retest / defect re-verify commands with automatic rollup + closure regeneration | P0c | in-spec |
@@ -190,25 +190,25 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 
 | ID | Finding | Evidence | Sev | Owner | Status |
 |----|---------|----------|-----|-------|--------|
-| AUD-081 | Claim ownership: the **worker** claims its own task (`aegis task claim`), the dispatcher only creates tasks (`task add`) — code enforces the cap and work-report binding on the claimer; no tier2-specialist file has a claim step yet | tasks.ts:72-80; submit.ts:83-86; qa-test-executor.md:145 | HIGH | P0a-2 (agent edits) | open — spec §4.5 amended |
-| AUD-082 | 8 agents lack Bash (6 compliance, qa-curator, qa-cicd-planner) so they cannot call `pnpm aegis`; phases 12/15 can never complete | qa-compliance-istqb.md:6; qa-curator.md:6 | HIGH | P0a-2 / P2 | open |
-| AUD-083 | Specialists never write a work report; all specialist SPVs and the executor expect one | tier2-specialist/*.md Outputs; qa-api-specialist-spv.md:20; qa-test-executor.md:107 | HIGH | P0a-2 | open |
-| AUD-084 | Defects filed directly by web-explorer, responsive and exploratory specialists without origin confirmation; defect-manager only ingests EXP defects | qa-web-explorer.md:65,105; qa-responsive-specialist.md:45; qa-exploratory-specialist.md:75,96; qa-defect-manager.md:25; HANDBOOK/17:84 | MED | P0a-2 | open |
+| AUD-081 | Claim ownership: the **worker** claims its own task (`aegis task claim`), the dispatcher only creates tasks (`task add`) — code enforces the cap and work-report binding on the claimer; no tier2-specialist file has a claim step yet | tasks.ts:72-80; submit.ts:83-86; qa-test-executor.md:145 | HIGH | P0a-2 (agent edits) | fixed |
+| AUD-082 | 8 agents lack Bash (6 compliance, qa-curator, qa-cicd-planner) so they cannot call `pnpm aegis`; phases 12/15 can never complete | qa-compliance-istqb.md:6; qa-curator.md:6 | HIGH | P0a-2 / P2 | partial — Bash and the CLI task protocol added (P0a-2); SPV coverage P2 |
+| AUD-083 | Specialists never write a work report; all specialist SPVs and the executor expect one | tier2-specialist/*.md Outputs; qa-api-specialist-spv.md:20; qa-test-executor.md:107 | HIGH | P0a-2 | fixed |
+| AUD-084 | Defects filed directly by web-explorer, responsive and exploratory specialists without origin confirmation; defect-manager only ingests EXP defects | qa-web-explorer.md:65,105; qa-responsive-specialist.md:45; qa-exploratory-specialist.md:75,96; qa-defect-manager.md:25; HANDBOOK/17:84 | MED | P0a-2 | fixed |
 | AUD-085 | `TestCaseSchema` lacks `gherkin`, `order`, `scenarioId` (non-strict → silently stripped) though designer and HANDBOOK/17 require them | artefacts.ts:53-85; qa-test-designer.md:89,119 | MED | P1 | fixed |
-| AUD-086 | Security specialist writes `tests/security/` (outside the `tests/qa/` boundary) | qa-security-specialist.md:30; its SPV :21; HANDBOOK/17:71 | MED | P0a-2 | open |
+| AUD-086 | Security specialist writes `tests/security/` (outside the `tests/qa/` boundary) | qa-security-specialist.md:30; its SPV :21; HANDBOOK/17:71 | MED | P0a-2 | fixed |
 | AUD-087 | Responsive results named `cases/{TC}-{viewport}-result.json`; rollup/trace expect `{TC}-result.json` | qa-responsive-specialist.md:43 | MED | P0c | open |
-| AUD-088 | Tier-1 agents use task ids like `task:env-setup`, rejected by the CLI `TASK_ID` (no `:`) — agents move to `T-*` ids | qa-environment-engineer.md:125; qa-test-executor.md:145; tasks.ts:12 | MED | P0a-2 | open |
+| AUD-088 | Tier-1 agents use task ids like `task:env-setup`, rejected by the CLI `TASK_ID` (no `:`) — agents move to `T-*` ids | qa-environment-engineer.md:125; qa-test-executor.md:145; tasks.ts:12 | MED | P0a-2 | fixed |
 | AUD-089 | CLAUDE.md lessons stub `{"version":"1.0","lessons":[]}` fails `LessonsFileSchema`; lesson piping in `review submit` errors for such agents | CLAUDE.md:159; lesson.ts:50 | MED | P5 (+ new qa-dev-test-reviewer in P0a-2) | open |
 | AUD-090 | Performance specialist reads `thresholds.yaml.gates.{env}` — key and `development` entry don't exist | qa-performance-specialist.md:46; its SPV :28 | MED | P3 | open |
 | AUD-091 | Unit specialist writes `reports/metrics/coverage.json` (rollup-owned, CLI-only under H1) | qa-unit-specialist.md | LOW | P0c | open |
 | AUD-092 | closure-reporter description says it writes rollup metrics; body says it no longer does | qa-closure-reporter.md:3,45 | LOW | P0c | open |
-| AUD-093 | `isSpecialist` excludes web-explorer/compliance, orchestrator says compliance counts against the cap — decide one rule | caller.ts:77; qa-orchestrator.md:65,88 | LOW | P0a-1 | open |
+| AUD-093 | `isSpecialist` excludes web-explorer/compliance, orchestrator says compliance counts against the cap — decide one rule | caller.ts:77; qa-orchestrator.md:65,88 | LOW | P0a-1 | fixed — P0a-1 |
 | AUD-094 | HANDBOOK/17 sandbox-first list omits feature-flag, security, unit | HANDBOOK/17:36 | LOW | P5 | open |
 | AUD-095 | Missing evidence on existing items: AUD-058 + qa-regression:24, qa-record-manual:25; AUD-057 + qa-help:20; AUD-060 + dashboard-api server.ts:44; gen-index.ts:222 reads `run.module` (RunState has `modules[]`) | as listed | LOW | P3 | open |
 | AUD-096 | Designer uses `BVA`/`EP`; schema uses `BoundaryValue`/`EquivalencePartition` | qa-test-designer.md:98 | LOW | P1 | fixed |
 | AUD-097 | Adoption-order risk: once the orchestrator uses `aegis run create`, any agent still hand-appending to events.jsonl breaks the chain and blocks the run → P0a-1 and P0a-2 must land together (or H1 first) | CLAUDE.md:100; chain verify | HIGH | P0a / P0b-2 sequencing | open |
 | AUD-098 | Documented run ids `RUN-2026-05-24-001` are now hard-rejected by the CLI (raise AUD-041 priority to P0) | qa-start:49; qa-resume:38; paths.ts | MED | P0a-1 | fixed — P1: all dashed run ids removed; run-id-docs.test.ts forbids them |
-| AUD-099 | Run statuses `initializing/aborted/resuming/interrupted` written by skills fail `RunStateSchema` | qa-start:31; qa-stop:22,27; qa-resume:19-22 | MED | P0a-1 (with AUD-023) | open |
+| AUD-099 | Run statuses `initializing/aborted/resuming/interrupted` written by skills fail `RunStateSchema` | qa-start:31; qa-stop:22,27; qa-resume:19-22 | MED | P0a-1 (with AUD-023) | fixed — P0a-1 |
 
 ## Classes found by the alignment checker (ALIGN)
 
@@ -219,9 +219,9 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | ID | Class | Example evidence | Sev | Owner | Status |
 |----|-------|------------------|-----|-------|--------|
 | AUD-100 | Skills emit events themselves, contrary to the router model (the owner cannot append; 29 skills / 92 events) | qa-start SKILL:41 `run.phase.started`; qa-gate-check SKILL:42 `gate.passed` | MED | P0c (execution) / P3 (query, internal) | open |
-| AUD-101 | SPVs state they emit `review.*` directly instead of via `aegis review submit` (25 SPVs) | qa-test-designer-spv.md:49 | MED | P0a-2 | open |
+| AUD-101 | SPVs state they emit `review.*` directly instead of via `aegis review submit` (25 SPVs) | qa-test-designer-spv.md:49 | MED | P0a-2 | fixed |
 | AUD-102 | Events awaited with no emitter (`defect.closed`, `defect.reopened`) | qa-metrics-collector.md:45 | MED | P0c | open |
-| AUD-103 | Orchestrator emits CLI-recorded `run.*` / `gate.*` types directly | qa-orchestrator.md:34,120 | HIGH | P0a-1 | open |
+| AUD-103 | Orchestrator emits CLI-recorded `run.*` / `gate.*` types directly | qa-orchestrator.md:34,120 | HIGH | P0a-1 | fixed — P0a-1 |
 | AUD-104 | Skills reference nonexistent paths not covered by AUD-056…059/060/065 (`templates/config/`, `runs/{run}/defects.json`, hardcoded sibling-project paths) | _qa-init-project SKILL:28; qa-gate-check SKILL:25; qa-push-reports SKILL:9 | MED | P3 / QW | open |
 | AUD-105 | Config keys read at the wrong location (`target.sourceDirs` vs top-level `sourceDirs`) | qa-security-specialist.md:39; aegis.config.json `sourceDirs` | LOW | QW | fixed — by P1 (security prose) |
 | AUD-106 | Docs name non-agents as agents, outside the files AUD-076 covers | HANDBOOK/07:89 `qa-defect-reporter`; HANDBOOK/16:127 `qa-sandbox-manager` | LOW | QW | fixed |
@@ -229,7 +229,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-108 | Artefact written that no agent reads and that is not marked terminal | qa-environment-engineer.md:56 `runs/{runId}/playwright-output` | LOW | P0c | open |
 | AUD-109 | Agent inputs name paths no producer writes or too vague to trace | qa-accessibility-specialist-spv.md:21 `tests/qa/a11y/` (specialist writes `tests/qa/specs/{url-path}/a11y.spec.ts`); qa-database-specialist-spv.md:21 and qa-realtime-specialist-spv.md:21 `tests/` | LOW | QW | fixed |
 | AUD-110 | Execution skills invoke other skills directly instead of routing through the orchestrator/CLI | qa-start SKILL:28 `/qa-health`; qa-promote-stage SKILL:25 `/qa-gate-check`; qa-regression SKILL:29 `qa-compare` | MED | P0c | open |
-| AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | open |
+| AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | fixed |
 | AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | open |
 | AUD-113 | Specialists and the web explorer write `sandbox/**` (HANDBOOK/17 sandbox-first) but CLAUDE.md's read/write table has no `sandbox/**` row — add the row or move the writes | qa-ui-specialist.md contract `sandbox/{date}-{slug}/**`; CLAUDE.md "Read / write policy" | LOW | QW | fixed |
 | AUD-114 | Prose names a config key without its file, so the contract `config` entry has no anchor | qa-database-specialist.md:40 `environments[env].readOnly`; qa-email-specialist-spv.md:30 `forbiddenSpecialists` | LOW | QW | fixed |

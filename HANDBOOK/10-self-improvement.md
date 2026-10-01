@@ -18,9 +18,9 @@ These layers are intentionally separate. The per-agent layer is fast and tactica
 Every task goes through this cycle:
 
 ```
-1. Worker claims task, does work, emits artifacts
-2. Worker writes work-report.json (what I did, why, uncertainties)
-3. Worker emits task.released with link to work-report
+1. Worker claims its task (aegis task claim), does the work, emits artifacts
+2. Worker submits its work report (aegis work-report submit: what I did, why, uncertainties)
+3. Worker releases the task (aegis task release); the CLI records task.released
 4. SPV reads: work-report + actual artifacts + worker's lessons.md
 5. SPV verdict:
    • "passed"                → no instruction, no lesson appended
@@ -33,7 +33,7 @@ Every task goes through this cycle:
 
 Clean passes do NOT generate lessons. Only near-misses and failures do. This keeps the lessons file sharp and avoids cargo-culting.
 
-**Who dispatches the SPV, and who writes the lesson.** SPV review is **dispatcher-driven**: `qa-orchestrator` dispatches the paired SPV after each **Tier-1** phase agent completes, and `qa-test-executor` dispatches the paired SPV after each **Tier-2** specialist completes. In both cases the **dispatcher** — not the SPV — reads the SPV's `review.json` verdict and calls `pipeCorrectiveInstruction()` to append the lesson to the worker's `lessons.json`. SPVs are read-only (`tools: [Read, Bash]`) and cannot write `lessons.json` themselves. Step 6 below is therefore performed by the dispatcher, not the SPV.
+**Who dispatches the SPV, and who writes the lesson.** SPV review is **dispatcher-driven**: `qa-orchestrator` dispatches the paired SPV after each **Tier-1** phase agent completes, and `qa-test-executor` dispatches the paired SPV after each **Tier-2** specialist completes. In both cases the SPV submits its verdict with `aegis review submit`, and the CLI — neither the SPV nor the dispatcher — pipes the corrective instruction into the worker's `lessons.json`. Step 6 above is therefore performed by the CLI.
 
 ## 10.3 Lesson entry structure
 
