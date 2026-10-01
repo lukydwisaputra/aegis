@@ -9,6 +9,8 @@ import {
   RequirementIdSchema,
   RiskIdSchema,
   TestPlanIdSchema,
+  StoryIdSchema,
+  AcceptanceCriterionIdSchema,
 } from "./ids.js";
 import { PackageManagerSchema } from "./target-profile.js";
 import { SeveritySchema } from "./severity.js";
@@ -1579,6 +1581,38 @@ export const TaskCancelledEventSchema = EventBase.extend({
   reason: z.string().min(1),
 });
 
+// ─── Stories, exploration and developer-test review (P0a-2) ──────────────────
+// Appended by agents through `aegis event append`; every field is declared (appendChained rejects undeclared ones).
+
+export const TcProposalEventSchema = EventBase.extend({
+  type: z.literal("tc.proposal"),
+  storyId: StoryIdSchema.optional(),
+  acIds: z.array(AcceptanceCriterionIdSchema).default([]),
+  title: z.string().min(10).max(200),
+  rationale: z.string().min(10).max(500),
+});
+
+export const ObservationRecordedEventSchema = EventBase.extend({
+  type: z.literal("observation.recorded"),
+  kind: z.enum(["behaviour-mismatch", "ambiguous-ac", "uncovered-behaviour"]),
+  summary: z.string().min(10).max(300),
+  storyId: StoryIdSchema.optional(),
+  acId: AcceptanceCriterionIdSchema.optional(),
+  sessionId: z.string().min(1).optional(),
+  // Run-relative defect-candidates/<file>.json when the observation is a suspected defect.
+  candidate: z.string().min(1).optional(),
+});
+
+export const DevTestReviewCompleteEventSchema = EventBase.extend({
+  type: z.literal("dev-test.review-complete"),
+  adequate: z.number().int().nonnegative(),
+  weak: z.number().int().nonnegative(),
+  wrong: z.number().int().nonnegative(),
+  unmapped: z.number().int().nonnegative(),
+  mutation: z.enum(["ran", "skipped"]),
+  mutationScore: z.number().min(0).max(100).optional(),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 export const AegisEventSchema = z.discriminatedUnion("type", [
@@ -1799,6 +1833,9 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   GateAutoDecidedEventSchema,
   EscalationDecidedEventSchema,
   TaskCancelledEventSchema,
+  TcProposalEventSchema,
+  ObservationRecordedEventSchema,
+  DevTestReviewCompleteEventSchema,
 ]);
 
 export type AegisEvent = z.infer<typeof AegisEventSchema>;
