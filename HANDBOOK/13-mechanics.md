@@ -30,6 +30,7 @@ Task files live at `runs/{runId}/taskmaster/tasks/{id}.json` and change only thr
 - `aegis task claim --task <id>` — the assignee takes a `pending` task (`not-assignee` for anyone else), under the task-file lock; the specialist cap and the environment rules apply. Records `task.claimed`.
 - `aegis task release --task <id> --result done|failed` — after a work report from this claim. `done`: the task was carried out (failing tests are results of a `done` task). `failed`: the agent could not complete the task; the CLI opens an escalation for that attempt and blocks the run until the owner decides with `/qa-escalation`. Records `task.released`.
 - `aegis task cancel --task <id> --reason <text>` — the task's creator withdraws a `pending` task nobody ever claimed. Records `task.cancelled`; the phase barrier ignores the task.
+- `aegis task list [--phase <id>]` — read-only, any caller: the run's tasks as JSON (id, title, phase, assignee, status, claimedBy, createdBy, latest attempt, the review state of that attempt — `none`, `passed`, `requested-changes`, `escalated` or `accepted-with-risk` — and the owner's escalation decision with its reason). Dispatchers use it to recover after an interruption. Takes no lock and writes nothing.
 
 If an agent crashes after claiming but before releasing, the orphan lock is detected by `/qa-health --fix` (stale lock age > 5 minutes).
 

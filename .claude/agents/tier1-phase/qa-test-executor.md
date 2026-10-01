@@ -44,13 +44,13 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 ## Outputs
 
-- `runs/{runId}/execution-summary.{md,json}` — aggregated results: pass/fail/blocked/skipped per module and test type
+- `runs/{runId}/execution-summary.{md,json}` — aggregated results: totals of passed, failed, blocked, skipped and pendingManual TCs, plus the breakdown per module and test type
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, videos, HAR (populated by specialists, aggregated here)
 - Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
 ## Process
 
-1. **Claim and read context.** Claim your task (Task Protocol step 1), then load env-setup-report. If status is FAILED, append `execution.blocked`, submit your work report and release your task with `--result failed` — there is no value in running tests against a broken environment.
+1. **Claim and read context.** Claim your task (Task Protocol step 1). A refusal saying `already-claimed` means you were re-dispatched (after an interruption, a stop or an escalation decision): run step 12 before dispatching anything. Then load env-setup-report. If status is FAILED, append `execution.blocked`, submit your work report and release your task with `--result failed` — there is no value in running tests against a broken environment.
 
 2. **Plan the execution order.** Sort test case batches by risk (Critical risks first, then High, Medium, Low). Within a risk tier, order by: (1) smoke tests, (2) core functional, (3) regression, (4) compliance-tagged. This order ensures highest-value defects surface early.
 
@@ -78,8 +78,9 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
    `testType` is an array: route every value, then every routed `testTechnique`, and dispatch each distinct specialist once for the TC. Documentation-only techniques (BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration) dispatch nothing; the primary specialist carries them. A TC with `testType: ["Functional"]` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass. `Exploratory` and `Usability` TCs go to a `qa-exploratory-specialist` session task like any other routed specialist.
 
-5. **Create one task per specialist dispatch, then dispatch in parallel.** First check the environment: a specialist may run only when its short name is allowed by `aegis.config.json#environments.{env}.allowedSpecialists`, is not listed in `aegis.config.json#environments.{env}.forbiddenSpecialists`, and is not a mutating specialist on a read-only environment. Never create a task for a specialist the environment forbids — mark its TCs `blocked` in the execution summary with the reason. For each allowed specialist run `aegis task add --id T-execution-<n> --title "<specialist>: <TC ids>" --agent <specialist>` (n counts up from 2; your own task is T-execution-1), then dispatch it with the `Agent` tool and the enriched brief:
+5. **Create one task per specialist dispatch, then dispatch in parallel.** First check the environment: a specialist may run only when its short name is allowed by `aegis.config.json#environments.{env}.allowedSpecialists` (an absent list, or one containing `"*"`, allows every specialist), is not listed in `aegis.config.json#environments.{env}.forbiddenSpecialists`, and is not a mutating specialist on a read-only environment (the mutating specialists are those with `mutates: true` in `SPECIALISTS`, `packages/@qa/contracts/src/specialists.ts`). Never create a task for a specialist the environment forbids — mark its TCs `blocked` in the execution summary with the reason. For each allowed specialist run `aegis task add --id T-execution-<n> --title "<specialist>: <TC ids>" --agent <specialist>` (n counts up from 2; your own task is T-execution-1; never add an id that already exists), then dispatch it with the `Agent` tool and the enriched brief, and append `specialist.dispatched` with the specialistName, taskId, tcIds, environment and the `brief` itself (the SPV checks the brief from this event):
    - The task id it must claim
+   - The release rule: `--result done` once the work is carried out, even when tests fail (failing tests are results); `--result failed` only when the task could not be completed (it opens an owner escalation)
    - The test cases assigned to this specialist (IDs + schema)
    - The target environment URL
    - The risk context from risk-register
@@ -90,7 +91,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
    Keep at most `aegis.config.json#parallelism.maxSpecialists` specialists running; never state or assume a number. The CLI enforces the cap at the specialist's `aegis task claim`: a specialist refused with `cap-reached` returns without work, and you re-dispatch it for the same task id after another specialist's task is released. A specialist refused with `env-blocked` (an environment check you missed) is never re-dispatched: run `aegis task cancel --task T-execution-<n> --reason "<env> forbids <specialist>"` and mark its TCs `blocked`.
 
-6. **Validate evidence quality.** As specialists complete and emit `specialist.completed`, spot-check their evidence in `runs/{runId}/evidence/{TC-ID}/`:
+6. **Validate evidence quality.** When a specialist returns with its task released, append `specialist.completed` for it and spot-check its evidence in `runs/{runId}/evidence/{TC-ID}/`:
    - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `har.sanitization-required`)
    - Screenshots must exist for every TC (pass and fail) — artifact mode is `always`; if missing for any TC, flag in work report
    - Video files must be WebM format (per artifact policy); if MP4 found without transcode flag, flag it
@@ -106,16 +107,28 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 8. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention.
 
-9. **Dispatch the paired SPV after each specialist releases its task.** A specialist returns after `aegis task release`. Use the `Agent` tool to dispatch its SPV (`qa-{specialist}-spv`) with the task id, the artefact/evidence paths and the specialist's `agent-memory/{specialist}/lessons.md`. The SPV records its verdict through the CLI, which pipes its corrective instructions into the specialist's lessons — you never write lessons. Then:
+9. **Dispatch the paired SPV only after a `done` release.** A specialist returns after `aegis task release`. When it released `done`, use the `Agent` tool to dispatch its SPV (`qa-{specialist}-spv`) with the task id, the artefact/evidence paths and the specialist's `agent-memory/{specialist}/lessons.md`. The SPV records its verdict through the CLI, which pipes its corrective instructions into the specialist's lessons — you never write lessons. Then:
    - `passed` or `passed-with-notes` → the task is done.
    - `requested-changes` → the CLI has reopened the task; re-dispatch the same specialist for the same task id with the `CorrectiveInstruction` in its brief.
-   - The third `requested-changes` for a task in one round makes the CLI record `task.escalated` and block the run. A specialist release with `--result failed` opens an owner escalation the same way. Stop dispatching, keep your own task claimed, and return to the orchestrator: the run waits for `/qa-escalation`. Never loop past it.
+   - The third `requested-changes` for a task in one round makes the CLI record `task.escalated` and `run.blocked` instead of reopening it.
+   - A release with `--result failed` never gets an SPV: the owner decides it through the escalation. The CLI records `task.released` with result `failed` and `run.blocked` (no `task.escalated`).
+   - After either escalation, stop dispatching — no specialist and no SPV — keep your own task claimed, and return to the orchestrator: the run waits for `/qa-escalation`. Never loop past it; once the owner decides you are re-dispatched and continue with step 12.
 
    Specialist → SPV: every Tier-2 specialist has a `qa-{name}-spv` mirror (`qa-ui-specialist` → `qa-ui-specialist-spv`, etc.).
 
 10. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `manual.test.required` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
 
-11. **Write the summary, submit, release.** When every specialist task is released and its review passed, write `runs/{runId}/execution-summary.json` and its `.md` twin: `totals` with non-negative integer `passed`, `failed`, `blocked`, `skipped` and `pendingManual` counts (the Execution phase barrier validates `passed`, `failed` and `blocked`, and run completion reports them), plus the breakdown per module and per testType. Append `execution.complete` as your last event, then submit your work report and release your own task (Task Protocol steps 3–4). Your own review, `qa-test-executor-spv`, is dispatched by the orchestrator, which records phase completion through the CLI once the reviews pass.
+11. **Write the summary, submit, release.** When every specialist task is settled — its review `passed`, accepted with risk by the owner, or cancelled (check with `aegis task list --phase execution`) — write `runs/{runId}/execution-summary.json` and its `.md` twin: `totals` with non-negative integer `passed`, `failed`, `blocked`, `skipped` and `pendingManual` counts (the Execution phase barrier validates `passed`, `failed` and `blocked`, and run completion reports them), plus the breakdown per module and per testType. Count the TCs of an accepted-with-risk task as `blocked` and state the owner's reason (its `escalationDecision` in the task list) in the summary. Append `execution.complete` as your last event, then submit your work report and release your own task (Task Protocol steps 3–4). Your own review, `qa-test-executor-spv`, is dispatched by the orchestrator, which records phase completion through the CLI once the reviews pass.
+
+12. **Recover on re-dispatch.** Run `aegis task list --phase execution` and act on each specialist task by its `status` and `reviewState` before dispatching anything new:
+   - Never `aegis task add` an id the list already holds; a new dispatch takes the next unused `T-execution-<n>`.
+   - `pending` (never claimed, refused with `cap-reached`, reopened by `requested-changes` or by an owner retry) → re-dispatch its assignee under the existing task id, with the `CorrectiveInstruction` when `reviewState` is `requested-changes`.
+   - `in-progress` → re-dispatch its assignee for the same task id; its claim survived, so the brief says to skip the claim and continue with the work report and release.
+   - `done` with `reviewState` `none` → dispatch its SPV (step 9).
+   - `reviewState` `passed` or `accepted-with-risk`, or status `cancelled` → settled; an accepted-with-risk task's TCs are counted `blocked` with the owner's reason (step 11).
+   - `reviewState` `escalated`, or `failed` with no decision → the run is still blocked: stop as in step 9.
+
+   Step 11 is reachable once every specialist task is settled.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -124,11 +137,12 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 - HAR file with unsanitised Authorization/Cookie headers in evidence
 - Execution summary produced with missing modules (every module from the test plan must appear)
 - Any TC (pass or fail) with no screenshot in evidence — artifact mode is `always`, screenshots are mandatory for all TCs
-- Manual TCs counted as "skipped" rather than "pending-manual"
+- Manual TCs counted as "skipped" rather than `pendingManual`
 - Specialist dispatched without enriched brief (no mission goal, no lessons ref)
 - Work report does not cite lessons applied
 - Specialist task released but its paired SPV was not dispatched (Process step 9)
-- Dispatch continued after `task.escalated` or a failed specialist release
+- Dispatch continued after `task.escalated` or a failed specialist release, or an SPV dispatched for a task released `failed`
+- A task added under an id that already exists, or a pending task re-dispatched under a new id
 - `execution-summary.json` without integer `totals` counts
 
 ## Task Protocol
@@ -143,8 +157,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 
 ## Events You Emit
 
-- `specialist.dispatched` — includes specialistName, tcIds assigned, environment
-- `specialist.completed` — includes specialistName, passCount, failCount, duration
+- `specialist.dispatched` — includes specialistName, taskId, tcIds assigned, environment and the `brief`
+- `specialist.completed` — appended when a specialist returns with its task released; includes specialistName, taskId, passCount, failCount, duration
 - `test.passed` / `test.failed` — one per TC outcome; test.failed includes evidence paths
 - `har.sanitization-required` — flags unsafe evidence
 - `manual.test.required` — one per manual TC; includes steps and automation blocker
@@ -164,7 +178,7 @@ Claims its task through the CLI (see Task Protocol) and holds it until every spe
 
 ## Worked Example
 
-`RUN-20260524-001` execution order: RISK-AUTH-007 (Critical) → SSO callback TCs assigned to qa-ui-specialist (TC-AUTH-031 through TC-AUTH-034, `testType: Functional`) and qa-security-specialist (TC-AUTH-037, `testType: Security`). TC-AUTH-038 carries `testTechnique: Accessibility` → dispatches qa-accessibility-specialist as secondary alongside qa-ui-specialist. Dispatched qa-ui-specialist + qa-security-specialist simultaneously (2 concurrent); then qa-accessibility-specialist (TC-AUTH-038) and qa-api-specialist (TC-AUTH-036, `testType: Integration`) as the first two tasks were released (the configured cap was 2). qa-ui-specialist returned: TC-AUTH-031 FAILED (DEF-001-AUTH-UI triggered — plus-sign in email caused 500). Evidence: screenshot `TC-AUTH-031_step3_20260524T1430Z.png`, HAR sanitised (checked: no Authorization header present). qa-accessibility-specialist returned: TC-AUTH-038 PASSED (zero axe-core critical/serious violations; keyboard operability confirmed).
+`RUN-20260524-001` execution order: RISK-AUTH-007 (Critical) → SSO callback TCs assigned to qa-ui-specialist (TC-AUTH-031 through TC-AUTH-034, `testType: Functional`) and qa-security-specialist (TC-AUTH-037, `testType: Security`). TC-AUTH-038 carries `testTechnique: Accessibility` → dispatches qa-accessibility-specialist as secondary alongside qa-ui-specialist. Dispatched qa-ui-specialist + qa-security-specialist simultaneously; then qa-accessibility-specialist (TC-AUTH-038) and qa-api-specialist (TC-AUTH-036, `testType: Integration`) as the first tasks were released (the configured cap was reached). qa-ui-specialist returned: TC-AUTH-031 FAILED (DEF-001-AUTH-UI triggered — plus-sign in email caused 500). Evidence: screenshot `TC-AUTH-031_step3_20260524T1430Z.png`, HAR sanitised (checked: no Authorization header present). qa-accessibility-specialist returned: TC-AUTH-038 PASSED (zero axe-core critical/serious violations; keyboard operability confirmed).
 
 ## Contract (machine-checked)
 
@@ -197,9 +211,8 @@ emits:
   - {event: manual.test.required, via: append}
   - {event: execution.blocked, via: append}
   - {event: execution.complete, via: append}
-awaits:
-  - specialist.completed
-cli: [task.claim, task.add, task.cancel, work-report.submit, task.release, event.append]
+awaits: []
+cli: [task.claim, task.add, task.cancel, task.list, work-report.submit, task.release, event.append]
 runs: []
 dispatches:
   - qa-exploratory-specialist

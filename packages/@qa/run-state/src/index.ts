@@ -4,6 +4,7 @@ export * from "./config.js";
 export * from "./caller.js";
 export * from "./run.js";
 export * from "./tasks.js";
+export * from "./task-list.js";
 export * from "./submit.js";
 export * from "./integrity.js";
 export * from "./locks.js";

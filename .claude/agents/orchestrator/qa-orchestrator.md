@@ -147,7 +147,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
 8. **Handle phase failure.** `failed` means the worker could not complete the task — not that tests failed. A release with `--result failed` makes the CLI open an escalation for that attempt and block the run, for agents with and without an SPV alike; the CLI refuses an SPV review of that attempt, so do not dispatch the SPV. Stop dispatching and tell the owner the run waits for `/qa-escalation`: `retry` reopens the task for another attempt, `accept-with-risk` lets the barrier accept the failed attempt (never for a gate task), `abort` ends the run for good (a new run is needed). Never retry a failed task yourself. Auto-retry without review is the unbounded-retry-loop antipattern (Winteringham ch-09).
 
-9. **Resume.** `/qa-resume` resumes the run through the CLI and dispatches you. Re-dispatch `qa-metrics-collector` (step 1), run `aegis run status` and act on `next` exactly as in the loop of step 3: `start-phase` → step 4; `continue-phase` → re-check the phase's tasks in `runs/{runId}/taskmaster/tasks/`, re-dispatch every assignee whose task is still `in-progress` (its claim survived the stop: the brief says to skip `aegis task claim` and continue with the work report and release), and continue as in step 3; `open-gate` → step 5.4 (open only); `auto-decide` → `aegis gate auto-decide --gate G2`; `await-gate` → stop and report that the gate waits for `/qa-gate-decide`; `blocked` → stop and report the causes; `complete-run` → step 10; `stopped` or `completed` → dispatch nothing.
+9. **Resume.** `/qa-resume` resumes the run through the CLI and dispatches you. Re-dispatch `qa-metrics-collector` (step 1), run `aegis run status` and act on `next` exactly as in the loop of step 3: `start-phase` → step 4; `continue-phase` → re-check the phase's tasks in `runs/{runId}/taskmaster/tasks/` (you may use `aegis task list --phase <phase>` to find the in-progress and pending tasks), re-dispatch every assignee whose task is still `in-progress` (its claim survived the stop: the brief says to skip `aegis task claim` and continue with the work report and release), and continue as in step 3; `open-gate` → step 5.4 (open only); `auto-decide` → `aegis gate auto-decide --gate G2`; `await-gate` → stop and report that the gate waits for `/qa-gate-decide`; `blocked` → stop and report the causes; `complete-run` → step 10; `stopped` or `completed` → dispatch nothing.
 
 10. **Close the run.** When `next` is `complete-run` — after Curator in a full cycle, after the last smoke phase in a smoke cycle — run `aegis run complete`. It refuses unless every phase is completed or not-applicable, every gate of the cycle is approved (or auto-decided in a smoke cycle) and the event log verifies. The CLI records `run.completed`; nothing else marks a run complete.
 
@@ -253,6 +253,7 @@ cli:
   - run.complete
   - task.add
   - task.cancel
+  - task.list
   - task.claim
   - task.release
   - work-report.submit

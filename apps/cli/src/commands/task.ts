@@ -1,9 +1,9 @@
 import { Command, Option } from "commander";
-import { addTask, cancelTask, claimTask, releaseTask } from "@qa/run-state";
+import { addTask, cancelTask, claimTask, listTasks, releaseTask } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function taskCommand(): Command {
-  const task = new Command("task").description("Create, claim, release and cancel run tasks");
+  const task = new Command("task").description("Create, claim, release, cancel and list run tasks");
 
   task.command("add")
     .requiredOption("--id <id>", "task id, e.g. T-12")
@@ -53,6 +53,17 @@ export function taskCommand(): Command {
       action((o: { task: string; reason: string; run?: string }) => {
         const ctx = context();
         return cancelTask(ctx.root, runIdFor(ctx, o.run), o.task, o.reason, ctx.caller);
+      })
+    );
+
+  task.command("list")
+    .description("Show the run's tasks with their latest attempt and review state (read-only, any caller)")
+    .option("--phase <id>", "only the tasks of this phase")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(
+      action((o: { phase?: string; run?: string }) => {
+        const ctx = context();
+        return listTasks(ctx.root, runIdFor(ctx, o.run), ctx.caller, o.phase);
       })
     );
 
