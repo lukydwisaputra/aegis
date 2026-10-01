@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
+import { DEV_TEST_REVIEW, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 
 // Drives the built aegis CLI through whole cycles with fake agents (the P0a-1 final review's scratch scripts).
 // Every step is a real CLI call; the "agents" only claim, submit, release and review.
@@ -128,12 +128,12 @@ class Sim {
   }
 
   /** Intake and Scan (both cycles). */
-  intakeAndScan(): void {
+  intakeAndScan(profile: unknown = PROFILE): void {
     this.ok(O, 'phase', 'start', '--phase', 'intake');
     this.ok(O, 'phase', 'complete', '--phase', 'intake');
     this.ok(O, 'phase', 'start', '--phase', 'scan');
     this.work(O, 'T-scan-1', 'qa-context-scanner');
-    this.put('target-profile.json', PROFILE);
+    this.put('target-profile.json', profile);
     this.ok(O, 'phase', 'complete', '--phase', 'scan');
   }
 
@@ -279,4 +279,24 @@ e2e('smoke on production: env-data is not applicable, a refused mutating special
   expect(sim.ok(O, 'gate', 'auto-decide', '--gate', 'G2')).toMatchObject({ decision: 'approved' });
   sim.ok(O, 'run', 'complete');
   expect(sim.next()).toEqual({ kind: 'completed' });
+}, 120_000);
+
+e2e('full cycle with developer tests: Dev-test-review runs the reviewer and its SPV before Requirements', () => {
+  sim = new Sim();
+  sim.ok('owner', 'run', 'create', '--env', 'staging', '--module', 'AUTH', '--cycle', 'full', '--health', 'passed');
+  const files = ['src/auth/reset.test.ts'];
+  sim.intakeAndScan({ ...PROFILE, existingTests: { files, frameworks: ['vitest'], locations: ['src'], count: files.length, unitTestStyle: 'colocated' } });
+  expect(sim.no('barrier', O, 'phase', 'complete', '--phase', 'dev-test-review', '--not-applicable')).toMatch(/applicable to this run/);
+  expect(sim.next()).toEqual({ kind: 'start-phase', phase: 'dev-test-review' });
+  sim.ok(O, 'phase', 'start', '--phase', 'dev-test-review');
+  sim.ok(O, 'task', 'add', '--id', 'T-dev-test-review-1', '--title', 'review developer tests', '--agent', 'qa-dev-test-reviewer');
+  sim.attempt('T-dev-test-review-1', 'qa-dev-test-reviewer', 'requested-changes');
+  sim.attempt('T-dev-test-review-1', 'qa-dev-test-reviewer');
+  expect(sim.no('barrier', O, 'phase', 'complete', '--phase', 'dev-test-review')).toMatch(/dev-test-review.json is missing/);
+  // The review carries the configured threshold (thresholds.yaml#devTestReview.mutationScoreMin).
+  const min = Number(/mutationScoreMin:\s*(\d+)/.exec(fs.readFileSync(path.join(sim.root, 'thresholds.yaml'), 'utf8'))?.[1]);
+  sim.put('dev-test-review.json', { ...DEV_TEST_REVIEW, mutation: { ...DEV_TEST_REVIEW.mutation, threshold: min } });
+  sim.ok(O, 'phase', 'complete', '--phase', 'dev-test-review');
+  expect(sim.next()).toEqual({ kind: 'start-phase', phase: 'requirements' });
+  expect(sim.ok('owner', 'integrity', 'verify')).toMatchObject({ ok: true });
 }, 120_000);

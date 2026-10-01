@@ -73,6 +73,9 @@ assignments:
     - qa-defect-manager-spv
     - qa-closure-reporter-spv
     - qa-executive-reporter-spv
+    # Developer-test review (Tier-1 validation work, P0 spec §3.4)
+    - qa-dev-test-reviewer
+    - qa-dev-test-reviewer-spv
     # Tier-2 specialist SPVs
     - qa-ui-specialist-spv
     - qa-api-specialist-spv

@@ -72,7 +72,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    |---|---|---|---|
    | Intake | `intake` | — | The run-creating skill already copied the intake sources into `runs/{runId}/intake/`; start and complete the phase. |
    | Scan | `scan` | `qa-context-scanner` | Writes `target-profile.json`. Completing the phase runs the preflight check. |
-   | Dev-test-review | `dev-test-review` | — | Not-applicable while `target-profile.json#existingTests.files` is empty. |
+   | Dev-test-review | `dev-test-review` | `qa-dev-test-reviewer` | Reviews the developer tests (mutation testing on a sandbox copy) before Requirements. Not-applicable while `target-profile.json#existingTests.files` is empty. |
    | Requirements | `requirements` | `qa-requirements-analyst` | |
    | Env-auth | `env-auth` | `qa-environment-engineer` (scope=auth) | Login per role, save storage state, smoke-ping. Runs on every environment, read-only ones included (it seeds nothing). |
    | Explore | `explore` | `qa-web-explorer` | Needs the auth fixtures from Env-auth. |
@@ -118,6 +118,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | `qa-closure-reporter` | `qa-closure-reporter-spv` |
    | `qa-executive-reporter` | `qa-executive-reporter-spv` |
    | `qa-web-explorer` | `qa-web-explorer-spv` |
+   | `qa-dev-test-reviewer` | `qa-dev-test-reviewer-spv` |
    | `qa-context-scanner`, `qa-compliance-*`, `qa-curator` | none yet — the barrier lists them as SPV-less |
 
    Tier-2 specialist SPVs are dispatched by `qa-test-executor`, not by you.
@@ -262,6 +263,7 @@ runs: []
 dispatches:
   - qa-metrics-collector
   - qa-context-scanner
+  - qa-dev-test-reviewer
   - qa-requirements-analyst
   - qa-environment-engineer
   - qa-web-explorer
@@ -280,6 +282,7 @@ dispatches:
   - qa-closure-reporter-spv
   - qa-executive-reporter-spv
   - qa-web-explorer-spv
+  - qa-dev-test-reviewer-spv
   - qa-orchestrator-spv
   - qa-compliance-iso25010
   - qa-compliance-iso5055

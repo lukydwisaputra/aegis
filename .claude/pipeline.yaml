@@ -4,8 +4,8 @@ phases:
     agents: []
   - id: scan
     agents: [qa-context-scanner]
-  - id: dev-test-review  # qa-dev-test-reviewer arrives in P0a-2
-    agents: []
+  - id: dev-test-review
+    agents: [qa-dev-test-reviewer]
   - id: requirements
     agents: [qa-requirements-analyst]
   - id: env-auth  # qa-environment-engineer scope=auth; also listed under env-data, its contract phase (HANDBOOK 14.11)
@@ -136,6 +136,7 @@ escapes:
   - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}
   - {unit: qa-database-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-defect-manager-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-dev-test-reviewer-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
   - {unit: qa-email-specialist, field: optional, value: "secrets/.env.{env}", reason: "qa-email-specialist.md:25 Gmail OAuth credentials if adapter is gmail"}
   - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-environment-engineer-spv, field: reviewedBy.none, reason: "not stated in prose"}

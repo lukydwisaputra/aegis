@@ -89,7 +89,7 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 | Tier | Count | Model | Role |
 |------|-------|-------|------|
 | 0 — Orchestrator | 1 | Opus | Reads Taskmaster tree, dispatches phases, enforces gates |
-| 1 — Phase managers | 8 | Sonnet | One per STLC phase (requirements → closure) |
+| 1 — Phase managers | 9 | Sonnet | One per STLC phase (requirements → closure), plus the developer-test reviewer |
 | 2 — Specialists | 16 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
 | 2.5 — DevOps | 6 | Sonnet/Opus | GitHub, CI/CD planning & implementation |
 | 3 — SPVs | 25 | Opus | Mirror of Tier 1/2; validate work reports |

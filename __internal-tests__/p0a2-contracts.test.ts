@@ -7,6 +7,9 @@ import {
   TestCaseSchema,
   UserStorySchema,
 } from '@qa/contracts';
+import * as fs from 'fs';
+import * as path from 'path';
+import { parse } from 'yaml';
 import { OUTPUT_SCHEMAS } from '@qa/run-state';
 import { ac, CANDIDATE, DEV_TEST_REVIEW, devTest, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 
@@ -67,6 +70,13 @@ describe('DevTestReviewSchema (P0 spec §3.4, NEW-02)', () => {
     const skipped = { status: 'skipped', tool: 'stryker', reason: 'the target runs its unit tests with ava (unsupported)' };
     expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: skipped, tests: [devTest({ mutationScore: null })] })).toBe(false);
     expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, tests: [devTest({ mutationScore: null })] })).toBe(false);
+  });
+
+  it('thresholds.yaml#devTestReview.mutationScoreMin is a threshold the review accepts (owner floor 60)', () => {
+    const thresholds = parse(fs.readFileSync(path.join(__dirname, '..', 'thresholds.yaml'), 'utf8')) as { devTestReview?: { mutationScoreMin?: unknown } };
+    const min = thresholds.devTestReview?.mutationScoreMin;
+    expect(min).toBe(60);
+    expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, mutation: { ...DEV_TEST_REVIEW.mutation, threshold: min } })).toBe(true);
   });
 
   it('a wrong test names what it contradicts; summary counts match the verdicts', () => {

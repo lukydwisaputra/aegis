@@ -26,6 +26,7 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 | Agent | Model | Primary Output | Lite? |
 |---|---|---|---|
+| `qa-dev-test-reviewer` | Opus | Developer-test review (`dev-test-review.json`), Stryker mutation scores | No |
 | `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton | Yes |
 | `qa-test-planner` | Sonnet | Test strategy doc, risk matrix, test case plan | Yes (reduced) |
 | `qa-test-designer` | Sonnet | Test design coordination | Yes |
@@ -85,6 +86,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 
 | SPV | Reviews | Threshold |
 |---|---|---|
+| `qa-dev-test-reviewer-spv` | Developer-test review | 85 |
 | `qa-requirements-analyst-spv` | Source-grounded requirements | 80 |
 | `qa-test-planner-spv` | Strategy docs, risk matrices, test case plans | 80 |
 | `qa-test-designer-spv` | Test case design | 85 |

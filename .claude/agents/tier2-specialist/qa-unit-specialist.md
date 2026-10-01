@@ -27,6 +27,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 - `target-profile.json` — `unitTestStyle: "colocated" | "tests-dir" | "mixed" | "none"` (read-only, used to locate existing developer unit tests for review — never to decide where to write)
 - Target source files (read-only via `sourceDirs` allowlist)
 - Developer unit test files (read-only, wherever `unitTestStyle` says they live)
+- `runs/{runId}/dev-test-review.json` — the developer-test review, when the Dev-test-review phase ran: build on tests rated `adequate`, target the gaps of `weak` ones
 - `agent-memory/qa-unit-specialist/lessons.md`
 
 ## Outputs
@@ -38,7 +39,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 ## Process
 
-1. **Read source files and existing developer unit tests** to understand the component/function under test and what's already covered. Read-only.
+1. **Read source files, existing developer unit tests and the developer-test review** to understand the component/function under test and what's already covered. Read-only. Build on the developer tests, never duplicate them: a behaviour an `adequate` developer test pins is covered, so do not re-test it — extend it with net-new QA tests for the combinations, boundaries and state around it, where nested defects hide. A `weak` test's gap is where a net-new QA test may go.
 
 2. **Assess and, where a genuine QA-owned gap exists, write tests at the right layer** (net-new only, under `tests/qa/unit/`):
    - Pure functions → Jest unit tests (no DOM)
@@ -87,6 +88,7 @@ reviewedBy: qa-unit-specialist-spv
 reads:
   - "{run}/target-profile.json"
   - "{target}/**"
+  - "{run}/dev-test-review.json"
   - agent-memory/qa-unit-specialist/lessons.md
 writes:
   - "{run}/reports/unit-coverage-gaps.json"
