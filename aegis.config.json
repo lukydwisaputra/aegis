@@ -12,7 +12,7 @@
   "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 2 },
-  "gates": { "planApproval": true, "defectTriage": true, "closure": true },
+  "intake": { "sources": [] },
   "target": {
     "platform": "generic",
     "apps": [],
@@ -71,7 +71,6 @@
     "mailpit": { "smtp": 1025, "http": 8025 },
     "storybook": 6006,
     "k6Dashboard": 5665,
-    "playwrightUI": 9323,
     "trace": 9322
   },
   "artifacts": {
@@ -99,15 +98,13 @@
     ]
   },
   "discovery": {
-    "enabled": true,
     "entryPoints": ["/", "/login", "/dashboard"],
     "maxDepth": 5,
     "maxPagesPerRun": 100,
     "allowedDestructive": [],
     "rolesToExplore": ["admin", "user"],
     "captureScreenshots": true,
-    "skipPatterns": [],
-    "destructiveActionHeuristics": true
+    "skipPatterns": []
   },
   "dashboard": {
     "projectName": "My Project",

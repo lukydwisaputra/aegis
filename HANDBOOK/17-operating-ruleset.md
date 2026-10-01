@@ -64,6 +64,14 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 - Schema reference: `HANDBOOK/07-templates-and-standardization.md` §7.5–7.6 (`order` field) and §7.7 (RTM Columns — `storyId`, `scenarioId` columns).
 - Enforced by: `qa-test-designer.md` Process step 5 ("Order") + `qa-test-designer-spv.md` (incomplete story→scenario→case hierarchy is a listed `requested-changes` condition, which includes out-of-order/unordered scenario files).
 
+**Rule: Requirements become user stories with happy, rejection and edge acceptance criteria.** Every story under `runs/{runId}/stories/` has at least one happy criterion, and a rejection and an edge criterion unless it states why not. A story derived from source or developer tests, with no intake text behind it, is flagged `derived: true` and confirmed by the owner at Gate 1.
+
+- Enforced by: `qa-requirements-analyst.md` Process step 8 ("Write the user stories") + `qa-requirements-analyst-spv.md` Review Checklist items 8-11; `aegis phase complete --phase requirements` refuses without a valid story (`UserStorySchema`).
+
+**Rule: Developer tests are reviewed first, and QA builds on the adequate ones.** Before Requirements, `qa-dev-test-reviewer` rates every developer test adequate, weak, wrong or unmapped and writes `runs/{runId}/dev-test-review.json`; unit-test adequacy is backed by Stryker mutation testing on a sandbox copy (score at least `thresholds.yaml#devTestReview.mutationScoreMin`), never in the developer tree. A criterion an adequate developer test covers gets a test case recording that test in `coveredBy`, and new test cases target the combinations, states and sequences around it.
+
+- Enforced by: `qa-dev-test-reviewer.md` Process steps 4-5 + `qa-dev-test-reviewer-spv.md` Review Checklist items 2-3; `qa-test-designer.md` Process step 5 ("Build on adequate developer tests") + `qa-test-designer-spv.md` Review Checklist item 14.
+
 ---
 
 ### 17.5 Phase 4 — Execution & Defect Handling
@@ -81,7 +89,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 - Enforced by: `qa-unit-specialist.md` Process steps 1–4 ("Read source files and existing developer unit tests", "Never write into the developer tree") writing findings to `runs/{runId}/reports/unit-coverage-gaps.json` + `qa-unit-specialist-spv.md` Review Checklist item 3 ("Read-only on developer units" — any developer-tree write outside `tests/qa/` is `requested-changes`).
 
-**(d) A defect is not logged until its development origin is confirmed.** Before opening any defect, test-setup/script error, environment issue, and seed/test-data error must be ruled out, and the failure reproduced on a clean state (fresh seed + fresh auth). The result is recorded in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block. **EXP-type defects promoted from exploratory sessions are exempt from the clean-state reproduction requirement** (their live-session promotion already implies reproduction) but must still document that obvious test-side causes were ruled out.
+**(d) A defect is not logged until its development origin is confirmed.** Before opening any defect, test-setup/script error, environment issue, and seed/test-data error must be ruled out, and the failure reproduced on a clean state (fresh seed + fresh auth). The result is recorded in the defect's `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block. Anything suspected outside a test failure — by the web explorer, an exploratory session, the responsive specialist, or a developer test rated `wrong` — is filed as a defect candidate (`runs/{runId}/defect-candidates/`), never as a defect; only `qa-defect-manager` turns a candidate into a defect and records one `defect.origin-confirmed` per candidate. **Candidates from exploratory sessions (EXP-type) are exempt from the clean-state reproduction requirement** (the session's COTE reproduction already implies it) but must still document that obvious test-side causes were ruled out.
 
 - Enforced by: `qa-defect-manager.md` Process step 1 ("Confirm the defect originates from development (before anything else)") emitting `defect.origin-confirmed { confirmed }` + `qa-defect-manager-spv.md` Review Checklist item 11 ("Development-origin confirmed" — a defect opened without a passing `originConfirmation`, or an EXP-type defect whose `ruledOut` doesn't exclude test-side causes, is `requested-changes`).
 

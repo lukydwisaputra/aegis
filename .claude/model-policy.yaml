@@ -73,6 +73,9 @@ assignments:
     - qa-defect-manager-spv
     - qa-closure-reporter-spv
     - qa-executive-reporter-spv
+    # Developer-test review (Tier-1 validation work, P0 spec §3.4)
+    - qa-dev-test-reviewer
+    - qa-dev-test-reviewer-spv
     # Tier-2 specialist SPVs
     - qa-ui-specialist-spv
     - qa-api-specialist-spv
@@ -112,27 +115,6 @@ ingestion:
   chunkingPrimary: claude-sonnet-5             # Per-chapter extraction, cached (~$0.20/book)
   synthesis:       claude-opus-4-8             # Cross-book topic consolidation (rare, ~$0.30/topic)
   audit:           claude-opus-4-8             # Optional quality spot-check (~$0.10/book)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SPV fast-path (Winteringham-inspired escalation policy):
-# All SPVs default to their assigned tier (validation = Opus 4.7).
-# The orchestrator MAY downgrade an SPV to Sonnet 4.6 for initial triage pass
-# by setting `escalateOnFinding: true` in the dispatch brief. The SPV then:
-# 1. Runs first-pass on Sonnet (faster, cheaper)
-# 2. Escalates to Opus on finding: requested-changes, security/compliance work,
-#    or novel pattern not in lessons.md
-# This is implemented in qa-orchestrator dispatch logic, not here.
-# Estimated savings: 40-60% of SPV token cost on clean runs.
-# ─────────────────────────────────────────────────────────────────────────────
-spvFastPath:
-  enabled: true
-  firstPassModel: claude-sonnet-5
-  escalateToModel: claude-opus-4-8
-  escalationTriggers:
-    - requested-changes
-    - passed-with-notes
-    - security-domain            # any SPV reviewing security/auth/compliance work
-    - novel-pattern              # pattern not in worker's lessons.md
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Cost tier rates (USD per 1M tokens) — used by qa-metrics-collector.

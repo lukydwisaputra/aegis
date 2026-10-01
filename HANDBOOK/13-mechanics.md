@@ -24,23 +24,13 @@ for await (const evt of tail(busPath)) { /* stream */ }
 
 ## 13.2 Taskmaster task claim/release atomicity
 
-Task files live at `.taskmaster/tasks/{id}.json`. Claim protocol:
+Task files live at `runs/{runId}/taskmaster/tasks/{id}.json` and change only through the `aegis task` commands:
 
-```
-1. Read {id}.json; check status === "pending"
-2. Acquire flock on runs/{runId}/locks/task-{id}.lock
-3. Write status = "in-progress", claimedBy = agentName, claimedAt = now
-4. Release lock
-5. If claim fails (status != pending): return WORK_TAKEN error
-```
-
-Release:
-```
-1. Acquire lock
-2. Write status = "done", result = resultRef
-3. Release lock
-4. Emit task.released event
-```
+- `aegis task add --id <id> --title <text> --agent <qa-*>` — the dispatcher adds a task for one assignee, tagged with the phase in progress. The assignee is the only agent that may claim it; its paired SPV reviews it.
+- `aegis task claim --task <id>` — the assignee takes a `pending` task (`not-assignee` for anyone else), under the task-file lock; the specialist cap and the environment rules apply. Records `task.claimed`.
+- `aegis task release --task <id> --result done|failed` — after a work report from this claim. `done`: the task was carried out (failing tests are results of a `done` task). `failed`: the agent could not complete the task; the CLI opens an escalation for that attempt and blocks the run until the owner decides with `/qa-escalation`. Records `task.released`.
+- `aegis task cancel --task <id> --reason <text>` — the task's creator withdraws a `pending` task nobody ever claimed. Records `task.cancelled`; the phase barrier ignores the task.
+- `aegis task list [--run <id>] [--phase <id>]` — read-only, any caller: the run's tasks as JSON (id, title, phase, assignee, status, claimedBy, createdBy, latest attempt, the review state of that attempt — `none`, `passed`, `requested-changes`, `escalated` or `accepted-with-risk` — and the owner's escalation decision with its reason). Dispatchers use it to recover after an interruption. Takes no lock and writes nothing.
 
 If an agent crashes after claiming but before releasing, the orphan lock is detected by `/qa-health --fix` (stale lock age > 5 minutes).
 
@@ -82,22 +72,22 @@ When `proposeLesson(candidate)` is called:
 ## 13.5 SPV review pipeline
 
 ```
-Worker: task.released event with work-report path
+Worker: aegis work-report submit, then aegis task release (the CLI records task.released)
   ↓
-SPV (auto-triggered by orchestrator):
-  1. Read work-report.json
+SPV (dispatched by the dispatcher after task.released):
+  1. Read the worker's latest work report (reports/work/{agent}.{taskId}.{attempt}.json)
   2. Read actual artifact files
   3. Read worker's lessons.md (what should the worker already know?)
   4. Read relevant knowledge synthesis files
   5. Write verdict: passed | passed-with-notes | requested-changes
-  6. If not clean pass: emit correctiveInstructions
-  7. @qa/agent-memory.proposeLesson(worker, instruction)
+  6. Submit the verdict with aegis review submit, including correctiveInstructions on a non-clean pass
+  7. The CLI appends the lesson through @qa/agent-memory; the SPV never writes lessons.json
   ↓
-Orchestrator:
-  • passed: mark task done, advance
-  • passed-with-notes: mark done, lesson appended
-  • requested-changes: re-queue task with correction attached
-  • 2nd consecutive rejection on same task: escalate to human gate
+Dispatcher (qa-orchestrator for phase agents, qa-test-executor for specialists):
+  • passed: the task is done, advance
+  • passed-with-notes: done; aegis review submit already appended the lesson
+  • requested-changes: the CLI reopened the task; re-dispatch the worker with the correction
+  • 3rd rejection on the same task: the CLI records task.escalated and blocks the run; the owner decides with /qa-escalation
 ```
 
 ## 13.6 Model-policy resolution at build time

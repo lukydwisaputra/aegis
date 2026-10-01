@@ -4,23 +4,30 @@
 
 ---
 
-### 4.1 The Nine Phases
+### 4.1 The Canonical Phases
 
-The Software Testing Life Cycle in this framework runs in nine phases, in the canonical order the `qa-orchestrator` dispatches them. Not all phases apply to every run type — `/qa-smoke` runs an abbreviated subset.
+The Software Testing Life Cycle in this framework runs in sixteen phases, in the canonical order the `qa-orchestrator` advances with `aegis phase start` and `aegis phase complete`. A phase starts only after every earlier phase is completed or recorded as not-applicable. `/qa-smoke` runs a subset: Intake, Scan, Env-auth, Env-data, Execution and Triage.
 
-| Phase | Name | Agent(s) | Output |
+| # | Phase | Agent(s) | Output |
 |---|---|---|---|
-| 1 | **Requirements** | `qa-requirements-analyst` | Source-grounded requirements, RTM skeleton |
-| 2 | **Discovery** | `qa-context-scanner` + `qa-web-explorer` | `target-profile.json#sourceInventory`, site map, route/auth matrix |
-| 3 | **Planning** | `qa-test-planner` | Test strategy doc, test case plan |
-| 4 | **Design** | `qa-test-designer` + specialists | Test cases, defect templates |
-| 5 | **Environment** | `qa-environment-engineer` | `playwright.config.ts`, fixtures, data factories |
-| 6 | **Execution** | `qa-test-executor` + specialists | Test results, evidence, raw defect list |
-| 7 | **Triage** | `qa-defect-manager` | Triaged defect reports, regression flag |
-| 8 | **Closure** | `qa-closure-reporter` | `closure.md` + `closure.json` |
-| 9 | **Executive Report** | `qa-executive-reporter` | Three executive PDFs |
+| 0 | **Intake** | — (`aegis run create` copies the intake documents) | `run.json`, `intake/**` |
+| 1 | **Scan** | `qa-context-scanner` | `target-profile.json`; the preflight check runs when Scan completes |
+| 2 | **Dev-test-review** | `qa-dev-test-reviewer` (not-applicable when the target has no tests) | `dev-test-review.json` |
+| 3 | **Requirements** | `qa-requirements-analyst` | Ambiguity report, testability scores, user stories with acceptance criteria (`stories/STORY-*.json`) |
+| 4 | **Env-auth** | `qa-environment-engineer` (scope=auth) | Auth fixtures, per-role storage state, `env-auth-report.json` |
+| 5 | **Explore** | `qa-web-explorer`, then `qa-exploratory-specialist` (one session per story or story cluster, where the environment allows it) | `discovery-report.json`, site map, session notes under `reports/exploratory/`, `defect-candidates/*.json` |
+| 6 | **Planning** | `qa-test-planner` | `plan.json`, `risk-register.json` |
+| 7 | **Design** | `qa-test-designer` | Test cases, RTM |
+| 8 | **Env-data** | `qa-environment-engineer` (scope=data) | Factories, seed data, `env-setup-report.json` |
+| 9 | **Execution** | `qa-test-executor` + specialists | Test results, evidence, `execution-summary.json` |
+| 10 | **Triage** | `qa-defect-manager` | Triaged defect reports, from failures and confirmed defect candidates |
+| 11 | **Closure-draft** | `qa-closure-reporter` | Closure draft |
+| 12 | **Compliance** | `qa-compliance-*` (per `aegis.config.json#compliance`; not-applicable when empty) | `reports/compliance/*.json` |
+| 13 | **Closure-final** | `qa-closure-reporter` | `closure.md` + `closure.json` |
+| 14 | **Executive** | `qa-executive-reporter` | Three executive PDFs |
+| 15 | **Curator** | `qa-curator` | `pending-promotions/**` |
 
-Gates sit after Planning (Plan Approval), after Execution (Defect Triage), and at the end of Closure (Closure Sign-off).
+Gates sit after Planning (G1 Plan approval), after Triage (G2 Defect triage) and after Closure-final (G3 Closure). The run completes only through `aegis run complete`, which refuses until every phase and gate is done.
 
 ---
 
@@ -80,7 +87,7 @@ For the Login/SSO feature in `RUN-20260523-001`, discovery found 12 auth-related
 
 The test case plan lists all planned cases with their provisional IDs, types, and priority.
 
-**Gate 1 — Plan Approval** fires here. The run pauses. In Claude Code chat you will see a summary of the plan and a prompt to approve or reject. Type `approve` to continue to Phase 3, or type feedback to request changes.
+**G1 — Plan approval** fires here. The orchestrator opens the gate and the run pauses (`next.kind: await-gate`). The owner reviews the plan and decides with `/qa-gate-decide --gate=1 --decision=approved --note="..."`, or rejects it with `--decision=rejected` and a reopen phase to request changes. The Design phase cannot start until G1 is approved.
 
 ---
 
@@ -140,18 +147,18 @@ This keeps state clean between runs and is the single biggest source of flake re
 
 `qa-test-executor` runs the suite against the configured environment. Playwright handles UI and API tests; Vitest handles unit tests; k6 handles performance.
 
-**Exploratory-first.** `qa-test-executor` dispatches `qa-exploratory-specialist` **FIRST**, as a **blocking** step, using **Playwright MCP** (observation-driven, no `.spec.ts`). Its findings feed the briefs handed to the scripted specialists that run afterward. Scripted specialists (`qa-ui-specialist`, `qa-responsive-specialist`, `qa-accessibility-specialist`, …) then author and run `.spec.ts` files using the **Playwright CLI** — the test suite is known in advance. `qa-accessibility-specialist` is dispatched as a secondary specialist for any TC carrying `testTechnique: Accessibility`. Scripted agents may still drop into Playwright MCP (or `playwright-cli` as fallback) mid-task to inspect a live page when a selector or ARIA role is ambiguous, then return to spec authoring.
+**Exploration comes before planning.** Story-driven exploration runs in the Explore phase: `qa-web-explorer` crawls first (task `T-explore-1`), then `qa-exploratory-specialist` runs one charter per user story with **Playwright MCP** (observation-driven, no `.spec.ts`; tasks `T-explore-2` and up). Its findings feed Planning, Design and the briefs of the scripted specialists; in Execution, `qa-test-executor` may add risk-targeted exploratory sessions, never as a blocking first step. Scripted specialists (`qa-ui-specialist`, `qa-responsive-specialist`, `qa-accessibility-specialist`, …) then author and run `.spec.ts` files using the **Playwright CLI** — the test suite is known in advance. `qa-accessibility-specialist` is dispatched as a secondary specialist for any TC carrying `testTechnique: Accessibility`. Scripted agents may still drop into Playwright MCP (or `playwright-cli` as fallback) mid-task to inspect a live page when a selector or ARIA role is ambiguous, then return to spec authoring.
 
 **Exploratory sandbox flow.** Exploratory scratch work goes to `sandbox/{date}-{slug}/`. At session end:
 - Observations for covered areas → `runs/<RUN-ID>/reports/exploratory/{session-id}-notes.{md,json}`
-- Defects found in **uncovered** areas → `runs/<RUN-ID>/defects/` as `EXP`-type defects, traced by `charterSessionId`, with evidence under `runs/<RUN-ID>/evidence/{DEF-ID}/`
+- Suspected defects → `runs/<RUN-ID>/defect-candidates/` (`proposedType: EXP`, traced by the session id), with evidence under `runs/<RUN-ID>/evidence/exploratory/{session-id}/`; `qa-defect-manager` confirms each candidate's origin in Triage before it becomes an `EXP` defect
 - The sandbox directory is then **deleted**.
 
 **Sandbox-first is now mandatory for scripted specialists too.** What was previously exploratory-only now applies to every scripted, spec-writing specialist. Before `qa-ui-specialist`, `qa-api-specialist`, `qa-database-specialist`, `qa-accessibility-specialist`, `qa-responsive-specialist`, `qa-realtime-specialist`, `qa-email-specialist`, or `qa-performance-specialist` commits a final spec under `tests/qa/**`, it must first prototype the approach in `sandbox/{date}-{slug}/` and emit a `sandbox.explored` event linking the scratch artifact to the spec it produced. The paired SPV rejects any committed spec with no matching `sandbox.explored` event. A legitimate no-op run (nothing to test, nothing committed) is exempt.
 
 **Results location.** Execution writes a run-level summary to `runs/<RUN-ID>/execution-summary.{md,json}`, and per-test-case evidence (screenshots, video, traces) to `runs/<RUN-ID>/evidence/{TC-ID}/`. (The old `runs/<RUN-ID>/results/` and `artifacts/evidence/` paths are gone.)
 
-**Per-worker SPV dispatch.** After each specialist completes and writes its work-report to `reports/work/qa-*.json`, `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`), reads its `review.json` verdict, and calls `pipeCorrectiveInstruction()` to append a lesson on any non-pass verdict. SPVs are read-only (`tools: [Read, Bash]`) and never write lessons themselves. See §4.10.
+**Per-worker SPV dispatch.** After each specialist submits its work report (`aegis work-report submit`, stored under `reports/work/`), `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`). The SPV records its verdict with `aegis review submit`; the CLI stores the review and pipes any corrective instructions into the worker's lessons. The dispatcher never reads the review file to write lessons and never calls `pipeCorrectiveInstruction()`; SPVs never write lessons themselves. See §4.10.
 
 When `TC-AUTH-031` ran, the SSO redirect landed on `/` instead of `/dashboard`. The test failed. `qa-defect-manager` was triggered automatically.
 
@@ -218,7 +225,7 @@ SPV review is **dispatcher-driven**, not self-triggered:
 - **Tier-1 phase work** — after a phase agent writes its work-report, `qa-orchestrator` dispatches the paired Tier-1 SPV.
 - **Tier-2 specialist work** — after a specialist writes its work-report, `qa-test-executor` dispatches the paired specialist SPV (`qa-{name}-spv`).
 
-In both cases the **dispatcher** reads the SPV's `review.json` verdict and calls `pipeCorrectiveInstruction()` to append a lesson on any `passed-with-notes` or `requested-changes` verdict. SPVs themselves are read-only (`tools: [Read, Bash]`) and cannot write to `lessons.json`. See Chapter 10 and `docs/D13-spv-review-pattern.md`.
+In both cases the SPV submits its verdict with `aegis review submit`, and the CLI pipes the corrective instructions of a `passed-with-notes` or `requested-changes` verdict into the worker's lessons. The dispatcher never reads the review file to write lessons and never calls `pipeCorrectiveInstruction()`; SPVs themselves (`tools: [Read, Bash]`) never write `lessons.json`. See Chapter 10 and `docs/D13-spv-review-pattern.md`.
 
 ---
 

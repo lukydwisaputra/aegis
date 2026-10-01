@@ -25,7 +25,7 @@ Formalises environment promotion by first running a quality gate check and, on p
 2. Unless `--force`, invoke `/qa-gate-check --run=... --stage=<to-stage>` and abort if gate fails.
 3. If `--force`, print a prominent warning and require the user to type `CONFIRM` before proceeding.
 4. Write `runs/{run}/promotions/{to-stage}.json` with timestamp, gate result, and promoting user.
-5. Tag the run in `run.json` under `promotedTo` with the stage and timestamp.
+5. Report the promotion in the terminal summary; run state is owned by the CLI and is not edited here.
 6. If a CI trigger URL is configured in `config/integrations.yaml` for the target stage, fire the webhook.
 7. Emit `stage.promoted` event.
 8. Print a confirmation with the promotion record path and any CI trigger response.
@@ -52,7 +52,6 @@ reads:
   - "{run}/run.json"
 writes:
   - "{run}/promotions/{to-stage}.json"
-  - "{run}/run.json"
 emits:
   - {event: run.gate.check.triggered, via: append}
   - {event: stage.promoted, via: append}

@@ -13,6 +13,20 @@
 #   CMMI-DEV v2.0       — Process maturity defect density targets
 # =============================================================================
 
+# ─── CYCLE: smoke (/qa-smoke) — auto-decided gate G2, no human gate ───────────
+# Read by `aegis gate auto-decide` (P0 spec §3.2). Pass rate is passed / (passed + failed + blocked).
+smoke:
+  passRateMin: 100   # percent of executed smoke test cases that must pass
+  openSev1Max: 0     # open Sev1 defects tolerated
+  openSev2Max: 0     # open Sev2 defects tolerated
+
+# ─── Developer-test review (qa-dev-test-reviewer, P0 spec §3.4) ──────────────
+# An adequate developer unit test's subject file must reach this Stryker mutation score.
+# Owner floor: never below 60 (DevTestReviewSchema refuses a lower threshold). A unit test with no
+# mutation evidence (Stryker skipped) is never adequate.
+devTestReview:
+  mutationScoreMin: 60   # Stryker's score: (killed + timeout) / (killed + timeout + survived + noCoverage) x 100; the Dev-test-review barrier refuses a lower threshold
+
 # ─── STAGE: testing (PR gate — fast feedback, ~10 min budget) ─────────────────
 testing:
 

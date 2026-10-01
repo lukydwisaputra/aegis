@@ -22,7 +22,7 @@ SPV agents receive a **focused prompt** with only what is needed for review:
   └── CorrectiveInstruction format spec (~200 tokens)
 
 [USER — not cached]
-  ├── work-report.json content
+  ├── the work report the worker submitted with `aegis work-report submit`
   ├── actual artifact excerpts (first 200 lines per file)
   └── worker's lessons.md (to check if they applied known lessons)
 ```
@@ -87,12 +87,11 @@ For a clean pass: emit review.passed only.
 
 ## Consecutive rejection escalation
 
-If the same task receives `requested-changes` twice in a row from the SPV:
+When the same task receives its third `requested-changes` from its SPV:
 
-1. The orchestrator does NOT re-queue the task a third time
-2. A `task.escalated` event is emitted
-3. The orchestrator pauses and surfaces the issue at the next human gate
-4. The human can choose to: accept the current state, override the SPV, or abort the task
+1. `aegis review submit` records `task.escalated` and blocks the run; the dispatcher stops re-dispatching
+2. `/qa-resume` refuses the run until the owner decides with `/qa-escalation`
+3. The owner chooses `retry` (one more attempt), `accept-with-risk` (listed as residual risk at closure) or `abort` (the run stops)
 
 This prevents infinite correction loops.
 

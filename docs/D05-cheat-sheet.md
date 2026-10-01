@@ -27,6 +27,13 @@ _Top 10 commands. Print this, stick it somewhere._
 | `/qa-triage` | Re-evaluate open defects |
 | `/qa-stop --reason="..."` | Abort cleanly |
 
+## Owner decisions (in addition to the top 10)
+
+| Command | What it does |
+|---------|-------------|
+| `/qa-gate-decide --gate=1 --decision=approved --note="..."` | Decide an open human gate (G1-G3) |
+| `/qa-escalation --task=T-... --decision=retry --reason="..."` | Decide a task rejected three times |
+
 ---
 
 ## Common flags
@@ -34,7 +41,6 @@ _Top 10 commands. Print this, stick it somewhere._
 ```
 --env=development|testing|staging|production
 --module=AUTH          (scope to one module)
---max-parallel=4       (specialist concurrency)
 --run=RUN-20260523-001 (target a specific run)
 --dry-run              (preview without spending tokens)
 --json                 (machine-readable output)

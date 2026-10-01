@@ -9,7 +9,7 @@ Aegis uses two coordination primitives for safe concurrent agent operation:
 ## Task claim protocol
 
 ```
-1. Agent calls @qa/taskmaster-client.claim(taskId, agentName)
+1. Agent runs `AEGIS_AGENT=<agent> pnpm aegis task claim --task <taskId>` (the CLI wraps @qa/taskmaster-client.claim)
 2. @qa/taskmaster-client acquires proper-lockfile on runs/{runId}/locks/task-{taskId}.lock
    (stale timeout: 5s, retries: 8, retry interval: 100ms)
 3. Read .taskmaster/tasks/{taskId}.json — check status === "pending"
@@ -22,7 +22,7 @@ Aegis uses two coordination primitives for safe concurrent agent operation:
 
 ```
 1. Agent completes work, writes artifacts
-2. Agent calls @qa/taskmaster-client.release(taskId, resultRef)
+2. Agent runs `aegis work-report submit`, then `aegis task release --task <taskId> --result done` (the CLI wraps @qa/taskmaster-client.release)
 3. Acquires lock, writes status="done", result=resultRef
 4. Releases lock
 5. Emits task.released event to event bus
@@ -68,12 +68,12 @@ All reads are unrestricted and concurrent. Agents may read any file at any time 
 
 ## Parallelism budget
 
-The orchestrator limits how many Tier-2 specialist agents run simultaneously:
+`aegis task claim` limits how many Tier-2 specialist agents run simultaneously:
 ```jsonc
 // aegis.config.json
-"parallelism": { "maxSpecialists": 4 }
+"parallelism": { "maxSpecialists": <n> }
 ```
 
-SPV agents run as soon as their paired worker emits `task.released` — they are naturally parallelizable with the next worker's task.
+SPV agents run as soon as their paired worker's `aegis task release` records `task.released` — they are naturally parallelizable with the next worker's task.
 
 Compliance reviewers run 6-in-parallel at the end of the design phase (one lock per reviewer, no shared resource contention).

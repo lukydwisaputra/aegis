@@ -17,10 +17,11 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-ui-specialist.json` — work report
+- `runs/{runId}/reports/work/qa-ui-specialist*.json` — the worker's work reports, one file per task and attempt
 - Test files written to `tests/qa/specs/{url-path}/` (read target project)
 - `tests/qa/pages/{url-path}/` — POM files (read target project)
 - Evidence files under `runs/{runId}/evidence/` (spot-check)
+- `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
 - `agent-memory/qa-ui-specialist/lessons.md`
 
 ## Review Checklist
@@ -38,20 +39,26 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 11. **Inspection screenshot cleanup.** Work report must confirm that any inspection screenshot taken mid-task was deleted after use. Any inspection screenshot referenced in `runs/{runId}/evidence/` = requested-changes.
 12. **Artifact generation via `afterEach`.** Each spec file must implement a `test.afterEach` hook that captures a screenshot for every test (pass AND fail) to `runs/{runId}/evidence/{TC-ID}/`. Spec with no `afterEach` screenshot capture, or a work report that does not confirm artifacts were generated for every TC = requested-changes. Also verify the work report flags whether `playwright.config.ts` had `screenshot: 'always'` / `video: 'retain-on-failure'`.
 13. **Spec suffix matches test type.** File suffix must match the TC's declared `testType`: multi-page E2E journeys → `*.e2e.ts`; single-page/component UI → `ui.spec.ts`; accessibility → `a11y.spec.ts`; responsive → `responsive.spec.ts`. A file whose suffix does not match its test type (e.g. a unit-style test named `*.e2e.ts`, or a functional UI test in a bare `.e2e.ts`) = requested-changes.
-14. **Seed data via `beforeEach`.** For any TC with non-empty `preconditions` or `testData`, the spec must implement a `test.beforeEach` that calls the relevant factory's `create()`, and a `test.afterEach` calling `cleanup()`. Missing `beforeEach` factory call when preconditions/testData exist = requested-changes (test relies on pre-existing DB state).
+14. **Seed data via `beforeEach`.** For any TC with non-empty `preconditions` or `testData`, the spec must implement a `test.beforeEach` that calls the relevant factory's `create()`, and a `test.afterEach` calling `cleanup()`. Missing `beforeEach` factory call when preconditions/testData exist = requested-changes (test relies on pre-existing DB state), except on a production run (check 18), where seeding is refused and the TC is `blocked`.
 15. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 16. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 17. **Flaky discipline.** Spec does not use `waitForTimeout` or hard sleeps. Assertions are Playwright web-first assertions (`expect(locator).toBeVisible()` etc., which auto-wait) rather than non-web-first assertions. Any `waitForTimeout` / hard sleep, or non-web-first assertion = requested-changes.
+18. **Production is read-only smoke.** On a production (`readOnly`) run, the work report shows only read-only smoke TCs executed: no factory `create()`, no state-changing form submit, no write to the target (run-side results and evidence are still written). Any such action on production = requested-changes.
+19. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, the developer test it names was run read-only — unchanged, not copied, and no QA script written for the TC — with `CI=true`, no snapshot update and no coverage flag, its runner output and reports under `runs/{runId}/evidence/{TC-ID}/`; that evidence holds the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after (this repo's directory and the QA tests directory left out), with no change; a test whose config would build or start the target in place was not run and the TC is `blocked` with the reason; and `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script, a result without the ref, or any change in the target = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — CSS selector without explanation, missing HAR confirmation; emit CorrectiveInstruction
-- `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `runs/{runId}/evidence/`, inspection screenshots not deleted after use, missing `afterEach` artifact capture, spec suffix mismatched to test type, missing `beforeEach` factory seed when preconditions/testData exist, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used; block
+- `requested-changes` — raw `@playwright/test` import, no POM, flat spec/POM path (no URL-path subfolder), direct app code edit, XPath, temp files left in `runs/` without `finally` cleanup, empty files or directories created, evidence written outside `runs/{runId}/evidence/`, inspection screenshots not deleted after use, missing `afterEach` artifact capture, spec suffix mismatched to test type, missing `beforeEach` factory seed when preconditions/testData exist, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used, a factory seed, state-changing submit or write on production; block
+
+## Submitting Your Verdict
+
+Prefix every command with your name: `AEGIS_AGENT=<your-name> pnpm aegis`, for example `AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin`. Review only a released task, and only the attempt the CLI binds: the highest-numbered attempt file of the worker's task (file names end in the attempt number n, `<agent>.<taskId>.<n>.json`). `aegis review submit` refuses a task that is in progress, failed (the owner decides through the escalation), or pending, and a task with no work report: tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `aegis review submit --file /dev/stdin`: `id` (`RV-qa-ui-specialist-spv-<taskId>`), `reviewer` (`qa-ui-specialist-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]` (each `{severity, claim, evidence[]}`, severity `info`, `low`, `medium`, `high` or `blocker`), `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`; each has `mistake` and `rootCause` of 20–300 characters and `correctiveRule` of 20–400 characters), `reviewedAt` (a UTC ISO string ending in `Z`) and `modelUsed`. The CLI records the `review.*` event, pipes every corrective instruction into the worker's lessons, and reopens the task on `requested-changes`, except on the third rejection in a round, which escalates the task to the owner instead. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
 
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -63,7 +70,7 @@ dispatchedBy: [qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-ui-specialist]
 reads:
-  - "{run}/reports/work/qa-ui-specialist.json"
+  - "{run}/reports/work/qa-ui-specialist*.json"
   - "{tests}/qa/specs/{url-path}/**"
   - "{tests}/qa/pages/{url-path}/**"
   - "{tests}/qa/fixtures/auth.fixture.ts"
@@ -73,13 +80,17 @@ reads:
   - "{run}/cases/*.json"
   - "{target}/playwright.config.ts"
   - "{run}/events.jsonl"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/{TC-ID}/**"
   - "agent-memory/qa-ui-specialist/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: [grep]
 dispatches: []
 config: []

@@ -10,7 +10,9 @@ import {
   RequirementIdSchema,
   RiskIdSchema,
   RunIdSchema,
+  AcceptanceCriterionIdSchema,
 } from "./ids.js";
+import { DevTestRefSchema } from "./dev-test-review.js";
 import {
   DefectTypeSchema,
   PhaseIntroducedSchema,
@@ -82,6 +84,10 @@ export const TestCaseObjectSchema = z.object({
     userStoryId: StoryIdSchema.optional(),
     requirementId: RequirementIdSchema.optional(),
     riskId: RiskIdSchema.optional(),
+    // The acceptance criteria this TC covers (P0 spec §5.2); P0c's trace makes the list mandatory (T1).
+    acIds: z.array(AcceptanceCriterionIdSchema).min(1).optional(),
+    // An adequate developer test already covers the criteria; the TC records it instead of a duplicate script (T5).
+    coveredBy: z.object({ kind: z.literal("dev-test"), ref: DevTestRefSchema }).strict().optional(),
   }),
   compliance: ComplianceTagsSchema.default([]),
   author: z.string(),

@@ -80,7 +80,7 @@ Three principles guide every design decision:
 
 1. **Artefacts first** — every agent action must produce a file. An agent that "checked" something without writing evidence is considered to have done nothing. This keeps the system auditable.
 
-2. **Human gates at decision points** — the framework pauses at three gates: plan approval, defect triage, and closure sign-off. These are the moments where domain knowledge matters most. Disable them only with explicit intent.
+2. **Human gates at decision points** — the framework pauses at three gates: plan approval, defect triage, and closure sign-off. These are the moments where domain knowledge matters most. They cannot be disabled in a full cycle; only `/qa-smoke` runs without a human gate.
 
 3. **Separate concerns strictly** — workers produce, SPVs review, the curator promotes lessons. No agent does more than one of these roles. This prevents circular feedback loops and makes the system testable.
 

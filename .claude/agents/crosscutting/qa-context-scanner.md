@@ -43,7 +43,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
     - `exportedFunctions[]` — notable exported functions from `lib/`, `utils/`, domain modules (name + file)
     - `existingTestFiles[]` — already-present test files (path + type)
     Names and paths only — never file contents. This is the source-of-truth that `qa-requirements-analyst` and `qa-test-designer` cross-reference to flag requirements with no matching implementation.
-17. **Single-target detection.** Count nested `playwright.config.*` files under `targetProjectRoot` and check for a `package.json` at the resolved root. If more than one nested `playwright.config.*` is found, OR no `package.json` exists at the root, the target is a multi-project parent, not a single app repo. Record the result as `targetIsSingleProject: boolean`. This is consumed by the orchestrator's preflight assertion (Process step 1) before any phase is dispatched.
+17. **Single-target detection.** Count nested `playwright.config.*` files under `targetProjectRoot` and check for a `package.json` at the resolved root. If more than one nested `playwright.config.*` is found, OR no `package.json` exists at the root, the target is a multi-project parent, not a single app repo. Record the result as `targetIsSingleProject: boolean`. The Scan phase cannot complete unless it is `true`: the orchestrator's phase completion runs the preflight check and blocks the run otherwise.
 
 ## Outputs
 
@@ -103,19 +103,28 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 - Scan must complete in < 30 seconds (bash find + read, no heavy processing)
 - If scanning fails on a path, log `scan.warning` event and continue (no crash)
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-context-scanner pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-context-scanner`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **No review yet.** No SPV reviews your task yet; the phase barrier accepts your released work report without one.
+
 ## Events You Emit
 
 - `target.profiled` — always, includes `appCount`, `framework`, `packageManager` and `platform` (the event `ts` is the scan time)
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
-- `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }`; the orchestrator collects this as one half of the Discovery two-event barrier (the other half is `qa-web-explorer`'s `{ step: "explore" }`)
-- `preflight.failed` — emitted (in addition to `target.profiled`) when `targetIsSingleProject` resolves to `false`; the orchestrator halts before dispatching any phase
+- `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }` (informational; the phase advances through the orchestrator's phase barrier)
 
 ## Contract (machine-checked)
 
 ```yaml
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
-phase: discovery
+phase: scan
 dispatchedBy: [qa-orchestrator]
 reviewedBy: {none: "(no SPV — cross-cutting profiler)"}
 reads:
@@ -128,10 +137,9 @@ emits:
   - {event: target.profiled, via: append}
   - {event: target.changed, via: append}
   - {event: discovery.step-complete, via: append}
-  - {event: preflight.failed, via: append}
   - {event: scan.warning, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config:

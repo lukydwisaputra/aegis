@@ -42,7 +42,7 @@ it('blocks the run once and records integrity.violation', async () => {
   expect(report.ok).toBe(false);
   expect(report.errors.join('\n')).toMatch(/line 2: prevHash mismatch/);
   expect(readRun(t.root, runId)).toMatchObject({ status: 'blocked' });
-  expect(readRun(t.root, runId).blockedReason).toMatch(/^integrity violation/);
+  expect(readRun(t.root, runId).blockedBy).toEqual([expect.objectContaining({ kind: 'integrity', reason: expect.stringMatching(/^integrity violation/) })]);
   await verifyRunIntegrity(t.root, runId, 'owner');
   expect(count('integrity.violation')).toBe(1);
 });
@@ -87,7 +87,8 @@ it('still catches tampering that happens after an acknowledgement', async () => 
   expect(report.ok).toBe(false);
   expect(report.errors.join('\n')).not.toMatch(/line 2:/);
   for (const e of report.errors) expect(Number(/^line (\d+):/.exec(e)?.[1])).toBeGreaterThan(through);
-  expect(readRun(t.root, runId).status).toBe('blocked');
+  // The run was stopped first: it stays stopped, with the integrity cause recorded (M1).
+  expect(readRun(t.root, runId)).toMatchObject({ status: 'stopped', blockedBy: [expect.objectContaining({ kind: 'integrity' })] });
 });
 
 it('reports an invalid run.json without throwing', async () => {
@@ -246,11 +247,11 @@ describe('block interplay (F6, C7)', () => {
     await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
   });
 
-  it('an integrity block replaces an escalation block and requires an acknowledgement', async () => {
-    await blockRun(t.root, runId, 'escalation: task T-1 (qa-ui-specialist) rejected 3 times', 'qa-ui-specialist-spv');
+  it('an integrity cause joins a preflight cause and requires an acknowledgement', async () => {
+    await blockRun(t.root, runId, { kind: 'preflight', reason: 'preflight: health check failed' }, 'qa-orchestrator');
     tamperFirstLine();
     expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(false);
-    expect(readRun(t.root, runId).blockedReason).toMatch(/^integrity violation/);
+    expect(readRun(t.root, runId).blockedBy.map((c) => c.kind)).toEqual(['preflight', 'integrity']);
     await expect(resumeRun(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
     expect((await ack()).status).toBe('running');
   });

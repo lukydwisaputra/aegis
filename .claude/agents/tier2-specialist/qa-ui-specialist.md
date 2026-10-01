@@ -38,6 +38,7 @@ The handoff is always: **MCP/CLI → inspect → decide selector → back to spe
 - `tests/qa/pages/{url-path}/*.ts` — POM skeletons from qa-web-explorer, organised by URL path hierarchy (extend, never rewrite)
 - `runs/{runId}/discovery-report.json` — URL map, testid inventory
 - `agent-memory/qa-ui-specialist/lessons.md`
+- The target's `package.json` test script — read-only, to run the developer test a developer-covered TC names
 
 ## Outputs
 
@@ -97,7 +98,7 @@ tests/qa/
    - CSS selector — sparingly, structural-agnostic only
    - **Never**: XPath, CSS combinators that rely on DOM depth, class names that look auto-generated
 
-5. **Seed test data.** For every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/qa/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
+5. **Seed test data.** On a read-only (`readOnly: true` or `mutating: false`) environment (production) a factory `create()` is refused: seed nothing there and write `blocked` for any TC that needs seeded data. Elsewhere, for every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/qa/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
 
 6. **Mock external services and visual-regression.** Use Playwright `page.route()` to mock external services. Use `toHaveScreenshot()` for visual-regression checks instead of human-judgment checks.
 
@@ -111,6 +112,10 @@ tests/qa/
 
 8. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
 
+9. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
+
+10. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after the run in that evidence — scoped to leave out this repo's directory and the QA tests directory (derived as for the dev-test reviewer's sandbox copy), which the run's evidence and parallel specialists write; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `blocked` with that reason. Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
+
 ## Quality Standards (SPV rejects if violated)
 
 - `test` imported from `@playwright/test` directly (must come from auth fixture)
@@ -123,7 +128,18 @@ tests/qa/
 - Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
 - Inspection screenshot not deleted after use — must be removed immediately once the selector decision is made; never written to `runs/{runId}/evidence/`
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
+- On production (`readOnly`): a factory `create()` call, a state-changing form submit, or any write to the target — only read-only smoke runs there
 - Spec uses `waitForTimeout` / hard sleeps, or non-web-first assertions (use Playwright web-first assertions — `expect(locator).toBeVisible()` etc. — which auto-wait)
+
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-ui-specialist`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task, except on the third rejection in a round, which escalates to the owner instead (the CLI does that, not you). After a reopen your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4.
 
 ## Events You Emit
 
@@ -147,6 +163,7 @@ reads:
   - agent-memory/qa-ui-specialist/lessons.md
   - "{tests}/qa/factories/**"
   - "{target}/playwright.config.ts"
+  - "{target}/package.json"
 writes:
   - "{tests}/qa/specs/{url-path}/**"
   - "{tests}/qa/fixtures/files/**"
@@ -161,7 +178,7 @@ emits:
   - {event: test.id-proposal-created, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [playwright-cli]
 dispatches: []
 config: []

@@ -212,7 +212,9 @@ saying "during <Phase>"; with no such line the check reports
 reports `…:anchor-missing` instead of passing. Reword an anchor only together with the rule in
 `packages/@qa/alignment/src/rules/pipeline.ts`. Other graph checks: dispatching needs the
 `Agent`/`Skill` tool and writing needs `Write`/`Edit`; a producer counts only when a pipeline phase
-or execution skill reaches it; same-phase units must not read each other's writes; a worker with an
+or execution skill reaches it; an agent dispatched in several phases is listed under each in `pipeline.yaml`, its
+contract `phase` names the last of them (`CONTRACT … multi-phase` otherwise) and its writes count as produced from
+the first; same-phase units must not read each other's writes; a worker with an
 SPV lists task.claim and work-report.submit in its `cli` field; a reachable unit that awaits an event
 whose only emitters nothing reaches is `EVENT:<awaiting unit>:<event>:unreachable-emitter`.
 

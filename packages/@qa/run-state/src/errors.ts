@@ -10,7 +10,13 @@ export type RunStateErrorCode =
   | "not-claimed"
   | "invalid-input"
   | "run-not-active"
-  | "no-work-report";
+  | "no-work-report"
+  | "out-of-order"
+  | "barrier"
+  | "preflight-failed"
+  | "integrity-failed"
+  | "escalation-pending"
+  | "not-assignee";
 
 /** A refusal by a run-state rule. The CLI maps it to exit code 2. */
 export class RunStateError extends Error {

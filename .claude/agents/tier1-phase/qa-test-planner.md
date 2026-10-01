@@ -30,6 +30,10 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 - `runs/{runId}/requirements/ambiguity-report.json` — requirements analysis output
 - `runs/{runId}/requirements/testability-scores.json`
+- `runs/{runId}/stories/*.json` — the user stories and acceptance criteria the plan must cover
+- `runs/{runId}/dev-test-review.json` — the developer-test review, when it exists: coverage the developers already provide
+- `runs/{runId}/discovery-report.json` — the explored app: pages, roles, inferred journeys
+- `runs/{runId}/reports/exploratory/` — the Explore-phase session notes, and the `tc.proposal` / `observation.recorded` events in `runs/{runId}/events.jsonl`: risk evidence from the live app
 - `runs/{runId}/intake/` — any PRD, feature spec, prior run data
 - `target-profile.json` — stack context; detected modules
 - `aegis/aegis.config.json` — compliance flags, environment model, profile
@@ -39,12 +43,11 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 - `runs/{runId}/plan.{md,json}` — test plan (IEEE 829 + ISTQB sections)
 - `runs/{runId}/risk-register.{md,json}` — ISO 31000 risk register (numeric + ordinal)
-- `runs/{runId}/events.jsonl` — test.plan-drafted, risk.flagged events
-- `runs/{runId}/reports/work/qa-test-planner.json` — work report for SPV
+- Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
 ## Process
 
-1. **Read context.** Load ambiguity report, testability scores, intake artefacts, target profile, lessons.md. If any BLOCK-level ambiguity exists in the ambiguity report, do not produce a plan — emit `planning.blocked` with the list of BLOCKs. A plan built on unresolved BLOCKs is a plan built on false assumptions (Kaner ch-11 revision trigger #1).
+1. **Read context.** Load ambiguity report, testability scores, intake artefacts, target profile, lessons.md. A BLOCK never stops the plan: a plan built on unresolved BLOCKs is a plan built on false assumptions (Kaner ch-11 revision trigger #1), so a BLOCKed requirement is planned out of scope, never in it. List every BLOCKed requirement under the plan's features not to be tested, each as "blocked: <the analyst's clarifying question>", add one `uncertainties[]` entry per BLOCKed requirement to your work report (impact `high`, `wouldUnblockBy` the answer the product team owes), and append `planning.blocked` with their requirement ids. Then plan the rest as usual. The orchestrator carries each one into the Gate 1 work report; once it is clarified the owner rejects Gate 1 through `/qa-gate-decide` with the reopen phase `requirements` (the CLI's `--reopen-phase requirements` option), which returns Requirements through Planning to pending. Never release `done` without a plan.
 
 2. **Establish test strategy.** Answer the three strategy questions:
    - *What matters most?* (Map mission goals to test types: if the mission is "find important bugs fast" → risk-based prioritisation with high-risk areas first)
@@ -67,11 +70,12 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 8. **Write the work report.** Summary: strategy rationale, top 3 risks, specialists to dispatch, lessons applied, uncertainties ("unclear whether the auth module's SSO path needs a dedicated specialist or can share the UI specialist slot").
 
-9. **Emit `run.phase.completed`.** After the work report is written and `test.plan-drafted` has fired, emit `run.phase.completed` as the final event — this is the orchestrator's signal to advance to the next phase.
+9. **Submit, release, stop.** Append `test.plan-drafted` as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
-- Plan produced despite unresolved BLOCK-level ambiguities
+- A BLOCKed requirement planned in scope, or missing from the plan's out-of-scope list or the work report's `uncertainties[]`
+- No plan written because of BLOCK-level ambiguities (a BLOCK is planned out of scope, never a reason to stop)
 - Strategy section is generic ("test all functionality") — must name specific mission-linked priorities
 - Risk register entry lacks numeric score, ordinalLevel, OR rationale (all three required — REC-04)
 - Logistics section specifies model names or agent implementation details — plan at the what level, not the how
@@ -79,16 +83,25 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 - Plan contains a ship/no-ship recommendation — that is a Gate 1 human decision, not a planner decision
 - Work report does not cite lessons applied
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-test-planner pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-test-planner`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task, except on the third rejection in a round, which escalates to the owner instead (the CLI does that, not you). After a reopen your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4.
+
 ## Events You Emit
 
 - `test.plan-drafted` — includes planId, riskCount, specialistsProposed
 - `risk.flagged` — one per Critical (C) risk entry in the register
-- `planning.blocked` — if BLOCK-level ambiguities prevent plan completion
-- `run.phase.completed` — emitted last, after `test.plan-drafted` and the work report (orchestrator's phase-advance signal)
+- `planning.blocked` — reason and blockingRequirementIds of the BLOCKed requirements planned out of scope (the plan is still written)
 
 ## Concurrency
 
-Claims `task:test-planning` via taskmaster-client. One instance per run. Writes only to `runs/{runId}/plan.*` and `runs/{runId}/risk-register.*`.
+Claims its task through the CLI (see Task Protocol). One instance per run. Writes only to `runs/{runId}/plan.*` and `runs/{runId}/risk-register.*`.
 
 ## Knowledge Refs
 
@@ -113,6 +126,12 @@ reviewedBy: qa-test-planner-spv
 reads:
   - "{run}/requirements/ambiguity-report.json"
   - "{run}/requirements/testability-scores.json"
+  - "{run}/stories/*.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
+  - "{run}/discovery-report.json"
+  - "{run}/reports/exploratory/**"
+  - "{run}/events.jsonl"
   - "{run}/intake/**"
   - "{run}/target-profile.json"
   - aegis.config.json
@@ -120,15 +139,12 @@ reads:
 writes:
   - "{run}/plan.{md,json}"
   - "{run}/risk-register.{md,json}"
-  - "{run}/events.jsonl"
-  - "{run}/reports/work/qa-test-planner.json"
 emits:
   - {event: test.plan-drafted, via: append}
   - {event: risk.flagged, via: append}
   - {event: planning.blocked, via: append}
-  - {event: run.phase.completed, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config: []

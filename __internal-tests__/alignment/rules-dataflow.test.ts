@@ -273,3 +273,17 @@ it('EVENT: via none skips the channel checks', () => {
   expect(keys(eventRule(loadModel(t.root)))).toEqual([]);
   t.cleanup();
 });
+
+it('PRODUCER: a multi-phase writer produces from its first listed phase (HANDBOOK 14.11)', () => {
+  const agents = {
+    'qa-env': { contract: ag('data', { writes: ['{tests}/qa/fixtures/auth.fixture.ts'] }) },
+    'qa-web': { contract: ag('explore', { reads: ['{tests}/qa/fixtures/auth.fixture.ts'] }) },
+  };
+  const pipe = (ph: Array<{ id: string; agents: string[] }>) => ({ ...MIN_PIPELINE, phases: ph, sources: { cli: ['{run}/run.json'] } });
+  const both = makeRepo({ agents, pipeline: pipe([{ id: 'auth', agents: ['qa-env'] }, { id: 'explore', agents: ['qa-web'] }, { id: 'data', agents: ['qa-env'] }]) });
+  expect(keys(producerRule(loadModel(both.root)))).toEqual([]);
+  both.cleanup();
+  const once = makeRepo({ agents, pipeline: pipe([{ id: 'explore', agents: ['qa-web'] }, { id: 'data', agents: ['qa-env'] }]) });
+  expect(keys(producerRule(loadModel(once.root)))).toEqual(['PRODUCER:qa-web:{tests}/qa/fixtures/auth.fixture.ts:later-phase']);
+  once.cleanup();
+});

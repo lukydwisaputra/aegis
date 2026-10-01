@@ -71,11 +71,19 @@ it('CONTRACT: agent listed in two phases', () => {
     agents: { 'qa-a': { contract: { contract: 1, phase: 'design', dispatchedBy: [], dispatch: none, reviewedBy: none } } },
     pipeline: { ...MIN_PIPELINE, phases: [{ id: 'design', agents: ['qa-a'] }, { id: 'build', agents: ['qa-a'] }] },
   });
-  expect(keys(contractRule(loadModel(t.root)))).toEqual([
-    'CONTRACT:qa-a:-:multi-phase',
-    'CONTRACT:qa-a:build:phase-mismatch',
-  ]);
+  expect(keys(contractRule(loadModel(t.root)))).toEqual(['CONTRACT:qa-a:-:multi-phase']);
   t.cleanup();
+});
+
+it('CONTRACT: a multi-phase agent names the last listed phase (HANDBOOK 14.11)', () => {
+  const agent = (phase: string) => ({ 'qa-a': { contract: { contract: 1, phase, dispatchedBy: [], dispatch: none, reviewedBy: none } } });
+  const pipeline = { ...MIN_PIPELINE, phases: [{ id: 'design', agents: ['qa-a'] }, { id: 'build', agents: ['qa-a'] }] };
+  const last = makeRepo({ agents: agent('build'), pipeline });
+  expect(keys(contractRule(loadModel(last.root)))).toEqual([]);
+  last.cleanup();
+  const elsewhere = makeRepo({ agents: agent('ship'), pipeline: { ...pipeline, phases: [...pipeline.phases, { id: 'ship', agents: [] }] } });
+  expect(keys(contractRule(loadModel(elsewhere.root)))).toEqual(['CONTRACT:qa-a:-:multi-phase', 'CONTRACT:qa-a:build:phase-mismatch', 'CONTRACT:qa-a:design:phase-mismatch']);
+  elsewhere.cleanup();
 });
 
 it('DISPATCH: skill as dispatcher', () => {

@@ -27,7 +27,7 @@ Allows surgical execution of one STLC phase without running the full pipeline. U
 4. Emit `run.phase.started` event and invoke the corresponding Tier-1 phase agent.
 5. Phase agent writes its outputs to `runs/{run}/{phase}/` and emits sub-task events.
 6. On completion, emit `run.phase.completed` with artifact paths and duration.
-7. Update `run.json` phase status map so qa-status reflects the partial run accurately.
+7. Leave run state to the CLI: phase status changes only through the orchestrator, so qa-status reflects the partial run without this skill editing it.
 
 ## Events emitted
 - `run.phase.started` — phase name, input artifact paths
@@ -51,7 +51,6 @@ reads:
   - "test-cases.json"
 writes:
   - "{run}/{phase}/**"
-  - "{run}/run.json"
 emits:
   - {event: run.phase.started, via: append}
   - {event: run.phase.completed, via: append}

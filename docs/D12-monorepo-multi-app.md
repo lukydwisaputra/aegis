@@ -249,8 +249,7 @@ The existing `ports` config is shared across all apps:
 "ports": {
   "dashboard":    3030,
   "dashboardApi": 3031,
-  "mailpit":      { "smtp": 1025, "http": 8025 },
-  "playwrightUI": 9323
+  "mailpit":      { "smtp": 1025, "http": 8025 }
 }
 ```
 

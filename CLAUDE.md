@@ -56,6 +56,8 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 /qa-health                                  # system integrity check
 /qa-doctor                                  # interactive diagnostic
 /qa-gate-check --stage=staging              # promotion gate check
+/qa-gate-decide --gate=1 --decision=approved --note="..."    # decide an open human gate
+/qa-escalation --task=T-... --decision=retry --reason="..."  # decide a 3x-rejected task
 /qa-triage                                  # re-evaluate open defects
 /qa-stop --reason="..."                     # clean abort
 ```
@@ -67,11 +69,11 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 `aegis.config.json` at the repo root is the primary config. Key fields:
 
 - `targetProjectRoot` — relative path to the app under test (default `..`)
-- `testsDir` — where tests are written (default `../tests`)
-- `profile` — `"full"` (63 agents) or `"lite"`
+- `testsDir` — where tests are written (default `../tests/qa`)
+- `profile` — `"full"` (66 agents) or `"lite"`
 - `compliance` — which standards are audited per run
-- `parallelism.maxSpecialists` — max concurrent Tier-2 agents (default 4)
-- `gates` — toggle the three human checkpoints on/off
+- `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
+- `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
 - `environments` — per-env URLs, allowed specialists, and `mutating` flag
 - `ports` — dashboard (3030), dashboardApi (3031), Mailpit (8025), k6 (5665)
 - `dashboard.projectName` — appears in all customer-facing report output
@@ -87,10 +89,10 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 | Tier | Count | Model | Role |
 |------|-------|-------|------|
 | 0 — Orchestrator | 1 | Opus | Reads Taskmaster tree, dispatches phases, enforces gates |
-| 1 — Phase managers | 8 | Sonnet | One per STLC phase (requirements → closure) |
+| 1 — Phase managers | 9 | Sonnet/Opus | One per STLC phase (requirements → closure), plus the developer-test reviewer |
 | 2 — Specialists | 16 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
 | 2.5 — DevOps | 6 | Sonnet/Opus | GitHub, CI/CD planning & implementation |
-| 3 — SPVs | 25 | Opus | Mirror of Tier 1/2; validate work reports |
+| 3 — SPVs | 24 | Opus | Mirror of Tier 1/2; validate work reports (the 2 DevOps SPVs, `qa-cicd-spv` and `qa-github-spv`, sit in tier 2.5: 26 SPV files in all) |
 | Compliance | 6 | Opus | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
 | Cross-cutting | 4 | Haiku | context-scanner, librarian, event-bus, metrics-collector |
 
@@ -99,10 +101,10 @@ Model assignments are centralized in `.claude/model-policy.yaml` — **never har
 ### Execution flow
 
 1. Orchestrator dispatches Tier-1 phase agents sequentially.
-2. `qa-test-executor` fans out to at most 4 concurrent Tier-2 specialists.
-3. Every worker writes `work-report.json` and emits `task.released` before finishing. SPVs run immediately after and emit `CorrectiveInstruction` on findings.
-4. All agents append to `runs/{runId}/events.jsonl` — the only crash-recovery source of truth. Only the `@qa/event-bus` library may write this file; never append directly.
-5. Three locked human gates pause execution: `planApproval`, `defectTriage`, `closure`. Decisions go to `gate-{N}-decision.json`.
+2. `qa-test-executor` fans out to at most `parallelism.maxSpecialists` concurrent Tier-2 specialists, one task per dispatch.
+3. Every worker claims its task, submits its work report and releases the task through the aegis CLI (`aegis task claim`, `aegis work-report submit`, `aegis task release`). Its SPV then submits a verdict with `aegis review submit`, which pipes any `CorrectiveInstruction` into the worker's lessons and escalates the third rejection to the owner.
+4. Agents record their events with `aegis event append`, which hash-chains them into `runs/{runId}/events.jsonl` (the only crash-recovery source of truth) through `@qa/event-bus`. Nothing writes that file directly.
+5. Three locked human gates pause every full cycle: G1 Plan approval (after Planning), G2 Defect triage (after Triage), G3 Closure (after Closure-final). They cannot be disabled. The owner decides each with `/qa-gate-decide`; the CLI writes `gates/gate-{N}-decision.json`. `/qa-smoke` has no human gate — its G2 is auto-decided from `thresholds.yaml#smoke`.
 
 ### Key packages under `packages/@qa/`
 
@@ -126,7 +128,7 @@ runs/{runId}/
   cases/                # test cases (brand-clean)
   defects/              # defect records (brand-clean)
   reports/              # closure report + executive deck (brand-clean)
-  gate-{N}-decision.json
+  gates/gate-{N}-decision.json  # owner gate decisions (CLI-written)
   locks/                # task claim locks (auto-cleaned on resume)
 ```
 

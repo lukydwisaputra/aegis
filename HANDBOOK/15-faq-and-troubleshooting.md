@@ -7,13 +7,13 @@
 **Diagnostic flow:**
 
 1. Check what phase the run is in: `/qa-status --run=RUN-...`
-2. Look for gates: is a human gate waiting for input? Check for `gate.requested` events in `events.jsonl`
+2. Look for gates: is a human gate waiting for input? `AEGIS_AGENT=owner pnpm aegis run status` shows `next.kind: await-gate`; decide it with `/qa-gate-decide`
 3. Look for orphan locks: `/qa-health --run=RUN-...`
 4. If locks are stale: `/qa-resume --run=RUN-...` to release and continue
 5. If an agent is running but making no progress, check its token budget: `/qa-status --run=RUN-... --json | jq .tokenUsage`
 6. Still stuck? `/qa-stop --run=RUN-... --reason="diagnosing"` and re-examine artifacts
 
-**Most common cause:** a gate waiting for keyboard input (`[y/n]` prompt) that nobody answered. Check the terminal where `/qa-start` was invoked.
+**Most common cause:** an undecided gate. `AEGIS_AGENT=owner pnpm aegis run status` shows `next.kind: await-gate`; the owner decides it with `/qa-gate-decide`.
 
 ## 15.2 "Tests pass locally but fail in CI"
 
@@ -42,7 +42,7 @@ If the same bad pattern keeps being proposed: add a note to the curator's `agent
 
 1. Run `/qa-status --json | jq .tokenUsage` to see per-agent costs
 2. Sort by `costUsd DESC` — which agents are expensive?
-3. Check if SPVs are the dominant cost: if yes, consider the SPV fast-path (Sonnet first, Opus only on escalation). Edit `aegis/.claude/model-policy.yaml` to switch validation tier to `claude-sonnet-5`.
+3. Check if SPVs are the dominant cost: if yes, edit `aegis/.claude/model-policy.yaml` to switch the validation tier to `claude-sonnet-5` (there is no automatic Sonnet-first SPV fast-path).
 4. Check `cached%` column in token-usage report. Low `cached%` means prompt caching isn't working — check that knowledge files are not being regenerated between calls.
 5. Use `/qa-dry-run` before the next cycle to estimate costs before committing.
 

@@ -170,7 +170,7 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
     compliance: opts.compliance.split(","),
     profile: "full",
     parallelism: { maxSpecialists: 4 },
-    gates: { planApproval: true, defectTriage: true, closure: true },
+    intake: { sources: [] },
     ports: {
       dashboard: 3030,
       dashboardApi: 3031,

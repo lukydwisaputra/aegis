@@ -1,6 +1,6 @@
 # Work Report Schema
 
-Every agent that performs meaningful work writes a `work-report.json` before emitting `task.released`. This is the primary input for SPV review.
+Every agent that performs meaningful work submits a work report with `aegis work-report submit` before `aegis task release` records `task.released`. The CLI stores each attempt as `reports/work/{agent}.{taskId}.{attempt}.json`; it is the primary input for SPV review.
 See [D13-spv-review-pattern.md](D13-spv-review-pattern.md) for how SPVs consume this.
 See [HANDBOOK chapter 13](../HANDBOOK/13-mechanics.md) for the review pipeline.
 
@@ -97,10 +97,10 @@ An honest `uncertainties` list is a signal of quality, not weakness.
 ## Storage location
 
 ```
-runs/{runId}/work-reports/{agentName}-{taskId}.json
+runs/{runId}/reports/work/{agentName}.{taskId}.{n}.json
 ```
 
-The SPV reads this path directly. The orchestrator does not parse work reports — it only checks for their existence as a gate condition before dispatching the SPV.
+The CLI writes it (`aegis work-report submit`, attempt `n` counting up); the SPV reads the highest attempt directly. The orchestrator does not parse work reports — it only checks for their existence as a gate condition before dispatching the SPV.
 
 ---
 

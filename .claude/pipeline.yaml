@@ -1,26 +1,40 @@
 pipeline: 1
 phases:
+  - id: intake
+    agents: []
+  - id: scan
+    agents: [qa-context-scanner]
+  - id: dev-test-review
+    agents: [qa-dev-test-reviewer]
   - id: requirements
     agents: [qa-requirements-analyst]
-  - id: discovery
-    agents: [qa-context-scanner, qa-web-explorer]
+  - id: env-auth  # qa-environment-engineer scope=auth; also listed under env-data, its contract phase (HANDBOOK 14.11)
+    agents: [qa-environment-engineer]
+  - id: explore
+    agents: [qa-web-explorer, qa-exploratory-specialist]
   - id: planning
     agents: [qa-test-planner]
     gateAfter: G1
   - id: design
     agents: [qa-test-designer]
-  - id: environment
+  - id: env-data
     agents: [qa-environment-engineer]
   - id: execution
     agents: [qa-test-executor]
   - id: triage
     agents: [qa-defect-manager]
     gateAfter: G2
-  - id: closure
+  - id: closure-draft
     agents: [qa-closure-reporter]
+  - id: compliance  # qa-compliance-* are crosscutting; the orchestrator places them "during Compliance"
+    agents: []
+  - id: closure-final  # qa-closure-reporter final pass: listed once, under closure-draft
+    agents: []
     gateAfter: G3
   - id: executive
     agents: [qa-executive-reporter]
+  - id: curator  # qa-curator is crosscutting; placed "during Curator"
+    agents: []
 routing:
   byType:
     Functional: qa-ui-specialist
@@ -70,6 +84,8 @@ sources:
     - "{run}/taskmaster/**"
     - "{run}/reports/work/**"
     - "{run}/reports/review/**"
+    - "{run}/gates/**"
+    - "{run}/intake/**"
   owner: []
   target:
     - "{target}/**"
@@ -119,7 +135,14 @@ escapes:
   - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}
   - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}
   - {unit: qa-database-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager.md:25 candidates exist only when Explore or responsive sessions found a suspect"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager.md:26 read when the Dev-test-review phase ran"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/evidence/discovery/**", reason: "qa-defect-manager.md:27 cited only by web-explorer candidates"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/evidence/exploratory/**", reason: "qa-defect-manager.md:27 cited only by exploratory candidates"}
   - {unit: qa-defect-manager-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-defect-manager-spv, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager-spv.md:22 candidates exist only when a session found a suspect"}
+  - {unit: qa-defect-manager-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager-spv.md:23 read when the Dev-test-review phase ran"}
+  - {unit: qa-dev-test-reviewer-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
   - {unit: qa-email-specialist, field: optional, value: "secrets/.env.{env}", reason: "qa-email-specialist.md:25 Gmail OAuth credentials if adapter is gmail"}
   - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-environment-engineer-spv, field: reviewedBy.none, reason: "not stated in prose"}
@@ -137,20 +160,27 @@ escapes:
   - {unit: qa-help, field: optional, value: "config/commands.yaml", reason: "SKILL.md:20 a static embedded list is used if the file is absent"}
   - {unit: qa-knowledge-librarian, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-metrics-collector, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-metrics-collector, field: optional, value: "{run}/reports/work/qa-unit-specialist.json", reason: "qa-metrics-collector.md:41 code coverage from the unit-specialist work report (if available)"}
+  - {unit: qa-metrics-collector, field: optional, value: "{run}/reports/work/qa-unit-specialist.*.json", reason: "qa-metrics-collector.md:41 code coverage from the unit-specialist work reports (if available)"}
   - {unit: qa-orchestrator-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-performance-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-realtime-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-requirements-analyst, field: optional, value: "{run}/intake/prd.md", reason: "qa-requirements-analyst.md:26 product requirements document if provided"}
+  - {unit: qa-requirements-analyst, field: optional, value: "{run}/dev-test-review.json", reason: "qa-requirements-analyst.md:29 read when the Dev-test-review phase ran (not-applicable with no developer tests)"}
+  - {unit: qa-requirements-analyst-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-requirements-analyst-spv.md:26 the developer-test review, when it exists"}
   - {unit: qa-requirements-analyst-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-responsive-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-security-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-designer, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-designer.md:31 the developer-test review, when it exists"}
+  - {unit: qa-test-designer-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-designer-spv.md:24 developer tests a TC may record in coveredBy, when the review exists"}
   - {unit: qa-test-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-test-executor, field: rmw, value: "{run}/concurrency.json", reason: "qa-test-executor.md:145 sole writer of the ledger; increments on dispatch, decrements on specialist.completed"}
+  - {unit: qa-test-executor, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-executor.md:38 read when the Dev-test-review phase ran, for the kind of a developer-covered TC's test"}
+  - {unit: qa-test-executor, field: optional, value: "{run}/env-setup-report.json", reason: "qa-test-executor.md:40 absent when Env-data is not-applicable (read-only environment); env-auth-report.json health is read instead"}
+  - {unit: qa-test-executor-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-executor-spv.md:25 read when it exists, for the kind of a developer-covered TC's test"}
   - {unit: qa-test-executor-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-planner, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-planner.md:34 the developer-test review, when it exists"}
   - {unit: qa-test-planner-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-ui-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-unit-specialist, field: optional, value: "{run}/dev-test-review.json", reason: "qa-unit-specialist.md:30 read when the Dev-test-review phase ran (not-applicable with no developer tests)"}
   - {unit: qa-unit-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-web-explorer-spv, field: reviewedBy.none, reason: "not stated in prose"}
 

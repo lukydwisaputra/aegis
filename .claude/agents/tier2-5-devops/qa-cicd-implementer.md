@@ -28,7 +28,7 @@ You write the GitHub Actions workflow YAML files and configure secrets. You impl
 
 - `.github/workflows/qa-*.yml` — 6 workflow files (written to target repo root)
 - `runs/{runId}/devops/cicd-results.json` — validation results
-- `runs/{runId}/reports/work/qa-cicd-implementer.json` — work report
+- One work report per attempt through `aegis work-report submit` — see Task Protocol
 
 ## Process
 
@@ -57,6 +57,16 @@ You write the GitHub Actions workflow YAML files and configure secrets. You impl
 - Any workflow has `push: branches: [main]` write event that could trigger on a force-push
 - `--no-verify` used
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-cicd-implementer pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-cicd-implementer`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task, except on the third rejection in a round, which escalates to the owner instead (the CLI does that, not you). After a reopen your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4.
+
 ## Events You Emit
 
 - `devops.workflow-edited` — one per YAML file; includes filename, stages covered
@@ -81,12 +91,11 @@ writes:
   - "{target}/.github/workflows/qa-*.yml"
   - "{target}/.husky/**"
   - "{run}/devops/cicd-results.json"
-  - "{run}/reports/work/qa-cicd-implementer.json"
 emits:
   - {event: devops.workflow-edited, via: append}
   - {event: secrets.configured, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [gh, pnpm, git]
 dispatches: []
 config:

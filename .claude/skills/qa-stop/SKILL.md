@@ -1,43 +1,37 @@
 ---
 name: qa-stop
-description: Abort a running QA cycle cleanly, releasing all locks and emitting a run.aborted event
+description: Stop a running QA cycle cleanly through the CLI; agents stop taking new work and the run can be resumed with /qa-resume
 ---
 
 # /qa-stop
 
 ## Purpose
-Gracefully terminates an in-progress QA pipeline run. Signals all active sub-agents to finish their current atomic operation and then stop (rather than killing them mid-write), releases run lock files, persists partial results, and emits a `run.aborted` event so the run can be inspected or resumed later via `/qa-resume`.
+Requests a clean stop of an in-progress run. The stop is a CLI state change, not a sentinel file: once it is recorded, the CLI refuses every new phase start, task and claim, so agents finish their current atomic step and take no further work. Partial artefacts stay in place and `/qa-resume` continues the run.
 
 ## Usage
 ```
-/qa-stop [--run=RUN-...] [--reason=<text>]
+/qa-stop [--run=RUN-...] --reason=<text>
 ```
 
 ## Key flags
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--run` | last active run | Run ID to abort |
-| `--reason` | `"manual stop"` | Free-text reason recorded in the abort event |
+| `--run` | active run | Run to stop |
+| `--reason` | *(required)* | Free-text reason recorded with the stop request |
 
 ## Behaviour
-1. Resolve `--run`; verify the run has status `running` or `resuming`.
-2. Write a `stop-requested` sentinel file to the run directory that active agents poll for.
-3. Wait up to 30 seconds for in-progress agent tasks to complete their current write.
-4. Force-terminate any agents still running after the grace period.
-5. Release the run lock file (`.lock`).
-6. Update `run.json` status to `aborted` and record the reason and timestamp.
-7. Emit `run.aborted` event to `events.jsonl`.
-8. Print a summary of partial results: phases completed, TCs executed, defects logged.
+1. Run `AEGIS_AGENT=owner pnpm aegis run stop --reason "<reason>"` (plus `--run <id>` when given). The CLI sets the run to `stopped`, records the stop request and `run.stop.requested`, and refuses a completed run.
+2. From now on phase starts, task additions and task claims are refused for this run; that refusal is how running agents learn about the stop.
+3. Run `AEGIS_AGENT=owner pnpm aegis run status` and print the phases completed, the phase in progress, any open gate and any block causes.
 
 ## Events emitted
-- `run.stop.requested` — includes reason and requesting timestamp
-- `run.aborted` — final status with partial result counts
+- `run.stop.requested` — recorded by the CLI, never appended by this skill
 
 ## Example
 ```
 /qa-stop --run=RUN-20260524-001 --reason="hotfix deployed, restarting with new scope"
 ```
-Cleanly aborts run 001 with a recorded reason, preserving all partial artifacts for later resume.
+Stops run 001 with a recorded reason, preserving all partial artefacts for `/qa-resume`.
 
 ## Contract (machine-checked)
 
@@ -47,15 +41,11 @@ contract: 1
 kind: execution
 dispatchedBy: []
 reads: []
-writes:
-  - "{run}/stop-requested"
-  - "{run}/.lock"
-  - "{run}/run.json"
+writes: []
 emits:
-  - {event: run.stop.requested, via: append}
-  - {event: run.aborted, via: append}
+  - {event: run.stop.requested, via: "cli:run.stop"}
 awaits: []
-cli: []
+cli: [run.stop, run.status]
 runs: []
 dispatches: []
 config: []

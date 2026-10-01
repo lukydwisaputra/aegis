@@ -32,9 +32,17 @@ const ENTRY: Record<string, string> = {
   'run.resume': 'resumeRun',
   'task.claim': 'claimTask',
   'task.release': 'releaseTask',
+  'task.cancel': 'cancelTask',
   'work-report.submit': 'submitWorkReport',
   'review.submit': 'submitReview',
   'integrity.verify': 'verifyRunIntegrity',
+  'phase.start': 'startPhase',
+  'phase.complete': 'completePhase',
+  'run.complete': 'completeRun',
+  'gate.open': 'openGate',
+  'gate.decide': 'decideGate',
+  'gate.auto-decide': 'autoDecideGate',
+  'escalation.decide': 'decideEscalation',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

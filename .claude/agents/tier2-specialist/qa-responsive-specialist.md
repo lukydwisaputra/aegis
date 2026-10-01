@@ -42,7 +42,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 - `runs/{runId}/cases/{TC-ID}-{viewport}-result.json` — result per TC per viewport
 - `runs/{runId}/evidence/{TC-ID}/{viewport}/` — screenshots per viewport; overwrites previous run's evidence for the same TC
-- `runs/{runId}/defects/{DEF-ID}.{md,json}` — viewport-specific defects; tagged with affected viewport(s)
+- `runs/{runId}/defect-candidates/{slug}.json` — suspected viewport-specific defects, one per file (`DefectCandidateSchema`, with `viewport` and the TC id); qa-defect-manager confirms their origin in Triage
 
 ## Process
 
@@ -62,19 +62,29 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
    - Nav breakdown: hamburger menu not functioning, or desktop nav overflowing → defect
    - Touch targets: interactive elements with `width < 44` or `height < 44` on mobile → a11y defect with `WCAG-2.2-2.5.5`
 
-5. **Auto-tag viewport on defects.** Any defect found only on mobile gets tag `viewport:mobile`. Found on all → `viewport:all`.
+5. **File each breakpoint defect as a candidate.** Write `runs/{runId}/defect-candidates/responsive-{slug}.json` with the TC id, the evidence under `runs/{runId}/evidence/{TC-ID}/{viewport}/` and `viewport` set to where it reproduces (`mobile` when only there, `all` when everywhere). You never open a defect or mint a DEF id. The file requires `source` (your agent name), `taskId` (your task id, a `TaskRefSchema` ref such as `T-<phase>-<n>`), `foundAt` (UTC ISO ending in `Z`), `module` (`^[A-Z]{2,8}$`), `proposedType` (`UI`, `A11Y` or `EXP`), `title` (10–65 characters), `observed` and `expected` (each at least 10 characters), `reproductionSteps` (at least one `{step, action}`, `step` a positive integer), `evidence` (at least one run-relative path), `severityHint` (`Sev1` to `Sev5`); `storyId`, `acIds`, `tcId`, `viewport` and `sessionId` are optional, and no other key is allowed (the object is strict). The file name is the slug plus `.json`, the slug in lowercase letters, digits and hyphens (`^[a-z0-9][a-z0-9-]*\.json$`; the Explore barrier refuses any other name).
 
 6. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
 
 ## Quality Standards (SPV rejects if violated)
 
 - TC run on viewport not in its `viewportScope`
-- Viewport-specific defect not tagged with the viewport where it reproduces
+- Breakpoint defect candidate without the viewport where it reproduces, or a defect opened directly
 - Screenshots not captured at each tested viewport
 - Evidence written anywhere other than `runs/{runId}/evidence/{TC-ID}/{viewport}/` — never write to `artifacts/evidence/`, `tests/runs/`, or `test-results/`
 - Inspection screenshot not deleted after the assertion is written — must be removed immediately; never written to `runs/{runId}/evidence/`
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 - Spec uses `waitForTimeout` / hard sleeps, or non-web-first assertions (use Playwright web-first assertions — `expect(locator).toBeVisible()` etc. — which auto-wait)
+
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-responsive-specialist pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-responsive-specialist`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task, except on the third rejection in a round, which escalates to the owner instead (the CLI does that, not you). After a reopen your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4.
 
 ## Events You Emit
 
@@ -98,7 +108,7 @@ reads:
 writes:
   - "{run}/cases/{TC-ID}-{viewport}-result.json"
   - "{run}/evidence/{TC-ID}/{viewport}/**"
-  - "{run}/defects/{DEF-ID}.{md,json}"
+  - "{run}/defect-candidates/{slug}.json"
   - "{tests}/qa/specs/{url-path}/responsive.spec.ts"
   - "sandbox/{date}-{slug}/**"
 emits:
@@ -107,7 +117,7 @@ emits:
   - {event: breakpoint.defect-found, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [playwright-cli]
 dispatches: []
 config:

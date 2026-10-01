@@ -10,7 +10,7 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 
 ## Usage
 ```
-/qa-regenerate-report [--run=RUN-...] [--rerun-tests] [--reports=closure,token-usage]
+/qa-regenerate-report [--run=RUN-...] [--rerun-tests] [--reports=closure,executive]
 ```
 
 ## Key flags
@@ -18,15 +18,15 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 |------|---------|-------------|
 | `--run` | last run | Run ID whose events log to replay |
 | `--rerun-tests` | `false` | Also re-execute all test cases before regenerating (full re-run of execution phase only) |
-| `--reports` | `all` | Comma-separated subset of reports to regenerate: `closure`, `token-usage`, `defect-summary`, `coverage`, `rtm` |
+| `--reports` | `all` | Comma-separated subset of reports to regenerate: `closure` (the closure report) and `executive` (the executive deliverables). Token-usage and coverage rollups are metrics files, which qa-metrics-collector regenerates; the RTM and the defect records belong to their phase agents |
 
 ## Behaviour
 1. Resolve run directory and validate that `events.jsonl` exists and is non-empty.
 2. Parse flag `--reports`; if `all`, enumerate every report template in `templates/reports/`.
 3. For each requested report type, invoke the corresponding reporter sub-agent with the events log as input.
-4. Reporter agents write output files to `runs/{run}/reports/` (overwriting existing files).
+4. Reporter agents write output files to `runs/{run}/reports/closure/` and `runs/{run}/reports/executive/` (overwriting existing files). The CLI owns the work reports and the reviews, and qa-metrics-collector owns the metrics files, so nothing here writes those.
 5. If `--rerun-tests` is set, first dispatch the execution phase agents for the run before regenerating.
-6. Update `runs/{run}/run.json` with `reports.regeneratedAt` timestamp.
+6. Print the regenerated report paths; run state is owned by the CLI and is not edited here.
 7. Print a summary of which report files were written and their sizes.
 
 ## Events emitted
@@ -36,9 +36,9 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 
 ## Example
 ```
-/qa-regenerate-report --run=RUN-20260524-001 --reports=closure,token-usage
+/qa-regenerate-report --run=RUN-20260524-001 --reports=closure
 ```
-Replays events from run 001 and rewrites only the closure and token-usage reports.
+Replays events from run 001 and rewrites only the closure report.
 
 ## Contract (machine-checked)
 
@@ -51,8 +51,8 @@ reads:
   - "{run}/events.jsonl"
   - "templates/reports/**"
 writes:
-  - "{run}/reports/**"
-  - "{run}/run.json"
+  - "{run}/reports/closure/**"
+  - "{run}/reports/executive/**"
 emits:
   - {event: report.regeneration.started, via: append}
   - {event: report.generated, via: append}

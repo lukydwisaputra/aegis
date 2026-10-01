@@ -33,7 +33,7 @@ Reads a run's execution results and compares them against the quality gate thres
 4. Collect threshold results: `pass`, `fail`, or `warn`.
 5. If `--strict`, convert all `warn` to `fail`.
 6. Determine overall verdict: `passed` if all `pass`; `failed` if any `fail`.
-7. Write verdict to `runs/{run}/gates/{stage}-gate.json`.
+7. Write verdict to `runs/{run}/reports/gate-check/{stage}.json`.
 8. Print a formatted table (or JSON if `--json`) and exit code `0` on pass, `1` on fail.
 
 ## Events emitted
@@ -58,7 +58,7 @@ reads:
   - "{run}/execution/results.json"
   - "{run}/defects.json"
 writes:
-  - "{run}/gates/{stage}-gate.json"
+  - "{run}/reports/gate-check/{stage}.json"
 emits:
   - {event: gate.evaluation.started, via: append}
   - {event: gate.threshold.evaluated, via: append}

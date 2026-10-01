@@ -27,15 +27,18 @@ Starts a full STLC run.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--feature` | string | (all) | Restrict scope to a named feature |
+| `--module` | string | `ALL` | Limit the run to one module (e.g. AUTH) |
 | `--env` | string | `testing` | Target environment |
-| `--profile` | string | from config | `full` or `lite` |
-| `--no-gates` | boolean | `false` | Skip all human gates (CI-only) |
-| `--req` | filepath | — | Path to additional requirements file |
+| `--scope` | string | (none) | Narrow scope to a single feature or user story |
+| `--type` | string | `Functional,Regression` | Comma-separated test types to include |
+| `--intake` | glob | `aegis.config.json#intake.sources` | Target-relative globs of requirement documents to copy into the run |
+| `--apps` | string | `all` | Comma-separated apps in the monorepo to include |
+
+The three human gates (G1 Plan approval, G2 Defect triage, G3 Closure) cannot be skipped; decide each with `/qa-gate-decide`. For a PR-gate smoke cycle use `/qa-smoke`.
 
 Example:
 ```bash
-/qa-start --feature login --env testing
+/qa-start --module AUTH --scope login --env testing
 # Produces RUN-20260523-001 in aegis/runs/
 ```
 
@@ -43,7 +46,7 @@ Example:
 
 #### `/qa-smoke`
 
-Runs a fast smoke test: phases 1–3 only, reduced case set.
+Runs a fast smoke test: Intake, Scan, Env-auth, Env-data, Execution and Triage only, reduced case set. There is no human gate; G2 is auto-decided from `thresholds.yaml#smoke`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -227,9 +230,9 @@ Lessons live under `agent-memory/<agent>/`; no command lists or resets them. The
 
 ### ⚠ Pitfalls
 
-1. **Using `--no-gates` in development** — gates protect you from approving bad plans automatically. `--no-gates` is designed for fully automated nightly pipelines, not interactive development sessions.
+1. **Expecting a full cycle to run unattended** — a full cycle always pauses at G1, G2 and G3 until the owner decides each with `/qa-gate-decide`. There is no switch to skip gates; use `/qa-smoke` for an unattended PR-gate run.
 
-2. **Running `/qa-start` without `--feature` on a large app** — without scoping, the framework tests everything it can discover. This is expensive and slow for daily use; reserve full-scope runs for nightly builds.
+2. **Running `/qa-start` without `--module` or `--scope` on a large app** — without scoping, the framework tests everything it can discover. This is expensive and slow for daily use; scope interactive runs.
 
 3. **Using `/qa-ingest-book` with untrimmed PDFs** — large raw PDFs consume significant tokens during ingestion. Pre-process documents to remove boilerplate, legal appendices, and changelog sections before ingesting.
 

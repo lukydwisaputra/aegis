@@ -144,7 +144,7 @@ describe('shared id patterns (R8)', () => {
 
 describe('config', () => {
   it('reads the cap, profile and environments', () => {
-    expect(readSettings(t.root)).toEqual({ profile: 'full', maxSpecialists: 2, environments: ['development', 'production'] });
+    expect(readSettings(t.root)).toEqual({ profile: 'full', maxSpecialists: 2, environments: ['development', 'production'], readOnlyEnvironments: ['production'] });
   });
 
   it('rejects a non-positive cap', () => {

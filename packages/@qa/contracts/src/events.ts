@@ -9,10 +9,15 @@ import {
   RequirementIdSchema,
   RiskIdSchema,
   TestPlanIdSchema,
+  StoryIdSchema,
+  AcceptanceCriterionIdSchema,
+  TaskRefSchema,
 } from "./ids.js";
 import { PackageManagerSchema } from "./target-profile.js";
 import { SeveritySchema } from "./severity.js";
 import { Sha256HexSchema } from "./chain.js";
+import { GateIdSchema, PhaseIdSchema } from "./phases.js";
+import { GateDecisionValueSchema, GateMetricSchema } from "./gate-decision.js";
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
@@ -92,13 +97,13 @@ export const DefectReopenedEventSchema = EventBase.extend({
 
 export const GateRequestedEventSchema = EventBase.extend({
   type: z.literal("gate.requested"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
 });
 
 export const GateApprovedEventSchema = EventBase.extend({
   type: z.literal("gate.approved"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
   approvedBy: z.string(),
 });
@@ -602,6 +607,7 @@ export const PreflightFailedEventSchema = EventBase.extend({
 export const SpecialistCompletedEventSchema = EventBase.extend({
   type: z.literal("specialist.completed"),
   specialistName: z.string(),
+  taskId: TaskRefSchema.optional(), // the T-execution-<n> task the specialist released
   passCount: z.number().int().nonnegative(),
   failCount: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative().optional(),
@@ -616,6 +622,7 @@ export const DispatchBriefSchema = z.object({
 export const SpecialistDispatchedEventSchema = EventBase.extend({
   type: z.literal("specialist.dispatched"),
   specialistName: z.string(),
+  taskId: TaskRefSchema.optional(), // the T-execution-<n> task the specialist must claim
   tcIds: z.array(TestCaseIdSchema).default([]),
   environment: z.string(),
   brief: DispatchBriefSchema.optional(),
@@ -895,7 +902,7 @@ export const SecurityFindingCriticalEventSchema = EventBase.extend({
 
 export const GateClosedEventSchema = EventBase.extend({
   type: z.literal("gate.closed"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
   decision: z.string(),
 });
@@ -909,7 +916,7 @@ export const GateEvaluationStartedEventSchema = EventBase.extend({
 
 export const GateOpenedEventSchema = EventBase.extend({
   type: z.literal("gate.opened"),
-  gate: z.enum(["plan-approval", "defect-triage", "closure"]),
+  gate: GateIdSchema,
   runId: RunIdSchema,
 });
 
@@ -1530,9 +1537,89 @@ export const IntegrityAcknowledgedEventSchema = EventBase.extend({
   reason: z.string().min(1),
 });
 
+// ─── Phases, gates and escalation (P0a-1) ─────────────────────────────────────
+// Recorded only by the aegis CLI. Every field is declared here: appendChained rejects undeclared ones.
+
+export const RunPhaseNotApplicableEventSchema = EventBase.extend({
+  type: z.literal("run.phase.not-applicable"),
+  runId: RunIdSchema,
+  phase: PhaseIdSchema,
+  reason: z.string().min(1),
+});
+
+export const GateDecidedEventSchema = EventBase.extend({
+  type: z.literal("gate.decided"),
+  runId: RunIdSchema,
+  gate: GateIdSchema,
+  decision: GateDecisionValueSchema,
+  sequence: z.number().int().positive(),
+  note: z.string().min(1),
+  reopenPhase: PhaseIdSchema.optional(),
+});
+
+export const GateAutoDecidedEventSchema = EventBase.extend({
+  type: z.literal("gate.auto-decided"),
+  runId: RunIdSchema,
+  gate: GateIdSchema,
+  decision: GateDecisionValueSchema,
+  sequence: z.number().int().positive(),
+  metrics: z.array(GateMetricSchema),
+});
+
+export const EscalationDecidedEventSchema = EventBase.extend({
+  type: z.literal("escalation.decided"),
+  runId: RunIdSchema,
+  taskId: z.string().min(1),
+  agent: z.string().min(1),
+  decision: z.enum(["retry", "accept-with-risk", "abort"]),
+  reason: z.string().min(1),
+});
+
+// aegis task cancel: the dispatcher withdrew a task nobody claimed; the phase barrier ignores it.
+export const TaskCancelledEventSchema = EventBase.extend({
+  type: z.literal("task.cancelled"),
+  runId: RunIdSchema,
+  taskId: z.string().min(1),
+  agent: z.string().min(1),
+  reason: z.string().min(1),
+});
+
+// ─── Stories, exploration and developer-test review (P0a-2) ──────────────────
+// Appended by agents through `aegis event append`; every field is declared (appendChained rejects undeclared ones).
+
+export const TcProposalEventSchema = EventBase.extend({
+  type: z.literal("tc.proposal"),
+  storyId: StoryIdSchema.optional(),
+  acIds: z.array(AcceptanceCriterionIdSchema).default([]),
+  title: z.string().min(10).max(200),
+  rationale: z.string().min(10).max(500),
+});
+
+export const ObservationRecordedEventSchema = EventBase.extend({
+  type: z.literal("observation.recorded"),
+  kind: z.enum(["behaviour-mismatch", "ambiguous-ac", "uncovered-behaviour"]),
+  summary: z.string().min(10).max(300),
+  storyId: StoryIdSchema.optional(),
+  acId: AcceptanceCriterionIdSchema.optional(),
+  sessionId: z.string().min(1).optional(),
+  // Run-relative defect-candidates/<file>.json when the observation is a suspected defect.
+  candidate: z.string().min(1).optional(),
+});
+
+export const DevTestReviewCompleteEventSchema = EventBase.extend({
+  type: z.literal("dev-test.review-complete"),
+  adequate: z.number().int().nonnegative(),
+  weak: z.number().int().nonnegative(),
+  wrong: z.number().int().nonnegative(),
+  unmapped: z.number().int().nonnegative(),
+  mutation: z.enum(["ran", "skipped"]),
+  mutationScore: z.number().min(0).max(100).optional(),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
-export const AegisEventSchema = z.discriminatedUnion("type", [
+/** The raw discriminated union: use `.options` to enumerate event types. Parse with AegisEventSchema, which adds cross-field rules. */
+export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RunCreatedEventSchema,
   RunPhaseStartedEventSchema,
   RunPhaseCompletedEventSchema,
@@ -1745,7 +1832,21 @@ export const AegisEventSchema = z.discriminatedUnion("type", [
   ScanWarningEventSchema,
   IntegrityViolationEventSchema,
   IntegrityAcknowledgedEventSchema,
+  RunPhaseNotApplicableEventSchema,
+  GateDecidedEventSchema,
+  GateAutoDecidedEventSchema,
+  EscalationDecidedEventSchema,
+  TaskCancelledEventSchema,
+  TcProposalEventSchema,
+  ObservationRecordedEventSchema,
+  DevTestReviewCompleteEventSchema,
 ]);
 
+/** Every event parser uses this: the union plus the rules a single object schema cannot carry. */
+export const AegisEventSchema = AegisEventUnionSchema.superRefine((e, ctx) => {
+  if (e.type === "tc.proposal" && e.storyId === undefined && e.acIds.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["storyId"], message: "a tc.proposal names a storyId or at least one acId" });
+  }
+});
 export type AegisEvent = z.infer<typeof AegisEventSchema>;
 export type AegisEventType = AegisEvent["type"];

@@ -546,7 +546,7 @@ Each slice is independently mergeable and leaves the repo green.
 |------|-----------|
 | Bash write detection in H1 is heuristic | Hash chain + schema validation (§4.4) make bypass detectable; CLI-only files are re-validated at every gate. |
 | Hooks slow every tool call | Scripts are plain Node, no package install at runtime; path-guard table compiled once; target < 50 ms per call (measured in tests). |
-| Stryker unsupported for a target stack | Dev-test reviewer records `mutation: skipped (<reason>)`; adequacy then relies on AC mapping + assertion analysis, flagged as lower confidence. |
+| Stryker unsupported for a target stack | Dev-test reviewer records `mutation: skipped (<reason>)`; no unit test is then `adequate` (owner decision, P0a-2): one that would otherwise be is rated `weak` with the reason "no mutation evidence". |
 | Barrier deadlocks on agents with no SPV yet | Explicit `spv: none (P2)` list; P2 must shrink it to empty. |
 | Sibling projects on old snapshots break against new CLI | Out of scope until P6; no sibling project is modified by P0. |
 | `aegis.config.json#gates` removal breaks `apps/cli init/doctor` | Covered in slice P0a-1; `doctor` flags leftover `gates` keys. |

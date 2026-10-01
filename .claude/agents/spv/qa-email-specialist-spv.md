@@ -17,7 +17,7 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-email-specialist.json` — work report
+- `runs/{runId}/reports/work/qa-email-specialist*.json` — the worker's work reports, one file per task and attempt
 - Email test files at `tests/qa/email/`
 - `aegis/aegis.config.json` — for `emailAdapter` setting
 - `agent-memory/qa-email-specialist/lessons.md`
@@ -40,9 +40,13 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 - `passed-with-notes` — incomplete triple assertion; emit CorrectiveInstruction
 - `requested-changes` — direct SMTP, real external recipients, production targeted, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
 
+## Submitting Your Verdict
+
+Prefix every command with your name: `AEGIS_AGENT=<your-name> pnpm aegis`, for example `AEGIS_AGENT=qa-email-specialist-spv pnpm aegis review submit --file /dev/stdin`. Review only a released task, and only the attempt the CLI binds: the highest-numbered attempt file of the worker's task (file names end in the attempt number n, `<agent>.<taskId>.<n>.json`). `aegis review submit` refuses a task that is in progress, failed (the owner decides through the escalation), or pending, and a task with no work report: tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `aegis review submit --file /dev/stdin`: `id` (`RV-qa-email-specialist-spv-<taskId>`), `reviewer` (`qa-email-specialist-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]` (each `{severity, claim, evidence[]}`, severity `info`, `low`, `medium`, `high` or `blocker`), `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`; each has `mistake` and `rootCause` of 20–300 characters and `correctiveRule` of 20–400 characters), `reviewedAt` (a UTC ISO string ending in `Z`) and `modelUsed`. The CLI records the `review.*` event, pipes every corrective instruction into the worker's lessons, and reopens the task on `requested-changes`, except on the third rejection in a round, which escalates the task to the owner instead. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -54,7 +58,7 @@ dispatchedBy: [qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-email-specialist]
 reads:
-  - "{run}/reports/work/qa-email-specialist.json"
+  - "{run}/reports/work/qa-email-specialist*.json"
   - "{tests}/qa/email/**"
   - "aegis.config.json"
   - "{tests}/qa/**"
@@ -62,10 +66,11 @@ reads:
   - "agent-memory/qa-email-specialist/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: []
 dispatches: []
 config: ["aegis.config.json#emailAdapter", "aegis.config.json#environments.production.forbiddenSpecialists"]

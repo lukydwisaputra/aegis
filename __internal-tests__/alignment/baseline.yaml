@@ -5,168 +5,6 @@
 baseline: 1
 entries:
   # --- CLI ---
-  - key: "CLI:qa-accessibility-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-accessibility-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-accessibility-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-accessibility-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-api-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-api-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-api-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-api-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-cicd-implementer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-cicd-implementer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-cicd-planner:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-cicd-planner:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-closure-reporter:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-closure-reporter-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-closure-reporter:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-closure-reporter-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-database-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-database-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-database-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-database-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-defect-manager:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-defect-manager-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-defect-manager:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-defect-manager-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-email-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-email-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-email-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-email-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-environment-engineer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-environment-engineer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-executive-reporter:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-executive-reporter-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-executive-reporter:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-executive-reporter-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-exploratory-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-exploratory-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-feature-flag-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-feature-flag-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-feature-flag-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-feature-flag-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-github-implementer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-github-implementer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-github-planner:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-github-planner:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-github-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-orchestrator:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-orchestrator:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-orchestrator-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-performance-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-performance-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-performance-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-realtime-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-realtime-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-realtime-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-realtime-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-requirements-analyst:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-requirements-analyst-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-requirements-analyst:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-requirements-analyst-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-responsive-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-responsive-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-responsive-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-responsive-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-security-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-security-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-security-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-security-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-test-designer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-test-designer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-test-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-test-executor:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-test-executor:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-test-executor-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-test-planner:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-test-planner-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-test-planner:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-test-planner-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-ui-designer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-ui-designer:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-ui-designer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-ui-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-ui-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-ui-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-ui-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-unit-specialist:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-unit-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-unit-specialist:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-unit-specialist-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-web-explorer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-web-explorer:work-report.submit:handoff-missing"
-    ids: [AUD-083]
-    note: "reviewed by qa-web-explorer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   # --- CONFIG ---
   - key: "CONFIG:_qa-build-agents:config/model-policy.yaml:missing"
     ids: [AUD-061, AUD-057]
@@ -195,18 +33,6 @@ entries:
   - key: "CONFIG:aegis.config.json:collector.remote:unused"
     ids: [AUD-007]
     note: "aegis.config.json#collector.remote is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:discovery.destructiveActionHeuristics:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#discovery.destructiveActionHeuristics is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:discovery.enabled:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#discovery.enabled is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:ports.k6Dashboard:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#ports.k6Dashboard is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
   - key: "CONFIG:qa-doctor:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
@@ -274,19 +100,7 @@ entries:
   - key: "CONSUMER:qa-event-bus:{run}/events.jsonl.lock:unread"
     ids: [AUD-048]
     note: "no one reads {run}/events.jsonl.lock"
-  - key: "CONSUMER:qa-orchestrator:{run}/COMPLETE:unread"
-    ids: [AUD-028]
-    note: "no one reads {run}/COMPLETE"
-  - key: "CONSUMER:qa-orchestrator:{run}/taskmaster.json:unread"
-    ids: [AUD-006]
-    note: "no one reads {run}/taskmaster.json"
-  - key: "CONSUMER:qa-test-designer:{run}/scenarios/{SCN-ID}.{md,json}:unread"
-    ids: [NEW-01]
-    note: "no one reads {run}/scenarios/{SCN-ID}.{md,json}"
   # --- CONTRACT ---
-  - key: "CONTRACT:pipeline:G3:gate-position"
-    ids: [AUD-008]
-    note: "prose places G3 after triage; pipeline.yaml puts it after closure"
   # --- DISPATCH ---
   - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
     ids: [AUD-046]
@@ -330,9 +144,6 @@ entries:
   - key: "DISPATCH:qa-knowledge-librarian:qa-orchestrator:not-reciprocal"
     ids: [AUD-047]
     note: "qa-orchestrator does not list qa-knowledge-librarian in dispatches"
-  - key: "DISPATCH:qa-orchestrator-spv:-:undispatched"
-    ids: [AUD-049]
-    note: "nothing dispatches this agent"
   - key: "DISPATCH:qa-ui-designer-spv:-:undispatched"
     ids: [AUD-050]
     note: "nothing dispatches this agent"
@@ -352,9 +163,6 @@ entries:
   - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
     ids: [AUD-060]
     note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
-  - key: "DOC-REF:CLAUDE.md:63 agents:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md claims 63 agents; .claude/agents has 64 agent files"
   - key: "DOC-REF:CLAUDE.md:crosscutting=4:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"Cross-cutting\" claims 4; .claude/agents/crosscutting has 5"
@@ -370,9 +178,6 @@ entries:
   - key: "DOC-REF:CLAUDE.md:qa-specialist:unknown"
     ids: [AUD-076]
     note: "qa-specialist is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:CLAUDE.md:spv=25:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"3 \u2014 SPVs\" claims 25; .claude/agents/spv has 23"
   - key: "DOC-REF:CLAUDE.md:tier2-5-devops=6:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"2.5 \u2014 DevOps\" claims 6; .claude/agents/tier2-5-devops has 7"
@@ -526,30 +331,6 @@ entries:
   - key: "EVENT:_qa-report-technical-pdf:report.technical.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-accessibility-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-accessibility-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-accessibility-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-accessibility-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-api-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-api-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-api-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-api-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-ci-bootstrap:ci.bootstrap.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -559,69 +340,12 @@ entries:
   - key: "EVENT:qa-ci-bootstrap:ci.file.written:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-cicd-evaluator:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-implementer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-planner:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-cicd-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-cicd-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-closure-reporter-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-closure-reporter-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-closure-reporter-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-closure-reporter:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-closure-reporter:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-compare:compare.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-compare:compare.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-compliance-cmmi:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-compliance-gdpr:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-compliance-iso25010:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-compliance-iso5055:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-compliance-istqb:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-compliance-pdpa:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-context-scanner:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-curator:-:appends-without-cli"
-    ids: [AUD-018, CO-11, AUD-082]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-dashboard:dashboard.built:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -631,36 +355,9 @@ entries:
   - key: "EVENT:qa-dashboard:dashboard.stopped:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-database-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-database-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-database-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-database-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-defect-manager-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-defect-manager-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-defect-manager-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-defect-manager:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-defect-manager:rtm.append-link:named-consumer-missing"
     ids: [AUD-027]
     note: "qa-defect-manager says rtm.append-link is processed by an unnamed consumer, which does not await it"
-  - key: "EVENT:qa-defect-manager:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-deps-update:deps.applied:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -676,62 +373,8 @@ entries:
   - key: "EVENT:qa-deps-update:deps.update.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-email-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-email-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-email-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-email-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-environment-engineer-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-environment-engineer-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-environment-engineer-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-environment-engineer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-environment-engineer:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-event-bus:-:appends-without-cli"
     ids: [AUD-048]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-executive-reporter-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-executive-reporter-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-executive-reporter-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-executive-reporter:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-executive-reporter:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
-  - key: "EVENT:qa-exploratory-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-exploratory-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-exploratory-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-exploratory-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
     note: "emits events without `aegis event append`"
   - key: "EVENT:qa-export:export.completed:owner-cannot-append"
     ids: [AUD-100]
@@ -742,18 +385,6 @@ entries:
   - key: "EVENT:qa-export:export.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-feature-flag-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-feature-flag-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-feature-flag-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-feature-flag-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-gate-check:gate.evaluation.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -766,21 +397,6 @@ entries:
   - key: "EVENT:qa-gate-check:gate.threshold.evaluated:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-github-implementer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-github-planner:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-github-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-github-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-github-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
   - key: "EVENT:qa-health:health.check.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -799,12 +415,6 @@ entries:
   - key: "EVENT:qa-ingest-book:book.ingest.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-knowledge-librarian:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-metrics-collector:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-metrics-collector:defect.closed:no-emitter"
     ids: [AUD-102]
     note: "nobody emits defect.closed"
@@ -817,48 +427,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
     ids: [AUD-042b]
     note: "nobody emits token.used"
-  - key: "EVENT:qa-orchestrator-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-orchestrator-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-orchestrator:gate.closed:cli-recorded"
-    ids: [AUD-103]
-    note: "gate.closed is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:gate.opened:cli-recorded"
-    ids: [AUD-103]
-    note: "gate.opened is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.blocked:cli-recorded"
-    ids: [AUD-103]
-    note: "run.blocked is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.completed:cli-recorded"
-    ids: [AUD-103]
-    note: "run.completed is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.created:cli-recorded"
-    ids: [AUD-103]
-    note: "run.created is recorded by the CLI"
-  - key: "EVENT:qa-orchestrator:run.phase.started:cli-recorded"
-    ids: [AUD-103]
-    note: "run.phase.started is recorded by the CLI"
-  - key: "EVENT:qa-performance-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-performance-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-performance-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-performance-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-promote-stage:run.gate.check.triggered:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -880,18 +448,6 @@ entries:
   - key: "EVENT:qa-promote:promotion.review.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-realtime-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-realtime-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-realtime-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-realtime-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-record-manual:manual.test.recorded:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -916,21 +472,6 @@ entries:
   - key: "EVENT:qa-regression:regression.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-requirements-analyst-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-requirements-analyst-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-requirements-analyst-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-requirements-analyst:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-requirements-analyst:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-rerun-failed:rerun.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -939,27 +480,6 @@ entries:
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-rerun-failed:tc.retried:owner-cannot-append"
     ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-responsive-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-responsive-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-responsive-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-responsive-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-resume:run.completed:owner-cannot-append"
-    ids: [AUD-100, AUD-024, AUD-025]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-resume:run.lock.stale.cleared:owner-cannot-append"
-    ids: [AUD-100, AUD-024]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-resume:run.resumed:owner-cannot-append"
-    ids: [AUD-100, AUD-024]
     note: "skills run as owner, and the owner cannot append events"
   - key: "EVENT:qa-rollback:incident.defect.created:owner-cannot-append"
     ids: [AUD-100]
@@ -988,18 +508,6 @@ entries:
   - key: "EVENT:qa-run-specialist:specialist.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-security-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-security-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-security-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-security-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-smoke:smoke.failed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -1009,75 +517,6 @@ entries:
   - key: "EVENT:qa-smoke:smoke.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:preflight.failed:owner-cannot-append"
-    ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.aborted:owner-cannot-append"
-    ids: [AUD-100, AUD-023]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.completed:owner-cannot-append"
-    ids: [AUD-100, AUD-025]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.created:owner-cannot-append"
-    ids: [AUD-100, AUD-025]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.phase.completed:owner-cannot-append"
-    ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-start:run.phase.started:owner-cannot-append"
-    ids: [AUD-100]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-stop:run.aborted:owner-cannot-append"
-    ids: [AUD-100, AUD-023]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-stop:run.stop.requested:owner-cannot-append"
-    ids: [AUD-100, AUD-023]
-    note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-test-designer-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-designer-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-test-designer-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-test-designer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-designer:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
-  - key: "EVENT:qa-test-executor-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-executor-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-test-executor-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-test-executor:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-executor:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
-  - key: "EVENT:qa-test-planner-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-planner-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-test-planner-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-test-planner:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-test-planner:run.phase.completed:cli-recorded"
-    ids: [CO-05]
-    note: "run.phase.completed is recorded by the CLI"
   - key: "EVENT:qa-triage:defect.triaged:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -1087,42 +526,6 @@ entries:
   - key: "EVENT:qa-triage:triage.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-ui-designer-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-ui-designer-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-ui-designer-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-ui-designer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-ui-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-ui-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-ui-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-ui-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-unit-specialist-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-unit-specialist-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-unit-specialist-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-unit-specialist:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-watch:watch.cycle.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -1135,25 +538,7 @@ entries:
   - key: "EVENT:qa-watch:watch.stopped:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-web-explorer-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-web-explorer-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-web-explorer-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-web-explorer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   # --- PRODUCER ---
-  - key: "PRODUCER:qa-accessibility-specialist-spv:{run}/reports/work/qa-accessibility-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-accessibility-specialist.json is a work report, but no worker qa-accessibility-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-api-specialist-spv:{run}/reports/work/qa-api-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-api-specialist.json is a work report, but no worker qa-api-specialist-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-cicd-evaluator:{run}/devops/github-results.json:unreachable-producer"
     ids: [AUD-046]
     note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
@@ -1166,51 +551,6 @@ entries:
   - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
     ids: [AUD-074]
     note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
-  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-implementer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-cicd-implementer.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-cicd-spv:{run}/reports/work/qa-cicd-planner.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-cicd-planner.json is a work report, but no worker qa-cicd-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-closure-reporter-spv:{run}/reports/work/qa-closure-reporter.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-closure-reporter.json is a work report, but no worker qa-closure-reporter-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-closure-reporter:qa-compliance-cmmi:same-phase-cycle"
-    ids: [AUD-004]
-    note: "qa-closure-reporter and qa-compliance-cmmi run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
-  - key: "PRODUCER:qa-closure-reporter:qa-compliance-istqb:same-phase-cycle"
-    ids: [AUD-004]
-    note: "qa-closure-reporter and qa-compliance-istqb run in the same phase and read each other's writes (phase from qa-orchestrator prose lines 62)"
-  - key: "PRODUCER:qa-compliance-cmmi:{run}/reviews/*.json:none"
-    ids: [AUD-014]
-    note: "nothing produces {run}/reviews/*.json"
-  - key: "PRODUCER:qa-curator:{run}/reviews/*.json:none"
-    ids: [AUD-014]
-    note: "nothing produces {run}/reviews/*.json"
-  - key: "PRODUCER:qa-database-specialist-spv:{run}/reports/work/qa-database-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-database-specialist.json is a work report, but no worker qa-database-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-defect-manager-spv:{run}/reports/work/qa-defect-manager.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-defect-manager.json is a work report, but no worker qa-defect-manager-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-email-specialist-spv:{run}/reports/work/qa-email-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-email-specialist.json is a work report, but no worker qa-email-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-environment-engineer-spv:{run}/reports/work/qa-environment-engineer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-environment-engineer.json is a work report, but no worker qa-environment-engineer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-executive-reporter-spv:{run}/reports/work/qa-executive-reporter.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-executive-reporter.json is a work report, but no worker qa-executive-reporter-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-executive-reporter:{run}/gates/gate-{1,2,3}-decision.json:none"
-    ids: [AUD-009]
-    note: "nothing produces {run}/gates/gate-{1,2,3}-decision.json"
-  - key: "PRODUCER:qa-exploratory-specialist-spv:{run}/reports/work/qa-exploratory-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-exploratory-specialist.json is a work report, but no worker qa-exploratory-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-feature-flag-specialist-spv:{run}/reports/work/qa-feature-flag-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-feature-flag-specialist.json is a work report, but no worker qa-feature-flag-specialist-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-github-implementer:{run}/devops/github-plan.json:unreachable-producer"
     ids: [AUD-046]
     note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
@@ -1223,86 +563,14 @@ entries:
   - key: "PRODUCER:qa-github-spv:{run}/devops/github-results.json:unreachable-producer"
     ids: [AUD-046]
     note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-implementer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-github-implementer.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-github-spv:{run}/reports/work/qa-github-planner.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-github-planner.json is a work report, but no worker qa-github-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-orchestrator-spv:{run}/reports/work/qa-orchestrator.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-orchestrator.json is a work report, but no worker qa-orchestrator-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-orchestrator:{run}/gates/gate-{N}-decision.json:none"
-    ids: [AUD-009]
-    note: "nothing produces {run}/gates/gate-{N}-decision.json"
-  - key: "PRODUCER:qa-orchestrator:{run}/taskmaster.json:none"
-    ids: [AUD-006]
-    note: "nothing produces {run}/taskmaster.json"
-  - key: "PRODUCER:qa-performance-specialist-spv:{run}/reports/work/qa-performance-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-performance-specialist.json is a work report, but no worker qa-performance-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-realtime-specialist-spv:{run}/reports/work/qa-realtime-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-realtime-specialist.json is a work report, but no worker qa-realtime-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-requirements-analyst-spv:{run}/reports/work/qa-requirements-analyst.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-requirements-analyst.json is a work report, but no worker qa-requirements-analyst-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-requirements-analyst:{run}/intake/requirements/**:none"
-    ids: [AUD-005]
-    note: "nothing produces {run}/intake/requirements/**"
-  - key: "PRODUCER:qa-requirements-analyst:{run}/target-profile.json:later-phase"
-    ids: [AUD-001]
-    note: "{run}/target-profile.json is only produced in a later phase"
-  - key: "PRODUCER:qa-responsive-specialist-spv:{run}/reports/work/qa-responsive-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-responsive-specialist.json is a work report, but no worker qa-responsive-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-security-specialist-spv:{run}/reports/work/qa-security-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-security-specialist.json is a work report, but no worker qa-security-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-test-designer-spv:{run}/reports/work/qa-test-designer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-test-designer.json is a work report, but no worker qa-test-designer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-test-executor-spv:{run}/reports/work/qa-test-executor.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-test-executor.json is a work report, but no worker qa-test-executor-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-test-planner-spv:{run}/reports/work/qa-test-planner.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-test-planner.json is a work report, but no worker qa-test-planner-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-test-planner:{run}/intake/**:none"
-    ids: [AUD-005]
-    note: "nothing produces {run}/intake/**"
-  - key: "PRODUCER:qa-ui-designer-spv:{run}/reports/work/qa-ui-designer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-ui-designer.json is a work report, but no worker qa-ui-designer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-ui-specialist-spv:{run}/reports/work/qa-ui-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-ui-specialist.json is a work report, but no worker qa-ui-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-unit-specialist-spv:{run}/reports/work/qa-unit-specialist.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-unit-specialist.json is a work report, but no worker qa-unit-specialist-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-web-explorer-spv:{run}/reports/work/qa-web-explorer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-web-explorer.json is a work report, but no worker qa-web-explorer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-web-explorer:{run}/intake/requirements/**:none"
-    ids: [AUD-005]
-    note: "nothing produces {run}/intake/requirements/**"
-  - key: "PRODUCER:qa-web-explorer:{tests}/qa/fixtures/auth.fixture.ts:later-phase"
-    ids: [AUD-003]
-    note: "{tests}/qa/fixtures/auth.fixture.ts is only produced in a later phase"
   # --- ROUTE ---
   # --- SKILL ---
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
     ids: [AUD-061, AUD-057]
     note: "config/model-policy.yaml does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-executive-slides:{run}/gates/gate-3-decision.json:unresolved"
-    ids: [AUD-060, AUD-009]
-    note: "{run}/gates/gate-3-decision.json does not exist and nothing produces it"
   - key: "SKILL:_qa-report-executive-slides:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-signoff-pdf:{run}/gates/gate-3-decision.json:unresolved"
-    ids: [AUD-060, AUD-009]
-    note: "{run}/gates/gate-3-decision.json does not exist and nothing produces it"
   - key: "SKILL:_qa-report-signoff-pdf:{run}/reports/closure.json:unresolved"
     ids: [AUD-060]
     note: "{run}/reports/closure.json does not exist and nothing produces it"
@@ -1450,9 +718,6 @@ entries:
   - key: "SKILL:qa-status:promotions/pending/**:unresolved"
     ids: [AUD-059]
     note: "promotions/pending/** does not exist and nothing produces it"
-  - key: "SKILL:qa-status:{run}/gates/**:unresolved"
-    ids: [AUD-009]
-    note: "{run}/gates/** does not exist and nothing produces it"
   - key: "SKILL:qa-watch:qa-api-specialist:direct-dispatch"
     ids: [AUD-012]
     note: "execution skill dispatches qa-api-specialist directly"
@@ -1527,27 +792,12 @@ entries:
   - key: "WRITE-POLICY:qa-ci-bootstrap:docs/ci-secrets-setup.md:not-writable"
     ids: [AUD-112, AUD-065]
     note: "write to docs/ci-secrets-setup.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-cicd-evaluator:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-cicd-implementer:{run}/reports/work/qa-cicd-implementer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-cicd-implementer.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.github/workflows/qa-*.yml:target-source"
     ids: [AUD-112, AUD-046]
     note: "write to {target}/.github/workflows/qa-*.yml violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.husky/**:target-source"
     ids: [AUD-112, AUD-046]
     note: "write to {target}/.husky/** violates the write policy (target-source)"
-  - key: "WRITE-POLICY:qa-cicd-planner:{run}/reports/work/qa-cicd-planner.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-cicd-planner.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-closure-reporter:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-closure-reporter:{run}/reports/work/qa-closure-reporter.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-closure-reporter.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-compare:comparisons/{runA}-vs-{runB}/comparison.md:not-writable"
     ids: [AUD-068]
     note: "write to comparisons/{runA}-vs-{runB}/comparison.md violates the write policy (not-writable)"
@@ -1557,57 +807,27 @@ entries:
   - key: "WRITE-POLICY:qa-dashboard:dashboard/dist/**:not-writable"
     ids: [AUD-065]
     note: "write to dashboard/dist/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-defect-manager:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-defect-manager:{run}/reports/work/qa-defect-manager.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-defect-manager.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-deps-update:package.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to package.json violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-environment-engineer:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-environment-engineer:{run}/reports/work/qa-environment-engineer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-environment-engineer.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-environment-engineer:{target}/playwright.config.ts:target-source"
     ids: [AUD-112]
     note: "write to {target}/playwright.config.ts violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-event-bus:{run}/events.jsonl:cli-only"
     ids: [AUD-048, CO-01]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-executive-reporter:{run}/reports/work/qa-executive-reporter.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-executive-reporter.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-github-implementer:{run}/reports/work/qa-github-implementer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-github-implementer.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-github-planner:{run}/reports/work/qa-github-planner.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-github-planner.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-health:.gitignore:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to .gitignore violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-impact:reports/impact-{REQ-id}.md:not-writable"
     ids: [AUD-068]
     note: "write to reports/impact-{REQ-id}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-orchestrator:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-orchestrator:{run}/reports/work/qa-orchestrator.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-orchestrator.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-promote-stage:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-promote:memory/**:not-writable"
     ids: [AUD-059, AUD-068]
     note: "write to memory/** violates the write policy (not-writable)"
@@ -1623,30 +843,12 @@ entries:
   - key: "WRITE-POLICY:qa-record-manual:manual-{date}/**:not-writable"
     ids: [AUD-068]
     note: "write to manual-{date}/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-regenerate-report:{run}/reports/**:cli-only"
-    ids: [AUD-111, CO-05]
-    note: "write to {run}/reports/** violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-regenerate-report:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-requirements-analyst:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-requirements-analyst:{run}/reports/work/qa-requirements-analyst.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-requirements-analyst.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-resume:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-rollback:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-rollback:postmortems/{date}-rollback.md:not-writable"
     ids: [AUD-068]
     note: "write to postmortems/{date}-rollback.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-run-phase:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-run-phase:{run}/{phase}/**:cli-only"
     ids: [AUD-062]
     note: "write to {run}/{phase}/** violates the write policy (cli-only)"
@@ -1656,33 +858,6 @@ entries:
   - key: "WRITE-POLICY:qa-run-specialist:spot/{specialist}/{timestamp}/run.json:not-writable"
     ids: [AUD-068]
     note: "write to spot/{specialist}/{timestamp}/run.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-security-specialist:{tests}/security/{surface}.security.spec.ts:outside-tests-qa"
-    ids: [AUD-086]
-    note: "write to {tests}/security/{surface}.security.spec.ts violates the write policy (outside-tests-qa)"
-  - key: "WRITE-POLICY:qa-start:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-stop:{run}/run.json:cli-only"
-    ids: [AUD-099]
-    note: "write to {run}/run.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-designer:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-designer:{run}/reports/work/qa-test-designer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-test-designer.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-executor:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-executor:{run}/reports/work/qa-test-executor.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-test-executor.json violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-planner:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-test-planner:{run}/reports/work/qa-test-planner.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-test-planner.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"

@@ -36,7 +36,7 @@ development (local)  →  testing (ephemeral per PR)  →  staging (prod mirror)
 ┌────────────────┐
 │    staging     │  trigger: push to main
 │  (prod mirror) │  workflow: .github/workflows/qa-full.yml
-│                │  command:  /qa-start --env=staging --skip-gates-ci
+│                │  command:  /qa-start --env=staging
 │                │  nightly:  qa-nightly.yml → /qa-regression + /qa-compare
 └────────┬───────┘  gate:     STAGING (smoke=100%, regression≥99%, 0 open Sev1/Sev2)
          │
@@ -160,7 +160,7 @@ ERROR: Error budget exhausted (43.2 min / month limit reached at 39.7 min).
 
 - **Don't disable a gate without recording why** — use `thresholds.yaml.overrides[].reason`; SPV flags any relaxation below industry default.
 - **Don't use `--force` on `/qa-promote-stage` without an incident filed first.**
-- **Don't let CI wall-clock exceed 20min** — split into parallel jobs, use `--max-parallel` tuning.
+- **Don't let CI wall-clock exceed 20min** — split into parallel jobs; specialist concurrency is set only in `aegis.config.json#parallelism.maxSpecialists`.
 - **Don't put secrets in YAML workflows** — always `${{ secrets.NAME }}`; `qa-cicd-spv` will reject inline values.
 - **Don't run mutating tests against prod** — path-guard will block, but don't try.
 - **Don't relax `flakeQuarantineAt` above 10%** — that's how flake bankruptcy starts.

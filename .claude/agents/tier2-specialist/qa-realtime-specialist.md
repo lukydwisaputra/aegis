@@ -16,7 +16,7 @@ knowledge_refs:
 
 You test real-time communication layers: WebSocket connections, Server-Sent Events (SSE) streams, and async flow coordination. You test connection lifecycle (connect/disconnect/reconnect), message ordering, event delivery guarantees, and race conditions between concurrent clients.
 
-If `target-profile.json` does not detect any real-time feature (no `ws:`, no `socket.io`, no SSE routes), emit `specialist.no-op` and exit gracefully. This is the expected behaviour for targets without real-time features.
+If `target-profile.json` does not detect any real-time feature (no `ws:`, no `socket.io`, no SSE routes), emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4). A no-op is a result, not a failed task. This is the expected behaviour for targets without real-time features.
 
 ## Inputs
 
@@ -32,7 +32,7 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 ## Process
 
-1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `specialist.no-op`. Do not run null tests.
+1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4). Do not run null tests.
 
 2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{feature}.realtime.test.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `specialist.no-op`.
 
@@ -56,6 +56,16 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 - Message ordering not asserted (delivery alone is insufficient)
 - Tests run against production environment
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
+
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-realtime-specialist pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-realtime-specialist`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task, except on the third rejection in a round, which escalates to the owner instead (the CLI does that, not you). After a reopen your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4.
 
 ## Events You Emit
 
@@ -85,7 +95,7 @@ emits:
   - {event: specialist.no-op, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config:

@@ -51,7 +51,7 @@ flowchart TD
         Cases["cases/*.json + rtm.json"]
         PlaywrightCfg["playwright.config.ts<br/>(screenshot:always, video, trace)<br/>tests/fixtures/ + tests/factories/"]
         ExecSummary["execution-summary.json"]
-        Defects["defects/*.json<br/>(scripted + EXP-type)"]
+        Defects["defects/*.json<br/>(confirmed from failures and candidates)"]
         MetricsFiles["reports/metrics/*.json"]
         ClosureFiles["reports/closure/closure.{md,json}"]
         ExecReports["reports/executive/*.pdf"]
@@ -63,13 +63,13 @@ flowchart TD
         Gate3{{"Gate 3<br/>Closure Sign-off"}}
     end
 
-    subgraph Explore["Exploratory (MCP — runs FIRST, blocks scripted)"]
+    subgraph Explore["Explore phase (MCP — story sessions before planning)"]
         Exploratory(["qa-exploratory-specialist<br/>Playwright MCP mandatory"])
         Sandbox["sandbox/{date}-{slug}/<br/>notes + evidence (scratch)"]
         SessionNotes["reports/exploratory/<br/>{session}-notes.md"]
     end
 
-    subgraph Scripted["Tier 2 — Scripted Specialists (≤4 parallel, Playwright CLI)"]
+    subgraph Scripted["Tier 2 — Scripted Specialists (up to parallelism.maxSpecialists, Playwright CLI)"]
         UI(["qa-ui-specialist"])
         API(["qa-api-specialist"])
         Security(["qa-security-specialist"])
@@ -89,7 +89,7 @@ flowchart TD
     end
 
     subgraph SPVs["SPV Reviewers (one per worker)"]
-        SPVnote["Each worker → work-report → SPV review.json<br/>→ dispatcher calls pipeCorrectiveInstruction()<br/>→ agent-memory/{agent}/lessons.json"]
+        SPVnote["Each worker → aegis work-report submit → SPV: aegis review submit<br/>→ the CLI pipes the lesson<br/>→ agent-memory/{agent}/lessons.json"]
     end
 
     subgraph Compliance["Compliance (parallel, if configured)"]
@@ -128,14 +128,12 @@ flowchart TD
     Cases -->|reads| EnvEng
     EnvEng -->|writes| PlaywrightCfg
 
-    %% Execution: exploratory FIRST
+    %% Execution: story exploration already ran in Explore; the executor may add risk sessions
     PlaywrightCfg -->|env.ready| Executor
-    Executor -->|1st, blocking| Exploratory
+    Executor -->|extra risk sessions| Exploratory
     Exploratory -->|scratch| Sandbox
     Sandbox -->|covered obs| SessionNotes
-    Sandbox -->|uncovered defect| Defects
-    Sandbox -->|uncovered defect evidence| EvidenceDEF
-    Exploratory -.->|exploratory.session-complete| Executor
+    Sandbox -->|suspected defect| Candidates["defect-candidates/ (qa-defect-manager confirms)"]
 
     %% Execution: scripted specialists
     Executor -->|2nd, after exploratory| UI
@@ -200,10 +198,10 @@ flowchart TD
 
 1. **Discovery** (two-event barrier): `qa-context-scanner` writes `target-profile.json` (incl. `sourceInventory`) and emits `discovery.step-complete {scan}`; `qa-web-explorer` then writes `discovery-report.json` and emits `discovery.step-complete {explore}`. The orchestrator advances only when **both** events are present (`Promise.all([scan, explore])`).
 2. **Planning chain**: `qa-requirements-analyst` (source-grounded against `sourceInventory`) → `qa-test-planner` → **Gate 1** → `qa-test-designer` → `qa-environment-engineer` (writes `playwright.config.ts` with `screenshot:'always'` / `video` / `trace`).
-3. **Execution order**: `qa-test-executor` runs `qa-exploratory-specialist` FIRST (Playwright MCP, blocking) → then scripted specialists (Playwright CLI, ≤4 parallel). Exploratory findings feed the scripted briefs.
-4. **Sandbox flow**: exploratory scratch → `sandbox/{date}-{slug}/`. At session end: covered observations → `reports/exploratory/`; uncovered defects → `runs/{runId}/defects/` + `runs/{runId}/evidence/{DEF-ID}/`; then `completeSandbox()` deletes the sandbox.
+3. **Execution order**: story-driven exploration (`qa-exploratory-specialist`, Playwright MCP) runs in the Explore phase before planning; in Execution, `qa-test-executor` dispatches the scripted specialists (Playwright CLI, up to `aegis.config.json#parallelism.maxSpecialists` at once) with the exploration findings in their briefs.
+4. **Sandbox flow**: exploratory scratch → `sandbox/{date}-{slug}/`. At session end: covered observations → `reports/exploratory/`; suspected defects → `runs/{runId}/defect-candidates/` + `runs/{runId}/evidence/exploratory/`; then the specialist removes the sandbox.
 5. **Closure**: `qa-defect-manager` (triages scripted + EXP-type defects) → **Gate 2** → compliance (parallel) + `qa-closure-reporter` (reads `reports/metrics/`, writes `reports/closure/closure.{md,json}`) → **Gate 3** → `qa-executive-reporter` (PDFs in `reports/executive/`).
-6. **SPV loop**: every worker writes a work-report; its dispatcher (orchestrator for Tier-1, test-executor for Tier-2) dispatches the paired SPV, reads the verdict, and calls `pipeCorrectiveInstruction()` to append a lesson on any non-pass verdict. SPVs are read-only and cannot write lessons themselves.
+6. **SPV loop**: every worker claims its task, submits a work report and releases the task through the CLI; its dispatcher (orchestrator for Tier-1, test-executor for Tier-2) dispatches the paired SPV, which submits its verdict with `aegis review submit`. The CLI appends a lesson on any non-pass verdict and escalates the third rejection.
 7. **Metrics**: `qa-metrics-collector` is dispatched at run start, tails `events.jsonl`, and writes intermediate rollups to `reports/metrics/` on every phase completion — so closure-reporter can read them with no finalize-wait.
 8. **Self-improvement**: `qa-curator` runs after Gate 3 and writes proposals to `pending-promotions/`.
 

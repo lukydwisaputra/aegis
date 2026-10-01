@@ -6,10 +6,11 @@ import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
+import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
-import { blockRun, ESCALATION_REASON_PREFIX } from "./run.js";
+import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
-import { atomicWrite, formatIssues, iso, loadJson, withFileLock } from "./util.js";
+import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -28,11 +29,12 @@ export interface ReviewResult extends SubmitResult {
   rejections: number;
   escalated: boolean;
   reopened: boolean;
+  reopenError?: string; // CO-12: review recorded, reopen failed; resubmitting the same review retries it
   lessons: LessonOutcome[];
 }
 
-const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
-const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
+export const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
+export const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
 const ALLOC_TRIES = 5;
@@ -43,17 +45,7 @@ function assertSafeIds(agent: string, taskId: string): void {
   if (!TASK_ID.test(taskId)) throw new RunStateError("invalid-input", `task id "${taskId}" must match ${TASK_ID.source}`);
 }
 
-/**
- * Serialises every submission for one agent/task. Lock order (outermost first):
- * submit.lock -> run.lock -> task-file lock -> event-bus lock.
- */
-function withSubmitLock<T>(root: string, runId: string, agent: string, taskId: string, fn: () => Promise<T>): Promise<T> {
-  const dir = join(runDir(root, runId), "reports", ".locks");
-  fs.mkdirSync(dir, { recursive: true });
-  return withFileLock(join(dir, `${agent}.${taskId}.lock`), fn);
-}
-
-function attemptsIn(dir: string, agent: string, taskId: string): number[] {
+export function attemptsIn(dir: string, agent: string, taskId: string): number[] {
   if (!fs.existsSync(dir)) return [];
   const re = new RegExp(`^${escapeRe(agent)}\\.${escapeRe(taskId)}\\.(\\d+)\\.json$`);
   return fs.readdirSync(dir).flatMap((f) => {
@@ -114,8 +106,9 @@ export async function submitWorkReport(root: string, runId: string, file: string
   });
 }
 
-function rejectionsSoFar(dir: string, agent: string, taskId: string): number {
-  return attemptsIn(dir, agent, taskId).filter((n) => {
+/** Requested-changes reviews in the current round: attempts above the floor a gate rejection set (escalation retry keeps the round). */
+function rejectionsSoFar(dir: string, agent: string, taskId: string, floor: number): number {
+  return attemptsIn(dir, agent, taskId).filter((n) => n > floor).filter((n) => {
     const name = `${agent}.${taskId}.${n}.json`;
     let parsed;
     try {
@@ -128,6 +121,45 @@ function rejectionsSoFar(dir: string, agent: string, taskId: string): number {
   }).length;
 }
 
+/** reports/review/{agent}.{taskId}.{attempt}.escalation.json: the owner's decision on one escalated attempt. */
+export const escalationFile = (agent: string, taskId: string, attempt: number): string => `${agent}.${taskId}.${attempt}.escalation.json`;
+
+export const escalationMarker = (root: string, runId: string, agent: string, taskId: string): string =>
+  join(reviewDir(root, runId), `${agent}.${taskId}.escalated`);
+
+/**
+ * Open the escalation of `agent`/`taskId` exactly once: only the creator of the marker blocks the run, then runs
+ * `after` (an extra event). Returns false when the escalation is already open. On failure the marker is removed.
+ * Used by the 3rd rejection (submitReview) and by a failed release (releaseTask).
+ */
+export async function openEscalation(
+  root: string,
+  runId: string,
+  agent: string,
+  taskId: string,
+  why: string,
+  caller: string,
+  now?: Date,
+  after?: () => Promise<unknown>
+): Promise<boolean> {
+  const marker = escalationMarker(root, runId, agent, taskId);
+  fs.mkdirSync(reviewDir(root, runId), { recursive: true });
+  try {
+    fs.writeFileSync(marker, `${iso(now)}\n`, { encoding: "utf-8", flag: "wx" });
+  } catch (e) {
+    if (isExists(e)) return false;
+    throw e;
+  }
+  try {
+    await blockRun(root, runId, { kind: "escalation", reason: `escalation: task ${taskId} (${agent}) ${why}; owner decision required via /qa-escalation`, taskId, agent }, caller, now);
+    if (after !== undefined) await after();
+    return true;
+  } catch (e) {
+    fs.rmSync(marker, { force: true });
+    throw e;
+  }
+}
+
 /** Exactly-once: only the creator of the marker blocks the run and emits task.escalated. */
 async function escalateOnce(
   root: string,
@@ -138,31 +170,13 @@ async function escalateOnce(
   caller: string,
   now?: Date
 ): Promise<boolean> {
-  const marker = join(reviewDir(root, runId), `${agent}.${taskId}.escalated`);
-  try {
-    fs.writeFileSync(marker, `${iso(now)}\n`, { encoding: "utf-8", flag: "wx" });
-  } catch (e) {
-    if (isExists(e)) return false;
-    throw e;
-  }
-  try {
-    await blockRun(
-      root,
-      runId,
-      `${ESCALATION_REASON_PREFIX}: task ${taskId} (${agent}) rejected ${rejections} times; owner decision required via /qa-escalation`,
-      caller,
-      now
-    );
-    await appendChained(
+  return openEscalation(root, runId, agent, taskId, `rejected ${rejections} times`, caller, now, () =>
+    appendChained(
       { type: "task.escalated", ts: iso(now), taskId, agent, rejectionCount: rejections },
       busPath(root, runId),
       { emittedBy: caller, runId }
-    );
-    return true;
-  } catch (e) {
-    fs.rmSync(marker, { force: true });
-    throw e;
-  }
+    )
+  );
 }
 
 export async function submitReview(root: string, runId: string, file: string, caller: string, now?: Date): Promise<ReviewResult> {
@@ -179,6 +193,8 @@ export async function submitReview(root: string, runId: string, file: string, ca
 
   const { agent, taskId } = review.target;
   assertSafeIds(agent, taskId);
+  // CO-07: a completed run takes no more reviews, so no review is recorded whose escalation or lessons would be lost.
+  if (readRun(root, runId).status === "completed") throw new RunStateError("run-not-active", `run ${runId} is completed`);
   const expected = pairedSpv(agent);
   if (caller !== expected) {
     throw new RunStateError("caller-forbidden", `"${caller}" is not the paired SPV of ${agent}; only ${expected} may review it`);
@@ -194,12 +210,21 @@ export async function submitReview(root: string, runId: string, file: string, ca
     if (task?.status === "in-progress") {
       throw new RunStateError("invalid-input", `task ${taskId} is still in progress; release it before review`);
     }
+    // A failed release opened an owner escalation; a review would reopen the task and undo an accept-with-risk.
+    if (task?.status === "failed") {
+      throw new RunStateError("invalid-input", `task ${taskId} was released failed; the owner decides it through /qa-escalation, so it takes no review`);
+    }
+    // A pending task was reopened by an escalation retry: its latest work report is a stale failed attempt.
+    if (task?.status === "pending") {
+      throw new RunStateError("invalid-input", `task ${taskId} is pending a new attempt; claim, work and release it before review`);
+    }
     const attempt = Math.max(...worked);
     const dir = reviewDir(root, runId);
     fs.mkdirSync(dir, { recursive: true });
     const out = join(dir, `${agent}.${taskId}.${attempt}.json`);
     const rejected = review.verdict === "requested-changes";
-    const rejections = rejectionsSoFar(dir, agent, taskId) + (rejected ? 1 : 0);
+    const floor = supersededAttempt(readRun(root, runId), agent, taskId);
+    const rejections = rejectionsSoFar(dir, agent, taskId, floor) + (rejected ? 1 : 0);
     try {
       publishJson(out, review);
     } catch (e) {
@@ -213,9 +238,15 @@ export async function submitReview(root: string, runId: string, file: string, ca
         throw already;
       }
       const marker = join(dir, `${agent}.${taskId}.escalated`);
-      if (!existing.success || existing.data.verdict !== "requested-changes" || fs.existsSync(marker)) throw already;
-      const total = rejectionsSoFar(dir, agent, taskId);
-      if (total < MAX_ATTEMPTS) throw already;
+      const decided = join(dir, `${agent}.${taskId}.${attempt}.escalation.json`);
+      if (!existing.success || existing.data.verdict !== "requested-changes" || fs.existsSync(marker) || fs.existsSync(decided)) throw already;
+      const total = rejectionsSoFar(dir, agent, taskId, floor);
+      if (total < MAX_ATTEMPTS) {
+        // CO-12: re-drive a reopen that failed after this rejection was recorded.
+        if (task?.status !== "done") throw already;
+        await client.reopen(taskId);
+        return { path: relative(runDir(root, runId), out), attempt, verdict: existing.data.verdict, rejections: total, escalated: false, reopened: true, lessons: [] };
+      }
       const escalated = await escalateOnce(root, runId, agent, taskId, total, caller, now);
       if (!escalated) throw already;
       return {
@@ -253,11 +284,16 @@ export async function submitReview(root: string, runId: string, file: string, ca
 
     let escalated = false;
     let reopened = false;
+    let reopenError: string | undefined;
     if (rejected && rejections >= MAX_ATTEMPTS) {
       escalated = await escalateOnce(root, runId, agent, taskId, rejections, caller, now);
-    } else if (rejected && (task?.status === "done" || task?.status === "failed")) {
-      await client.reopen(taskId);
-      reopened = true;
+    } else if (rejected && task?.status === "done") {
+      try {
+        await client.reopen(taskId);
+        reopened = true;
+      } catch (e) {
+        reopenError = (e as Error).message;
+      }
     }
 
     // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission.
@@ -274,6 +310,6 @@ export async function submitReview(root: string, runId: string, file: string, ca
       }
     }
 
-    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, lessons };
+    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons };
   });
 }

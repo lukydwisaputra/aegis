@@ -1,6 +1,6 @@
 ## Chapter 6 — Agent Roster
 
-> _All agents in full mode: Orchestrator (1), Tier-1 phase managers (8), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes._
+> _All agents in full mode: Orchestrator (1), Tier-1 phase managers (9), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes._
 
 ---
 
@@ -26,6 +26,7 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 | Agent | Model | Primary Output | Lite? |
 |---|---|---|---|
+| `qa-dev-test-reviewer` | Opus | Developer-test review (`dev-test-review.json`), Stryker mutation scores | No |
 | `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton | Yes |
 | `qa-test-planner` | Sonnet | Test strategy doc, risk matrix, test case plan | Yes (reduced) |
 | `qa-test-designer` | Sonnet | Test design coordination | Yes |
@@ -85,6 +86,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 
 | SPV | Reviews | Threshold |
 |---|---|---|
+| `qa-dev-test-reviewer-spv` | Developer-test review | 85 |
 | `qa-requirements-analyst-spv` | Source-grounded requirements | 80 |
 | `qa-test-planner-spv` | Strategy docs, risk matrices, test case plans | 80 |
 | `qa-test-designer-spv` | Test case design | 85 |
@@ -109,7 +111,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-cicd-planner-spv` | CI/CD workflow files | 85 |
 | `qa-github-planner-spv` | Branch / PR strategy | 85 |
 
-SPVs are read-only (`tools: [Read, Bash]`): they write `review.json` but never edit worker artefacts or `lessons.json`. The **dispatcher** (orchestrator for Tier-1, `qa-test-executor` for Tier-2) reads the verdict and pipes any corrective instruction into the worker's lessons. All SPVs are **disabled in Lite mode**.
+SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict. All SPVs are **disabled in Lite mode**.
 
 ---
 

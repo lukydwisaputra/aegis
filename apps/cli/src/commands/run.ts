@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { createRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
+import { completeRun, createRun, nextStep, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function runCommand(): Command {
@@ -11,10 +11,16 @@ export function runCommand(): Command {
     .requiredOption("--env <name>", "environment from aegis.config.json#environments")
     .requiredOption("--module <codes...>", "module codes, e.g. AUTH BILLING")
     .addOption(new Option("--cycle <type>", "cycle type").choices(["full", "smoke"]).default("full"))
+    .addOption(new Option("--health <result>", "result of the pre-cycle /qa-health run").choices(["passed", "failed", "not-run"]).default("not-run"))
+    .option("--intake <globs...>", "target-relative globs to copy into intake/ (overrides aegis.config.json#intake.sources)")
     .action(
-      action(async (o: { env: string; module: string[]; cycle: "full" | "smoke" }) => {
+      action(async (o: { env: string; module: string[]; cycle: "full" | "smoke"; health: "passed" | "failed" | "not-run"; intake?: string[] }) => {
         const ctx = context();
-        return createRun(ctx.root, { environment: o.env, modules: o.module, cycleType: o.cycle }, ctx.caller);
+        return createRun(
+          ctx.root,
+          { environment: o.env, modules: o.module, cycleType: o.cycle, health: o.health, ...(o.intake !== undefined ? { intake: o.intake } : {}) },
+          ctx.caller
+        );
       })
     );
 
@@ -25,9 +31,19 @@ export function runCommand(): Command {
     .action(
       action((o: { run?: string }) => {
         const ctx = context();
-        return runStatus(ctx.root, runIdFor(ctx, o.run), ctx.caller);
+        const state = runStatus(ctx.root, runIdFor(ctx, o.run), ctx.caller);
+        return { ...state, next: nextStep(state) };
       })
     );
+
+  run
+    .command("complete")
+    .description("Complete the run once every phase and gate is done (orchestrator only)")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(action((o: { run?: string }) => {
+      const ctx = context();
+      return completeRun(ctx.root, runIdFor(ctx, o.run), ctx.caller);
+    }));
 
   run
     .command("stop")

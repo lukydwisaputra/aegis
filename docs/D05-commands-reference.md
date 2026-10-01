@@ -18,13 +18,12 @@ Options:
   --env=<env>           Target environment (default: development)
   --scope=<feature>     Scope to a specific feature path or description
   --type=Functional,Regression  Filter test types
-  --max-parallel=4      Specialist concurrency (default: 4)
+  --intake=<glob>       Requirement documents to copy into the run (default: aegis.config.json#intake.sources)
   --apps=<project-name>  Multi-app cycle (<target-project> style)
-  --skip-gates-ci       Auto-pass gates (CI headless mode)
   --budget=<duration>   Token budget (e.g. 30m, 2h)
 ```
 
-Phases executed: Requirements → Discovery → Planning (Gate 1) → Design → Env Setup → Execution → Defects (Gate 2) → Closure (Gate 3) → Executive reports.
+Phases executed: Intake → Scan → Dev-test-review → Requirements → Env-auth → Explore → Planning (G1) → Design → Env-data → Execution → Triage (G2) → Closure-draft → Compliance → Closure-final (G3) → Executive → Curator.
 
 ### /qa-rerun-failed
 
@@ -49,7 +48,7 @@ Re-renders all reports and dashboards from existing events.jsonl + artifacts.
 Options:
   --run=RUN-...         Target run
   --rerun-tests         Re-execute test scripts before re-rendering
-  --reports=closure,token-usage,coverage   Subset of reports to regenerate
+  --reports=closure,executive   Subset of reports to regenerate (metrics rollups are qa-metrics-collector's)
 ```
 
 ### /qa-resume
