@@ -11,6 +11,7 @@ import {
   TestPlanIdSchema,
   StoryIdSchema,
   AcceptanceCriterionIdSchema,
+  TaskRefSchema,
 } from "./ids.js";
 import { PackageManagerSchema } from "./target-profile.js";
 import { SeveritySchema } from "./severity.js";
@@ -606,6 +607,7 @@ export const PreflightFailedEventSchema = EventBase.extend({
 export const SpecialistCompletedEventSchema = EventBase.extend({
   type: z.literal("specialist.completed"),
   specialistName: z.string(),
+  taskId: TaskRefSchema.optional(), // the T-execution-<n> task the specialist released
   passCount: z.number().int().nonnegative(),
   failCount: z.number().int().nonnegative(),
   durationMs: z.number().int().nonnegative().optional(),
@@ -620,6 +622,7 @@ export const DispatchBriefSchema = z.object({
 export const SpecialistDispatchedEventSchema = EventBase.extend({
   type: z.literal("specialist.dispatched"),
   specialistName: z.string(),
+  taskId: TaskRefSchema.optional(), // the T-execution-<n> task the specialist must claim
   tcIds: z.array(TestCaseIdSchema).default([]),
   environment: z.string(),
   brief: DispatchBriefSchema.optional(),

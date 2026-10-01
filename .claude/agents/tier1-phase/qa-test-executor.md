@@ -50,7 +50,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 ## Process
 
-1. **Claim and read context.** Claim your task (Task Protocol step 1). A refusal saying `already-claimed` means you were re-dispatched (after an interruption, a stop or an escalation decision): run step 12 before dispatching anything. Then load env-setup-report. If status is FAILED, append `execution.blocked`, submit your work report and release your task with `--result failed` — there is no value in running tests against a broken environment.
+1. **Claim and read context.** Claim your task (Task Protocol step 1), unless your brief says to skip the claim. A brief saying to skip the claim (the orchestrator re-dispatched you on resume) or a refusal saying `already-claimed` means you were re-dispatched after an interruption, a stop or an escalation decision: run step 12 before dispatching anything. Then load env-setup-report. If status is FAILED, append `execution.blocked`, submit your work report and release your task with `--result failed` — there is no value in running tests against a broken environment.
 
 2. **Plan the execution order.** Sort test case batches by risk (Critical risks first, then High, Medium, Low). Within a risk tier, order by: (1) smoke tests, (2) core functional, (3) regression, (4) compliance-tagged. This order ensures highest-value defects surface early.
 
@@ -78,7 +78,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
    `testType` is an array: route every value, then every routed `testTechnique`, and dispatch each distinct specialist once for the TC. Documentation-only techniques (BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration) dispatch nothing; the primary specialist carries them. A TC with `testType: ["Functional"]` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass. `Exploratory` and `Usability` TCs go to a `qa-exploratory-specialist` session task like any other routed specialist.
 
-5. **Create one task per specialist dispatch, then dispatch in parallel.** First check the environment: a specialist may run only when its short name is allowed by `aegis.config.json#environments.{env}.allowedSpecialists` (an absent list, or one containing `"*"`, allows every specialist), is not listed in `aegis.config.json#environments.{env}.forbiddenSpecialists`, and is not a mutating specialist on a read-only environment (the mutating specialists are those with `mutates: true` in `SPECIALISTS`, `packages/@qa/contracts/src/specialists.ts`). Never create a task for a specialist the environment forbids — mark its TCs `blocked` in the execution summary with the reason. For each allowed specialist run `aegis task add --id T-execution-<n> --title "<specialist>: <TC ids>" --agent <specialist>` (n counts up from 2; your own task is T-execution-1; never add an id that already exists), then dispatch it with the `Agent` tool and the enriched brief, and append `specialist.dispatched` with the specialistName, taskId, tcIds, environment and the `brief` itself (the SPV checks the brief from this event):
+5. **Create one task per specialist dispatch, then dispatch in parallel.** First check the environment: a specialist may run only when its short name is allowed by `aegis.config.json#environments.{env}.allowedSpecialists` (an absent list, or one containing `"*"`, allows every specialist), is not listed in `aegis.config.json#environments.{env}.forbiddenSpecialists`, and is not a mutating specialist on a read-only environment (the mutating specialists are those marked `mutates` in `SPECIALISTS` from `@qa/contracts`). Never create a task for a specialist the environment forbids — mark its TCs `blocked` in the execution summary with the reason. For each allowed specialist run `aegis task add --id T-execution-<n> --title "<specialist>: <TC ids>" --agent <specialist>` (n counts up from 2; your own task is T-execution-1; never add an id that already exists), then dispatch it with the `Agent` tool and the enriched brief, and append `specialist.dispatched` with exactly the fields its schema declares — specialistName, taskId, tcIds, environment and `brief` (the event bus refuses any other field). The event's `brief` holds only the `DispatchBriefSchema` fields: missionGoal, lessonsRef, and optionally riskContext, environmentNotes and exploratoryFindings (a list of strings); the SPV checks the brief from this event. Every other dispatch detail goes in the agent brief, never in the event. The agent brief carries:
    - The task id it must claim
    - The release rule: `--result done` once the work is carried out, even when tests fail (failing tests are results); `--result failed` only when the task could not be completed (it opens an owner escalation)
    - The test cases assigned to this specialist (IDs + schema)
@@ -91,7 +91,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
    Keep at most `aegis.config.json#parallelism.maxSpecialists` specialists running; never state or assume a number. The CLI enforces the cap at the specialist's `aegis task claim`: a specialist refused with `cap-reached` returns without work, and you re-dispatch it for the same task id after another specialist's task is released. A specialist refused with `env-blocked` (an environment check you missed) is never re-dispatched: run `aegis task cancel --task T-execution-<n> --reason "<env> forbids <specialist>"` and mark its TCs `blocked`.
 
-6. **Validate evidence quality.** When a specialist returns with its task released, append `specialist.completed` for it and spot-check its evidence in `runs/{runId}/evidence/{TC-ID}/`:
+6. **Validate evidence quality.** When a specialist returns with its task released, append `specialist.completed` for it (specialistName, taskId, passCount, failCount and, when measured, durationMs) and spot-check its evidence in `runs/{runId}/evidence/{TC-ID}/`:
    - HAR files must be sanitised (check for `Authorization` headers — if present, block the evidence file and emit `har.sanitization-required`)
    - Screenshots must exist for every TC (pass and fail) — artifact mode is `always`; if missing for any TC, flag in work report
    - Video files must be WebM format (per artifact policy); if MP4 found without transcode flag, flag it
@@ -126,7 +126,9 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
    - `in-progress` → re-dispatch its assignee for the same task id; its claim survived, so the brief says to skip the claim and continue with the work report and release.
    - `done` with `reviewState` `none` → dispatch its SPV (step 9).
    - `reviewState` `passed` or `accepted-with-risk`, or status `cancelled` → settled; an accepted-with-risk task's TCs are counted `blocked` with the owner's reason (step 11).
-   - `reviewState` `escalated`, or `failed` with no decision → the run is still blocked: stop as in step 9.
+   - `done` with `reviewState` `requested-changes` → the rejection was recorded but its reopen failed: re-dispatch the paired SPV for the same attempt; its re-submit of the same review re-drives the reopen, and the task then comes back `pending` for the specialist.
+   - `failed` with `reviewState` `none` (no escalation open and no decision) → the failed release never opened its escalation: re-dispatch the assignee, briefed to skip the claim and re-run `aegis task release --task <taskId> --result failed`, which opens it; then stop as in step 9.
+   - `reviewState` `escalated` → the run is blocked until the owner decides: stop as in step 9.
 
    Step 11 is reachable once every specialist task is settled.
 
@@ -157,8 +159,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 
 ## Events You Emit
 
-- `specialist.dispatched` — includes specialistName, taskId, tcIds assigned, environment and the `brief`
-- `specialist.completed` — appended when a specialist returns with its task released; includes specialistName, taskId, passCount, failCount, duration
+- `specialist.dispatched` — exactly specialistName, taskId, tcIds assigned, environment and `brief` (missionGoal, lessonsRef, riskContext?, environmentNotes?, exploratoryFindings?)
+- `specialist.completed` — appended when a specialist returns with its task released; exactly specialistName, taskId, passCount, failCount and optionally durationMs
 - `test.passed` / `test.failed` — one per TC outcome; test.failed includes evidence paths
 - `har.sanitization-required` — flags unsafe evidence
 - `manual.test.required` — one per manual TC; includes steps and automation blocker
