@@ -102,7 +102,7 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 
 5. **Skip destructive patterns.** Apply heuristics: skip any clickable element with text matching `/delete|remove|cancel|revoke|disable|approve/i` unless explicitly in `discovery.allowedDestructive`. Skip any URL matching `discovery.skipPatterns`.
 
-6. **File UI defect candidates.** For each page, write one defect candidate per finding (`runs/{runId}/defect-candidates/web-explorer-{slug}.json`, evidence under `runs/{runId}/evidence/discovery/`); you never open a defect or mint a DEF id:
+6. **File UI defect candidates.** For each page, write one defect candidate per finding (`runs/{runId}/defect-candidates/web-explorer-{slug}.json`, evidence under `runs/{runId}/evidence/discovery/`); you never open a defect or mint a DEF id. Each candidate file requires `source` (your agent name), `taskId`, `foundAt` (UTC ISO ending in `Z`), `module` (`^[A-Z]{2,8}$`), `proposedType`, `title` (10–65 characters), `observed`, `expected`, `reproductionSteps` (`[{step, action}]`), `evidence` (at least one run-relative path), `severityHint`; `storyId`, `acIds`, `tcId`, `viewport` and `sessionId` are optional:
    - Broken images: any `<img>` returning 404 → candidate, `severityHint` Sev4
    - Console errors: any `console.error` → candidate, Sev4 or Sev3 depending on frequency
    - Layout overflow: any element with `overflow: hidden` cutting visible text → candidate, Sev4

@@ -62,7 +62,7 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
    - Nav breakdown: hamburger menu not functioning, or desktop nav overflowing → defect
    - Touch targets: interactive elements with `width < 44` or `height < 44` on mobile → a11y defect with `WCAG-2.2-2.5.5`
 
-5. **File each breakpoint defect as a candidate.** Write `runs/{runId}/defect-candidates/responsive-{slug}.json` with the TC id, the evidence under `runs/{runId}/evidence/{TC-ID}/{viewport}/` and `viewport` set to where it reproduces (`mobile` when only there, `all` when everywhere). You never open a defect or mint a DEF id.
+5. **File each breakpoint defect as a candidate.** Write `runs/{runId}/defect-candidates/responsive-{slug}.json` with the TC id, the evidence under `runs/{runId}/evidence/{TC-ID}/{viewport}/` and `viewport` set to where it reproduces (`mobile` when only there, `all` when everywhere). You never open a defect or mint a DEF id. The file requires `source` (your agent name), `taskId`, `foundAt` (UTC ISO ending in `Z`), `module` (`^[A-Z]{2,8}$`), `proposedType`, `title` (10–65 characters), `observed`, `expected`, `reproductionSteps` (`[{step, action}]`), `evidence` (at least one run-relative path), `severityHint`; `storyId`, `acIds`, `tcId`, `viewport` and `sessionId` are optional.
 
 6. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
 

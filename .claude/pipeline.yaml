@@ -135,7 +135,13 @@ escapes:
   - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}
   - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}
   - {unit: qa-database-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager.md:25 candidates exist only when Explore or responsive sessions found a suspect"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager.md:26 read when the Dev-test-review phase ran"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/evidence/discovery/**", reason: "qa-defect-manager.md:27 cited only by web-explorer candidates"}
+  - {unit: qa-defect-manager, field: optional, value: "{run}/evidence/exploratory/**", reason: "qa-defect-manager.md:27 cited only by exploratory candidates"}
   - {unit: qa-defect-manager-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-defect-manager-spv, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager-spv.md:22 candidates exist only when a session found a suspect"}
+  - {unit: qa-defect-manager-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager-spv.md:23 read when the Dev-test-review phase ran"}
   - {unit: qa-dev-test-reviewer-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
   - {unit: qa-email-specialist, field: optional, value: "secrets/.env.{env}", reason: "qa-email-specialist.md:25 Gmail OAuth credentials if adapter is gmail"}
   - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}

@@ -88,13 +88,13 @@ At session end (durable):
 
 5. **Record session notes.** Everything observed — including non-defects — goes into the sandbox `notes.md` during the session. Notes are valuable for qa-curator pattern detection even when they don't produce defects.
 
-6. **Process each observation at session end.** For EACH observation, append `observation.recorded` (with the story and criterion it concerns) and take exactly one of these routes:
+6. **Process each observation at session end.** For EACH observation take exactly one of these routes. An `observation.recorded` event carries `kind`, `summary` (10–300 characters), `storyId`, `acId`, `sessionId` and, when a candidate is filed, `candidate` (the run-relative candidate path, for example `defect-candidates/{slug}.json`):
 
-   a) **Matches an acceptance criterion** → copy the note to `runs/{runId}/reports/exploratory/{session-id}-notes.md`, then delete its sandbox files.
+   a) **Matches an acceptance criterion** → append no `observation.recorded`; copy the note to `runs/{runId}/reports/exploratory/{session-id}-notes.md`, then delete its sandbox files.
 
-   b) **Contradicts a criterion, or behaviour no criterion covers, reproduced with COTE** → a suspected defect: write `runs/{runId}/defect-candidates/{slug}.json`, copy the evidence it cites to `runs/{runId}/evidence/exploratory/{session-id}/` and verify the copy, then delete its sandbox files. You never open a defect or mint a DEF id — qa-defect-manager does, after confirming the origin.
+   b) **Contradicts a criterion, or behaviour no criterion covers, reproduced with COTE** → a suspected defect: append `observation.recorded` with `kind` `behaviour-mismatch` (contradicts a criterion) or `uncovered-behaviour` (no criterion covers it) and `candidate` set, and write `runs/{runId}/defect-candidates/{slug}.json` (required fields: `source` (your agent name), `taskId`, `foundAt` (UTC ISO ending in `Z`), `module` (`^[A-Z]{2,8}$`), `proposedType`, `title` (10–65 characters), `observed`, `expected`, `reproductionSteps` (`[{step, action}]`), `evidence` (at least one run-relative path), `severityHint`; `storyId`, `acIds`, `tcId`, `viewport` and `sessionId` are optional), copy the evidence it cites to `runs/{runId}/evidence/exploratory/{session-id}/` and verify the copy, then delete its sandbox files. You never open a defect or mint a DEF id — qa-defect-manager does, after confirming the origin.
 
-   c) **An ambiguous criterion, or behaviour worth a test case** → append `tc.proposal` (story, criteria, title, rationale) for Planning and Design, and note it in the session notes.
+   c) **An ambiguous criterion, or behaviour worth a test case** → append `observation.recorded` with `kind` `ambiguous-ac` (no `candidate`), then append `tc.proposal` (story, criteria, title, rationale) for Planning and Design, and note it in the session notes.
 
    Do not file candidates from observations that cannot be reproduced (apply COTE first).
 
@@ -131,7 +131,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-exploratory-spe
 ## Events You Emit
 
 - `exploratory.session-started` / `exploratory.session-complete` — with charter scope and duration
-- `observation.recorded` — one per observation; carries the story, the criterion and, for a suspected defect, the candidate file
+- `observation.recorded` — one per observation that is not a plain match (routes b and c); carries `kind`, `summary`, `storyId`, `acId`, `sessionId` and, for a suspected defect, `candidate`
 - `tc.proposal` — one per proposed test case; carries the story, the criteria, a title and the rationale
 - `sandbox.experiment-completed` — when the session sandbox is removed
 - `test.passed` / `test.failed` — Execution sessions only, per test case in the brief
