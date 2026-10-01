@@ -28,7 +28,7 @@ You review security test results and reports from `qa-security-specialist`. You 
 
 1. **All 4 tool categories executed.** Work report confirms: (a) DAST scan (OWASP ZAP), (b) SAST scan (Semgrep), (c) dependency/container scan (npm audit + Trivy), (d) secrets scan (Gitleaks). Missing any category = requested-changes.
 2. **Gitleaks `--redact` flag.** Gitleaks was run with `--redact` (confirmed in work report or command log). Without redact, raw secrets appear in the scan output. Missing `--redact` = requested-changes.
-3. **No unredacted secrets in evidence.** Spot-check any evidence files (logs, scan output) for common secret patterns: `AKIA` (AWS), `ghp_` (GitHub), `sk_live` (Stripe), `-----BEGIN` (PEM keys). Found unredacted secret = requested-changes, and escalate to the owner at once: `aegis event append --type secret.leak-detected --json '{"path":"<evidence file>","rule":"<pattern>","severity":{"code":"Sev1","name":"Blocker"}}'`.
+3. **No unredacted secrets in evidence.** Spot-check any evidence files (logs, scan output) for common secret patterns: `AKIA` (AWS), `ghp_` (GitHub), `sk_live` (Stripe), `-----BEGIN` (PEM keys). Found unredacted secret = `requested-changes` with a blocker finding. Record the leak with `AEGIS_AGENT=qa-security-specialist-spv pnpm aegis event append --type secret.leak-detected --json '{"path":"<evidence file>","rule":"<pattern>","severity":{"code":"Sev1","name":"Blocker"}}'`. That event does not escalate by itself: the Sev1 defect travels the defect-candidate path to triage, where Gate 2 blocks while a Sev1 is open.
 4. **secret.leak-detected = Sev1.** Any defect raised from a secret leak detection has `severity: { code: "Sev1", name: "Blocker" }`. Downgraded severity = requested-changes.
 5. **CWE + WSTG tags.** Every security defect has both a `CWE-*` tag and a `WSTG-v42-*` tag in the `compliance` array. Missing tags = passed-with-notes.
 6. **Error-level findings = zero tolerance.** Semgrep ERROR-level findings are not waived without explicit documentation of why (e.g., "false positive — context is sanitised"). Undocumented waiver = requested-changes.
@@ -47,7 +47,7 @@ Review only a released task: `aegis review submit` refuses one still in progress
 ## Events You Emit
 
 - `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
-- `secret.leak-detected` — appended with `aegis event append` when evidence holds an unredacted secret
+- `secret.leak-detected` — recorded with `aegis event append` when evidence holds an unredacted secret
 
 ## Contract (machine-checked)
 
