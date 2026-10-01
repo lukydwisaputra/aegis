@@ -25,7 +25,7 @@ smoke:
 # Owner floor: never below 60 (DevTestReviewSchema refuses a lower threshold). A unit test with no
 # mutation evidence (Stryker skipped) is never adequate.
 devTestReview:
-  mutationScoreMin: 60   # percent killed of (killed + survived + no coverage + timeout)
+  mutationScoreMin: 60   # Stryker's score: (killed + timeout) / (killed + timeout + survived + noCoverage) x 100; the Dev-test-review barrier refuses a lower threshold
 
 # ─── STAGE: testing (PR gate — fast feedback, ~10 min budget) ─────────────────
 testing:

@@ -29,7 +29,7 @@ export const devTest = (over: object = {}) => ({
 export const DEV_TEST_REVIEW = {
   runId: 'RUN-20261001-001',
   reviewedAt: TS,
-  mutation: { status: 'ran', tool: 'stryker', threshold: 60, score: 72, killed: 18, survived: 5, noCoverage: 2, timeout: 0, reportPath: 'sandbox/2026-10-01-dev-test-review/target/reports/mutation/mutation.json' },
+  mutation: { status: 'ran', tool: 'stryker', threshold: 60, score: 72, killed: 18, survived: 5, noCoverage: 2, timeout: 0, reportPath: 'reports/mutation/stryker-report.json' },
   tests: [devTest()],
   gaps: [],
   summary: { adequate: 1, weak: 0, wrong: 0, unmapped: 0 },

@@ -84,6 +84,16 @@ export const DevTestReviewSchema = z
       const n = review.tests.filter((t) => t.verdict === v).length;
       if (review.summary[v] !== n) issue(["summary", v], `summary says ${review.summary[v]} ${v} tests; tests[] has ${n}`);
     }
+    if (review.mutation.status === "ran") {
+      // Stryker's mutation score: detected (killed + timeout) over valid mutants (detected + survived + no coverage).
+      const m = review.mutation;
+      const detected = m.killed + m.timeout;
+      const valid = detected + m.survived + m.noCoverage;
+      if (valid === 0) issue(["mutation"], "a run with no mutants is recorded as skipped, not ran");
+      else if (Math.abs(m.score - (detected / valid) * 100) > 0.5) {
+        issue(["mutation", "score"], `score ${m.score} disagrees with (killed + timeout) / (killed + timeout + survived + noCoverage) x 100 = ${((detected / valid) * 100).toFixed(2)}`);
+      }
+    }
     review.tests.forEach((t, i) => {
       if (t.verdict === "wrong" && t.contradicts === undefined) issue(["tests", i, "contradicts"], "a wrong test names the requirement it contradicts");
       if (t.kind !== "unit" && t.verdict === "adequate" && (t.evidenceNote === undefined || (t.coversAcIds.length === 0 && t.coversRequirementRefs.length === 0))) {

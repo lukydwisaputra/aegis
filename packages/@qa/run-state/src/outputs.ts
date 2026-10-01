@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parse as parseYaml } from "yaml";
 import type { PhaseId } from "@qa/contracts";
 import { runDir } from "./paths.js";
 import { OUTPUT_SCHEMAS, PHASE_OUTPUT_SETS, PHASE_OUTPUTS, type OutputSchema } from "./phase-map.js";
@@ -27,6 +28,20 @@ function isLink(path: string): boolean {
   }
 }
 
+/** A ran mutation summary may not lower the configured bar: its threshold is at least thresholds.yaml#devTestReview.mutationScoreMin. */
+function mutationFloorProblem(root: string, review: unknown): string | null {
+  const mutation = (review as { mutation?: { status?: unknown; threshold?: unknown } }).mutation;
+  if (mutation?.status !== "ran" || typeof mutation.threshold !== "number") return null;
+  let min: unknown;
+  try {
+    min = (parseYaml(readFileSync(join(root, "thresholds.yaml"), "utf-8")) as { devTestReview?: { mutationScoreMin?: unknown } } | null)?.devTestReview?.mutationScoreMin;
+  } catch {
+    min = undefined;
+  }
+  if (typeof min !== "number") return "output dev-test-review.json: thresholds.yaml#devTestReview.mutationScoreMin is not a number, so the mutation threshold cannot be checked";
+  return mutation.threshold < min ? `output dev-test-review.json: mutation.threshold ${mutation.threshold} is below thresholds.yaml#devTestReview.mutationScoreMin (${min})` : null;
+}
+
 /** Spec §6.1 item 6: every required output of `phase` exists and validates; empty when the phase may complete. */
 export function outputProblems(root: string, runId: string, phase: PhaseId): string[] {
   const problems: string[] = [];
@@ -39,6 +54,10 @@ export function outputProblems(root: string, runId: string, phase: PhaseId): str
     }
     const checked = checkOutput(file, rel, OUTPUT_SCHEMAS[rel]);
     if ("problem" in checked) problems.push(checked.problem);
+    else if (rel === "dev-test-review.json") {
+      const floor = mutationFloorProblem(root, checked.value);
+      if (floor !== null) problems.push(floor);
+    }
   }
   for (const set of PHASE_OUTPUT_SETS[phase] ?? []) {
     const at = join(dir, set.dir);

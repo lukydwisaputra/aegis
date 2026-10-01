@@ -48,16 +48,16 @@ The sandbox copy of the target (`sandbox/{date}-dev-test-review/`) is scratch an
 4. **Rate each test.**
    - `adequate` — meaningful assertions that can fail, and a negative path where the requirement has one (`negativePath: true`), backed by evidence:
      - a **unit** test only when mutation testing ran (step 5) and its subject's mutation score is at or above `thresholds.yaml#devTestReview.mutationScoreMin`;
-     - an **integration, e2e or api** test only with recorded evidence: a non-empty `coversAcIds` or `coversRequirementRefs`, and an `evidenceNote` (at least 10 characters) naming the assertions that pin each covered criterion or requirement. Without both it is `weak`, with a reason that starts "no recorded acceptance-criterion evidence".
+     - any other test (kind integration, e2e, api or other) only with recorded evidence: a non-empty `coversAcIds` or `coversRequirementRefs`, and an `evidenceNote` (at least 10 characters) naming the assertions that pin each covered criterion or requirement. Without both it is `weak`, with a reason that starts "no recorded acceptance-criterion evidence".
    - `weak` — snapshot-only, happy-path-only, assertions that cannot fail, a unit test whose subject scores below the threshold, or a test with no evidence (above and step 5).
    - `wrong` — asserts behaviour that contradicts a requirement; name the requirement in `contradicts`. It is a defect candidate for qa-defect-manager. You do not open a defect.
    - `unmapped` — see step 3.
 
 5. **Mutation-test the unit tests on a sandbox copy.** Supported runners: jest, vitest and mocha (the `@stryker-mutator/jest-runner`, `@stryker-mutator/vitest-runner` and `@stryker-mutator/mocha-runner` plugins). Mutation runs only on the copy; the target itself must not be mutated, built or run in place.
-   1. Copy the target with its installed dependencies and without its history: `rsync -a --exclude .git <target>/ sandbox/{date}-dev-test-review/target/`. Copy the dependencies rather than linking them, so that no runner cache lands in the target tree.
+   1. Copy the target with its installed dependencies, but never its history, the QA framework or the QA tests. This repo sits inside the target: its directory relative to the target root is the reverse of `aegis.config.json#targetProjectRoot` (with the default `..`, the repo directory's own name, such as `aegis`), and it holds the secrets env files, the runs and the sandbox itself; the QA tests are the directory `aegis.config.json#testsDir` resolves to, relative to the target root (with the default, `tests/qa`). Run `rsync -a --exclude .git --exclude /<repo dir>/ --exclude /<QA tests dir>/ --exclude 'secrets/.env.*' --exclude node_modules/.cache --exclude node_modules/.vite --exclude .stryker-tmp <target>/ sandbox/{date}-dev-test-review/target/`, never without those excludes, and put the exact command in your work report's `evidence[]`. Copy the dependencies rather than linking them, so that no runner cache lands in the target tree.
    2. In the copy, write a Stryker config (`stryker.config.json`): `mutate` lists the source files the unit tests exercise, `testRunner` names the detected runner, `coverageAnalysis` is `perTest`, `reporters` is `json`; leave `concurrency` at Stryker's default.
-   3. From the copy run `npx -y -p @stryker-mutator/core -p @stryker-mutator/<runner>-runner stryker run`, then read the JSON report it writes under the copy's `reports/mutation/`. Per source file, score = killed ÷ (killed + survived + no coverage + timeout) × 100. A unit test's `mutationScore` is the score of its subject file. Copy the report to `runs/{runId}/reports/mutation/stryker-report.json`; the summary carries the overall score, the four counts, the threshold (the configured value) and that run-relative report path.
-   4. **When mutation testing cannot run** — no unit test in the inventory, an unsupported runner, a copy whose tests do not pass or do not build, or `npx` unable to fetch Stryker (no network) — record the mutation summary as `skipped` with the reason, set every `mutationScore` to null, and rate no unit test `adequate`: a unit test that would otherwise be adequate is `weak`, with a reason that starts "no mutation evidence". Name the skip as an uncertainty in your work report.
+   3. From the copy run `npx -y -p @stryker-mutator/core -p @stryker-mutator/<runner>-runner stryker run`, then read the JSON report it writes under the copy's `reports/mutation/`. Per source file, and overall, use Stryker's mutation score: (killed + timeout) ÷ (killed + timeout + survived + no coverage) × 100 — a timeout counts as detected. A run with no valid mutants is recorded as skipped (step 5.4). A unit test's `mutationScore` is the score of its subject file. Copy the report to `runs/{runId}/reports/mutation/stryker-report.json`; the summary carries the overall score, the four counts, the threshold (the configured value) and that run-relative report path.
+   4. **When mutation testing cannot run** — no unit test in the inventory, no valid mutants, an unsupported runner, a copy whose tests do not pass or do not build, or `npx` unable to fetch Stryker (no network) — record the mutation summary as `skipped` with the reason, set every `mutationScore` to null, and rate no unit test `adequate`: a unit test that would otherwise be adequate is `weak`, with a reason that starts "no mutation evidence". Name the skip as an uncertainty in your work report.
 
 6. **Write `runs/{runId}/dev-test-review.json`**: `runId`, `reviewedAt`, `mutation`, `tests[]`, `gaps[]` and `summary` (the count per verdict, equal to the verdicts in `tests[]`). `gaps[]` has one entry per weakness in a test itself (`snapshot-only`, `cannot-fail`, `missing-negative-path`), per subject with no developer test (`untested-subject`) and per unit test below the threshold (`low-mutation-score`). A test that is weak only for missing evidence gets no gap: its reason says why.
 
@@ -70,7 +70,7 @@ The sandbox copy of the target (`sandbox/{date}-dev-test-review/`) is scratch an
 - A developer file edited, added or deleted, or a command run inside the target tree (Stryker runs only on the sandbox copy)
 - A developer test with no verdict, or a verdict with no reason
 - A unit test rated adequate below `thresholds.yaml#devTestReview.mutationScoreMin` or without mutation evidence, or mutation testing skipped without a reason
-- An integration, e2e or api test rated adequate without an `evidenceNote` and a non-empty `coversAcIds` or `coversRequirementRefs`
+- A test of any kind other than unit (integration, e2e, api or other) rated adequate without an `evidenceNote` and a non-empty `coversAcIds` or `coversRequirementRefs`
 - A `wrong` verdict that does not name the requirement it contradicts, or a defect opened by you
 - A test case written or proposed (you review; the test designer designs)
 - `summary` counts that disagree with `tests[]`
@@ -119,5 +119,5 @@ awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [rsync, npx, stryker]
 dispatches: []
-config: ["thresholds.yaml#devTestReview.mutationScoreMin"]
+config: ["thresholds.yaml#devTestReview.mutationScoreMin", "aegis.config.json#targetProjectRoot", "aegis.config.json#testsDir"]
 ```

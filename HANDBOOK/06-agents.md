@@ -1,6 +1,6 @@
 ## Chapter 6 — Agent Roster
 
-> _All agents in full mode: Orchestrator (1), Tier-1 phase managers (8), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes._
+> _All agents in full mode: Orchestrator (1), Tier-1 phase managers (9), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes._
 
 ---
 

@@ -37,11 +37,30 @@ describe('phase output sets and schemas (spec §6.1 item 6, P0a-2)', () => {
   });
 
   it('dev-test-review needs a valid dev-test-review.json', async () => {
+    fs.writeFileSync(path.join(t.root, 'thresholds.yaml'), 'devTestReview:\n  mutationScoreMin: 60\n');
     await atPhase('dev-test-review', 'qa-dev-test-reviewer');
     await expect(complete('dev-test-review')).rejects.toMatchObject(refusal(/dev-test-review.json is missing/));
     writeRunFile(t.root, runId, 'dev-test-review.json', { ...DEV_TEST_REVIEW, summary: { adequate: 0, weak: 0, wrong: 0, unmapped: 0 } });
     await expect(complete('dev-test-review')).rejects.toMatchObject(refusal(/dev-test-review.json is invalid: summary/));
     writeRunFile(t.root, runId, 'dev-test-review.json', DEV_TEST_REVIEW);
+    expect((await complete('dev-test-review')).phases['dev-test-review']).toMatchObject({ status: 'completed' });
+  });
+
+  it('dev-test-review refuses a mutation threshold below thresholds.yaml#devTestReview.mutationScoreMin', async () => {
+    await atPhase('dev-test-review', 'qa-dev-test-reviewer');
+    writeRunFile(t.root, runId, 'dev-test-review.json', DEV_TEST_REVIEW);
+    await expect(complete('dev-test-review')).rejects.toMatchObject(refusal(/thresholds.yaml#devTestReview.mutationScoreMin is not a number/));
+    fs.writeFileSync(path.join(t.root, 'thresholds.yaml'), 'devTestReview:\n  mutationScoreMin: 70\n');
+    await expect(complete('dev-test-review')).rejects.toMatchObject(refusal(/mutation.threshold 60 is below thresholds.yaml#devTestReview.mutationScoreMin \(70\)/));
+    writeRunFile(t.root, runId, 'dev-test-review.json', { ...DEV_TEST_REVIEW, mutation: { ...DEV_TEST_REVIEW.mutation, threshold: 70 } });
+    expect((await complete('dev-test-review')).phases['dev-test-review']).toMatchObject({ status: 'completed' });
+  });
+
+  it('a skipped mutation run carries no threshold and needs no thresholds.yaml', async () => {
+    await atPhase('dev-test-review', 'qa-dev-test-reviewer');
+    const skipped = { status: 'skipped', tool: 'stryker', reason: 'no network: npx could not fetch Stryker' };
+    const weak = { ...DEV_TEST_REVIEW.tests[0], verdict: 'weak', reason: 'no mutation evidence: npx could not fetch Stryker', mutationScore: null };
+    writeRunFile(t.root, runId, 'dev-test-review.json', { ...DEV_TEST_REVIEW, mutation: skipped, tests: [weak], summary: { adequate: 0, weak: 1, wrong: 0, unmapped: 0 } });
     expect((await complete('dev-test-review')).phases['dev-test-review']).toMatchObject({ status: 'completed' });
   });
 

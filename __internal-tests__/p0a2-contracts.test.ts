@@ -72,6 +72,16 @@ describe('DevTestReviewSchema (P0 spec §3.4, NEW-02)', () => {
     expect(ok(DevTestReviewSchema, { ...DEV_TEST_REVIEW, tests: [devTest({ mutationScore: null })] })).toBe(false);
   });
 
+  it("the mutation score is Stryker's: (killed + timeout) / (killed + timeout + survived + noCoverage) x 100", () => {
+    const ran = DEV_TEST_REVIEW.mutation;
+    const withRun = (m: object) => ({ ...DEV_TEST_REVIEW, mutation: { ...ran, ...m } });
+    // 16 killed + 2 timeouts of 25 mutants: 72, not the 64 that leaves timeouts out of the numerator.
+    expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 72 }))).toBe(true);
+    expect(ok(DevTestReviewSchema, withRun({ killed: 16, timeout: 2, survived: 5, noCoverage: 2, score: 64 }))).toBe(false);
+    expect(ok(DevTestReviewSchema, withRun({ killed: 18, timeout: 0, survived: 5, noCoverage: 2, score: 72.4 }))).toBe(true);
+    expect(ok(DevTestReviewSchema, withRun({ killed: 0, timeout: 0, survived: 0, noCoverage: 0, score: 0 }))).toBe(false);
+  });
+
   it('thresholds.yaml#devTestReview.mutationScoreMin is a threshold the review accepts (owner floor 60)', () => {
     const thresholds = parse(fs.readFileSync(path.join(__dirname, '..', 'thresholds.yaml'), 'utf8')) as { devTestReview?: { mutationScoreMin?: unknown } };
     const min = thresholds.devTestReview?.mutationScoreMin;

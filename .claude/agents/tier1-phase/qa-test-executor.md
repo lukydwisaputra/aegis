@@ -126,7 +126,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
    - `in-progress` → re-dispatch its assignee for the same task id; its claim survived, so the brief says to skip the claim and continue with the work report and release.
    - `done` with `reviewState` `none` → dispatch its SPV (step 9).
    - `reviewState` `passed` or `accepted-with-risk`, or status `cancelled` → settled; an accepted-with-risk task's TCs are counted `blocked` with the owner's reason (step 11).
-   - `done` with `reviewState` `requested-changes` → the rejection was recorded but its reopen failed: re-dispatch the paired SPV for the same attempt; its re-submit of the same review re-drives the reopen, and the task then comes back `pending` for the specialist.
+   - `done` with `reviewState` `requested-changes` → the rejection was recorded but its reopen failed: re-dispatch the paired SPV for the same attempt; its re-submit of the same review re-drives the reopen, and the task is then reopened for the specialist, or escalated if this was the third rejection.
    - `failed` with `reviewState` `none` (no escalation open and no decision) → the failed release never opened its escalation: re-dispatch the assignee, briefed to skip the claim and re-run `aegis task release --task <taskId> --result failed`, which opens it; then stop as in step 9.
    - `reviewState` `escalated` → the run is blocked until the owner decides: stop as in step 9.
 
