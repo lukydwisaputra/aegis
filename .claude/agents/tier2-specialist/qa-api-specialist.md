@@ -44,10 +44,13 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 5. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence.
 
-6. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/qa/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
+6. **Production is read-only smoke.** On production (a `readOnly` environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write of any kind. Write `blocked` for every other TC.
+
+7. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/qa/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
 
 ## Quality Standards (SPV rejects if violated)
 
+- On production (`readOnly`): a factory `create()`, a state-changing request (POST/PUT/PATCH/DELETE) or any write — only read-only smoke runs there
 - Credentials hardcoded (must use `aegis/secrets/` ref)
 - Response body not asserted (status code alone is insufficient)
 - HAR with unsanitised headers in evidence

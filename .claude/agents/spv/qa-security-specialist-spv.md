@@ -33,12 +33,16 @@ You review security test results and reports from `qa-security-specialist`. You 
 5. **CWE + WSTG tags.** Every security defect has both a `CWE-*` tag and a `WSTG-v42-*` tag in the `compliance` array. Missing tags = passed-with-notes.
 6. **Error-level findings = zero tolerance.** Semgrep ERROR-level findings are not waived without explicit documentation of why (e.g., "false positive — context is sanitised"). Undocumented waiver = requested-changes.
 7. **File naming.** Security tests match `*.security.spec.ts`. Incorrect extension = passed-with-notes.
+8. **Production never scanned.** Work report confirms every scan ran against a non-production, non-`readOnly` environment. A scan against production = requested-changes.
+9. **Gitleaks scope.** Gitleaks ran with `--source` set to `aegis.config.json#targetProjectRoot`, not `.`. A scan of the wrong tree = requested-changes.
+10. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
+11. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — missing CWE/WSTG tags, undocumented waiver; emit CorrectiveInstruction
-- `requested-changes` — missing tool category, no --redact, unredacted secret, wrong severity on leak; block immediately
+- `requested-changes` — missing tool category, no --redact, unredacted secret, wrong severity on leak, a scan against production, Gitleaks over the wrong tree, a final spec with no matching `sandbox.explored` event / sandbox artifact, a committed spec with zero assertions; block immediately
 
 ## Submitting Your Verdict
 
@@ -74,5 +78,5 @@ awaits: []
 cli: [review.submit, event.append]
 runs: []
 dispatches: []
-config: []
+config: [aegis.config.json#targetProjectRoot]
 ```

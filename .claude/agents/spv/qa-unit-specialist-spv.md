@@ -27,16 +27,18 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 
 1. **Behaviour not implementation.** Tests assert on what the component/function does (output, rendered text, emitted events, state changes) — not on how it does it (internal method calls, state variable names). Assertions on private methods or internal implementation = requested-changes.
 2. **Mock discipline.** Only external dependencies (API calls, `localStorage`, third-party SDKs) are mocked. Internal module mocks without justification = passed-with-notes. Mocking the module under test itself = requested-changes.
-3. **Read-only on developer units.** No file in the developer tree outside `tests/qa/` was written or edited (unit testing is developer scope). Net-new QA unit tests exist only under `tests/qa/unit/` — no co-located tests next to source, no writes into the developer's `tests/unit/`. Any developer-tree write = requested-changes.
+3. **Read-only on developer units.** No file outside `tests/qa/unit/` was written or edited (unit testing is developer scope). Net-new QA unit tests exist only under `tests/qa/unit/` — no co-located tests next to source, no writes into the developer's `tests/unit/`. Any developer-tree write = requested-changes.
 4. **No snapshot-only tests.** Tests do not rely solely on `toMatchSnapshot()` without also asserting on key content. Snapshot-only with no readable assertion = passed-with-notes.
 5. **Factory or builder usage.** Tests that need complex objects use factories from `tests/qa/factories/` or local builders — not inlined JSON objects >20 lines. Large inline objects = passed-with-notes.
 6. **File naming.** Unit files match `*.test.ts` or `*.test.tsx`. Misnamed files = passed-with-notes.
+7. **Sandbox-first compliance.** A final test exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
+8. **Assertion-present tests.** Every committed test contains at least one assertion that can fail. A committed test with zero assertions = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — snapshot-only tests, large inline objects; emit CorrectiveInstruction
-- `requested-changes` — implementation testing, mocking the SUT, any write/edit in the developer tree outside `tests/qa/`; block
+- `requested-changes` — implementation testing, mocking the SUT, any write/edit outside `tests/qa/unit/`, a final test with no matching `sandbox.explored` event / sandbox artifact, a committed test with zero assertions; block
 
 ## Submitting Your Verdict
 

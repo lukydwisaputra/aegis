@@ -48,13 +48,17 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 3. **Cover happy path, boundary values, and error states.** Apply BVA and EP from test-design-techniques synthesis.
 
-4. **Never write into the developer tree.** Report gaps in existing developer unit coverage to `runs/{runId}/reports/unit-coverage-gaps.json`. Any net-new QA unit test goes under `tests/qa/unit/` only — do not place co-located tests next to source and do not edit developer unit tests.
+4. **Explore in the sandbox before committing a QA unit test.** Prototype the test in `sandbox/{date}-{slug}/` first, then port the validated version to `tests/qa/unit/`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the test it produced. Every committed test carries at least one assertion that can fail.
+
+5. **Never write into the developer tree.** Report gaps in existing developer unit coverage to `runs/{runId}/reports/unit-coverage-gaps.json`. Any net-new QA unit test goes under `tests/qa/unit/` only — do not place co-located tests next to source and do not edit developer unit tests.
 
 ## Quality Standards (SPV rejects if violated)
 
 - Unit test mocks internal module (should only mock external boundaries)
 - RTL test asserts on CSS classes or implementation details (assert on text, role, label)
-- Wrote or edited any file in the developer tree outside `tests/qa/` (unit testing is developer scope — this agent is read-only on developer units)
+- Wrote or edited any file outside `tests/qa/unit/` (unit testing is developer scope — this agent is read-only on developer units; QA unit tests live only under `tests/qa/unit/`)
+- A final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule)
+- A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Task Protocol
 
@@ -70,6 +74,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-unit-specialist
 
 - `test.passed` / `test.failed` — per TC
 - `coverage.updated` — after Jest run; includes new coverage delta
+- `sandbox.explored` — one per committed QA unit test; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed test)
 
 ## Contract (machine-checked)
 
@@ -88,10 +93,12 @@ writes:
   - "{tests}/qa/unit/{path}/{name}.test.ts"
   - "{run}/cases/{TC-ID}-result.json"
   - "{run}/reports/metrics/coverage.json"
+  - "sandbox/{date}-{slug}/**"
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
   - {event: coverage.updated, via: append}
+  - {event: sandbox.explored, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
