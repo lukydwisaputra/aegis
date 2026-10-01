@@ -24,7 +24,7 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 1. Resolve run directory and validate that `events.jsonl` exists and is non-empty.
 2. Parse flag `--reports`; if `all`, enumerate every report template in `templates/reports/`.
 3. For each requested report type, invoke the corresponding reporter sub-agent with the events log as input.
-4. Reporter agents write output files to `runs/{run}/reports/` (overwriting existing files).
+4. Reporter agents write output files to `runs/{run}/reports/closure/` and `runs/{run}/reports/executive/` (overwriting existing files). The CLI owns the work reports, the reviews and the metrics files, so nothing here writes those.
 5. If `--rerun-tests` is set, first dispatch the execution phase agents for the run before regenerating.
 6. Print the regenerated report paths; run state is owned by the CLI and is not edited here.
 7. Print a summary of which report files were written and their sizes.
@@ -51,7 +51,8 @@ reads:
   - "{run}/events.jsonl"
   - "templates/reports/**"
 writes:
-  - "{run}/reports/**"
+  - "{run}/reports/closure/**"
+  - "{run}/reports/executive/**"
 emits:
   - {event: report.regeneration.started, via: append}
   - {event: report.generated, via: append}

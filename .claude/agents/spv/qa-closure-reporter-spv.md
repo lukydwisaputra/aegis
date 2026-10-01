@@ -17,7 +17,7 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-closure-reporter.json` — work report
+- `runs/{runId}/reports/work/qa-closure-reporter*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/reports/closure/closure.{md,json}` — the closure report (both files)
 - `runs/{runId}/reports/metrics/*.json` — the computed metrics the report draws from (owned by qa-metrics-collector)
 - `runs/{runId}/events.jsonl` — for metric verification
@@ -43,9 +43,13 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 - `passed-with-notes` — missing non-critical metric, generic lessons, thin residual risk; emit CorrectiveInstruction
 - `requested-changes` — missing `closure.json` twin, files in `reports/` root, brand leak, ship/no-ship verdict, missing open questions, metrics arithmetic error; block
 
+## Submitting Your Verdict
+
+Review only a released task: `aegis review submit` refuses one still in progress, so tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `AEGIS_AGENT=qa-closure-reporter-spv pnpm aegis review submit --file /dev/stdin`: `id` (`RV-qa-closure-reporter-spv-<taskId>`), `reviewer` (`qa-closure-reporter-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]`, `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`, each with `mistake`, `rootCause` and `correctiveRule` of 20 characters or more), `reviewedAt` and `modelUsed`. The CLI records the `review.*` event, reopens the task on `requested-changes`, pipes every corrective instruction into the worker's lessons, and escalates the task to the owner on the third rejection in a round. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -57,7 +61,7 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-closure-reporter]
 reads:
-  - "{run}/reports/work/qa-closure-reporter.json"
+  - "{run}/reports/work/qa-closure-reporter*.json"
   - "{run}/reports/closure/closure.{md,json}"
   - "{run}/reports/metrics/*.json"
   - "{run}/events.jsonl"
@@ -66,10 +70,11 @@ reads:
   - "agent-memory/qa-closure-reporter/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: [grep]
 dispatches: []
 config: []

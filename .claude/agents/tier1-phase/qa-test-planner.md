@@ -39,8 +39,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 - `runs/{runId}/plan.{md,json}` — test plan (IEEE 829 + ISTQB sections)
 - `runs/{runId}/risk-register.{md,json}` — ISO 31000 risk register (numeric + ordinal)
-- `runs/{runId}/events.jsonl` — test.plan-drafted, risk.flagged events
-- `runs/{runId}/reports/work/qa-test-planner.json` — work report for SPV
+- Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
 ## Process
 
@@ -67,7 +66,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 8. **Write the work report.** Summary: strategy rationale, top 3 risks, specialists to dispatch, lessons applied, uncertainties ("unclear whether the auth module's SSO path needs a dedicated specialist or can share the UI specialist slot").
 
-9. **Stop after the work report.** `test.plan-drafted` is your last event; the orchestrator records phase completion through the CLI once the reviews pass.
+9. **Submit, release, stop.** Append `test.plan-drafted` as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -79,6 +78,16 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 - Plan contains a ship/no-ship recommendation — that is a Gate 1 human decision, not a planner decision
 - Work report does not cite lessons applied
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-test-planner pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying the task is already `in-progress` means you hold it from an interrupted dispatch: continue without claiming.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events or `artifact.created`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-test-planner`), `startedAt`, `completedAt`, `summary` (20–300 characters), `approach`, `decisions[]`, `uncertainties[]`, `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task and your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4. The third rejection in a round escalates to the owner — the CLI does that, not you.
+
 ## Events You Emit
 
 - `test.plan-drafted` — includes planId, riskCount, specialistsProposed
@@ -87,7 +96,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 ## Concurrency
 
-Claims `task:test-planning` via taskmaster-client. One instance per run. Writes only to `runs/{runId}/plan.*` and `runs/{runId}/risk-register.*`.
+Claims its task through the CLI (see Task Protocol). One instance per run. Writes only to `runs/{runId}/plan.*` and `runs/{runId}/risk-register.*`.
 
 ## Knowledge Refs
 
@@ -119,14 +128,12 @@ reads:
 writes:
   - "{run}/plan.{md,json}"
   - "{run}/risk-register.{md,json}"
-  - "{run}/events.jsonl"
-  - "{run}/reports/work/qa-test-planner.json"
 emits:
   - {event: test.plan-drafted, via: append}
   - {event: risk.flagged, via: append}
   - {event: planning.blocked, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config: []

@@ -40,7 +40,7 @@ branding, no ship/no-ship verdict outside the sign-off attestation block.
 - `runs/{runId}/reports/executive/technical-report.pdf` — comprehensive technical document for engineers and auditors (~20–50 pages). See Deliverable 1 below for structure.
 - `runs/{runId}/reports/executive/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
 - `runs/{runId}/reports/executive/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
-- `runs/{runId}/reports/work/qa-executive-reporter.json` — work report (which deliverables produced, tone-check results, lessons applied)
+- One work report per attempt through `aegis work-report submit` — see Task Protocol
 - Events emitted: `report.produced`, `tone.check-failed`, `brand.leak-detected`, `report.fallback` (if PDF skill fails)
 
 > **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process). If a PDF skill fails, write the `.md` equivalent to `reports/executive/` (NOT the root) and emit a `report.fallback` event naming the failed deliverable — `.md` in the root with no `report.fallback` event is the failure observed in real runs.
@@ -149,7 +149,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill with the tone-checked content (writes to `reports/executive/`). Same skill-first / `.md`-fallback-with-`report.fallback` rule.
 
-7. **Write the work report, then stop.** Record: three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied; the orchestrator records phase completion through the CLI once the reviews pass.
+7. **Submit, release, stop.** Submit your work report — the three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied — and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -165,6 +165,16 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - A deliverable produced as `.md` without invoking the skill first AND without a `report.fallback` event
 - Work report does not cite lessons applied
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-executive-reporter pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying the task is already `in-progress` means you hold it from an interrupted dispatch: continue without claiming.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events or `artifact.created`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-executive-reporter`), `startedAt`, `completedAt`, `summary` (20–300 characters), `approach`, `decisions[]`, `uncertainties[]`, `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task and your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4. The third rejection in a round escalates to the owner — the CLI does that, not you.
+
 ## Events You Emit
 
 - `executive.report.generated` / `report.produced` — one per deliverable; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
@@ -174,7 +184,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 ## Concurrency
 
-Claims `task:executive-reporting` via taskmaster-client. Read-only on all run artefacts. Writes only to `runs/{runId}/reports/executive/`.
+Claims its task through the CLI (see Task Protocol). Read-only on all run artefacts. Writes only to `runs/{runId}/reports/executive/`.
 
 ## Knowledge Refs
 
@@ -219,7 +229,6 @@ writes:
     terminal: true
   - path: "{run}/reports/executive/technical-report.md"
     terminal: true
-  - "{run}/reports/work/qa-executive-reporter.json"
 emits:
   - {event: executive.report.generated, via: append}
   - {event: report.produced, via: append}
@@ -228,7 +237,7 @@ emits:
   - {event: brand.leak-detected, via: append}
   - {event: report.fallback, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches:
   - _qa-report-technical-pdf

@@ -58,8 +58,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — one file pair per defect (Zod-validated); each carries an `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block
 - `runs/{runId}/rtm.json` — updated via `rtm.append-link` events (defectId appended to row)
-- `runs/{runId}/events.jsonl` — defect.opened, defect.duplicate, defect.linked events
-- `runs/{runId}/reports/work/qa-defect-manager.json` — work report for SPV
+- Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
 ## Process
 
@@ -93,7 +92,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
-9. **Stop after the work report.** `defect.management-complete` is your last event; the orchestrator records phase completion through the CLI once the reviews pass.
+9. **Submit, release, stop.** Append `defect.management-complete` as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -107,6 +106,16 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 - Root cause asserted as definite when evidence supports only inference
 - Work report does not cite lessons applied
 
+## Task Protocol
+
+Prefix every command with your name, for example `AEGIS_AGENT=qa-defect-manager pnpm aegis task claim --task <taskId>`. Your dispatch brief names the task id (`T-<phase>-<n>`).
+
+1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying the task is already `in-progress` means you hold it from an interrupted dispatch: continue without claiming.
+2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events or `artifact.created`: the commands that own them record those.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-defect-manager`), `startedAt`, `completedAt`, `summary` (20–300 characters), `approach`, `decisions[]`, `uncertainties[]`, `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
+5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task and your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4. The third rejection in a round escalates to the owner — the CLI does that, not you.
+
 ## Events You Emit
 
 - `defect.origin-confirmed` — one per candidate; `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
@@ -117,7 +126,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 ## Concurrency
 
-Claims `task:defect-management` via taskmaster-client. Writes to `runs/{runId}/defects/`. Emits `rtm.append-link` events that qa-test-designer (if still active) or a post-design RTM updater processes.
+Claims its task through the CLI (see Task Protocol). Writes to `runs/{runId}/defects/`. Emits `rtm.append-link` events that qa-test-designer (if still active) or a post-design RTM updater processes.
 
 ## Knowledge Refs
 
@@ -151,8 +160,6 @@ reads:
 writes:
   - "{run}/defects/{DEF-ID}.{md,json}"
   - "{run}/rtm.json"
-  - "{run}/events.jsonl"
-  - "{run}/reports/work/qa-defect-manager.json"
   - "{run}/evidence/{DEF-ID}/**"
 emits:
   - {event: defect.origin-confirmed, via: append}
@@ -162,7 +169,7 @@ emits:
   - {event: defect.management-complete, via: append}
   - {event: rtm.append-link, via: append}
 awaits: []
-cli: []
+cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
 config: []

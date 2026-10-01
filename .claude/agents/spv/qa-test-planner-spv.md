@@ -18,7 +18,7 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-test-planner.json` — work report
+- `runs/{runId}/reports/work/qa-test-planner*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/plan.{md,json}` — the test plan
 - `runs/{runId}/risk-register.{md,json}`
 - `runs/{runId}/requirements/ambiguity-report.json` — preceding analyst output
@@ -41,9 +41,13 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 - `passed-with-notes` — 1-2 missing clauses, thin rationale on low-risk items; emit CorrectiveInstruction
 - `requested-changes` — missing risk triple, ship/no-ship verdict, SFDIPOT applied as single pass; block
 
+## Submitting Your Verdict
+
+Review only a released task: `aegis review submit` refuses one still in progress, so tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `AEGIS_AGENT=qa-test-planner-spv pnpm aegis review submit --file /dev/stdin`: `id` (`RV-qa-test-planner-spv-<taskId>`), `reviewer` (`qa-test-planner-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]`, `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`, each with `mistake`, `rootCause` and `correctiveRule` of 20 characters or more), `reviewedAt` and `modelUsed`. The CLI records the `review.*` event, reopens the task on `requested-changes`, pipes every corrective instruction into the worker's lessons, and escalates the task to the owner on the third rejection in a round. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -55,7 +59,7 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-test-planner]
 reads:
-  - "{run}/reports/work/qa-test-planner.json"
+  - "{run}/reports/work/qa-test-planner*.json"
   - "{run}/plan.{md,json}"
   - "{run}/risk-register.{md,json}"
   - "{run}/requirements/ambiguity-report.json"
@@ -63,10 +67,11 @@ reads:
   - "agent-memory/qa-test-planner/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: []
 dispatches: []
 config: [thresholds.yaml]

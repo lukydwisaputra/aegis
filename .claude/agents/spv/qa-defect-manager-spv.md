@@ -17,7 +17,7 @@ You review defect reports produced by `qa-defect-manager`. You apply the Kaner c
 
 ## Inputs
 
-- `runs/{runId}/reports/work/qa-defect-manager.json` — work report
+- `runs/{runId}/reports/work/qa-defect-manager*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/defects/*.{md,json}` — all defect reports
 - `runs/{runId}/events.jsonl` — to verify rtm.append-link events
 - Evidence files referenced in defects (spot-check)
@@ -43,9 +43,13 @@ You review defect reports produced by `qa-defect-manager`. You apply the Kaner c
 - `passed-with-notes` — thin abductive inference or missing variation axes; emit CorrectiveInstruction
 - `requested-changes` — title >65 chars, missing evidence, no RTM append-link, single-field severity, missing or failing `originConfirmation` (for EXP-type, failing means test-side causes not ruled out — clean-state reproduction is not required); block
 
+## Submitting Your Verdict
+
+Review only a released task: `aegis review submit` refuses one still in progress, so tell your dispatcher instead of waiting. Pipe one `ReviewSchema` object into `AEGIS_AGENT=qa-defect-manager-spv pnpm aegis review submit --file /dev/stdin`: `id` (`RV-qa-defect-manager-spv-<taskId>`), `reviewer` (`qa-defect-manager-spv`), `target` (the worker's `agent`, the `taskId`, and the `workReportId` of the report you reviewed), `verdict`, `summary` (10–500 characters), `findings[]`, `correctiveInstructions[]` (at least one for `passed-with-notes` and `requested-changes`, each with `mistake`, `rootCause` and `correctiveRule` of 20 characters or more), `reviewedAt` and `modelUsed`. The CLI records the `review.*` event, reopens the task on `requested-changes`, pipes every corrective instruction into the worker's lessons, and escalates the task to the owner on the third rejection in a round. You never append `review.*` events, never write lessons, and never re-dispatch the worker.
+
 ## Events You Emit
 
-- `review.passed` / `review.requested-changes`
+- `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
 
 ## Contract (machine-checked)
 
@@ -57,17 +61,18 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-defect-manager]
 reads:
-  - "{run}/reports/work/qa-defect-manager.json"
+  - "{run}/reports/work/qa-defect-manager*.json"
   - "{run}/defects/*.{md,json}"
   - "{run}/events.jsonl"
   - "{run}/evidence/{DEF}/**"
   - "agent-memory/qa-defect-manager/lessons.md"
 writes: []
 emits:
-  - {event: review.passed, via: append}
-  - {event: review.requested-changes, via: append}
+  - {event: review.passed, via: "cli:review.submit"}
+  - {event: review.passed-with-notes, via: "cli:review.submit"}
+  - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: []
+cli: [review.submit]
 runs: []
 dispatches: []
 config: []
