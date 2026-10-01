@@ -8,6 +8,7 @@ import {
 } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, PROFILE, review, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { STORY } from './helpers/p0a2-fixtures';
 
 // Final-wave findings of the P0a-1 whole-branch review (C1, I1-I5, M1), reproduced from its CLI scripts.
 
@@ -58,6 +59,7 @@ async function requirements() {
   fastForward(t.root, runId, 'requirements');
   await startPhase(t.root, runId, 'requirements', ORCH);
   for (const f of ['requirements/ambiguity-report.json', 'requirements/testability-scores.json']) writeRunFile(t.root, runId, f, {});
+  writeRunFile(t.root, runId, `stories/${STORY.id}.json`, STORY);
 }
 
 describe('C1: a gated phase needs its gate task', () => {

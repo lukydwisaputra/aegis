@@ -8,6 +8,7 @@ export * from "./submit.js";
 export * from "./integrity.js";
 export * from "./locks.js";
 export * from "./phase-map.js";
+export * from "./outputs.js";
 export * from "./phases.js";
 export * from "./intake.js";
 export * from "./gates.js";

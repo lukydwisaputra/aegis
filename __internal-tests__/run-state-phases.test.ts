@@ -4,6 +4,7 @@ import { readLines } from '@qa/event-bus';
 import { addTask, busPath, claimTask, completePhase, completeRun, createRun, decideEscalation, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { escalationDecision, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { STORY } from './helpers/p0a2-fixtures';
 
 let t: TmpAegis;
 let runId: string;
@@ -30,6 +31,7 @@ async function toRequirements() {
   await completePhase(t.root, runId, 'dev-test-review', ORCH, { notApplicable: true });
   await startPhase(t.root, runId, 'requirements', ORCH);
   for (const f of ['requirements/ambiguity-report.json', 'requirements/testability-scores.json']) writeRunFile(t.root, runId, f, {});
+  writeRunFile(t.root, runId, `stories/${STORY.id}.json`, STORY);
 }
 const RA = 'qa-requirements-analyst';
 

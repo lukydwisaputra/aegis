@@ -19,7 +19,8 @@ import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
-import { OUTPUT_SCHEMAS, PHASE_OUTPUTS, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
+import { outputProblems } from "./outputs.js";
+import { PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, workDir } from "./submit.js";
 import { formatIssues, iso, loadJson } from "./util.js";
@@ -230,17 +231,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       problems.push(`gate ${gate} is not approved`);
     }
   }
-  for (const rel of PHASE_OUTPUTS[phase] ?? []) {
-    const file = join(runDir(root, runId), rel);
-    if (!existsSync(file)) {
-      problems.push(`output ${rel} is missing`);
-      continue;
-    }
-    const schema = OUTPUT_SCHEMAS[rel];
-    if (schema === undefined) continue;
-    const parsed = schema.safeParse(loadJson(file));
-    if (!parsed.success) problems.push(`output ${rel} is invalid: ${formatIssues(parsed.error.issues)}`);
-  }
+  problems.push(...outputProblems(root, runId, phase));
   return problems;
 }
 

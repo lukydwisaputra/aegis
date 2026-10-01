@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
+import { ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 
 // Drives the built aegis CLI through whole cycles with fake agents (the P0a-1 final review's scratch scripts).
 // Every step is a real CLI call; the "agents" only claim, submit, release and review.
@@ -162,8 +163,8 @@ e2e('full cycle: gates G1-G3, an escalation retry, a G2 rejection and its recove
   sim.no('caller-forbidden', 'owner', 'phase', 'start', '--phase', 'intake');
   sim.intakeAndScan();
   sim.ok(O, 'phase', 'complete', '--phase', 'dev-test-review', '--not-applicable');
-  sim.phase('requirements', 'qa-requirements-analyst', { 'requirements/ambiguity-report.json': {}, 'requirements/testability-scores.json': {} });
-  sim.phase('env-auth', 'qa-environment-engineer');
+  sim.phase('requirements', 'qa-requirements-analyst', { 'requirements/ambiguity-report.json': {}, 'requirements/testability-scores.json': {}, [`stories/${STORY.id}.json`]: STORY });
+  sim.phase('env-auth', 'qa-environment-engineer', { 'env-auth-report.json': ENV_AUTH_REPORT });
   sim.phase('explore', 'qa-web-explorer', { 'discovery-report.json': {} });
 
   // Planning: the barrier needs the gate task (C1); only the owner decides the gate.
@@ -246,7 +247,7 @@ e2e('smoke on testing: env-data seeds, G2 is auto-decided from thresholds.yaml#s
   sim.ok('owner', 'run', 'create', '--env', 'testing', '--module', 'AUTH', '--cycle', 'smoke', '--health', 'passed');
   sim.intakeAndScan();
   expect(sim.next()).toEqual({ kind: 'start-phase', phase: 'env-auth' });
-  sim.phase('env-auth', 'qa-environment-engineer');
+  sim.phase('env-auth', 'qa-environment-engineer', { 'env-auth-report.json': ENV_AUTH_REPORT });
   sim.phase('env-data', 'qa-environment-engineer', { 'env-setup-report.json': {} });
   sim.execution(4, 1, (s) => {
     s.ok('qa-test-executor', 'task', 'add', '--id', 'T-execution-db-1', '--title', 'db', '--agent', 'qa-database-specialist');
@@ -264,7 +265,7 @@ e2e('smoke on production: env-data is not applicable, a refused mutating special
   sim = new Sim();
   sim.ok('owner', 'run', 'create', '--env', 'production', '--module', 'AUTH', '--cycle', 'smoke', '--health', 'passed');
   sim.intakeAndScan();
-  sim.phase('env-auth', 'qa-environment-engineer');
+  sim.phase('env-auth', 'qa-environment-engineer', { 'env-auth-report.json': ENV_AUTH_REPORT });
   expect(sim.ok(O, 'phase', 'complete', '--phase', 'env-data', '--not-applicable')).toMatchObject({
     phases: { 'env-data': { status: 'not-applicable', reason: 'environment production is read-only; no data seeding' } },
   });
