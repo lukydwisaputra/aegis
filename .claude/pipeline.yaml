@@ -8,8 +8,8 @@ phases:
     agents: []
   - id: requirements
     agents: [qa-requirements-analyst]
-  - id: env-auth  # qa-environment-engineer (scope=auth): listed once, under env-data (single-phase checker)
-    agents: []
+  - id: env-auth  # qa-environment-engineer scope=auth; also listed under env-data, its contract phase (HANDBOOK 14.11)
+    agents: [qa-environment-engineer]
   - id: explore
     agents: [qa-web-explorer]
   - id: planning

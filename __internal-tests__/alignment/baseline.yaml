@@ -17,12 +17,6 @@ entries:
   - key: "CLI:qa-cicd-planner:work-report.submit:handoff-missing"
     ids: [AUD-083, AUD-111]
     note: "reviewed by qa-cicd-spv, so it must claim its task and submit its work report (cli work-report.submit)"
-  - key: "CLI:qa-environment-engineer:task.claim:handoff-missing"
-    ids: [AUD-081]
-    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli task.claim)"
-  - key: "CLI:qa-environment-engineer:work-report.submit:handoff-missing"
-    ids: [AUD-083, AUD-111]
-    note: "reviewed by qa-environment-engineer-spv, so it must claim its task and submit its work report (cli work-report.submit)"
   - key: "CLI:qa-exploratory-specialist:task.claim:handoff-missing"
     ids: [AUD-081]
     note: "reviewed by qa-exploratory-specialist-spv, so it must claim its task and submit its work report (cli task.claim)"
@@ -99,9 +93,6 @@ entries:
   - key: "CONFIG:aegis.config.json:discovery.enabled:unused"
     ids: [AUD-007]
     note: "aegis.config.json#discovery.enabled is listed by no contract and read by no package source"
-  - key: "CONFIG:aegis.config.json:ports.playwrightUI:unused"
-    ids: [AUD-007]
-    note: "aegis.config.json#ports.playwrightUI is listed by no contract and read by no package source"
   - key: "CONFIG:qa-doctor:config/environments.yaml:missing"
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
@@ -493,18 +484,6 @@ entries:
   - key: "EVENT:qa-deps-update:deps.update.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-environment-engineer-spv:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
-  - key: "EVENT:qa-environment-engineer-spv:review.passed:cli-recorded"
-    ids: [AUD-101]
-    note: "review.passed is recorded by the CLI"
-  - key: "EVENT:qa-environment-engineer-spv:review.requested-changes:cli-recorded"
-    ids: [AUD-101]
-    note: "review.requested-changes is recorded by the CLI"
-  - key: "EVENT:qa-environment-engineer:-:appends-without-cli"
-    ids: [AUD-018, CO-11]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-event-bus:-:appends-without-cli"
     ids: [AUD-048]
     note: "emits events without `aegis event append`"
@@ -776,9 +755,6 @@ entries:
   - key: "PRODUCER:qa-curator:{run}/reviews/*.json:none"
     ids: [AUD-014]
     note: "nothing produces {run}/reviews/*.json"
-  - key: "PRODUCER:qa-environment-engineer-spv:{run}/reports/work/qa-environment-engineer.json:no-submitter"
-    ids: [AUD-083]
-    note: "{run}/reports/work/qa-environment-engineer.json is a work report, but no worker qa-environment-engineer-spv reviews lists work-report.submit"
   - key: "PRODUCER:qa-exploratory-specialist-spv:{run}/reports/work/qa-exploratory-specialist.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-exploratory-specialist.json is a work report, but no worker qa-exploratory-specialist-spv reviews lists work-report.submit"
@@ -812,9 +788,6 @@ entries:
   - key: "PRODUCER:qa-web-explorer-spv:{run}/reports/work/qa-web-explorer.json:no-submitter"
     ids: [AUD-083]
     note: "{run}/reports/work/qa-web-explorer.json is a work report, but no worker qa-web-explorer-spv reviews lists work-report.submit"
-  - key: "PRODUCER:qa-web-explorer:{tests}/qa/fixtures/auth.fixture.ts:later-phase"
-    ids: [AUD-003]
-    note: "{tests}/qa/fixtures/auth.fixture.ts is only produced in a later phase"
   # --- ROUTE ---
   # --- SKILL ---
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
@@ -1074,12 +1047,6 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-environment-engineer:{run}/events.jsonl:cli-only"
-    ids: [AUD-018, CO-11]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
-  - key: "WRITE-POLICY:qa-environment-engineer:{run}/reports/work/qa-environment-engineer.json:cli-only"
-    ids: [AUD-111]
-    note: "write to {run}/reports/work/qa-environment-engineer.json violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-environment-engineer:{target}/playwright.config.ts:target-source"
     ids: [AUD-112]
     note: "write to {target}/playwright.config.ts violates the write policy (target-source)"

@@ -45,9 +45,11 @@ describe('phase output sets and schemas (spec §6.1 item 6, P0a-2)', () => {
     expect((await complete('dev-test-review')).phases['dev-test-review']).toMatchObject({ status: 'completed' });
   });
 
-  it('env-auth needs env-auth-report.json', async () => {
+  it('env-auth needs a valid env-auth-report.json', async () => {
     await atPhase('env-auth', 'qa-environment-engineer');
     await expect(complete('env-auth')).rejects.toMatchObject(refusal(/env-auth-report.json is missing/));
+    writeRunFile(t.root, runId, 'env-auth-report.json', { ...ENV_AUTH_REPORT, health: 'OK' });
+    await expect(complete('env-auth')).rejects.toMatchObject(refusal(/env-auth-report.json is invalid: health/));
     writeRunFile(t.root, runId, 'env-auth-report.json', ENV_AUTH_REPORT);
     expect((await complete('env-auth')).phases['env-auth']).toMatchObject({ status: 'completed' });
   });

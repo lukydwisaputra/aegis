@@ -1,6 +1,7 @@
 import {
   DefectCandidateSchema,
   DevTestReviewSchema,
+  EnvAuthReportSchema,
   ExecutionSummaryCoreSchema,
   PHASE_IDS,
   TargetProfileCoreSchema,
@@ -47,6 +48,7 @@ export const PHASE_OUTPUTS: Readonly<Partial<Record<PhaseId, readonly string[]>>
 export const OUTPUT_SCHEMAS: Readonly<Record<string, OutputSchema>> = {
   "target-profile.json": ScanProfileSchema,
   "dev-test-review.json": DevTestReviewSchema,
+  "env-auth-report.json": EnvAuthReportSchema,
   "execution-summary.json": ExecutionSummaryCoreSchema,
 };
 

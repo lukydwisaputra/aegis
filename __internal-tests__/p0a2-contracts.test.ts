@@ -2,11 +2,12 @@ import {
   AegisEventSchema,
   DefectCandidateSchema,
   DevTestReviewSchema,
+  EnvAuthReportSchema,
   ExecutionSummaryCoreSchema,
   TestCaseSchema,
   UserStorySchema,
 } from '@qa/contracts';
-import { ac, CANDIDATE, DEV_TEST_REVIEW, devTest, STORY } from './helpers/p0a2-fixtures';
+import { ac, CANDIDATE, DEV_TEST_REVIEW, devTest, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 
 const TS = '2026-10-01T08:00:00.000Z';
 const ok = (schema: { safeParse(v: unknown): { success: boolean } }, v: unknown) => schema.safeParse(v).success;
@@ -156,5 +157,45 @@ describe('ExecutionSummaryCoreSchema and P0a-2 events', () => {
     expect(ok(AegisEventSchema, { type: 'observation.recorded', ts: TS, kind: 'behaviour-mismatch', summary: 'reset mail arrives twice for one request', acId: 'AC-AUTH-003-H1' })).toBe(true);
     expect(ok(AegisEventSchema, { type: 'observation.recorded', ts: TS, kind: 'guess', summary: 'reset mail arrives twice for one request' })).toBe(false);
     expect(ok(AegisEventSchema, { type: 'dev-test.review-complete', ts: TS, adequate: 1, weak: 0, wrong: 0, unmapped: 0, mutation: 'ran', mutationScore: 72 })).toBe(true);
+  });
+});
+
+describe('EnvAuthReportSchema (P0 spec §3.1 Env-auth, scope=auth)', () => {
+  const R = ENV_AUTH_REPORT;
+  it('accepts the scope=auth report, and a PARTIAL or FAILED one that says why', () => {
+    expect(ok(EnvAuthReportSchema, R)).toBe(true);
+    expect(ok(EnvAuthReportSchema, { ...R, skipped: [{ item: 'role manager', reason: 'no credentials file for manager' }], health: 'PARTIAL' })).toBe(true);
+    expect(ok(EnvAuthReportSchema, { ...R, roles: [], playwrightCliVersion: null, smokePing: { url: 'http://localhost:5173', status: null, ok: false }, health: 'FAILED' })).toBe(true);
+  });
+
+  it('is strict and refuses blank text', () => {
+    expect(ok(EnvAuthReportSchema, { ...R, factoriesCreated: [] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, roles: [{ role: 'admin', storageState: 'tests/qa/state/admin.json', password: 'x' }] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, roles: [{ role: '  ', storageState: 'tests/qa/state/admin.json' }] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, playwrightProjects: ['  '] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, playwrightCliVersion: '  ' })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, skipped: [{ item: 'role manager', reason: ' ' }], health: 'PARTIAL' })).toBe(false);
+  });
+
+  it('refuses a missing field, an unknown browser or health, and a storage state outside tests/qa/state/', () => {
+    for (const k of Object.keys(R)) {
+      const { [k]: _, ...rest } = R as Record<string, unknown>;
+      expect(ok(EnvAuthReportSchema, rest)).toBe(false);
+    }
+    expect(ok(EnvAuthReportSchema, { ...R, browsers: [] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, browsers: ['chrome'] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, playwrightProjects: [] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, health: 'OK' })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, roles: [{ role: 'admin', storageState: 'tests/state/admin.json' }] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, roles: [R.roles[0], R.roles[0]] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, smokePing: { url: 'not a url', status: 200, ok: true } })).toBe(false);
+  });
+
+  it('READY needs a passing smoke ping, an installed CLI, a logged-in role and nothing skipped', () => {
+    expect(ok(EnvAuthReportSchema, { ...R, smokePing: { url: 'http://localhost:5173', status: 503, ok: false } })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, smokePing: { url: 'http://localhost:5173', status: 503, ok: true } })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, playwrightCliVersion: null })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, roles: [] })).toBe(false);
+    expect(ok(EnvAuthReportSchema, { ...R, skipped: [{ item: 'role manager', reason: 'no credentials file for manager' }] })).toBe(false);
   });
 });

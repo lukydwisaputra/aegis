@@ -71,7 +71,6 @@
     "mailpit": { "smtp": 1025, "http": 8025 },
     "storybook": 6006,
     "k6Dashboard": 5665,
-    "playwrightUI": 9323,
     "trace": 9322
   },
   "artifacts": {

@@ -52,14 +52,16 @@ export function contractRule(m: Model): Violation[] {
     if (!phaseIds.has(phase) && !SPECIAL_PHASES.has(phase)) {
       out.push(violation("CONTRACT", u.name, phase, "unknown-phase", u.file, u.contractLine, `phase ${phase} is not in pipeline.yaml`));
     }
+    // An agent dispatched in several phases (qa-environment-engineer: env-auth, env-data) is listed under each;
+    // its contract names the last of them (HANDBOOK 14.11).
     const listed = phasesOf.get(u.name) ?? [];
-    for (const lp of listed) {
-      if (lp !== phase) {
+    if (listed.length > 0 && !listed.includes(phase)) {
+      for (const lp of listed) {
         out.push(violation("CONTRACT", u.name, lp, "phase-mismatch", u.file, u.contractLine, `pipeline lists ${u.name} in ${lp}, contract says ${phase}`));
       }
     }
-    if (listed.length > 1) {
-      out.push(violation("CONTRACT", u.name, "-", "multi-phase", u.file, u.contractLine, `pipeline lists ${u.name} in several phases: ${listed.join(", ")}`));
+    if (listed.length > 1 && listed[listed.length - 1] !== phase) {
+      out.push(violation("CONTRACT", u.name, "-", "multi-phase", u.file, u.contractLine, `pipeline lists ${u.name} in several phases: ${listed.join(", ")}; the contract phase must be the last of them`));
     }
   }
   return out;

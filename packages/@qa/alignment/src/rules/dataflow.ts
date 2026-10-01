@@ -101,9 +101,19 @@ const optional = (e: PathEntry) => typeof e !== "string" && e.optional === true;
 const terminal = (e: PathEntry) => typeof e !== "string" && e.terminal === true;
 const rmw = (e: PathEntry) => typeof e !== "string" && e.rmw === true;
 
+/** The earliest pipeline phase listing each agent: a multi-phase agent's writes exist from its first dispatch. */
+function firstPhases(m: Model): Map<string, number> {
+  const first = new Map<string, number>();
+  (m.pipeline?.phases ?? []).forEach((p, i) => {
+    for (const a of p.agents) if (!first.has(a)) first.set(a, i);
+  });
+  return first;
+}
+
 export function producerRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const idx = phaseIndex(m);
+  const first = firstPhases(m);
   const { phaseOf } = effectivePhases(m);
   const reachable = reachableUnits(m);
   const sources = allSources(m);
@@ -146,7 +156,7 @@ export function producerRule(m: Model): Violation[] {
       }
       if (rp === undefined) continue;
       const earlyOrUnbound = live.some((w) => {
-        const wp = unitPhase(m, w.u, idx, phaseOf);
+        const wp = first.get(w.u.name) ?? unitPhase(m, w.u, idx, phaseOf);
         return wp === undefined || wp <= rp;
       });
       if (!earlyOrUnbound) out.push(violation("PRODUCER", r.name, p, "later-phase", r.file, r.contractLine, `${p} is only produced in a later phase`));

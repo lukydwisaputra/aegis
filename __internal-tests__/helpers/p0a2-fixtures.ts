@@ -50,5 +50,13 @@ export const CANDIDATE = {
 };
 
 
-/** env-auth-report.json: the barrier checks only that it exists; qa-environment-engineer-spv reads it. */
-export const ENV_AUTH_REPORT = { roles: [{ role: 'admin', loggedIn: true, storageState: 'tests/qa/state/admin.json' }], smokePing: { url: 'http://localhost:5173', status: 200 } };
+/** env-auth-report.json (EnvAuthReportSchema): the scope=auth report the Env-auth barrier validates. */
+export const ENV_AUTH_REPORT = {
+  browsers: ['chromium', 'firefox', 'webkit'],
+  playwrightProjects: ['qa-e2e'],
+  roles: [{ role: 'admin', storageState: 'tests/qa/state/admin.json' }],
+  playwrightCliVersion: '0.1.1',
+  smokePing: { url: 'http://localhost:5173', status: 200, ok: true },
+  skipped: [],
+  health: 'READY',
+};
