@@ -173,6 +173,7 @@ escapes:
   - {unit: qa-test-designer, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-designer.md:31 the developer-test review, when it exists"}
   - {unit: qa-test-designer-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-designer-spv.md:24 developer tests a TC may record in coveredBy, when the review exists"}
   - {unit: qa-test-designer-spv, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-test-executor, field: optional, value: "{run}/env-setup-report.json", reason: "qa-test-executor.md:39 absent when Env-data is not-applicable (read-only environment); env-auth-report.json health is read instead"}
   - {unit: qa-test-executor-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-test-planner, field: optional, value: "{run}/dev-test-review.json", reason: "qa-test-planner.md:34 the developer-test review, when it exists"}
   - {unit: qa-test-planner-spv, field: reviewedBy.none, reason: "not stated in prose"}

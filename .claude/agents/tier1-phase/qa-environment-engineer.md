@@ -130,7 +130,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-environment-eng
 
 ## Events You Emit
 
-- `env.ready` — all checks of the scope passed; scope=auth includes rolesToTest and browserProjects, scope=data includes factoriesCreated
+- `env.ready` — all checks of the scope passed; both scopes send exactly rolesToTest, browserProjects and factoriesCreated (0 for scope=auth) — the event bus refuses the event without all three
 - `env.setup-failed` — specific failure reason; blocks execution phase
 - `credentials.missing` — one per missing role credential file
 - `test.config-written` — carries `testDir` (must be `tests/qa`) and the QA project name

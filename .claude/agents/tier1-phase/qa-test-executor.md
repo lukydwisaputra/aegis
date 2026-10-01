@@ -36,7 +36,8 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 - `runs/{runId}/cases/*.json` — all test cases (filter by testType to route to correct specialist)
 - `runs/{runId}/plan.json` — specialist assignments and parallelism config
-- `runs/{runId}/env-setup-report.json` — environment health (abort if FAILED)
+- `runs/{runId}/env-setup-report.json` — environment health (its `health` field) when Env-data ran; absent when Env-data is not-applicable (a read-only environment)
+- `runs/{runId}/env-auth-report.json` — environment health (its `health` field) when Env-data is not-applicable
 - `runs/{runId}/risk-register.json` — risk priority (high-risk areas execute first)
 - `target-profile.json` — environment URLs per env, detected stack
 - `aegis/aegis.config.json` — artifacts config (mode, format, retention)
@@ -50,7 +51,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 ## Process
 
-1. **Claim and read context.** Claim your task (Task Protocol step 1), unless your brief says to skip the claim. A brief saying to skip the claim (the orchestrator re-dispatched you on resume) or a refusal saying `already-claimed` means you were re-dispatched after an interruption, a stop or an escalation decision: run step 12 before dispatching anything. Then load env-setup-report. If status is FAILED, append `execution.blocked`, submit your work report and release your task with `--result failed` — there is no value in running tests against a broken environment.
+1. **Claim and read context.** Claim your task (Task Protocol step 1), unless your brief says to skip the claim. A brief saying to skip the claim (the orchestrator re-dispatched you on resume) or a refusal saying `already-claimed` means you were re-dispatched after an interruption, a stop or an escalation decision: run step 12 before dispatching anything. Then read the environment health: `env-setup-report.json#health` when Env-data ran; when Env-data is not-applicable (a read-only environment such as production) there is no env-setup report and that is not a missing input — read `env-auth-report.json#health` instead. If `health` is FAILED, append `execution.blocked`, submit your work report and release your task with `--result failed` — there is no value in running tests against a broken environment.
 
 2. **Plan the execution order.** Sort test case batches by risk (Critical risks first, then High, Medium, Low). Within a risk tier, order by: (1) smoke tests, (2) core functional, (3) regression, (4) compliance-tagged. This order ensures highest-value defects surface early.
 
@@ -164,7 +165,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 - `test.passed` / `test.failed` — one per TC outcome; test.failed includes evidence paths
 - `har.sanitization-required` — flags unsafe evidence
 - `manual.test.required` — one per manual TC; includes steps and automation blocker
-- `execution.blocked` — if the environment is FAILED
+- `execution.blocked` — if the environment's `health` is FAILED
 - `execution.complete` — single event at end; includes overall pass rate
 
 ## Concurrency
@@ -193,7 +194,9 @@ reviewedBy: qa-test-executor-spv
 reads:
   - "{run}/cases/*.json"
   - "{run}/plan.json"
-  - "{run}/env-setup-report.json"
+  - path: "{run}/env-setup-report.json"
+    optional: true
+  - "{run}/env-auth-report.json"
   - "{run}/risk-register.json"
   - "{run}/target-profile.json"
   - aegis.config.json
