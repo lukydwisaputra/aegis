@@ -38,6 +38,7 @@ The handoff is always: **MCP/CLI → inspect → decide selector → back to spe
 - `tests/qa/pages/{url-path}/*.ts` — POM skeletons from qa-web-explorer, organised by URL path hierarchy (extend, never rewrite)
 - `runs/{runId}/discovery-report.json` — URL map, testid inventory
 - `agent-memory/qa-ui-specialist/lessons.md`
+- The target's `package.json` test script — read-only, to run the developer test a developer-covered TC names
 
 ## Outputs
 
@@ -113,6 +114,8 @@ tests/qa/
 
 9. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
 
+10. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command (its `package.json` test script, filtered to that test) — never edit, copy or re-implement that test, and write no QA script for the TC — then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
+
 ## Quality Standards (SPV rejects if violated)
 
 - `test` imported from `@playwright/test` directly (must come from auth fixture)
@@ -160,6 +163,7 @@ reads:
   - agent-memory/qa-ui-specialist/lessons.md
   - "{tests}/qa/factories/**"
   - "{target}/playwright.config.ts"
+  - "{target}/package.json"
 writes:
   - "{tests}/qa/specs/{url-path}/**"
   - "{tests}/qa/fixtures/files/**"

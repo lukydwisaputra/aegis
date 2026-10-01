@@ -53,6 +53,8 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 5. **Never write into the developer tree.** Report gaps in existing developer unit coverage to `runs/{runId}/reports/unit-coverage-gaps.json`. Any net-new QA unit test goes under `tests/qa/unit/` only — do not place co-located tests next to source and do not edit developer unit tests.
 
+6. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command (its `package.json` test script, filtered to that test) — never edit, copy or re-implement that test, and write no QA script for the TC — then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Unit test mocks internal module (should only mock external boundaries)
@@ -60,6 +62,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 - Wrote or edited any file in the target project outside `tests/qa/unit/` (unit testing is developer scope — this agent is read-only on developer units; QA unit tests live only under `tests/qa/unit/`; run-side reports and results are not in the target project)
 - A final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule)
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
+- A QA script written for a developer-covered TC (`coveredBy` set), or its result not citing the `coveredBy` ref
 
 ## Task Protocol
 
@@ -88,7 +91,8 @@ reviewedBy: qa-unit-specialist-spv
 reads:
   - "{run}/target-profile.json"
   - "{target}/**"
-  - "{run}/dev-test-review.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - agent-memory/qa-unit-specialist/lessons.md
 writes:
   - "{run}/reports/unit-coverage-gaps.json"

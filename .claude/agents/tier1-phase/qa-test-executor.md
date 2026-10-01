@@ -35,6 +35,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 ## Inputs
 
 - `runs/{runId}/cases/*.json` — all test cases (filter by testType to route to correct specialist)
+- `runs/{runId}/dev-test-review.json` — when the Dev-test-review phase ran: the `kind` of the developer test a developer-covered TC names
 - `runs/{runId}/plan.json` — specialist assignments and parallelism config
 - `runs/{runId}/env-setup-report.json` — environment health (its `health` field) when Env-data ran; absent when Env-data is not-applicable (a read-only environment)
 - `runs/{runId}/env-auth-report.json` — environment health (its `health` field) when Env-data is not-applicable
@@ -78,6 +79,8 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
    - `Exploratory` → qa-exploratory-specialist
 
    `testType` is an array: route every value, then every routed `testTechnique`, and dispatch each distinct specialist once for the TC. Documentation-only techniques (BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration) dispatch nothing; the primary specialist carries them. A TC with `testType: ["Functional"]` and `testTechnique: ["Accessibility"]` dispatches both qa-ui-specialist (primary) and qa-accessibility-specialist (technique overlay). Both must pass for the TC to pass. `Exploratory` and `Usability` TCs go to a `qa-exploratory-specialist` session task like any other routed specialist.
+
+   **Developer-covered TCs.** A TC with `coveredBy` in its `traceability` has no QA script: the developer test it names is its script. Dispatch exactly one specialist for it and no technique overlay — qa-unit-specialist when that test's `kind` in `runs/{runId}/dev-test-review.json` is `unit`, otherwise the TC's primary `testType` specialist — and say in the brief that the TC is developer-covered. The specialist runs that developer test read-only with the target's own test command and writes the TC result citing the `coveredBy` ref; it never writes, edits or copies a script for the TC. The developer tree stays read-only.
 
 5. **Create one task per specialist dispatch, then dispatch in parallel.** First check the environment: a specialist may run only when its short name is allowed by `aegis.config.json#environments.{env}.allowedSpecialists` (an absent list, or one containing `"*"`, allows every specialist), is not listed in `aegis.config.json#environments.{env}.forbiddenSpecialists`, and is not a mutating specialist on a read-only environment (the mutating specialists are those marked `mutates` in `SPECIALISTS` from `@qa/contracts`). Never create a task for a specialist the environment forbids — mark its TCs `blocked` in the execution summary with the reason. For each allowed specialist run `aegis task add --id T-execution-<n> --title "<specialist>: <TC ids>" --agent <specialist>` (n counts up from 2; your own task is T-execution-1; never add an id that already exists), then dispatch it with the `Agent` tool and the enriched brief, and append `specialist.dispatched` with exactly the fields its schema declares — specialistName, taskId, tcIds, environment and `brief` (the event bus refuses any other field). The event's `brief` holds only the `DispatchBriefSchema` fields: missionGoal, lessonsRef, and optionally riskContext, environmentNotes and exploratoryFindings (a list of strings); the SPV checks the brief from this event. Every other dispatch detail goes in the agent brief, never in the event. The agent brief carries:
    - The task id it must claim
@@ -147,6 +150,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 - Dispatch continued after `task.escalated` or a failed specialist release, or an SPV dispatched for a task released `failed`
 - A task added under an id that already exists, or a pending task re-dispatched under a new id
 - `execution-summary.json` without integer `totals` counts
+- A developer-covered TC (`coveredBy` set) dispatched to more than one specialist, or briefed so that a script is written for it
 
 ## Task Protocol
 
@@ -193,6 +197,8 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-test-executor-spv
 reads:
   - "{run}/cases/*.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - "{run}/plan.json"
   - path: "{run}/env-setup-report.json"
     optional: true

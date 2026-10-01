@@ -24,6 +24,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 - `runs/{runId}/discovery-report.json` — inferred API surface from discovery phase
 - `aegis/aegis.config.json` — environment URLs, secrets refs
 - `agent-memory/qa-api-specialist/lessons.md`
+- The target's `package.json` test script — read-only, to run the developer test a developer-covered TC names
 
 ## Outputs
 
@@ -47,6 +48,8 @@ You write and run API tests covering REST endpoints, response schemas, error han
 6. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
 
 7. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/qa/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
+
+8. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command (its `package.json` test script, filtered to that test) — never edit, copy or re-implement that test, and write no QA script for the TC — then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -84,6 +87,7 @@ reads:
   - "{run}/target-profile.json"
   - "{run}/discovery-report.json"
   - aegis.config.json
+  - "{target}/package.json"
   - agent-memory/qa-api-specialist/lessons.md
 writes:
   - "{tests}/qa/api/{endpoint}.api.test.ts"

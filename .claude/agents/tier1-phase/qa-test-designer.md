@@ -76,6 +76,8 @@ You translate approved requirements and the test plan into concrete, executable 
    12. Is the test environment too unreliable to run automated assertions?
    13. Does the automated test mask real problems (auto-accepting flaky results)?
 
+   A developer-covered TC (`coveredBy` set, `automationStatus: Automated`) is exempt from this check: its script already exists and is developer-owned.
+
    If ANY criterion is YES → set `automationStatus: Candidate` with `automationBlocker` citing the specific criterion. If BOTH critical AND blockers apply → set `requiresManual: true` + `automationBlocker` + `manualJustification`.
 
    **Exhaust automation alternatives before marking `requiresManual: true` (automation-first).** A manual flag is a last resort, not a default. Before setting it, evaluate and record in `automationBlocker` which of these were tried and why each was rejected:
@@ -114,7 +116,7 @@ You translate approved requirements and the test plan into concrete, executable 
 
 ## Quality Standards (SPV rejects if violated)
 
-- Test case with `automationStatus: Automated` that fails one or more of the 13 criteria
+- Test case with `automationStatus: Automated` that fails one or more of the 13 criteria (a developer-covered TC, `coveredBy` set, is exempt)
 - Manual flag without `automationBlocker` citing a specific criterion
 - UI test case steps that reference elements by CSS class, ID without semantic context, or XPath
 - RTM row without `testCaseIds` (every requirement must have at least one TC)

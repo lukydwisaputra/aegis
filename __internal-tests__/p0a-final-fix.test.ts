@@ -102,3 +102,33 @@ describe('M3, M4: orchestrator re-dispatch rules', () => {
     expect(line).toMatch(/re-dispatch every assignee whose task is still `in-progress`/);
   });
 });
+
+describe('I4: a developer-covered TC has an execution path', () => {
+  const RUNNERS = ['tier2-specialist/qa-unit-specialist.md', 'tier2-specialist/qa-api-specialist.md', 'tier2-specialist/qa-ui-specialist.md'];
+  it('the executor routes it to one specialist, unit when the developer test is a unit test', () => {
+    const para = prose(EXECUTOR).split('\n').find((l) => l.includes('**Developer-covered TCs.** A TC with `coveredBy`'))!;
+    expect(para).toMatch(/exactly one specialist for it and no technique overlay/);
+    expect(para).toMatch(/qa-unit-specialist when that test's `kind` .* is `unit`, otherwise the TC's primary `testType` specialist/);
+    expect(read(EXECUTOR, '{run}/dev-test-review.json')).toEqual({ path: '{run}/dev-test-review.json', optional: true });
+  });
+  it('unit, api and ui carry the same one-sentence run rule: read-only, no script, result cites the ref', () => {
+    const sentences = RUNNERS.map((f) => prose(f).split('\n').find((l) => /^\d+\. \*\*Developer-covered TCs\.\*\*/.test(l))!.replace(/^\d+\. /, ''));
+    expect(new Set(sentences).size).toBe(1);
+    expect(sentences[0]).toMatch(/read-only with the target's own test command/);
+    expect(sentences[0]).toMatch(/never edit, copy or re-implement that test, and write no QA script/);
+    expect(sentences[0]).toMatch(/`runs\/\{runId\}\/cases\/\{TC-ID\}-result\.json` with the `coveredBy` ref as its evidence/);
+  });
+  it('the executor SPV and the unit SPV check it', () => {
+    expect(prose('spv/qa-test-executor-spv.md')).toMatch(/10\. \*\*Developer-covered TCs\.\*\*.*no QA script was written.*cites the `coveredBy` ref/);
+    expect(prose('spv/qa-unit-specialist-spv.md')).toMatch(/9\. \*\*Developer-covered TCs\.\*\*.*no QA script was written.*cites the `coveredBy` ref/);
+  });
+  it('A4: the designer exempts a developer-covered TC from the 13-criteria check', () => {
+    expect(prose('tier1-phase/qa-test-designer.md')).toMatch(/developer-covered TC \(`coveredBy` set, `automationStatus: Automated`\) is exempt from this check/);
+  });
+});
+
+describe('M7: the unit specialist reads the developer-test review only when it exists', () => {
+  it('marks the read optional like its peers', () => {
+    expect(read('tier2-specialist/qa-unit-specialist.md', '{run}/dev-test-review.json')).toEqual({ path: '{run}/dev-test-review.json', optional: true });
+  });
+});

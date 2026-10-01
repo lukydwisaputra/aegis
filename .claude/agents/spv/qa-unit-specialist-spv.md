@@ -21,6 +21,7 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 - `runs/{runId}/reports/unit-coverage-gaps.json` — reported coverage gap findings
 - Net-new QA unit test files (`tests/qa/unit/**/*.test.ts` only)
 - Developer unit test files (read-only reference, wherever `target-profile.json.unitTestStyle` says they live) — used only to confirm they were not touched
+- `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
 - `agent-memory/qa-unit-specialist/lessons.md`
 
 ## Review Checklist
@@ -33,6 +34,7 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 6. **File naming.** Unit files match `*.test.ts` or `*.test.tsx`. Misnamed files = passed-with-notes.
 7. **Sandbox-first compliance.** A final test exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 8. **Assertion-present tests.** Every committed test contains at least one assertion that can fail. A committed test with zero assertions = requested-changes.
+9. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, the developer test it names was run read-only — unchanged and not copied under `tests/qa/unit/` — no QA script was written for the TC, and its `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script or a result without the ref = requested-changes.
 
 ## Verdict
 
@@ -63,6 +65,8 @@ reads:
   - "{tests}/qa/unit/**"
   - "{tests}/qa/factories/**"
   - "{run}/target-profile.json"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/cases/{TC-ID}-result.json"
   - "agent-memory/qa-unit-specialist/lessons.md"
 writes: []
 emits:

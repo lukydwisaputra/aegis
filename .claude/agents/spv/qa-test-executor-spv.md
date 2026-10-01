@@ -21,6 +21,8 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 - `runs/{runId}/execution-summary.{md,json}`
 - `runs/{runId}/events.jsonl` — to check specialist.dispatched events
 - Sample evidence files under `runs/{runId}/evidence/` (spot-check)
+- `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
+- `runs/{runId}/dev-test-review.json` — when it exists: the `kind` of the developer test a developer-covered TC names
 - `agent-memory/qa-test-executor/lessons.md`
 
 ## Review Checklist
@@ -34,6 +36,7 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 7. **Concurrency cap and environment.** In `events.jsonl`, count `task.claimed` events only for agents whose name ends in `-specialist`, each open until the `task.released` of the same task: never more open at once than `aegis.config.json#parallelism.maxSpecialists`. A breach = requested-changes. Adding a task records no event, so a task created for a specialist the environment forbids shows as `env.specialist-blocked` (its refused claim): followed by a `task.cancelled` whose `agent` is that specialist = passed-with-notes (the pre-check was missed, the task was withdrawn); no such `task.cancelled` = requested-changes.
 8. **Escalation stop and recovery.** After a `task.escalated` event, a `task.released` with result `failed`, or a `run.blocked` event for an escalation, the executor dispatched nothing — no specialist and no SPV — until the matching `escalation.decided`. A `specialist.dispatched` in between, an SPV dispatched for a task released `failed` (the executor's work report or a refused review shows it), or a re-dispatch of a pending task under a new id = requested-changes. Run `aegis task list --phase execution` to confirm each specialist was re-dispatched under its existing task id (one task per dispatch, attempts counting up) and that no task was added twice.
 9. **Execution summary totals.** `execution-summary.json` carries non-negative integer `passed`, `failed`, `blocked`, `skipped` and `pendingManual` counts that agree with the case results, and the TCs of a task the owner accepted with risk are counted `blocked` with the owner's reason stated. Missing or wrong counts = requested-changes.
+10. **Developer-covered TCs.** A TC with `coveredBy` in its `traceability` was dispatched to exactly one specialist — qa-unit-specialist when the named developer test's `kind` in `dev-test-review.json` is `unit`, otherwise the TC's primary specialist — no QA script was written for it, and its `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script, a second dispatch or a result without the ref = requested-changes.
 
 ## Verdict
 
@@ -63,6 +66,10 @@ reads:
   - "{run}/execution-summary.{md,json}"
   - "{run}/events.jsonl"
   - "{run}/evidence/**"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/cases/{TC-ID}-result.json"
+  - path: "{run}/dev-test-review.json"
+    optional: true
   - "agent-memory/qa-test-executor/lessons.md"
 writes: []
 emits:
