@@ -45,6 +45,14 @@ describe('claimTask', () => {
     await expect(claimTask(t.root, runId, 'T-2', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
   });
 
+  it('tells a resumed specialist its own in-progress task is already claimed, even under a full cap', async () => {
+    await claimTask(t.root, runId, 'T-1', 'qa-ui-specialist');
+    await expect(claimTask(t.root, runId, 'T-1', 'qa-ui-specialist')).rejects.toMatchObject({
+      code: 'invalid-input',
+      message: expect.stringContaining('already-claimed'),
+    });
+  });
+
   it('lets exactly one of two simultaneous specialists take the last slot', async () => {
     const results = await Promise.allSettled([
       claimTask(t.root, runId, 'T-1', 'qa-ui-specialist'),

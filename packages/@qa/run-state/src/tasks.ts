@@ -171,7 +171,12 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
     withRunLock(root, runId, async () => {
       // A stop or block may have landed after the early check; run.lock now excludes it.
       const c = client(root, runId);
-      assertRunAcceptsWork(readRun(root, runId), (await mustGet(root, runId, taskId)).phase);
+      const current = await mustGet(root, runId, taskId);
+      assertRunAcceptsWork(readRun(root, runId), current.phase);
+      // A resumed worker already holds this task: say so before the env and cap checks, which would count its own claim.
+      if (current.status === "in-progress" && current.claimedBy === caller) {
+        throw new RunStateError("invalid-input", `already-claimed: task ${taskId} is in progress and held by ${caller}; continue the work without claiming it again`);
+      }
       if (isSpecialist(caller)) {
         await assertEnvAllows(root, readRun(root, runId), caller, now);
         const { maxSpecialists } = readSettings(root);
