@@ -43,12 +43,12 @@ The sandbox copy of the target (`sandbox/{date}-dev-test-review/`) is scratch an
 
 2. **Inventory.** From `runs/{runId}/target-profile.json` list every developer test file. Read each file and split it into its tests (`describe` / `it` / `test` titles). Each test gets a `ref` of the form `<path>#<test name>`, a `kind` (unit, integration, e2e, api, other) and its `framework`.
 
-3. **Map each test to acceptance-criterion candidates.** The requirements analyst writes the cycle's acceptance criteria after you, so map by what the test exercises: its `subject` (a route, component, API handler, function or module from `sourceInventory`), the `behaviour` its assertions pin (one sentence), and the `requirementRefs` in `runs/{runId}/intake/` whose text describes that behaviour. Where an intake document already carries acceptance criteria with ids in the `AC-{MODULE}-{NNN}-{H|R|E}{n}` form, also record in `coversAcIds` the ids the test's assertions cover. A test whose behaviour matches no requirement text is `unmapped`.
+3. **Map each test to acceptance-criterion candidates.** The requirements analyst writes the cycle's acceptance criteria after you, so map by what the test exercises: its `subject` (a route, component, API handler, function or module from `sourceInventory`), the `behaviour` its assertions pin (one sentence), and the `requirementRefs` in `runs/{runId}/intake/` whose text describes that behaviour. Where an intake document already carries acceptance criteria with ids in the `AC-{MODULE}-{NNN}-{H|R|E}{n}` form, also record in `coversAcIds` the ids the test's assertions cover. Otherwise — the usual case, since no criterion ids exist yet — record in `coversRequirementRefs` the intake anchors (such as intake/prd.md#login) or REQ ids whose behaviour the test's assertions pin; the requirements analyst links the test to the criteria it creates from them. A test whose behaviour matches no requirement text is `unmapped`.
 
 4. **Rate each test.**
    - `adequate` — meaningful assertions that can fail, and a negative path where the requirement has one (`negativePath: true`), backed by evidence:
      - a **unit** test only when mutation testing ran (step 5) and its subject's mutation score is at or above `thresholds.yaml#devTestReview.mutationScoreMin`;
-     - an **integration, e2e or api** test only with recorded evidence: a non-empty `coversAcIds` and an `evidenceNote` (at least 10 characters) naming the assertions that pin each covered criterion. Without both it is `weak`, with a reason that starts "no recorded acceptance-criterion evidence".
+     - an **integration, e2e or api** test only with recorded evidence: a non-empty `coversAcIds` or `coversRequirementRefs`, and an `evidenceNote` (at least 10 characters) naming the assertions that pin each covered criterion or requirement. Without both it is `weak`, with a reason that starts "no recorded acceptance-criterion evidence".
    - `weak` — snapshot-only, happy-path-only, assertions that cannot fail, a unit test whose subject scores below the threshold, or a test with no evidence (above and step 5).
    - `wrong` — asserts behaviour that contradicts a requirement; name the requirement in `contradicts`. It is a defect candidate for qa-defect-manager. You do not open a defect.
    - `unmapped` — see step 3.
@@ -70,7 +70,7 @@ The sandbox copy of the target (`sandbox/{date}-dev-test-review/`) is scratch an
 - A developer file edited, added or deleted, or a command run inside the target tree (Stryker runs only on the sandbox copy)
 - A developer test with no verdict, or a verdict with no reason
 - A unit test rated adequate below `thresholds.yaml#devTestReview.mutationScoreMin` or without mutation evidence, or mutation testing skipped without a reason
-- An integration, e2e or api test rated adequate without `coversAcIds` and an `evidenceNote`
+- An integration, e2e or api test rated adequate without an `evidenceNote` and a non-empty `coversAcIds` or `coversRequirementRefs`
 - A `wrong` verdict that does not name the requirement it contradicts, or a defect opened by you
 - A test case written or proposed (you review; the test designer designs)
 - `summary` counts that disagree with `tests[]`

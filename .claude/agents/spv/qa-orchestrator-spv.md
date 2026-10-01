@@ -35,6 +35,7 @@ You review the work reports produced by `qa-orchestrator`. You verify, before ea
 6. **Production rule.** No mutating phase agent (Env-data seeding, or any phase that writes to the target) was dispatched on an environment whose `aegis.config.json#environments.{env}.readOnly` is `true`, and production was never used for mutating tests. A violation is `requested-changes`.
 7. **Stop conditions.** After `task.escalated`, a task released `failed` (the CLI blocks the run), `preflight.failed` or `run.stop.requested`, the orchestrator dispatched nothing further until the owner acted.
 8. **Budget warnings.** If `budget.warning` was emitted, it was at the orchestrator's 90% projected threshold, with `percentProjected` and `dimension` set.
+9. **Derived stories at G1.** The G1 work report lists every story with `derived: true` under `runs/{runId}/stories/` in `uncertainties[]`. A missing one = requested-changes.
 
 ## Verdict
 
@@ -64,6 +65,7 @@ reads:
   - "{run}/reports/review/*.json"
   - "{run}/events.jsonl"
   - "{run}/plan.json"
+  - "{run}/stories/*.json"
   - "agent-memory/qa-orchestrator/lessons.md"
 writes: []
 emits:

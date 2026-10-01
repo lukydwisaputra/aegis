@@ -31,8 +31,11 @@ export const DevTestEntrySchema = z
     mutationScore: Score.nullable(),
     // The requirement a `wrong` test contradicts.
     contradicts: S.optional(),
-    // Static evidence for a non-unit test: the criteria it covers and how the reviewer established that (no mutation score exists for it).
+    // Static evidence for a non-unit test: what it covers and how the reviewer established that (no mutation score exists for it).
+    // The review runs before Requirements, so AC ids exist only when the intake carries them; otherwise the
+    // intake requirement anchors (intake/prd.md#login) or REQ ids the assertions pin.
     coversAcIds: z.array(AcceptanceCriterionIdSchema).default([]),
+    coversRequirementRefs: z.array(NonBlank(3)).default([]),
     evidenceNote: NonBlank(10).optional(),
   })
   .strict();
@@ -83,8 +86,8 @@ export const DevTestReviewSchema = z
     }
     review.tests.forEach((t, i) => {
       if (t.verdict === "wrong" && t.contradicts === undefined) issue(["tests", i, "contradicts"], "a wrong test names the requirement it contradicts");
-      if (t.kind !== "unit" && t.verdict === "adequate" && (t.coversAcIds.length === 0 || t.evidenceNote === undefined)) {
-        issue(["tests", i, "evidenceNote"], "a non-unit test is adequate only with recorded static evidence: coversAcIds and evidenceNote");
+      if (t.kind !== "unit" && t.verdict === "adequate" && (t.evidenceNote === undefined || (t.coversAcIds.length === 0 && t.coversRequirementRefs.length === 0))) {
+        issue(["tests", i, "evidenceNote"], "a non-unit test is adequate only with recorded static evidence: an evidenceNote and coversAcIds or coversRequirementRefs");
       }
       if (t.kind !== "unit" && t.mutationScore !== null) issue(["tests", i, "mutationScore"], "only unit tests carry a mutation score");
       if (t.kind !== "unit") return;

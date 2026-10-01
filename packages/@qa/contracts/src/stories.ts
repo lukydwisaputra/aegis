@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NonBlank } from "./non-blank.js";
 import { AcceptanceCriterionIdSchema, RequirementIdSchema, StoryIdSchema } from "./ids.js";
+import { DevTestRefSchema } from "./dev-test-review.js";
 
 // ─── User stories and acceptance criteria (P0 spec §3.3, NEW-01) ──────────────
 
@@ -20,6 +21,9 @@ export const AcceptanceCriterionSchema = z
     given: Clause,
     when: Clause,
     then: Clause,
+    // Developer tests (dev-test-review.json, verdict adequate or weak) whose coverage refs point at the requirement
+    // this criterion comes from; the designer records an adequate one in the TC's traceability.coveredBy.
+    devTestRefs: z.array(DevTestRefSchema).default([]),
   })
   .strict();
 export type AcceptanceCriterion = z.infer<typeof AcceptanceCriterionSchema>;

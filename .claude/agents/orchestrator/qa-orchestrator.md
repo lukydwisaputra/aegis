@@ -129,7 +129,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
       - `summary` (20–300 characters): the gate and the phases completed up to it;
       - `approach`: the mission ranking;
       - `decisions[]`: one entry per dispatch since the previous gate — `choice` names the task id and the agent, `reason` names the mission goal served and the lessons excerpts passed in the brief;
-      - `uncertainties[]`: the open risks for the owner, each with an `impact`;
+      - `uncertainties[]`: the open risks for the owner, each with an `impact`; at G1 also one entry per story with `derived: true` in `runs/{runId}/stories/`, so the owner confirms it by approving the gate;
       - `lessonsApplied`: your own lesson ids that shaped the run;
       - no ship/no-ship verdict anywhere.
 
@@ -218,6 +218,7 @@ reads:
   - "{run}/reports/review/*.json"
   - "{run}/target-profile.json"
   - "{run}/taskmaster/tasks/*.json"
+  - "{run}/stories/*.json"
   - "{run}/gates/gate-{N}-decision.json"
   - "agent-memory/qa-orchestrator/lessons.md"
   - "agent-memory/{worker}/lessons.md"

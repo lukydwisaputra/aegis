@@ -241,3 +241,31 @@ describe('EnvAuthReportSchema (P0 spec §3.1 Env-auth, scope=auth)', () => {
     expect(ok(EnvAuthReportSchema, { ...R, skipped: [{ item: 'role manager', reason: 'no credentials file for manager' }] })).toBe(false);
   });
 });
+
+describe('Task 8 ruling: developer tests before acceptance criteria exist', () => {
+  const summary = { adequate: 1, weak: 0, wrong: 0, unmapped: 0 };
+  const review = (t: object) => ({ ...DEV_TEST_REVIEW, tests: [t], summary });
+  const e2e = (over: object = {}) => devTest({ kind: 'e2e', framework: 'playwright', mutationScore: null, evidenceNote: 'read the spec: it follows the reset link and asserts the mail', ...over });
+
+  it('a non-unit test is adequate with requirement refs alone (no AC ids yet) plus an evidence note', () => {
+    expect(ok(DevTestReviewSchema, review(e2e({ coversRequirementRefs: ['intake/prd.md#reset-password'] })))).toBe(true);
+    expect(ok(DevTestReviewSchema, review(e2e({ coversAcIds: ['AC-AUTH-003-H1'] })))).toBe(true);
+    expect(ok(DevTestReviewSchema, review(e2e()))).toBe(false);
+    expect(ok(DevTestReviewSchema, review(e2e({ coversRequirementRefs: ['intake/prd.md#reset-password'], evidenceNote: undefined })))).toBe(false);
+  });
+
+  it('coversRequirementRefs entries are non-blank (at least 3 characters) and default to []', () => {
+    expect(ok(DevTestReviewSchema, review(e2e({ coversRequirementRefs: ['ab'] })))).toBe(false);
+    expect(ok(DevTestReviewSchema, review(e2e({ coversRequirementRefs: ['    '] })))).toBe(false);
+    const parsed = DevTestReviewSchema.parse(DEV_TEST_REVIEW);
+    expect(parsed.tests[0]!.coversRequirementRefs).toEqual([]);
+  });
+
+  it('an acceptance criterion links the developer tests that cover it (devTestRefs, <path>#<test name>)', () => {
+    const linked = { ...ac('AC-AUTH-003-H1', 'happy'), devTestRefs: ['src/auth/reset.test.ts#sends the reset mail'] };
+    expect(ok(UserStorySchema, { ...STORY, acceptanceCriteria: [linked, ...STORY.acceptanceCriteria.slice(1)] })).toBe(true);
+    const bad = { ...linked, devTestRefs: ['src/auth/reset.test.ts'] };
+    expect(ok(UserStorySchema, { ...STORY, acceptanceCriteria: [bad, ...STORY.acceptanceCriteria.slice(1)] })).toBe(false);
+    expect(UserStorySchema.parse(STORY).acceptanceCriteria[0]!.devTestRefs).toEqual([]);
+  });
+});

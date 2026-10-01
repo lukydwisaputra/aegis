@@ -30,6 +30,9 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 - `runs/{runId}/requirements/ambiguity-report.json` — requirements analysis output
 - `runs/{runId}/requirements/testability-scores.json`
+- `runs/{runId}/stories/*.json` — the user stories and acceptance criteria the plan must cover
+- `runs/{runId}/dev-test-review.json` — the developer-test review, when it exists: coverage the developers already provide
+- `runs/{runId}/discovery-report.json` — the explored app: pages, roles, inferred journeys
 - `runs/{runId}/intake/` — any PRD, feature spec, prior run data
 - `target-profile.json` — stack context; detected modules
 - `aegis/aegis.config.json` — compliance flags, environment model, profile
@@ -121,6 +124,9 @@ reviewedBy: qa-test-planner-spv
 reads:
   - "{run}/requirements/ambiguity-report.json"
   - "{run}/requirements/testability-scores.json"
+  - "{run}/stories/*.json"
+  - "{run}/dev-test-review.json"
+  - "{run}/discovery-report.json"
   - "{run}/intake/**"
   - "{run}/target-profile.json"
   - aegis.config.json
