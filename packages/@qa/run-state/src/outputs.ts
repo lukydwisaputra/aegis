@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PhaseId } from "@qa/contracts";
 import { runDir } from "./paths.js";
@@ -18,6 +18,15 @@ function checkOutput(file: string, rel: string, schema: OutputSchema | undefined
   return parsed.success ? { value } : { problem: `output ${rel} is invalid: ${formatIssues(parsed.error?.issues ?? [])}` };
 }
 
+/** True for a symlink, even a dangling one (existsSync follows links). */
+function isLink(path: string): boolean {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 /** Spec §6.1 item 6: every required output of `phase` exists and validates; empty when the phase may complete. */
 export function outputProblems(root: string, runId: string, phase: PhaseId): string[] {
   const problems: string[] = [];
@@ -33,7 +42,19 @@ export function outputProblems(root: string, runId: string, phase: PhaseId): str
   }
   for (const set of PHASE_OUTPUT_SETS[phase] ?? []) {
     const at = join(dir, set.dir);
-    const names = existsSync(at) ? readdirSync(at).filter((f) => set.file.test(f)).sort() : [];
+    const names: string[] = [];
+    if (existsSync(at) || isLink(at)) {
+      if (!lstatSync(at).isDirectory()) {
+        problems.push(`output ${set.dir}/ is not a plain directory`);
+        continue;
+      }
+      for (const name of readdirSync(at).sort()) {
+        if (name.startsWith(".")) continue;
+        if (!set.file.test(name)) problems.push(`output ${set.dir}/${name}: not a valid ${set.dir} file name`);
+        else if (!lstatSync(join(at, name)).isFile()) problems.push(`output ${set.dir}/${name}: not a regular file`);
+        else names.push(name);
+      }
+    }
     if (names.length < set.min) {
       problems.push(`output ${set.dir}/ needs at least ${set.min} file(s) named like ${set.file.source}`);
       continue;
