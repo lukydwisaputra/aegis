@@ -35,7 +35,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 - `runs/{runId}/reports/unit-coverage-gaps.json` — reported gaps in developer unit coverage (findings, not tests)
 - `tests/qa/unit/{path}/{name}.test.ts` — net-new QA unit tests only (never edits developer unit tests)
 - `runs/{runId}/cases/{TC-ID}-result.json`
-- `runs/{runId}/evidence/{TC-ID}/` — for a developer-covered TC: the runner output and the before/after `git status --porcelain` of the target
+- `runs/{runId}/evidence/{TC-ID}/` — for a developer-covered TC: the runner output and the before/after scoped `git status --porcelain` of the target (repo and QA tests directories left out)
 - contributes unit coverage data to `runs/{runId}/reports/metrics/coverage.json` (metrics-collector owns this file)
 
 ## Process
@@ -54,7 +54,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 5. **Never write into the developer tree.** Report gaps in existing developer unit coverage to `runs/{runId}/reports/unit-coverage-gaps.json`. Any net-new QA unit test goes under `tests/qa/unit/` only — do not place co-located tests next to source and do not edit developer unit tests.
 
-6. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git status --porcelain` before and after the run in that evidence; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `blocked` with that reason. Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
+6. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after the run in that evidence — scoped to leave out this repo's directory and the QA tests directory (derived as for the dev-test reviewer's sandbox copy), which the run's evidence and parallel specialists write; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `blocked` with that reason. Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
 
 ## Quality Standards (SPV rejects if violated)
 

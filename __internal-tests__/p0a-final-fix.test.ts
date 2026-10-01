@@ -142,7 +142,8 @@ describe('I4: a developer-covered TC has an execution path', () => {
     for (const fact of [
       /usually `test` for unit tests and `test:e2e` for e2e tests/, /with `CI=true`, no snapshot update and no coverage flag/,
       /every runner output and report directed under `runs\/\{runId\}\/evidence\/\{TC-ID\}\/` \(for Playwright, `--output`/,
-      /Record the target's `git status --porcelain` before and after the run/,
+      /Record the target's `git -C <target> status --porcelain -- \. ':!<repo dir>' ':!<QA tests dir>'` before and after the run/,
+      /leave out this repo's directory and the QA tests directory/,
       /would build or start the target in place \(such as a Playwright `webServer` that builds `\.next\/`\), do not run it: write the TC `blocked`/,
     ]) expect(sentence).toMatch(fact);
     const checks = ['spv/qa-unit-specialist-spv.md', 'spv/qa-api-specialist-spv.md', 'spv/qa-ui-specialist-spv.md'].map(
@@ -151,7 +152,8 @@ describe('I4: a developer-covered TC has an execution path', () => {
     expect(new Set(checks).size).toBe(1);
     for (const text of [checks[0]!, prose('spv/qa-test-executor-spv.md')]) {
       expect(text).toMatch(/`CI=true`, no snapshot update and no coverage flag/);
-      expect(text).toMatch(/`git status --porcelain` before and after,? with no change/);
+      expect(text).toMatch(/`git -C <target> status --porcelain -- \. ':!<repo dir>' ':!<QA tests dir>'` before and after \(this repo's directory and the QA tests directory left out\),? with no change/);
+      expect(text).not.toMatch(/`git status --porcelain`/);
       expect(text).toMatch(/build or start the target in place .*`blocked`/);
       expect(text).toMatch(/any change in the target = requested-changes/);
     }
