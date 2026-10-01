@@ -107,7 +107,7 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | AUD-051 | email and realtime specialists never ran in any real run (verify after AUD-033) | real-run matrix | MED | open |
 | AUD-052 | No SPV for compliance ×6, curator, cicd-evaluator, cross-cutting; HANDBOOK/08 claims compliance SPV exists | HANDBOOK/08:36,143 | MED | open |
 | AUD-053 | `lite` profile unimplemented; HANDBOOK lite list names nonexistent agents | qa-orchestrator.md:26,41; HANDBOOK/06:170-188 | MED | open |
-| AUD-054 | Packages with zero consumers: target-scanner, web-explorer, auth-fixtures, test-helpers, artifact-policy, reporters, metrics, deps-updater, dashboard-ui; `@qa/ids` referenced by 0 agents — decide wire or delete | package grep | MED | open |
+| AUD-054 | Packages with zero code consumers (no app, package, script or test imports them; recount 2026-10-01): artifact-policy, auth-fixtures, dashboard-ui, deps-updater, email-adapters, eslint-plugin, metrics, multi-app, pdf-renderer, reporters, sandbox-manager, secrets, supabase, target-scanner, web-explorer, test-helpers (empty, no source) — several are named in agent prose, so decide per package: wire or delete | package grep | MED | open |
 | AUD-055 | Compliance described as "every full cycle" vs "optional"; 6 in parallel exceed any cap | HANDBOOK/06:118; qa-orchestrator.md:62 | LOW | open |
 
 ## P3 — Skills & path drift
@@ -150,6 +150,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-076 | HANDBOOK drift: nonexistent agent names, wrong model column, PDPA "Thailand", discovery paths, 04:41/83 errors, CLAUDE.md `qa-planner`/`qa-director`, closure-spv brand grep uses `qa-executor`, HANDBOOK/17 4-phase taxonomy vs 9-phase | HANDBOOK/03,04,06,08,17; qa-closure-reporter-spv.md:37 | LOW | open |
 | AUD-077 | Budget warning threshold 90% (orchestrator) vs 80% (SPV) | qa-orchestrator.md:97; qa-orchestrator-spv.md:34 | LOW | open |
 | AUD-078 | model-policy comment cites outdated model generation | model-policy.yaml:118-119 | LOW | open |
+| AUD-115 | `plan-validation/canonical-example/` (the only end-to-end worked example: STORY → REQ → RISK → TC → DEF) predates the current schemas (stories JSON with happy/rejection/edge AC, defect candidates, CLI work reports) and nothing links to it; refresh it, link it from HANDBOOK, and mark `plan-validation/` historical in its README. Keep `plan-validation/` and `agent-graveyard/` (owner, 2026-10-01) | plan-validation/canonical-example/*.md (2026-05-24); git grep: 0 refs | LOW | open |
 
 ## P6 — Rollout
 
@@ -222,7 +223,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-101 | SPVs state they emit `review.*` directly instead of via `aegis review submit` (25 SPVs) | qa-test-designer-spv.md:49 | MED | P0a-2 | fixed |
 | AUD-102 | Events awaited with no emitter (`defect.closed`, `defect.reopened`) | qa-metrics-collector.md:45 | MED | P0c | open |
 | AUD-103 | Orchestrator emits CLI-recorded `run.*` / `gate.*` types directly | qa-orchestrator.md:34,120 | HIGH | P0a-1 | fixed — P0a-1 |
-| AUD-104 | Skills reference nonexistent paths not covered by AUD-056…059/060/065 (`templates/config/`, `runs/{run}/defects.json`, hardcoded sibling-project paths) | _qa-init-project SKILL:28; qa-gate-check SKILL:25; qa-push-reports SKILL:9 | MED | P3 / QW | open |
+| AUD-104 | Skills reference nonexistent paths not covered by AUD-056…059/060/065 (`templates/config/`, `runs/{run}/defects.json`, hardcoded sibling-project paths) | _qa-init-project SKILL:28; qa-gate-check SKILL:25; qa-push-reports SKILL:9; qa-cicd-implementer.md:22,35,75 `aegis/templates/github-workflows/` (the empty untracked `templates/` skeleton was deleted 2026-10-01) | MED | P3 / QW | open |
 | AUD-105 | Config keys read at the wrong location (`target.sourceDirs` vs top-level `sourceDirs`) | qa-security-specialist.md:39; aegis.config.json `sourceDirs` | LOW | QW | fixed — by P1 (security prose) |
 | AUD-106 | Docs name non-agents as agents, outside the files AUD-076 covers | HANDBOOK/07:89 `qa-defect-reporter`; HANDBOOK/16:127 `qa-sandbox-manager` | LOW | QW | fixed |
 | AUD-107 | Docs reference nonexistent slash commands (`/qa-defect-*`, `/qa-dash-*`, `/qa-ci-*`, `/qa-close`, `/qa-books`, `/qa-forget`, `/qa-ingest`, `/qa-lessons`, `/qa-reset-agent`) | HANDBOOK/05:119,265; HANDBOOK/09:79 | LOW | QW | fixed |
