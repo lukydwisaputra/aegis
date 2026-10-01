@@ -214,6 +214,10 @@ export async function submitReview(root: string, runId: string, file: string, ca
     if (task?.status === "failed") {
       throw new RunStateError("invalid-input", `task ${taskId} was released failed; the owner decides it through /qa-escalation, so it takes no review`);
     }
+    // A pending task was reopened by an escalation retry: its latest work report is a stale failed attempt.
+    if (task?.status === "pending") {
+      throw new RunStateError("invalid-input", `task ${taskId} is pending a new attempt; claim, work and release it before review`);
+    }
     const attempt = Math.max(...worked);
     const dir = reviewDir(root, runId);
     fs.mkdirSync(dir, { recursive: true });

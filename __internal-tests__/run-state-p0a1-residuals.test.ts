@@ -71,6 +71,22 @@ describe('a failed release takes no SPV review', () => {
   });
 });
 
+describe('a retried task takes no review before its new attempt', () => {
+  it('refuses a review after a failed release and an owner retry until the task is re-claimed and released', async () => {
+    await create();
+    fastForward(t.root, runId, 'requirements');
+    await startPhase(t.root, runId, 'requirements', ORCH);
+    const RA = 'qa-requirements-analyst';
+    await addTask(t.root, runId, { id: 'T-requirements-1', title: 'analyse', agent: RA }, ORCH);
+    await claimTask(t.root, runId, 'T-requirements-1', RA);
+    await submitWorkReport(t.root, runId, tmp(workReport(RA, 'T-requirements-1')), RA);
+    await releaseTask(t.root, runId, 'T-requirements-1', 'failed', RA);
+    await decideEscalation(t.root, runId, { taskId: 'T-requirements-1', decision: 'retry', reason: 'The fixture is back' }, 'owner');
+    await expect(submitReview(t.root, runId, tmp(review(`${RA}-spv`, RA, 'T-requirements-1', 'requested-changes')), `${RA}-spv`))
+      .rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/pending a new attempt/) });
+  });
+});
+
 describe('env-data never starts on a read-only environment', () => {
   it('refuses phase start and accepts the not-applicable record', async () => {
     await create('full', 'production');
