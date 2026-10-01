@@ -37,7 +37,7 @@ You are a read-write agent against the test database. You never touch the produc
 
 ## Process
 
-1. **Verify non-production env.** Check `aegis.config.json#environments.{env}.readOnly`. If true: emit `execution.blocked`, then submit your work report and release the task `failed` (the block prevents the task, so it escalates to the owner).
+1. **Verify non-production env.** Check `aegis.config.json#environments.{env}.readOnly`. If the environment is read-only (`readOnly: true` or `mutating: false`): emit `execution.blocked`, then submit your work report and release the task `failed` (the block prevents the task, so it escalates to the owner).
 
 2. **Explore in the sandbox before writing the final spec.** Prototype selectors, timing, and flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/integration/db/{feature}.db.test.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 

@@ -44,7 +44,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 5. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence.
 
-6. **Production is read-only smoke.** On production (a `readOnly` environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write of any kind. Write `blocked` for every other TC.
+6. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
 
 7. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/qa/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
 

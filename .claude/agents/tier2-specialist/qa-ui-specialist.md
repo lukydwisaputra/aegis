@@ -97,7 +97,7 @@ tests/qa/
    - CSS selector — sparingly, structural-agnostic only
    - **Never**: XPath, CSS combinators that rely on DOM depth, class names that look auto-generated
 
-5. **Seed test data.** On a `readOnly` environment (production) a factory `create()` is refused: seed nothing there and write `blocked` for any TC that needs seeded data. Elsewhere, for every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/qa/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
+5. **Seed test data.** On a read-only (`readOnly: true` or `mutating: false`) environment (production) a factory `create()` is refused: seed nothing there and write `blocked` for any TC that needs seeded data. Elsewhere, for every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/qa/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
 
 6. **Mock external services and visual-regression.** Use Playwright `page.route()` to mock external services. Use `toHaveScreenshot()` for visual-regression checks instead of human-judgment checks.
 
@@ -111,7 +111,7 @@ tests/qa/
 
 8. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
 
-9. **Production is read-only smoke.** On production (a `readOnly` environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write of any kind. Write `blocked` for every other TC.
+9. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
 
 ## Quality Standards (SPV rejects if violated)
 

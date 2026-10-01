@@ -37,7 +37,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 ## Process
 
-1. **Verify env is non-production.** If `environments[env].readOnly === true` or env name is `production`: emit `execution.blocked` immediately, then submit your work report and release the task `failed` (the block prevents the task, so it escalates to the owner). Do not run load tests against production.
+1. **Verify env is non-production.** If the environment is read-only (`readOnly: true` or `mutating: false`) or its name is `production`: emit `execution.blocked` immediately, then submit your work report and release the task `failed` (the block prevents the task, so it escalates to the owner). Do not run load tests against production.
 
 2. **Explore in the sandbox before writing the final spec.** Prototype VU ramp shape, thresholds, and Lighthouse config in `sandbox/{date}-{slug}/` first (this is the same sandbox dir used for scratch tuning in Step 7, not a separate location). Verify the approach works there, then port the validated version to `tests/qa/perf/{scenario}.perf.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 

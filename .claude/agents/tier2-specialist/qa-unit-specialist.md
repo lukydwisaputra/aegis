@@ -56,7 +56,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 - Unit test mocks internal module (should only mock external boundaries)
 - RTL test asserts on CSS classes or implementation details (assert on text, role, label)
-- Wrote or edited any file outside `tests/qa/unit/` (unit testing is developer scope — this agent is read-only on developer units; QA unit tests live only under `tests/qa/unit/`)
+- Wrote or edited any file in the target project outside `tests/qa/unit/` (unit testing is developer scope — this agent is read-only on developer units; QA unit tests live only under `tests/qa/unit/`; run-side reports and results are not in the target project)
 - A final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule)
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 

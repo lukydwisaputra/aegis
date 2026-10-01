@@ -36,7 +36,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 ## Process
 
-1. **Verify non-production env.** Security is forbidden on production: `aegis task claim` refuses the claim there. If `aegis.config.json#environments.{env}.readOnly` is true, scan nothing: emit `execution.blocked`, and because the block prevents the task, submit your work report and release it `failed` (it escalates to the owner).
+1. **Verify non-production env.** Security is forbidden on production: `aegis task claim` refuses the claim there. If `aegis.config.json#environments.{env}.readOnly` shows the environment is read-only (`readOnly: true` or `mutating: false`), scan nothing: emit `execution.blocked`, and because the block prevents the task, submit your work report and release it `failed` (it escalates to the owner).
 
 2. **Explore in the sandbox before writing the final spec.** Prototype the DAST trigger flow in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/security/{surface}.security.spec.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
