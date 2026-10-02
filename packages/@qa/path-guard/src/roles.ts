@@ -147,12 +147,35 @@ export function matchGlob(pattern: string, path: string): boolean {
   return go(0, 0);
 }
 
+/**
+ * Run files only the aegis CLI writes (H1 rule c), relative to runs/<any run>. Lock files match at any depth, and so do
+ * the lock directories proper-lockfile makes next to them.
+ */
+export const CLI_ONLY_RUN_GLOBS: readonly string[] = [
+  "events.jsonl", "run.json", "**/*.lock", "**/*.lock/**", "gates/**", "reports/work/**", "reports/review/**",
+  "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**",
+];
+
+/** Is `absPath` (canonical) runs/.active, or a CLI-only file inside any run directory under `aegisRoot`? */
+export function isCliOnlyRunPath(aegisRoot: string, absPath: string): boolean {
+  const runs = join(aegisRoot, "runs");
+  if (absPath === join(runs, ".active")) return true;
+  if (!absPath.startsWith(runs + "/")) return false;
+  const rel = absPath.slice(runs.length + 1);
+  const slash = rel.indexOf("/");
+  if (slash < 0) return false;
+  const inRun = rel.slice(slash + 1);
+  return CLI_ONLY_RUN_GLOBS.some((g) => matchGlob(g, inRun));
+}
+
 /** Spec §4.2 `roleWritable(agent, path)`: may `agent` write the absolute path `absPath` in this run? */
 export function roleWritable(agent: string, absPath: string, paths: RolePaths): boolean {
   const role = roleOf(agent);
   if (role === undefined) return false;
   // Globs match text, so a path that is not already canonical (`a/../b`, `//`, relative) could walk out of its glob.
   if (!isAbsolute(absPath) || posix.normalize(absPath) !== absPath || absPath.split("/").includes("..")) return false;
+  // No role glob reaches a CLI-only file, whatever it covers (rule c).
+  if (isCliOnlyRunPath(paths.aegisRoot, absPath)) return false;
   const covers = (g: string): boolean => {
     const resolved = resolveRoleGlob(g, paths);
     return resolved !== null && matchGlob(resolved, absPath);

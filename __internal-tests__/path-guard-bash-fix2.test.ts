@@ -43,7 +43,9 @@ describe('fix round 2', () => {
   });
 
   it('4 git rm and git mv', () => {
-    expect(targets('git rm -r a b')).toMatchObject([{ path: `${R}/a`, via: 'git' }, { path: `${R}/b`, via: 'git' }]);
+    // Task 8 fix 1 addendum: git rm and git mv are removals (via git-rm / git-mv), like rm and mv.
+    expect(targets('git rm -r a b')).toMatchObject([{ path: `${R}/a`, via: 'git-rm' }, { path: `${R}/b`, via: 'git-rm' }]);
+    expect(targets('git mv src dst')).toMatchObject([{ via: 'git-mv' }, { via: 'git-mv' }]);
     expect(paths('git mv src dst')).toEqual([`${R}/src`, `${R}/dst`]);
     expect(paths('git -C sub rm -f -- a')).toEqual([`${R}/sub/a`]);
   });

@@ -12,6 +12,8 @@ export interface GuardContext extends RolePaths {
   envPolicy: EnvironmentSpecialistConfig | undefined;
   /** OS temp directories a qa-* agent may write outside the aegis and target roots (decision 9). */
   tempDirs: string[];
+  /** Set when runs/.active names a run whose run.json cannot be read or parsed: qa-* writes are then denied (fail closed, m6). */
+  runStateUnreadable?: true;
 }
 
 interface RawConfig {
@@ -82,6 +84,7 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
   const activeRunId = readActiveRunId(root);
   let environment: string | null = null;
   let currentPhase: PhaseId | null = null;
+  let runStateUnreadable = false;
   if (activeRunId !== null) {
     try {
       const run = JSON.parse(readFileSync(join(root, "runs", activeRunId, "run.json"), "utf-8")) as { environment?: unknown; currentPhase?: unknown };
@@ -89,7 +92,8 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
       const phase = PhaseIdSchema.safeParse(run.currentPhase);
       if (phase.success) currentPhase = phase.data;
     } catch {
-      // unreadable run.json: no environment verdict; integrity verify reports the file
+      // Unreadable run.json: no environment verdict can be made, so qa-* writes are denied (m6); integrity verify reports the file.
+      runStateUnreadable = true;
     }
   }
   return {
@@ -102,5 +106,6 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
     currentPhase,
     envPolicy: environment === null ? undefined : config.environments?.[environment],
     tempDirs: [...new Set(["/tmp", "/private/tmp", resolve(tmpdir())])],
+    ...(runStateUnreadable ? { runStateUnreadable: true as const } : {}),
   };
 }

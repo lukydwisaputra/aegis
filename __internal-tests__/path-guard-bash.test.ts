@@ -29,6 +29,7 @@ describe('bashWriteTargets: what a command writes', () => {
     ['cd /tmp && touch x', ['/tmp/x']],
     ['cd sandbox/a; echo hi > out.txt', ['/repo/aegis/sandbox/a/out.txt']],
     ['bash -c "echo x > inner.txt"', ['/repo/aegis/inner.txt']],
+    ["bash -c -- 'echo x > inner.txt'", ['/repo/aegis/inner.txt']],
     ['sudo rm -f /etc/x', ['/etc/x']],
     ['env FOO=1 touch y', ['/repo/aegis/y']],
     ['echo hi > "my dir/out file.txt"', ['/repo/aegis/my dir/out file.txt']],
@@ -51,6 +52,11 @@ describe('bashWriteTargets: what a command writes', () => {
       { path: '/repo/aegis/n.txt', dynamic: false, content: 'next', via: '>' },
     ]);
     expect(bashWriteTargets('cat > a.json <<-EOF\n\t{}\n\tEOF', CWD).targets).toEqual([{ path: '/repo/aegis/a.json', dynamic: false, content: '\t{}', via: '>' }]);
+  });
+
+  it('keeps a pattern target unnormalized, so `..` inside a brace group survives to its expansions (Task 8 fix 1)', () => {
+    expect(bashWriteTargets('touch x/{a/../..,b}/f', CWD).targets).toMatchObject([{ path: '/repo/aegis/x/{a/../..,b}/f', pattern: true }]);
+    expect(bashWriteTargets('touch /r/./{a,b}', CWD).targets).toMatchObject([{ path: '/r/./{a,b}', pattern: true }]);
   });
 
   it('records how each target is written and the directory each command runs in', () => {

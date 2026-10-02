@@ -29,7 +29,8 @@ it('tolerates a missing config, a missing pointer and an unreadable run.json', (
   expect(loadGuardContext(root)).toMatchObject({ targetRoot: path.dirname(root), activeRunId: null, runDir: null, environment: null, currentPhase: null, envPolicy: undefined });
   run({});
   fs.writeFileSync(path.join(root, 'runs', RUN, 'run.json'), '{not json');
-  expect(loadGuardContext(root)).toMatchObject({ activeRunId: RUN, environment: null, currentPhase: null });
+  // m6 (controller ruling): an active run whose run.json cannot be read is flagged, and decide() then denies qa-* writes.
+  expect(loadGuardContext(root)).toMatchObject({ activeRunId: RUN, environment: null, currentPhase: null, runStateUnreadable: true });
   fs.writeFileSync(path.join(root, 'runs', '.active'), 'garbage');
   expect(loadGuardContext(root).activeRunId).toBeNull();
   expect(readEnvPolicy(root, 'staging')).toBeUndefined();
@@ -77,6 +78,18 @@ it('appends and reads ledger entries per agent instance', () => {
   expect(readLedger(root, RUN, 'a1')).toEqual([{ ts: '2026-10-02T00:00:00.000Z', agentId: 'a1', agentType: 'qa-ui-specialist', kind: 'claim', taskId: 'T-1' }]);
   expect(readLedger(root, RUN, 'nobody')).toEqual([]);
   expect(ledgerPath(root, RUN)).toBe(path.join(root, 'runs', RUN, 'hooks', 'agents.jsonl'));
+});
+
+it('m4: every append starts on a fresh line, so a torn previous line cannot swallow it', () => {
+  fs.mkdirSync(path.dirname(ledgerPath(root, RUN)), { recursive: true });
+  fs.writeFileSync(ledgerPath(root, RUN), '{"agentId":"a1","kind":"cla');
+  appendLedger(root, RUN, { ts: '2026-10-02T00:00:00.000Z', agentId: 'a1', agentType: 'qa-ui-specialist', kind: 'start' });
+  expect(readLedger(root, RUN, 'a1')).toEqual([{ ts: '2026-10-02T00:00:00.000Z', agentId: 'a1', agentType: 'qa-ui-specialist', kind: 'start' }]);
+});
+
+it('a readable run.json leaves runStateUnreadable unset', () => {
+  run({ runId: RUN, environment: 'development', currentPhase: 'scan' });
+  expect(loadGuardContext(root).runStateUnreadable).toBeUndefined();
 });
 
 it('refuses a ledger path for a run id that is not one', () => {

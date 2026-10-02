@@ -684,8 +684,11 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     const v = w.value;
     if (v === "~") return { path: homeLoc.dir, dynamic: homeLoc.dyn };
     if (v.startsWith("~/")) return { path: join(homeLoc.dir, v.slice(2)), dynamic: homeLoc.dyn };
+    // A pattern is joined, not normalized: `..` inside a brace group ({a/../..,b}) only means something per expansion.
+    if (w.pattern === true && isAbsolute(v)) return { path: v, dynamic: false };
     if (isAbsolute(v)) return { path: resolve(v), dynamic: false };
     if (base.dyn) return { path: `${base.dir}/${v}`, dynamic: true };
+    if (w.pattern === true) return { path: `${base.dir}/${v}`, dynamic: false };
     return { path: resolve(base.dir, v), dynamic: false };
   };
   const pat = (w: ShellWord): { pattern?: true } => (w.pattern === true ? { pattern: true } : {});
@@ -717,10 +720,10 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     const rest = args.slice(k + 1);
     const flagText = rest.filter((a) => !a.dynamic && a.value.startsWith("-")).map((a) => a.value);
     const has = (...names: string[]): boolean => flagText.some((f) => names.includes(f));
-    const paths = (ws: readonly ShellWord[]): WriteTarget[] =>
+    const paths = (ws: readonly ShellWord[], via = "git"): WriteTarget[] =>
       ws.map((w) => {
         const r = locate(at, w);
-        return { path: r.path, dynamic: r.dynamic, content: null, via: "git", ...pat(w) };
+        return { path: r.path, dynamic: r.dynamic, content: null, via, ...pat(w) };
       });
     const everything = (via = "git"): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via }];
     switch (sub) {
@@ -734,10 +737,10 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       }
       case "rm": {
         const i = rest.findIndex((a) => !a.dynamic && a.value === "--");
-        return paths(i >= 0 ? rest.slice(i + 1) : rest.filter((a) => a.dynamic || !a.value.startsWith("-")));
+        return paths(i >= 0 ? rest.slice(i + 1) : rest.filter((a) => a.dynamic || !a.value.startsWith("-")), "git-rm");
       }
       case "mv":
-        return paths(rest.filter((a) => a.dynamic || !a.value.startsWith("-")));
+        return paths(rest.filter((a) => a.dynamic || !a.value.startsWith("-")), "git-mv");
       case "restore": {
         if (has("--staged", "-S") && !has("--worktree", "-W")) return [];
         const ws: ShellWord[] = [];
@@ -799,7 +802,8 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       }
       if ((name === "bash" || name === "sh" || name === "zsh") && depth < 2) {
         const k = args.findIndex((a) => /^-[a-z]*c$/.test(a.value));
-        const inner = k >= 0 ? args[k + 1] : undefined;
+        // `bash -c -- 'script'`: the script follows the end-of-options marker.
+        const inner = k < 0 ? undefined : args[k + 1]?.value === "--" ? args[k + 2] : args[k + 1];
         if (inner !== undefined) walk(inner.value, loc, depth + 1);
         continue;
       }

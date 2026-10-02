@@ -118,10 +118,9 @@ describe('role table, further invariants', () => {
     const covered: string[] = [];
     for (const r of ROLES) for (const p of cliOnly) if (roleWritable(r.agent, p, paths)) covered.push(`${r.agent}: ${p}`);
     expect(covered).toEqual([]);
-    // Evidence trees take any file name, so roleWritable alone covers a nested lock. decide() denies it: rule (c) runs
-    // first and matches *.lock at any depth (path-guard-guard.test.ts, 'nested lock inside an evidence tree').
+    // I2: roleWritable itself refuses CLI-only files, so no evidence glob covers a nested lock.
     const lockWriters = ROLES.filter((r) => roleWritable(r.agent, lock, paths)).map((r) => r.agent);
-    expect(lockWriters.length).toBeGreaterThan(0);
+    expect(lockWriters).toEqual([]);
   });
 });
 

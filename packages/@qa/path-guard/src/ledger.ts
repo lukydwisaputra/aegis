@@ -25,11 +25,14 @@ export function ledgerPath(aegisRoot: string, runId: string): string {
   return join(aegisRoot, "runs", runId, "hooks", "agents.jsonl");
 }
 
-/** One small line in append mode, unlocked: concurrent appends of whole short lines do not interleave. */
+/**
+ * One small line in append mode, unlocked: concurrent appends of whole short lines do not interleave. Each append starts
+ * with a newline, so a torn previous line (a crash mid-write) never swallows it; readLedger skips the blank lines.
+ */
 export function appendLedger(aegisRoot: string, runId: string, entry: LedgerEntry): void {
   const file = ledgerPath(aegisRoot, runId);
   mkdirSync(dirname(file), { recursive: true });
-  appendFileSync(file, JSON.stringify(entry) + "\n", "utf-8");
+  appendFileSync(file, "\n" + JSON.stringify(entry) + "\n", "utf-8");
 }
 
 /** The entries of one agent instance, in order; unreadable lines are skipped. */

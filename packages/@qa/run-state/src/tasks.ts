@@ -153,7 +153,6 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
 }
 
 /** The run environment's policy from aegis.config.json (undefined when the file is missing; an unreadable or corrupt one fails closed). */
-/** The run's environment policy; a corrupt or unreadable aegis.config.json refuses the claim (fail closed). */
 function envPolicy(root: string, env: string): EnvironmentSpecialistConfig | undefined {
   try {
     return readEnvPolicy(root, env);
