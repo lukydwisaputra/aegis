@@ -74,7 +74,6 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 
 - `targetProjectRoot` — relative path to the app under test (default `..`)
 - `testsDir` — where tests are written (default `../tests/qa`)
-- `profile` — `"full"` (66 agents) or `"lite"`
 - `compliance` — which standards are audited per run
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`

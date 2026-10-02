@@ -12,7 +12,7 @@ This handbook is the complete guide to the Aegis QA framework. Read it cover-to-
 | 3 | [Architecture](HANDBOOK/03-architecture.md) | Orchestrator, tiers, SPVs, model tiers, Taskmaster, event bus, path-guard, and the three human gates. |
 | 4 | [STLC Walkthrough](HANDBOOK/04-stlc-walkthrough.md) | What happens when `/qa-start` runs: a nine-phase breakdown (Requirements → Discovery → Planning → Design → Environment → Execution → Triage → Closure → Executive Report), illustrated with the Login/SSO feature. |
 | 5 | [Commands](HANDBOOK/05-commands.md) | The core user commands in 6 groups: each with purpose, flags table, and a worked example. |
-| 6 | [Agent Roster](HANDBOOK/06-agents.md) | All agents in full mode: Orchestrator (1), Tier-1 phase managers (9), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes. |
+| 6 | [Agent Roster](HANDBOOK/06-agents.md) | Every agent by tier: the orchestrator, Tier-1 phase managers, Tier-2 specialists, SPVs, compliance agents and cross-cutting agents. |
 | 7 | [Templates and Standardization](HANDBOOK/07-templates-and-standardization.md) | ID scheme, severity/priority dual-format, defect report fields, test case fields, RTM columns, naming conventions, and test data. |
 | 8 | [Compliance](HANDBOOK/08-compliance.md) | ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, and PDPA: tag formats per regulation, parallel reviewer workflow, and how findings appear in reports. |
 | 9 | [Reports and Dashboards](HANDBOOK/09-reports-and-dashboards.md) | Per-run reports, operational rollups, the live dashboard (Vite+React on port 3030), three executive PDFs, and the SSE event stream. |
@@ -38,7 +38,7 @@ This handbook is the complete guide to the Aegis QA framework. Read it cover-to-
 | 3 | The Orchestrator dispatches work to a four-tier agent hierarchy; Taskmaster queues tasks; path-guard and three human gates maintain control. |
 | 4 | A full run has seven phases (Discovery through Closure) and three gate pauses — reading the plan gate is the single most valuable minute you can spend. |
 | 5 | Twenty-eight commands cover run lifecycle, defect management, knowledge ingestion, CI/CD, dashboard, and self-improvement in six groups. |
-| 6 | Sixty-three agents run in full mode; Lite mode drops to 14 agents, disabling SPVs, compliance, and lesson capture. |
+| 6 | One orchestrator dispatches phase managers, specialists, compliance and cross-cutting agents; every reviewed worker has its SPV. |
 | 7 | All artefact IDs follow `TYPE-MODULE-SEQUENCE`; severity and priority are independent axes; teardown is required on every test case. |
 | 8 | Six compliance frameworks run in parallel; their findings are merged into the run report at Phase 6 and do not block execution. |
 | 9 | The run report is a self-contained HTML file; the dashboard at port 3030 streams live run state via SSE. |

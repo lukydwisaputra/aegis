@@ -164,7 +164,7 @@ In Claude Code chat:
 /qa-smoke --env=development
 ```
 
-This runs a short cycle (phases 0–3 only, no compliance, no SPV review in Lite mode). It validates that path-guard, environment config, and the test runner are all wired correctly.
+This runs a short cycle (no compliance phase and no human gates). It validates that path-guard, environment config, and the test runner are all wired correctly.
 
 Verify (in terminal):
 ```bash

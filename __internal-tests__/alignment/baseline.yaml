@@ -211,39 +211,15 @@ entries:
   - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:63 agents:count-mismatch"
-    ids: [AUD-075]
-    note: "HANDBOOK/06-agents.md claims 63 agents; .claude/agents has 64 agent files"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-cicd-planner-spv:unknown"
-    ids: [AUD-076]
-    note: "qa-cicd-planner-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-defect-reporter:unknown"
     ids: [AUD-076]
     note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-deployment-monitor:unknown"
-    ids: [AUD-076]
-    note: "qa-deployment-monitor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-env-provisioner:unknown"
-    ids: [AUD-076]
-    note: "qa-env-provisioner is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-github-planner-spv:unknown"
-    ids: [AUD-076]
-    note: "qa-github-planner-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-rtm-builder-spv:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-rtm-builder:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-sandbox-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-secrets-auditor:unknown"
-    ids: [AUD-076]
-    note: "qa-secrets-auditor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-worktree-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/08-compliance.md:qa-compliance-gdpr-spv:unknown"
     ids: [AUD-052]
     note: "qa-compliance-gdpr-spv is not an agent, skill, package or allowlisted name"
