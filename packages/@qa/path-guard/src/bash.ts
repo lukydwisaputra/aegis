@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 
 /**
@@ -48,13 +49,59 @@ const OPS = ["&&", "||", ";;", "&>>", "&>", ">>", ">|", "<<<", "<<-", "<<", ";",
 const SEPARATORS: ReadonlySet<string> = new Set(["&&", "||", ";;", ";", "|&", "|", "&", "(", ")", "\n"]);
 const FILE_REDIRECTS: ReadonlySet<string> = new Set([">", ">>", ">|", "&>", "&>>"]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const HEREDOC_DELIM = /(-?)\s*\\?(['"]?)([^\s;&|<>()'"]+)\2/y;
+/** Read a here-document delimiter word after `<<` (quotes and backslashes removed); null when there is none. */
+function readDelimiter(line: string, from: number): { strip: boolean; delimiter: string; end: number } | null {
+  let i = from;
+  let strip = false;
+  if (line[i] === "-") {
+    strip = true;
+    i++;
+  }
+  while (line[i] === " " || line[i] === "\t") i++;
+  let d = "";
+  let any = false;
+  while (i < line.length) {
+    const c = line[i]!;
+    if (c === "\\") {
+      if (i + 1 >= line.length) break;
+      d += line[i + 1];
+      i += 2;
+    } else if (c === "'") {
+      const e = line.indexOf("'", i + 1);
+      const stop = e === -1 ? line.length : e;
+      d += line.slice(i + 1, stop);
+      i = stop + 1;
+    } else if (c === '"') {
+      i++;
+      while (i < line.length && line[i] !== '"') {
+        if (line[i] === "\\" && i + 1 < line.length) i++;
+        d += line[i];
+        i++;
+      }
+      i++;
+    } else if (/[\s;&|<>()]/.test(c)) break;
+    else {
+      d += c;
+      i++;
+    }
+    any = true;
+  }
+  return any ? { strip, delimiter: d, end: Math.min(i, line.length) } : null;
+}
+
+interface Marker {
+  strip: boolean;
+  delimiter: string;
+  /** Inside an unquoted $( … ): the tokenizer folds it into an expansion, so no command takes its body. */
+  nested: boolean;
+}
 
 /** The here-document markers on one line, in order; quoted or commented `<<` is not one. */
-function heredocMarkers(line: string): Array<{ strip: boolean; delimiter: string }> {
-  const out: Array<{ strip: boolean; delimiter: string }> = [];
+function heredocMarkers(line: string): Marker[] {
+  const out: Marker[] = [];
   let i = 0;
   let wordStart = true;
+  let sub = 0;
   while (i < line.length) {
     const c = line[i]!;
     if (c === "\\") {
@@ -70,14 +117,21 @@ function heredocMarkers(line: string): Array<{ strip: boolean; delimiter: string
       while (i < line.length && line[i] !== quote) i += line[i] === "\\" ? 2 : 1;
       i++;
       wordStart = false;
+    } else if (c === "$" && line[i + 1] === "(") {
+      sub++;
+      i += 2;
+      wordStart = true;
+    } else if (sub > 0 && (c === "(" || c === ")")) {
+      sub += c === "(" ? 1 : -1;
+      i++;
+      wordStart = true;
     } else if (c === "#" && wordStart) {
       break;
     } else if (c === "<" && line[i + 1] === "<" && line[i + 2] !== "<" && line[i - 1] !== "<") {
-      HEREDOC_DELIM.lastIndex = i + 2;
-      const m = HEREDOC_DELIM.exec(line);
+      const m = readDelimiter(line, i + 2);
       if (m !== null) {
-        out.push({ strip: m[1] === "-", delimiter: m[3]! });
-        i = HEREDOC_DELIM.lastIndex;
+        out.push({ strip: m.strip, delimiter: m.delimiter, nested: sub > 0 });
+        i = m.end;
       } else i += 2;
       wordStart = false;
     } else {
@@ -88,7 +142,7 @@ function heredocMarkers(line: string): Array<{ strip: boolean; delimiter: string
   return out;
 }
 
-/** Remove here-document bodies from the text (they are data, not commands) and return them in order. */
+/** Remove here-document bodies from the text (they are data, not commands) and return the ones commands receive, in order. */
 function extractHeredocs(src: string): { text: string; bodies: string[] } {
   const lines = src.split("\n");
   const kept: string[] = [];
@@ -96,14 +150,13 @@ function extractHeredocs(src: string): { text: string; bodies: string[] } {
   for (let k = 0; k < lines.length; k++) {
     const line = lines[k]!;
     kept.push(line);
-    for (const { strip, delimiter } of heredocMarkers(line)) {
-      const body: string[] = [];
-      k++;
-      while (k < lines.length && (strip ? lines[k]!.replace(/^\t+/, "") : lines[k]) !== delimiter) {
-        body.push(lines[k]!);
-        k++;
-      }
-      bodies.push(body.join("\n"));
+    for (const { strip, delimiter, nested } of heredocMarkers(line)) {
+      let end = k + 1;
+      while (end < lines.length && (strip ? lines[end]!.replace(/^\t+/, "") : lines[end]) !== delimiter) end++;
+      // No closing line: the rest is not a body; parse it as commands.
+      const body = end < lines.length ? lines.slice(k + 1, end).join("\n") : "";
+      if (end < lines.length) k = end;
+      if (!nested) bodies.push(body);
     }
   }
   return { text: kept.join("\n"), bodies };
@@ -135,6 +188,8 @@ function expansion(src: string, i: number, add: (s: string) => void): number {
   add(src.slice(start, Math.min(i, src.length)));
   return i;
 }
+
+const ANSI_SIMPLE: Readonly<Record<string, string>> = { n: "\n", t: "\t", r: "\r", a: "\x07", b: "\b", e: "\x1b", f: "\f", v: "\v", "\\": "\\", "'": "'", '"': '"', "?": "?" };
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
@@ -191,16 +246,27 @@ function tokenize(src: string): Tok[] {
       continue;
     }
     if (c === "$" && src[i + 1] === "'") {
-      inWord = true; // ANSI-C quoting: literal up to the closing unescaped quote
+      inWord = true; // ANSI-C quoting: decoded, literal up to the closing unescaped quote
       i += 2;
       while (i < src.length && src[i] !== "'") {
-        if (src[i] === "\\" && i + 1 < src.length) {
-          cur += src[i + 1];
-          i += 2;
-        } else {
+        if (src[i] !== "\\" || i + 1 >= src.length) {
           cur += src[i];
           i++;
+          continue;
         }
+        const e = src[i + 1]!;
+        i += 2;
+        const simple = ANSI_SIMPLE[e];
+        if (simple !== undefined) cur += simple;
+        else if (e === "x" && /^[0-9a-fA-F]{1,2}/.test(src.slice(i, i + 2))) {
+          const h = /^[0-9a-fA-F]{1,2}/.exec(src.slice(i, i + 2))![0];
+          cur += String.fromCharCode(parseInt(h, 16));
+          i += h.length;
+        } else if (/[0-7]/.test(e)) {
+          const o = /^[0-7]{0,2}/.exec(src.slice(i, i + 2))![0];
+          cur += String.fromCharCode(parseInt(e + o, 8));
+          i += o.length;
+        } else cur += `\\${e}`;
       }
       i++;
       continue;
@@ -268,10 +334,12 @@ export function parseBash(src: string): SimpleCommand[] {
   let nextScope = 1;
   let curPipe = false;
   const scopes: number[] = [];
-  const push = (): void => {
+  const push = (followedByPipe = false): void => {
     if (cur.argv.length > 0 || cur.redirects.length > 0 || cur.heredoc !== null) {
       if (depth > 0) cur.depth = depth;
-      if (scopes.length > 0) cur.scopes = [...scopes];
+      // Every stage of a pipeline runs in its own subshell: a `cd` there does not reach the next command.
+      const stage = curPipe || followedByPipe ? [nextScope++] : [];
+      if (scopes.length > 0 || stage.length > 0) cur.scopes = [...scopes, ...stage];
       if (curPipe) cur.pipe = true;
       cmds.push(cur);
     }
@@ -282,7 +350,7 @@ export function parseBash(src: string): SimpleCommand[] {
     const tk = toks[k]!;
     if (tk.t === "op") {
       if (SEPARATORS.has(tk.op)) {
-        push();
+        push(tk.op === "|" || tk.op === "|&");
         if (tk.op === "(") {
           depth++;
           scopes.push(nextScope++);
@@ -508,7 +576,7 @@ interface Loc {
 const GIT_VALUE_OPTS: ReadonlySet<string> = new Set(["-c", "--namespace", "--exec-path", "--super-prefix", "--config-env"]);
 
 /** Every path a Bash command may write, resolved against `cwd` (and `cd` inside the command). */
-export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? ""): { targets: WriteTarget[]; commands: LocatedCommand[] } {
+export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? "", exists: (path: string) => boolean = existsSync): { targets: WriteTarget[]; commands: LocatedCommand[] } {
   const targets: WriteTarget[] = [];
   const commands: LocatedCommand[] = [];
   const homeLoc: Loc = home === "" ? { dir: "~", dyn: true, stat: cwd } : { dir: home, dyn: false, stat: home };
@@ -527,7 +595,8 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     return { dir: r.path, dyn: r.dynamic, stat: r.dynamic ? base.stat : r.path };
   };
   const cd = (base: Loc, args: readonly ShellWord[]): Loc => {
-    const d = args.find((a) => a.dynamic || !/^-[LPe@]+$/.test(a.value));
+    const dd = args.findIndex((a) => !a.dynamic && a.value === "--");
+    const d = dd >= 0 ? args[dd + 1] : args.find((a) => a.dynamic || !/^-[LPe@]+$/.test(a.value));
     if (d === undefined) return homeLoc;
     if (!d.dynamic && d.value === "-") return { dir: "-", dyn: true, stat: base.stat };
     return moveTo(base, d);
@@ -558,8 +627,18 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     switch (sub) {
       case "checkout": {
         const i = rest.findIndex((a) => !a.dynamic && a.value === "--");
-        return i >= 0 ? paths(rest.slice(i + 1)) : [];
+        if (i >= 0) return paths(rest.slice(i + 1));
+        const operands = rest.filter((a) => a.dynamic || !a.value.startsWith("-"));
+        if (operands.some((a) => !a.dynamic && a.value === ".")) return everything();
+        // `git checkout <ref> <path>`: a token that is an existing file is restored; any other is a branch name.
+        return paths(operands.filter((a) => !a.dynamic && exists(locate(at, a).path)));
       }
+      case "rm": {
+        const i = rest.findIndex((a) => !a.dynamic && a.value === "--");
+        return paths(i >= 0 ? rest.slice(i + 1) : rest.filter((a) => a.dynamic || !a.value.startsWith("-")));
+      }
+      case "mv":
+        return paths(rest.filter((a) => a.dynamic || !a.value.startsWith("-")));
       case "restore": {
         if (has("--staged", "-S") && !has("--worktree", "-W")) return [];
         const ws: ShellWord[] = [];
@@ -590,6 +669,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
   const walk = (text: string, start: Loc, depth: number): void => {
     let loc = start;
     let prevContent: string | null = null;
+    const dirStack: Loc[] = [];
     const open: Array<{ id: number; saved: Loc }> = [];
     for (const c of parseBash(text)) {
       // Leaving a ( … ) group restores the directory it was entered from.
@@ -610,7 +690,12 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
         targets.push({ path: t.path, dynamic: t.dynamic, content, via: ">" });
       }
       if (name === "cd" || (name === "pushd" && args.some((a) => a.dynamic || !a.value.startsWith("-")))) {
+        if (name === "pushd") dirStack.push(loc);
         loc = cd(loc, args);
+        continue;
+      }
+      if (name === "popd") {
+        loc = dirStack.pop() ?? loc;
         continue;
       }
       if ((name === "bash" || name === "sh" || name === "zsh") && depth < 2) {
