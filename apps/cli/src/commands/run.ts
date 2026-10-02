@@ -32,7 +32,8 @@ export function runCommand(): Command {
       action((o: { run?: string }) => {
         const ctx = context();
         const state = runStatus(ctx.root, runIdFor(ctx, o.run), ctx.caller);
-        return { ...state, next: nextStep(state) };
+        // CO-10: the errors an owner acknowledgement waives stay visible.
+        return { ...state, next: nextStep(state), integrityWaived: state.integrityAcknowledged?.errors ?? [] };
       })
     );
 
@@ -64,17 +65,15 @@ export function runCommand(): Command {
     .option("--acknowledge-integrity", "acknowledge a recorded integrity violation")
     .option("--reason <text>", "required with --acknowledge-integrity")
     .action(
-      action((o: { run?: string; acknowledgeIntegrity?: boolean; reason?: string }) => {
+      action(async (o: { run?: string; acknowledgeIntegrity?: boolean; reason?: string }) => {
         const ctx = context();
         if (o.acknowledgeIntegrity === true && (o.reason ?? "").trim() === "") {
           throw new RunStateError("invalid-input", "--reason is required with --acknowledge-integrity");
         }
-        return resumeRun(
-          ctx.root,
-          runIdFor(ctx, o.run),
-          ctx.caller,
-          o.acknowledgeIntegrity === true ? { acknowledgeIntegrity: { reason: o.reason ?? "" } } : {}
-        );
+        const acknowledging = o.acknowledgeIntegrity === true;
+        const state = await resumeRun(ctx.root, runIdFor(ctx, o.run), ctx.caller, acknowledging ? { acknowledgeIntegrity: { reason: o.reason ?? "" } } : {});
+        // CO-10: say exactly which errors this acknowledgement waives from now on.
+        return { ...state, acknowledgedErrors: acknowledging ? state.integrityAcknowledged?.errors ?? [] : [] };
       })
     );
 

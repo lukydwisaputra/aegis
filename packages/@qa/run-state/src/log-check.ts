@@ -41,7 +41,8 @@ export function logErrors(
   if (checkpoint !== undefined) {
     const line = snap.lines.find((l) => parseObject(l)?.["seq"] === checkpoint.seq);
     if (line === undefined || hashLine(line) !== checkpoint.lineHash) {
-      errors.push(`log truncated or rewritten before checkpoint seq ${checkpoint.seq}`);
+      // CO-03: name the pinned line, so an acknowledged checkpoint error never matches a later change of the same seq.
+      errors.push(`log truncated or rewritten before checkpoint seq ${checkpoint.seq} (line ${checkpoint.lineHash.slice(0, 12)})`);
     }
   }
   return { chain, errors };
@@ -83,4 +84,11 @@ export function checkpointOf(snap: CommittedLines): IntegrityCheckpoint | undefi
   const seq = parseObject(line)?.["seq"];
   if (line === undefined || typeof seq !== "number" || !Number.isInteger(seq) || seq < 1) return undefined;
   return { seq, lineHash: hashLine(line) };
+}
+
+/** The checkpoint of a line appendChained has just written (it writes JSON.stringify(record) verbatim). */
+export function checkpointOfRecord(record: Record<string, unknown>): IntegrityCheckpoint {
+  const seq = record["seq"];
+  if (typeof seq !== "number" || !Number.isInteger(seq) || seq < 1) throw new Error("appendChained returned a record without a seq");
+  return { seq, lineHash: hashLine(JSON.stringify(record)) };
 }

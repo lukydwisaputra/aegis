@@ -155,7 +155,7 @@ describe('overwrite, emptying and truncation (F1)', () => {
     writeLines(readLines(busPath(t.root, runId)).slice(0, 1));
     const report = await verifyRunIntegrity(t.root, runId, 'owner');
     expect(report.ok).toBe(false);
-    expect(report.errors).toContain('log truncated or rewritten before checkpoint seq 3');
+    expect(report.errors.join('\n')).toMatch(/log truncated or rewritten before checkpoint seq 3 \(line [0-9a-f]{12}\)/);
     expect(readRun(t.root, runId).status).toBe('blocked');
   });
 
@@ -166,7 +166,7 @@ describe('overwrite, emptying and truncation (F1)', () => {
     writeLines(lines);
     const report = await verifyRunIntegrity(t.root, runId, 'owner');
     expect(report.ok).toBe(false);
-    expect(report.errors).toContain('log truncated or rewritten before checkpoint seq 3');
+    expect(report.errors.join('\n')).toMatch(/log truncated or rewritten before checkpoint seq 3 \(line [0-9a-f]{12}\)/);
   });
 });
 
@@ -182,7 +182,10 @@ describe('acknowledged prefix is pinned (F2)', () => {
     const lines = readLines(busPath(t.root, runId));
     const stored = state.integrityAcknowledged!;
     expect(stored.throughLine).toBe(5);
-    expect(stored.errors).toEqual(['line 2: prevHash mismatch (previous line altered, removed or inserted)']);
+    expect(stored.errors).toEqual([
+      'line 2: prevHash mismatch (previous line altered, removed or inserted)',
+      expect.stringMatching(/^log truncated or rewritten before checkpoint seq 1 \(line [0-9a-f]{12}\)$/),
+    ]);
     const event = lines.map((l) => JSON.parse(l)).find((e) => e.type === 'integrity.acknowledged');
     expect(event).toMatchObject({ throughLine: 5, lineHash: stored.lineHash, errors: stored.errors });
   });
