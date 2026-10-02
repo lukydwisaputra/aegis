@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { DEV_TEST_REVIEW, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
+import { PROFILE } from './helpers/pipeline';
 
 // Drives the built aegis CLI through whole cycles with fake agents (the P0a-1 final review's scratch scripts).
 // Every step is a real CLI call; the "agents" only claim, submit, release and review.
@@ -17,7 +18,6 @@ const e2e = stale ? it.skip : it;
 
 const O = 'qa-orchestrator';
 const TS = '2026-09-30T08:00:00.000Z';
-const PROFILE = { targetIsSingleProject: true, sourceInventory: {}, existingTests: { files: [], frameworks: [], locations: [], count: 0, unitTestStyle: 'none' } };
 const SPV_NONE = /^(qa-context-scanner|qa-compliance-.*|qa-curator)$/;
 
 interface Result { status: number | null; out: unknown; err: { error?: string; message?: string } | null; stderr: string }

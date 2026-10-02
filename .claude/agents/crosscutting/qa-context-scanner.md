@@ -111,7 +111,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-context-scanner
 2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
 3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-context-scanner`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
 4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
-5. **No review yet.** No SPV reviews your task yet; the phase barrier accepts your released work report without one.
+5. **No SPV.** The Scan barrier validates `target-profile.json` against the strict `TargetProfileSchema`: every field of the example above is required and no other top-level field is allowed. A refusal names the field. When you are re-dispatched with one, correct `target-profile.json` and tell your dispatcher; the task stays released.
 
 ## Events You Emit
 
@@ -126,7 +126,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-context-scanner
 contract: 1
 phase: scan
 dispatchedBy: [qa-orchestrator]
-reviewedBy: {none: "(no SPV — cross-cutting profiler)"}
+reviewedBy: {none: "the Scan barrier validates the profile against the strict TargetProfileSchema"}
 reads:
   - aegis.config.json
   - "{target}/**"

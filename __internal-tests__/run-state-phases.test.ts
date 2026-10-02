@@ -127,6 +127,23 @@ describe('phase barrier (spec §6.1)', () => {
   });
 });
 
+describe('the strict profile schema is the scanner\'s review (AUD-052)', () => {
+  beforeEach(passIntake);
+
+  it('refuses an extra top-level field and names it', async () => {
+    await expect(passScan({ ...PROFILE, tsxFileCount: 3 })).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/target-profile.json is invalid: .*tsxFileCount/) });
+  });
+
+  it('refuses a missing field and names it', async () => {
+    const { scannedAt: _s, ...rest } = PROFILE;
+    await expect(passScan(rest)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/target-profile.json is invalid: scannedAt: Required/) });
+  });
+
+  it('completes Scan on a full profile without an SPV review', async () => {
+    await expect(passScan()).resolves.toMatchObject({ phases: { scan: { status: 'completed' } } });
+  });
+});
+
 describe('tasks belong to their phase', () => {
   it('a late task blocks the barrier; a task of a finished phase cannot be claimed', async () => {
     await startPhase(t.root, runId, 'intake', ORCH);

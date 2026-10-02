@@ -128,7 +128,7 @@ escapes:
   - {unit: qa-compliance-iso5055, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-compliance-istqb, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-compliance-pdpa, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-context-scanner, field: reviewedBy.none, reason: "(no SPV — cross-cutting profiler)"}
+  - {unit: qa-context-scanner, field: reviewedBy.none, reason: "the Scan barrier validates the profile against the strict TargetProfileSchema"}
   - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:94 compares with the previous run's target-profile.json only if one is referenced"}
   - {unit: qa-curator, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}

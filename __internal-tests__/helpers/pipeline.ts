@@ -71,11 +71,27 @@ export async function workTask(
   if (spv !== null) await submitReview(root, runId, tmpJson(root, `rv-${taskId}.json`, review(spv, agent, taskId, verdict)), spv);
 }
 
-/** The core fields the Scan barrier reads (TargetProfileCoreSchema); the full profile is the scanner SPV's to check. */
+/** A full target-profile.json: the Scan barrier validates it against the strict TargetProfileSchema (AUD-052). */
 export const PROFILE = {
+  scannedAt: TS,
   targetIsSingleProject: true,
-  sourceInventory: {},
+  packageManager: 'pnpm',
+  framework: { name: 'vite-react', version: '5.x', appRouter: null },
+  language: { typescript: true, tsxFiles: 0, jsxFiles: 0, hasMixedJsxTsx: false },
+  monorepo: { tool: 'none', workspaces: [] as string[] },
+  apps: [] as Array<{ name: string; path: string; framework: string; language: string }>,
+  platform: 'generic',
+  roles: [] as string[],
   existingTests: { files: [] as string[], frameworks: [] as string[], locations: [] as string[], count: 0, unitTestStyle: 'none' },
+  ci: { provider: 'none', workflowFiles: [] as string[] },
+  apiSurface: [] as string[],
+  envVarNames: [] as string[],
+  hasAuth: false,
+  authProvider: null,
+  nodeVersion: null,
+  hasRealtimeFeatures: false,
+  hasFeatureFlags: false,
+  sourceInventory: {},
 };
 
 /** Test shortcut: mark every phase before `phase` completed and leave the run running, as if the pipeline got there. */

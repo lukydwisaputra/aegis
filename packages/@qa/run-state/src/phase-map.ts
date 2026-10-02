@@ -4,7 +4,7 @@ import {
   EnvAuthReportSchema,
   ExecutionSummaryCoreSchema,
   PHASE_IDS,
-  TargetProfileCoreSchema,
+  TargetProfileSchema,
   UserStorySchema,
   type CycleType,
   type PhaseId,
@@ -16,9 +16,9 @@ export const CYCLE_PHASES: Readonly<Record<CycleType, readonly PhaseId[]>> = {
   smoke: ["intake", "scan", "env-auth", "env-data", "execution", "triage"],
 };
 
-// The one schema the Scan barrier, preflight and not-applicable use for target-profile.json.
-// The barrier checks only the core fields they read; strict validation of the full profile belongs to the scanner's SPV.
-export const ScanProfileSchema = TargetProfileCoreSchema;
+// The one schema the Scan barrier, preflight and not-applicable use for target-profile.json: the full, top-level
+// strict TargetProfileSchema. The strict schema is the scanner's review (AUD-052); a refusal names the field to fix.
+export const ScanProfileSchema = TargetProfileSchema;
 
 // Every phase except Intake needs at least one released task before it can complete.
 export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake"]);
