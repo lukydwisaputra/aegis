@@ -186,6 +186,8 @@ treat `aegis/` as read-only except for the explicitly permitted paths below.
 | `../services/**` | READ-ONLY |
 | `../src/**` | READ-ONLY |
 | `../tests/**` | WRITE allowed |
+| `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
+| `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
 | `aegis/runs/**` | WRITE allowed |
 | `aegis/packages/@qa/**` | WRITE allowed |
 | `aegis/apps/**` | WRITE allowed |

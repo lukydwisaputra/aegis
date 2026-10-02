@@ -263,7 +263,7 @@ Options:
 
 ### /qa-ci-bootstrap
 
-Generate GitHub Actions workflows + Husky hook + secrets setup. Idempotent.
+Generate the QA GitHub Actions workflows; print the Husky hook and the secrets setup. Idempotent.
 
 ```
 /qa-ci-bootstrap [options]
@@ -274,7 +274,7 @@ Options:
   --dry-run                    Show what would be generated
 ```
 
-Generates 6 workflow files + Husky pre-commit hook.
+Generates 6 workflow files and prints the Husky pre-commit hook.
 
 ### /qa-gate-check
 

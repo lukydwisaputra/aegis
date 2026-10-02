@@ -91,7 +91,7 @@ Full thresholds live in `aegis/thresholds.yaml`. Industry defaults:
 
 ```bash
 /qa-ci-bootstrap
-# → detects stack, generates 6 workflow files, installs Husky
+# → detects stack, generates 6 workflow files, prints the Husky hook to add
 # → configures GitHub secrets via gh secret set
 # → validates with actionlint + yamllint
 ```

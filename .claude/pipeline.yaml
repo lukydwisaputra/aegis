@@ -192,5 +192,9 @@ writePolicy:
   # Internal (_qa-*) skills maintain the framework itself.
   internalSkills: [".claude/**", "HANDBOOK/**", "docs/**"]
   # Named exceptions: _qa-build-toc regenerates the HANDBOOK.md table of contents.
+  # AUD-112: HANDBOOK/17 rule (b) keeps the qa-e2e project in the target's own Playwright config;
+  # /qa-ci-bootstrap writes only the QA-owned qa-*.yml workflow files of the target.
   units:
     _qa-build-toc: [HANDBOOK.md]
+    qa-environment-engineer: ["{target}/playwright.config.ts"]
+    qa-ci-bootstrap: ["{target}/.github/workflows/qa-*.yml"]

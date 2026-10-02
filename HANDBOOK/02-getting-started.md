@@ -325,7 +325,7 @@ In Claude Code chat:
 /qa-ci-bootstrap
 ```
 
-This generates all workflow files, configures secrets via `gh secret set`, and installs the Husky pre-commit hook. If your repo is already set up, this command is idempotent.
+This generates all workflow files and configures secrets via `gh secret set`; it prints the Husky pre-commit hook for your developers to add and never writes it into the repo. If your repo is already set up, this command is idempotent.
 
 Verify:
 ```bash

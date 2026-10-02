@@ -36,7 +36,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 - `tests/qa/fixtures/auth.fixture.ts` — per-role auth fixture (adminPage, managerPage, userPage, anonPage) with storageState + teardown
 - `tests/qa/global-setup.ts` — login + storageState save per role; halts suite on login failure
 - `tests/qa/global-teardown.ts` — storageState cleanup; server-side session termination
-- `playwright.config.ts` — browser matrix, project config, reporter, retries, timeouts (lives at the target root, not under `tests/`; its `testDir` points at `tests/qa`)
+- `playwright.config.ts` — browser matrix, project config, reporter, retries, timeouts (lives at the target root, not under `tests/`; its `testDir` points at `tests/qa`). It is the one target-root file you write, a named exception in the CLAUDE.md read/write table because HANDBOOK/17 rule (b) needs the `qa-e2e` project in the target's own config: change only that project entry and its QA settings, never the developers' other projects or options.
 - `tests/qa/factories/` — scope=data: Faker.js factories for the entity types the approved cases need
 - `runs/{runId}/env-auth-report.{md,json}` — scope=auth: roles logged in, their storage-state paths, the Playwright projects, the installed `@playwright/cli` version, the smoke-ping result and health status
 - `runs/{runId}/env-setup-report.{md,json}` — scope=data: factories and seed data created, what was skipped, health status

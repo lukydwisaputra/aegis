@@ -287,3 +287,22 @@ it('PRODUCER: a multi-phase writer produces from its first listed phase (HANDBOO
   expect(keys(producerRule(loadModel(once.root)))).toEqual(['PRODUCER:qa-web:{tests}/qa/fixtures/auth.fixture.ts:later-phase']);
   once.cleanup();
 });
+
+it('AUD-112: a writePolicy.units exception admits a {target}/ write for that unit only, never a CLI-only file', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-a': { contract: ag('crosscutting', { writes: ['{target}/playwright.config.ts', '{target}/src/x.ts', '{run}/events.jsonl'] }) },
+      'qa-b': { contract: ag('crosscutting', { writes: ['{target}/playwright.config.ts'] }) },
+    },
+    pipeline: {
+      ...ppl({ cli: ['{run}/events.jsonl'] }),
+      writePolicy: { ...MIN_PIPELINE.writePolicy, units: { ...MIN_PIPELINE.writePolicy.units, 'qa-a': ['{target}/playwright.config.ts', '{run}/events.jsonl'] } },
+    },
+  });
+  expect(wp(t)).toEqual([
+    'WRITE-POLICY:qa-a:{run}/events.jsonl:cli-only',
+    'WRITE-POLICY:qa-a:{target}/src/x.ts:target-source',
+    'WRITE-POLICY:qa-b:{target}/playwright.config.ts:target-source',
+  ]);
+  t.cleanup();
+});

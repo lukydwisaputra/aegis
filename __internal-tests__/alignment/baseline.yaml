@@ -777,21 +777,6 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-gate.yml:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .github/workflows/qa-gate.yml violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-regression.yml:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .github/workflows/qa-regression.yml violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-smoke.yml:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .github/workflows/qa-smoke.yml violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.husky/pre-commit:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .husky/pre-commit violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:docs/ci-secrets-setup.md:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to docs/ci-secrets-setup.md violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.github/workflows/qa-*.yml:target-source"
     ids: [AUD-112, AUD-046]
     note: "write to {target}/.github/workflows/qa-*.yml violates the write policy (target-source)"
@@ -813,9 +798,6 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-environment-engineer:{target}/playwright.config.ts:target-source"
-    ids: [AUD-112]
-    note: "write to {target}/playwright.config.ts violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-event-bus:{run}/events.jsonl:cli-only"
     ids: [AUD-048, CO-01]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"

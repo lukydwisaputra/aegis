@@ -274,7 +274,8 @@ export function writePolicyRule(m: Model): Violation[] {
   const policy = m.pipeline?.writePolicy;
   const writable = policy?.writable ?? [];
   for (const u of m.units.values()) {
-    const extra: string[] = [...(policy?.units[u.name] ?? [])];
+    const named: string[] = [...(policy?.units[u.name] ?? [])];
+    const extra: string[] = [...named];
     if (u.kind === "skill") {
       extra.push(...(src?.repo ?? []), ...(src?.owner ?? []));
       if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(...(policy?.internalSkills ?? []));
@@ -284,6 +285,8 @@ export function writePolicyRule(m: Model): Violation[] {
       let reason: string | null = null;
       // AH-15: a write that can land in a CLI-only file or outside tests/qa is flagged (overlaps, not matches).
       if (cliOnly.some((s) => overlaps(s, p))) reason = "cli-only";
+      // AUD-112: a named exception (writePolicy.units) admits that unit's write, even into the target; never a CLI-only file.
+      else if (named.some((w) => matches(w, p))) reason = null;
       else if (p.startsWith("{tests}/") && !matches("{tests}/qa/**", p)) reason = "outside-tests-qa";
       else if (p.startsWith("{target}/")) reason = "target-source";
       else if (!writable.some((w) => matches(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
