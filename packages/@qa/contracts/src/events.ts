@@ -1544,6 +1544,8 @@ export const IntegrityTailRepairedEventSchema = EventBase.extend({
   removedBytes: z.number().int().positive(),
   removedSha256: Sha256HexSchema,
   savedTo: z.string().min(1),
+  keptBytes: z.number().int().nonnegative(),
+  atSeq: z.number().int().nonnegative(),
 });
 
 // ─── Phases, gates and escalation (P0a-1) ─────────────────────────────────────

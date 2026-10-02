@@ -2,7 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { readLines, repairTornTail } from '@qa/event-bus';
 import { assertCallerAllowed, busPath, createRun, repairTail, requestStop, runDir, verifyRunIntegrity } from '@qa/run-state';
+import { createRequire } from 'module';
 import { last, makeAegisRoot, thrownCode, type TmpAegis } from './helpers/aegis-root';
+
+// proper-lockfile is a dependency of event-bus/run-state, not of the tests: resolve the same instance they use
+const lockfile = createRequire(path.join(__dirname, '..', 'packages', '@qa', 'run-state', 'package.json'))('proper-lockfile') as typeof import('proper-lockfile');
 
 let t: TmpAegis;
 let runId: string;
@@ -19,13 +23,14 @@ const tear = (s = '{"seq":2,"prevH') => fs.appendFileSync(busPath(t.root, runId)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 it('a torn tail refuses every append; the owner repairs it and appends work again (CO-02)', async () => {
+  const cleanBytes = fs.statSync(busPath(t.root, runId)).size;
   tear();
-  await expect(requestStop(t.root, runId, 'pause', 'owner')).rejects.toThrow(/torn tail.*integrity repair-tail/);
+  await expect(requestStop(t.root, runId, 'pause', 'owner')).rejects.toThrow(/torn tail.*integrity repair-tail.*--run <runId>/);
   const res = await repairTail(t.root, runId, 'owner');
   expect(res).toMatchObject({ runId, removedBytes: 15 });
   expect(fs.readFileSync(path.join(runDir(t.root, runId), res.savedTo), 'utf-8')).toBe('{"seq":2,"prevH');
   expect(JSON.parse(last(readLines(busPath(t.root, runId))))).toMatchObject({
-    type: 'integrity.tail-repaired', seq: 2, removedBytes: 15, removedSha256: res.removedSha256, savedTo: res.savedTo, emittedBy: 'owner',
+    type: 'integrity.tail-repaired', seq: 2, removedBytes: 15, removedSha256: res.removedSha256, savedTo: res.savedTo, emittedBy: 'owner', keptBytes: cleanBytes, atSeq: 1,
   });
   await requestStop(t.root, runId, 'pause', 'owner');
   expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(true);
@@ -49,13 +54,42 @@ it('is owner-only', async () => {
 it('repairTornTail hands over the bytes before it truncates', async () => {
   tear('{"broken');
   const seen: string[] = [];
-  const tail = await repairTornTail(busPath(t.root, runId), ({ bytes }) => {
+  const res = await repairTornTail(busPath(t.root, runId), ({ bytes }) => {
     seen.push(bytes.toString('utf-8'));
     expect(fs.readFileSync(busPath(t.root, runId), 'utf-8').endsWith('{"broken')).toBe(true);
   });
-  expect(tail!.bytes.toString('utf-8')).toBe('{"broken');
+  expect(res!.tail.bytes.toString('utf-8')).toBe('{"broken');
+  expect(res!.record).toBeNull();
   expect(seen).toEqual(['{"broken']);
   expect(fs.readFileSync(busPath(t.root, runId), 'utf-8').endsWith('\n')).toBe(true);
+});
+
+it('cuts a tail split inside a UTF-8 sequence, and a lone CR; removedBytes is the byte length', async () => {
+  const split = Buffer.from('{"a":"\u00e9').subarray(0, -1);
+  fs.appendFileSync(busPath(t.root, runId), split);
+  expect((await repairTail(t.root, runId, 'owner')).removedBytes).toBe(split.length);
+  fs.appendFileSync(busPath(t.root, runId), '\r');
+  expect((await repairTail(t.root, runId, 'owner')).removedBytes).toBe(1);
+});
+
+it('refuses a whole JSON line that ends in CR (CRLF waiting for its LF)', async () => {
+  tear('{"type":"x"}\r');
+  await expect(repairTail(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+});
+
+it('refuses with invalid-input when run.json exists but the event log is missing', async () => {
+  fs.rmSync(busPath(t.root, runId));
+  await expect(repairTail(t.root, runId, 'owner')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/event log missing/) });
+});
+
+it('saves under a unique name: two repairs at the same instant do not collide; savedTo is posix', async () => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  tear('{"a');
+  const a = await repairTail(t.root, runId, 'owner', now);
+  tear('{"a');
+  const b = await repairTail(t.root, runId, 'owner', now);
+  expect(a.savedTo).toMatch(/^integrity\/torn-tail\.[\w-]+-\d+-[0-9a-f]{6}\.bin$/);
+  expect(b.savedTo).not.toBe(a.savedTo);
 });
 
 describe('safety: it only ever cuts an unterminated, non-JSON tail', () => {
@@ -85,6 +119,43 @@ describe('safety: it only ever cuts an unterminated, non-JSON tail', () => {
     await expect(keepFails()).rejects.toThrow('disk full');
     expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
   });
+
+  it('never truncates when keep is asynchronous (a thenable)', async () => {
+    tear('{"broken');
+    const before = fs.readFileSync(busPath(t.root, runId));
+    await expect(repairTornTail(busPath(t.root, runId), (() => Promise.resolve()) as never)).rejects.toThrow(/synchronous/);
+    expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
+  });
+
+  it('never truncates when the saved file is short (a partial write), and removes the partial file', async () => {
+    tear('{"seq":2,"prevH');
+    const before = fs.readFileSync(busPath(t.root, runId));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const rawFs = require('fs') as typeof fs;
+    const real = rawFs.writeFileSync;
+    jest.spyOn(rawFs, 'writeFileSync').mockImplementation(((target: never, data: Buffer, ...rest: never[]) =>
+      typeof target === 'number' ? real(target, data.subarray(0, 3)) : real(target, data, ...rest)) as never);
+    await expect(repairTail(t.root, runId, 'owner')).rejects.toThrow(/short|size/);
+    jest.restoreAllMocks();
+    expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
+    expect(fs.readdirSync(path.join(runDir(t.root, runId), 'integrity'))).toEqual([]);
+  });
+
+  it('never truncates when the log changed since it was read', async () => {
+    tear('{"broken');
+    const before = fs.readFileSync(busPath(t.root, runId));
+    await expect(repairTornTail(busPath(t.root, runId), () => fs.appendFileSync(busPath(t.root, runId), 'more'))).rejects.toThrow(/changed/);
+    expect(fs.readFileSync(busPath(t.root, runId)).equals(Buffer.concat([before, Buffer.from('more')]))).toBe(true);
+  });
+});
+
+it('the cut and its record are one bus-lock hold', async () => {
+  tear();
+  const calls: string[] = [];
+  const real = lockfile.lock;
+  jest.spyOn(lockfile, 'lock').mockImplementation(((p: string, o: never) => { calls.push(path.basename(p)); return real(p, o); }) as never);
+  await repairTail(t.root, runId, 'owner');
+  expect(calls).toEqual(['integrity.lock', 'events.jsonl']);
 });
 
 it('saves the cut bytes and fsyncs them before the log is truncated', async () => {
@@ -93,55 +164,50 @@ it('saves the cut bytes and fsyncs them before the log is truncated', async () =
   const rawFs = require('fs') as typeof fs; // the ES namespace import is read-only; the module object is spy-able
   const order: string[] = [];
   const realFsync = rawFs.fsyncSync;
-  const realTruncate = rawFs.truncateSync;
+  const realTruncate = rawFs.ftruncateSync;
   let savedAtFsync = '';
+  let dirFsyncs = 0;
   jest.spyOn(rawFs, 'fsyncSync').mockImplementation((fd: number) => {
     const dir = path.join(runDir(t.root, runId), 'integrity');
     if (fs.existsSync(dir) && order.every((o) => o !== 'fsync')) {
       order.push('fsync');
       savedAtFsync = fs.readdirSync(dir).map((f) => fs.readFileSync(path.join(dir, f), 'utf-8')).join('|');
     }
+    if (rawFs.fstatSync(fd).isDirectory()) dirFsyncs++;
     return realFsync(fd);
   });
-  jest.spyOn(rawFs, 'truncateSync').mockImplementation((p, len) => {
+  jest.spyOn(rawFs, 'ftruncateSync').mockImplementation((p, len) => {
     order.push('truncate');
     return realTruncate(p, len);
   });
   await repairTail(t.root, runId, 'owner');
   expect(order.slice(0, 2)).toEqual(['fsync', 'truncate']);
+  expect(dirFsyncs).toBeGreaterThanOrEqual(2); // integrity/ and the run dir it was created in
   expect(savedAtFsync).toBe('{"seq":2,"prevH');
 });
 
 describe('locks: integrity.lock, then the bus lock', () => {
-  it('waits for the bus lock and holds integrity.lock while it waits', async () => {
+  it('takes integrity.lock before the bus lock and never run.lock', async () => {
     tear();
-    const before = fs.readFileSync(busPath(t.root, runId));
-    const busLock = `${busPath(t.root, runId)}.lock`;
-    const integrityLock = path.join(runDir(t.root, runId), 'integrity.lock.lock');
-    fs.mkdirSync(busLock);
-    let done = false;
-    const p = repairTail(t.root, runId, 'owner').finally(() => { done = true; });
-    await sleep(500);
-    expect(done).toBe(false);
-    expect(fs.existsSync(integrityLock)).toBe(true);
-    expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
-    fs.rmdirSync(busLock);
-    await expect(p).resolves.toMatchObject({ removedBytes: 15 });
-    expect(fs.existsSync(integrityLock)).toBe(false);
+    const calls: string[] = [];
+    const real = lockfile.lock;
+    jest.spyOn(lockfile, 'lock').mockImplementation(((p: string, o: never) => { calls.push(path.basename(p)); return real(p, o); }) as never);
+    await repairTail(t.root, runId, 'owner');
+    expect(calls.indexOf('integrity.lock')).toBe(0);
+    expect(calls.indexOf('events.jsonl')).toBeGreaterThan(0);
+    expect(calls).not.toContain('run.lock');
   });
 
-  it('waits for integrity.lock before it touches the bus', async () => {
+  it('waits for a held bus lock and cuts nothing until it is released', async () => {
     tear();
     const before = fs.readFileSync(busPath(t.root, runId));
+    const releaseBus = await lockfile.lock(busPath(t.root, runId), { stale: 10_000, update: 2_000 });
+    const p = repairTail(t.root, runId, 'owner');
     const integrityLock = path.join(runDir(t.root, runId), 'integrity.lock.lock');
-    fs.writeFileSync(path.join(runDir(t.root, runId), 'integrity.lock'), '');
-    fs.mkdirSync(integrityLock);
-    let done = false;
-    const p = repairTail(t.root, runId, 'owner').finally(() => { done = true; });
-    await sleep(500);
-    expect(done).toBe(false);
+    for (let i = 0; i < 100 && !fs.existsSync(integrityLock); i++) await sleep(20);
+    expect(fs.existsSync(integrityLock)).toBe(true); // integrity.lock is held while it waits for the bus
     expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
-    fs.rmdirSync(integrityLock);
+    await releaseBus();
     await expect(p).resolves.toMatchObject({ removedBytes: 15 });
   });
 });
