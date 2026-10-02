@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { addTask, busPath, claimTask, completePhase, completeRun, createRun, decideEscalation, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { escalationDecision, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { escalationDecision, fastForward, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 import { STORY } from './helpers/p0a2-fixtures';
 
 let t: TmpAegis;
@@ -141,6 +141,16 @@ describe('the strict profile schema is the scanner\'s review (AUD-052)', () => {
 
   it('completes Scan on a full profile without an SPV review', async () => {
     await expect(passScan()).resolves.toMatchObject({ phases: { scan: { status: 'completed' } } });
+  });
+});
+
+describe('the owner reviews the curator through /qa-promote (AUD-052)', () => {
+  it('Curator completes on a released work report with no SPV review', async () => {
+    const approved = { status: 'approved', decisions: 1 };
+    fastForward(t.root, runId, 'curator', { G1: approved, G2: approved, G3: approved });
+    await startPhase(t.root, runId, 'curator', ORCH);
+    await workTask(t.root, runId, 'T-curator-1', 'qa-curator', null);
+    await expect(completePhase(t.root, runId, 'curator', ORCH)).resolves.toMatchObject({ phases: { curator: { status: 'completed' } } });
   });
 });
 

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from 'yaml';
 import { AegisEventSchema } from '@qa/contracts';
+import { SPV_NONE } from '@qa/run-state';
 
 // P2a — roster and review coverage (docs/superpowers/specs/2026-10-02-p2-roster-design.md §7).
 const ROOT = path.join(__dirname, '..');
@@ -92,5 +93,14 @@ describe('retired agents (spec §4.1)', () => {
 
   it('historical devops.* events still parse (T8)', () => {
     expect(AegisEventSchema.safeParse({ type: 'devops.flake-detected', ts: '2026-06-28T08:00:00.000Z', testRef: 'TC-AUTH-031', flakeRate: 0.2 }).success).toBe(true);
+  });
+});
+
+describe('review coverage (spec §4.6.4)', () => {
+  it('SPV_NONE holds only agents with a task and a stated reason', () => {
+    expect([...SPV_NONE].sort()).toEqual([
+      'qa-compliance-cmmi', 'qa-compliance-gdpr', 'qa-compliance-iso25010', 'qa-compliance-iso5055', 'qa-compliance-istqb', 'qa-compliance-pdpa',
+      'qa-context-scanner', 'qa-curator',
+    ]);
   });
 });

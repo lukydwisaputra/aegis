@@ -100,9 +100,9 @@ describe('role table (spec §4.2: one declarative table)', () => {
 });
 
 describe('role table, further invariants', () => {
-  it('rows without an SPV are exactly SPV_NONE (minus the retiring qa-cicd-evaluator)', () => {
+  it('rows without an SPV are exactly SPV_NONE plus the task-less qa-metrics-collector (P2 §4.6.4)', () => {
     const none = ROLES.filter((r) => r.kind !== 'spv' && r.spv === null).map((r) => r.agent).sort();
-    expect(none).toEqual([...SPV_NONE].filter((a) => a !== 'qa-cicd-evaluator').sort());
+    expect(none).toEqual([...SPV_NONE, 'qa-metrics-collector'].sort());
   });
 
   it('contractWrites fails loudly when a contract block is missing', () => {

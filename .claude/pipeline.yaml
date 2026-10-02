@@ -130,7 +130,7 @@ escapes:
   - {unit: qa-compliance-pdpa, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-context-scanner, field: reviewedBy.none, reason: "the Scan barrier validates the profile against the strict TargetProfileSchema"}
   - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:94 compares with the previous run's target-profile.json only if one is referenced"}
-  - {unit: qa-curator, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-curator, field: reviewedBy.none, reason: "the owner reviews its proposals through /qa-promote"}
   - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}
   - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}
   - {unit: qa-database-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
@@ -155,7 +155,7 @@ escapes:
   - {unit: qa-export, field: optional, value: "config/integrations.yaml", reason: "SKILL.md:25 tracker credentials from environment variables or config/integrations.yaml"}
   - {unit: qa-feature-flag-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-help, field: optional, value: "config/commands.yaml", reason: "SKILL.md:20 a static embedded list is used if the file is absent"}
-  - {unit: qa-metrics-collector, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-metrics-collector, field: reviewedBy.none, reason: "runs without a task; no work report to review"}
   - {unit: qa-metrics-collector, field: optional, value: "{run}/reports/work/qa-unit-specialist.*.json", reason: "qa-metrics-collector.md:41 code coverage from the unit-specialist work reports (if available)"}
   - {unit: qa-orchestrator-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-performance-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}

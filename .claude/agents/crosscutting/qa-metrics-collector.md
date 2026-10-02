@@ -93,7 +93,7 @@ You run without a task of your own: you never claim or release one and submit no
 contract: 1
 phase: crosscutting
 dispatchedBy: [qa-orchestrator]
-reviewedBy: {none: "not stated in prose"}
+reviewedBy: {none: "runs without a task; no work report to review"}
 reads:
   - "{run}/events.jsonl"
   - "{run}/cases/*.json"

@@ -75,7 +75,11 @@ export const PHASE_OUTPUT_SETS: Readonly<Partial<Record<PhaseId, readonly Output
   explore: [{ dir: "defect-candidates", file: /^[a-z0-9][a-z0-9-]*\.json$/, schema: DefectCandidateSchema, min: 0, idIsFileName: false }],
 };
 
-// Agents with no SPV yet (spec §4.5: `spv: none (P2)`); the barrier accepts their work report without a review.
+// Agents the barrier accepts without an SPV review, each for a stated reason (P2 spec §4.6.4):
+// qa-context-scanner — the Scan barrier validates target-profile.json against the strict TargetProfileSchema;
+// qa-compliance-* — until qa-compliance-spv is paired in the path-guard role table (P2a, after the P0b-2 rebase);
+// qa-curator — the owner reviews its proposals through /qa-promote.
+// qa-metrics-collector runs without a task, so the barrier never looks it up.
 export const SPV_NONE: ReadonlySet<string> = new Set([
   "qa-context-scanner",
   "qa-compliance-iso25010",
@@ -85,6 +89,4 @@ export const SPV_NONE: ReadonlySet<string> = new Set([
   "qa-compliance-gdpr",
   "qa-compliance-pdpa",
   "qa-curator",
-  "qa-cicd-evaluator",
-  "qa-metrics-collector",
 ]);
