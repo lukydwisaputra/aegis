@@ -83,7 +83,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **(b) The Playwright config is VSCode-discoverable via a named `qa-e2e` project, not a duplicate top-level `testDir`.** `tests/qa` must be declared exactly once, at the project level, so the VSCode Playwright Test Explorer scans and groups QA specs separately.
 
-- Enforced by: `qa-environment-engineer.md` Process step 2 ("Configure Playwright" — named project `{ name: 'qa-e2e', testDir: 'tests/qa' }`, no top-level `testDir`, emits `test.config-written { testDir, projectName }`) + `qa-environment-engineer-spv.md` Review Checklist items 11–14 ("VSCode-discoverable project-level `testDir`", "No duplicate top-level `testDir`", "Named QA project", "`test.config-written` emitted").
+- Enforced by: `qa-environment-engineer.md` Process step 2 ("Configure Playwright" — named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` and its `qa-setup`/`qa-teardown` projects, no top-level key and no developer project touched, emits `test.config-written { testDir, projectName }`) + `qa-environment-engineer-spv.md` Review Checklist items 11–14 ("VSCode-discoverable project-level `testDir`", "No duplicate top-level `testDir`", "Named QA project", "`test.config-written` emitted").
 
 **(c) Unit testing is developer scope; `qa-unit-specialist` is read-only on developer units.** It reads developer unit tests/source to assess coverage and reports gaps as findings — it never edits the developer tree. Any net-new QA-owned unit test goes only under `tests/qa/unit/`.
 

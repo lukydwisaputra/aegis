@@ -21,9 +21,9 @@ Scaffolds the CI/CD integration layer for the automated QA pipeline: GitHub Acti
 
 ## Behaviour
 1. Read project structure from `package.json` and `pnpm-workspace.yaml` to identify apps and packages.
-2. Generate `.github/workflows/qa-smoke.yml` — triggers on pull_request, runs `/qa-smoke` via the Claude Code agent action.
-3. Generate `.github/workflows/qa-regression.yml` — triggers on push to main/release branches, runs `/qa-regression`.
-4. Generate `.github/workflows/qa-gate.yml` — runs `/qa-gate-check` after test workflows complete; blocks merge on failure.
+2. Generate `{target}/.github/workflows/qa-smoke.yml` — triggers on pull_request, runs `/qa-smoke` via the Claude Code agent action.
+3. Generate `{target}/.github/workflows/qa-regression.yml` — triggers on push to main/release branches, runs `/qa-regression`.
+4. Generate `{target}/.github/workflows/qa-gate.yml` — runs `/qa-gate-check` after test workflows complete; blocks merge on failure.
 5. Print the `.husky/pre-commit` hook that calls `/qa-smoke --budget=5m` for local validation, for the developers to add; never write it.
 6. Print the repository secrets the workflows need and how to populate them (the secrets setup guide); never write it into the target's docs.
 7. If `--dry-run`, print the three workflow files too and exit without writing.

@@ -102,6 +102,8 @@ sources:
     - "apps/dashboard/**"
 nonAgentNames:
   - qa-e2e # Playwright project name (qa-environment-engineer.md:61, HANDBOOK/17:76)
+  - qa-setup # Playwright setup project name (qa-environment-engineer.md, HANDBOOK/17:86)
+  - qa-teardown # Playwright teardown project name (qa-environment-engineer.md, HANDBOOK/17:86)
   - qa-automated # GitHub label (qa-github-planner.md:40)
   - qa-build-toc # pnpm script in package.json (CLAUDE.md:36 `pnpm qa-build-toc`), not the _qa-build-toc skill
   - qa-results # CI artifact name prefix (docs/D12-cicd-workflow.md:64 `qa-results-${{ github.run_id }}`)
