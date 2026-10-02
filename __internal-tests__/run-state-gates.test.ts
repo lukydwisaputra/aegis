@@ -18,10 +18,12 @@ const full = async () => {
 };
 const task = (id: string) => createTaskmasterClient(taskmasterDir(t.root, runId)).get(id);
 const events = () => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l));
-/** Hold the task file's lock so the next taskmaster write to it fails (ELOCKED); returns the release. */
+/** Hold the task file's lock so the next taskmaster write to it fails (ELOCKED, after the ~11 s CO-04 retry budget); returns the release. */
 function holdTaskLock(id: string): () => void {
   const lock = path.join(taskmasterDir(t.root, runId), 'tasks', `${id}.json.lock`);
   fs.mkdirSync(lock);
+  const future = new Date(Date.now() + 3_600_000); // never stale, so the retry budget runs out instead of stealing it
+  fs.utimesSync(lock, future, future);
   return () => fs.rmSync(lock, { recursive: true, force: true });
 }
 /** Submit one more work report for a task the agent holds. */
@@ -164,7 +166,7 @@ describe('human gates (spec §3.2)', () => {
     expect(readRun(t.root, runId)).toMatchObject({ gates: { G1: { status: 'rejected', decisions: 1 } }, supersededAttempts: { 'T-planning-1': { 'qa-test-planner': 1 }, 'T-GATE-G1': { [ORCH]: 1 } } });
     expect(await task('T-planning-1')).toMatchObject({ status: 'pending' });
     expect(await task('T-GATE-G1')).toMatchObject({ status: 'pending' });
-  });
+  }, 30_000);
 
   it('a decision whose event append fails leaves the gate open and is retryable', async () => {
     await planning();
@@ -344,5 +346,5 @@ describe('escalation decisions (spec §4.5, CO-07)', () => {
     release();
     await expect(decideEscalation(t.root, runId, { taskId: 'T-planning-1', decision: 'retry', reason: 'One more attempt' }, 'owner')).resolves.toMatchObject({ status: 'running', blockedBy: [] });
     expect(await task('T-planning-1')).toMatchObject({ status: 'pending' });
-  });
+  }, 30_000);
 });

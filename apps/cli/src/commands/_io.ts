@@ -25,6 +25,12 @@ export function action<A extends unknown[]>(fn: (...args: A) => unknown) {
         process.exitCode = 2;
         return;
       }
+      if ((e as NodeJS.ErrnoException).code === "ELOCKED") {
+        const message = `${(e as Error).message}; another aegis command holds this lock, retry`;
+        process.stderr.write(JSON.stringify({ error: "busy", message }) + "\n");
+        process.exitCode = 2;
+        return;
+      }
       process.stderr.write(JSON.stringify({ error: "internal", message: (e as Error).message }) + "\n");
       process.exitCode = 1;
     }

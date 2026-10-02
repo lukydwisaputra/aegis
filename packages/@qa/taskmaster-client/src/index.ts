@@ -144,8 +144,9 @@ function countChildren(tasksDir: string, parentId: string): number {
 
 // ─── Lock options ─────────────────────────────────────────────────────────────
 
+// CO-04: the same budget as @qa/run-state (50 retries, 20-250 ms); 5 retries leaked ELOCKED under real contention.
 const LOCK_OPTIONS = {
-  retries: { retries: 5, minTimeout: 50, maxTimeout: 300 },
+  retries: { retries: 50, minTimeout: 20, maxTimeout: 250 },
   stale: 10_000,
 };
 
