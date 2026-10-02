@@ -75,10 +75,14 @@ Each line gives the choice, the rationale, and the cost if it proves wrong.
     *Cost if wrong:* a developer test that needs an excluded fixture, or a private registry that demands auth even for Stryker, makes mutation `skipped` with the reason. Unit tests are then rated `weak` ("no mutation evidence"), not broken.
 22. **CO-11: root `prepare` is `pnpm --filter "@aegis-qa/cli..." run build`.** That builds the CLI and its workspace dependencies, which are exactly what the hooks load. It does not build the dashboard. *Cost if wrong:* installs take a little longer. `pnpm install --ignore-scripts` skips the build, and H1's "enforcement unavailable" message names the fix.
 23. **Hook latency: the spec target (< 50 ms per call) is measured, not asserted per process.** Node start alone is about 40–60 ms. Tests assert that `decide()` runs in under 2 ms per call in-process, and that the H1 process median stays under 250 ms. The 250 ms bound catches regressions such as H1 importing the full run-state index.
+24. **H1 rollout: legacy main-thread run writes warn instead of deny (owner decision 2026-10-02).** Subagent writes to `runs/**` that bypass the CLI are denied. Nine skills still write run files directly from the main thread until P0c/P3 rewrite them: `qa-gate-check`, `qa-promote-stage`, `qa-record-manual`, `qa-regenerate-report`, `qa-regression`, `qa-rerun-failed`, `qa-run-phase`, `qa-health --fix` and `_qa-init-project`. A main-thread write that matches one of their known run paths is allowed. H1 prints an `aegis guard: warning` notice naming the skill(s) and path on stderr, and appends a `legacy-write` entry to the hook ledger. The paths live in one constant, `LEGACY_MAIN_THREAD_RUN_WRITES` (`packages/@qa/path-guard/src/guard.ts`); deleting a skill's entry turns its writes into denials, and P0c/P3 do that when they rewrite the skill. A main-thread path outside the list follows the normal rule (denied). The brand rule still denies a legacy write, because it is about content. Of the CLI-only files, only lock files are on the list: `qa-health --fix` removes orphan locks, and `intake/` is left out of `qa-run-phase`'s phase directories. *Cost if wrong:* until P0c/P3, these skills can still hand-write run files, which is the status quo, but every such write is now logged.
 
 ## Owner questions
 
-1. **`/qa-ci-bootstrap` writes to the target's `.husky/pre-commit` and `docs/`.** Recommendation, applied in Task 5: print the Husky hook and the secrets guide, and write only the `qa-*.yml` workflows. The alternative is to add `{target}/.husky/pre-commit` and `{target}/docs/ci-secrets-setup.md` as named exceptions in `writePolicy.units` and CLAUDE.md. That is two lines, and Task 5 Step 4 would keep the current skill behaviour.
+None open. The owner answered on 2026-10-02:
+1. `/qa-ci-bootstrap` prints the Husky hook and the secrets guide and writes only the `qa-*.yml` workflows. Confirmed (Task 5).
+2. Narrowing the CLAUDE.md write table (decision 15) is confirmed.
+3. The H1 rollout is warn-only for the 9 legacy skills' main-thread run writes and deny for subagents (decision 24).
 
 ## Global Constraints
 
@@ -94,6 +98,7 @@ These are copied from the spec. Every task implicitly includes them.
   - (c) Any caller writes a CLI-only file.
   - (d) A `qa-*` agent writes `packages/**`, `.claude/**`, `apps/**`, `package.json` or a lockfile.
   - (e) A non-`qa-*` subagent writes anywhere under the aegis repo.
+- H1 rollout (owner, 2026-10-02): main-thread writes that match `LEGACY_MAIN_THREAD_RUN_WRITES` are allowed with a warning and a ledger entry (decision 24). Every other rule (a) write is denied, and subagents never get the allowance.
 - There is one declarative role table, `packages/@qa/path-guard/src/roles.ts`, exposing `roleWritable(agent, path)`. H1, the CLI and the internal tests all use it. Paths resolve from `aegis.config.json#targetProjectRoot`/`testsDir`, and run paths from `runs/.active` (§4.2).
 - `appendChained` computes `seq`/`prevHash` under the bus lock and rejects undeclared fields. The legacy `append()` goes once its callers have moved (§4.4, CO-01).
 - A broken chain blocks the run. Only the owner can resume it, with `--acknowledge-integrity --reason`. A torn tail is refused by the next append (§4.4).
@@ -2526,19 +2531,23 @@ Baseline: **0**.
 - Produces (all in `@qa/path-guard`):
   - `interface GuardContext extends RolePaths { activeRunId: string | null; environment: string | null; currentPhase: PhaseId | null; envPolicy: EnvironmentSpecialistConfig | undefined; tempDirs: string[] }`
   - `loadGuardContext(aegisRoot): GuardContext` and `readEnvPolicy(aegisRoot, env): EnvironmentSpecialistConfig | undefined`
-  - `type LedgerKind = "start" | "claim" | "stop-blocked" | "stop-unresolved"` and `interface LedgerEntry { ts; agentId; agentType; kind; taskId? }`
+  - `type LedgerKind = "start" | "claim" | "stop-blocked" | "stop-unresolved" | "legacy-write"` and `interface LedgerEntry { ts; agentId; agentType; kind; taskId?; skills?; path? }`
   - `ledgerPath(aegisRoot, runId)`, `appendLedger(aegisRoot, runId, entry)` and `readLedger(aegisRoot, runId, agentId): LedgerEntry[]`
   - `interface HookToolInput { tool_name?; tool_input?; cwd?; agent_type?; agent_id? }`
   - `interface GuardDeps { cliAllowed(caller: string, command: string): string | null }`
-  - `type GuardResult = { allow: true; claims: string[] } | { allow: false; reason: string; claims: string[] }` and `decide(input, ctx, deps): GuardResult`
-  - The constants `CLI_ONLY_RUN_GLOBS`, `ROLLUP_OWNED_RUN_GLOBS`, `BRAND_CLEAN_RUN_GLOBS` and `FRAMEWORK_COMMANDS`
+  - `interface LegacyWrite { skills: string[]; path: string; runId: string | null }`
+  - `type GuardResult = { allow: true; claims: string[]; warnings: LegacyWrite[] } | { allow: false; reason: string; claims: string[]; warnings: LegacyWrite[] }` and `decide(input, ctx, deps): GuardResult`
+  - `legacySkillsFor(aegisRoot, abs): string[]`
+  - The constants `CLI_ONLY_RUN_GLOBS`, `ROLLUP_OWNED_RUN_GLOBS`, `BRAND_CLEAN_RUN_GLOBS`, `LEGACY_MAIN_THREAD_RUN_WRITES` (decision 24) and `FRAMEWORK_COMMANDS`
 
 - [ ] **Step 1: Write the failing tests**
 
 Create `__internal-tests__/path-guard-guard.test.ts`:
 
 ```ts
-import { decide, type GuardContext, type HookToolInput } from '@qa/path-guard';
+import * as fs from 'fs';
+import * as path from 'path';
+import { decide, LEGACY_MAIN_THREAD_RUN_WRITES, type GuardContext, type HookToolInput } from '@qa/path-guard';
 
 const ROOT = '/repo/aegis';
 const RUN = 'RUN-20261002-001';
@@ -2634,9 +2643,50 @@ describe('decide: H1 rules (spec §4.2)', () => {
   });
 
   it('returns the task ids an agent claims, for the hook ledger', () => {
-    expect(decide(bash('AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task=T-execution-3', 'qa-ui-specialist'), ctx, deps)).toEqual({ allow: true, claims: ['T-execution-3'] });
+    expect(decide(bash('AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task=T-execution-3', 'qa-ui-specialist'), ctx, deps)).toEqual({ allow: true, claims: ['T-execution-3'], warnings: [] });
+  });
+});
+
+describe('decide: H1 rollout for the legacy skills (decision 24)', () => {
+  it('a main-thread write on a legacy skill path is warned and allowed', () => {
+    const file = `${RUN_DIR}/reports/gate-check/staging.json`;
+    expect(decide(write(file), ctx, deps)).toEqual({ allow: true, claims: [], warnings: [{ skills: ['qa-gate-check'], path: file, runId: RUN }] });
   });
 
+  it('names every legacy skill that writes the path, in any run', () => {
+    const file = `${ROOT}/runs/RUN-20261001-004/execution/results.json`;
+    expect(decide(write(file), ctx, deps)).toMatchObject({ allow: true, warnings: [{ skills: ['qa-record-manual', 'qa-regression', 'qa-rerun-failed'], runId: 'RUN-20261001-004' }] });
+  });
+
+  it('covers qa-health --fix removing an orphan lock and _qa-init-project creating runs/', () => {
+    expect(decide(bash(`rm -rf runs/${RUN}/run.lock`), ctx, deps)).toMatchObject({ allow: true, warnings: [{ skills: ['qa-health'] }] });
+    expect(decide(bash('mkdir -p runs'), ctx, deps)).toMatchObject({ allow: true, warnings: [{ skills: ['_qa-init-project'], runId: null }] });
+  });
+
+  it('a subagent writing a legacy skill path is denied', () => {
+    expect(decide(write(`${RUN_DIR}/reports/gate-check/staging.json`, '{}', 'qa-test-executor'), ctx, deps)).toMatchObject({ allow: false, warnings: [] });
+    expect(decide(write(`${RUN_DIR}/execution/results.json`, '{}', 'general-purpose'), ctx, deps).allow).toBe(false);
+  });
+
+  it('a main-thread run path outside the legacy list follows the normal rule', () => {
+    expect(decide(write(`${RUN_DIR}/cases/TC-AUTH-001.json`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/main thread never writes QA artefacts/) });
+    expect(decide(write(`${RUN_DIR}/events.jsonl`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
+    expect(decide(write(`${RUN_DIR}/intake/prd.md`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
+  });
+
+  it('the brand rule still denies a legacy write', () => {
+    expect(decide(write(`${RUN_DIR}/reports/closure/closure.md`, 'Prepared by Aegis'), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/customer-facing/) });
+  });
+
+  it('the legacy list is one constant naming exactly the nine skills, each an existing skill', () => {
+    const skills = Object.keys(LEGACY_MAIN_THREAD_RUN_WRITES).sort();
+    expect(skills).toEqual(['_qa-init-project', 'qa-gate-check', 'qa-health', 'qa-promote-stage', 'qa-record-manual', 'qa-regenerate-report', 'qa-regression', 'qa-rerun-failed', 'qa-run-phase']);
+    for (const s of skills) expect(fs.existsSync(path.join(__dirname, '..', '.claude', 'skills', s, 'SKILL.md'))).toBe(true);
+  });
+
+});
+
+describe('decide: environment, missing run and speed', () => {
   it('denies every write of an agent the environment forbids, but not its CLI calls (H4/H1)', () => {
     const prod: GuardContext = { ...ctx, environment: 'production', envPolicy: { readOnly: true, mutating: false, allowedSpecialists: ['ui', 'api'] } };
     expect(decide(write('/repo/tests/qa/integration/db/x.db.test.ts', 'x', 'qa-database-specialist'), prod, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/read-only/) });
@@ -2808,7 +2858,7 @@ import { dirname, join } from "node:path";
  * The hook ledger: which subagent instance (agent_id) started and claimed what (decision 10). Written only by the
  * hooks — CLI-only for agents (H1 rule c) — and read by the SubagentStop hook.
  */
-export type LedgerKind = "start" | "claim" | "stop-blocked" | "stop-unresolved";
+export type LedgerKind = "start" | "claim" | "stop-blocked" | "stop-unresolved" | "legacy-write";
 
 export interface LedgerEntry {
   ts: string;
@@ -2816,6 +2866,9 @@ export interface LedgerEntry {
   agentType: string;
   kind: LedgerKind;
   taskId?: string;
+  /** legacy-write only: the legacy skills the path belongs to, and the path (decision 24). */
+  skills?: string[];
+  path?: string;
 }
 
 export const ledgerPath = (aegisRoot: string, runId: string): string => join(aegisRoot, "runs", runId, "hooks", "agents.jsonl");
@@ -2846,7 +2899,7 @@ export function readLedger(aegisRoot: string, runId: string, agentId: string): L
 
 ```ts
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { checkBrandExposure } from "@qa/contracts";
+import { PHASE_IDS, checkBrandExposure } from "@qa/contracts";
 import { bashWriteTargets, unwrap, type SimpleCommand } from "./bash.js";
 import type { GuardContext } from "./context.js";
 import { envVerdict, matchGlob, resolveRoleGlob, roleOf } from "./roles.js";
@@ -2865,7 +2918,18 @@ export interface GuardDeps {
   cliAllowed(caller: string, command: string): string | null;
 }
 
-export type GuardResult = { allow: true; claims: string[] } | { allow: false; reason: string; claims: string[] };
+/** A main-thread write into runs/ that a legacy skill still makes directly: allowed with a warning (decision 24). */
+export interface LegacyWrite {
+  /** The legacy skills whose known run writes match the path. */
+  skills: string[];
+  path: string;
+  /** The run the path is in; null for runs/ itself. */
+  runId: string | null;
+}
+
+export type GuardResult =
+  | { allow: true; claims: string[]; warnings: LegacyWrite[] }
+  | { allow: false; reason: string; claims: string[]; warnings: LegacyWrite[] };
 
 /** Run files only the aegis CLI writes (H1 rule c), relative to runs/<any run>. */
 export const CLI_ONLY_RUN_GLOBS: readonly string[] = [
@@ -2879,19 +2943,43 @@ export const ROLLUP_OWNED_RUN_GLOBS: readonly string[] = ["execution-summary.jso
 /** Customer-facing run files (CLAUDE.md brand exposure rule). */
 export const BRAND_CLEAN_RUN_GLOBS: readonly string[] = ["plan.*", "rtm.*", "cases/**", "defects/**", "reports/closure/**", "reports/executive/**"];
 
+/**
+ * H1 rollout (owner decision 2026-10-02): the run writes the 9 legacy skills still make directly from the main thread.
+ * A matching main-thread write is allowed with a stderr warning and a hook-ledger entry instead of denied. When P0c or
+ * P3 rewrites a skill onto the CLI, it deletes that skill's entry, and its direct writes are denied from then on.
+ * Globs are relative to the aegis root; {run} is runs/<any run> (a skill may target any run with --run).
+ * Subagents never get this allowance.
+ */
+export const LEGACY_MAIN_THREAD_RUN_WRITES: Readonly<Record<string, readonly string[]>> = {
+  "qa-gate-check": ["{run}/reports/gate-check/**"],
+  "qa-promote-stage": ["{run}/promotions/**"],
+  "qa-record-manual": ["{run}/evidence/**", "{run}/execution/results.json"],
+  "qa-regenerate-report": ["{run}/reports/closure/**", "{run}/reports/executive/**"],
+  "qa-regression": ["{run}/execution/results.json"],
+  "qa-rerun-failed": ["{run}/rerun-*/**", "{run}/execution/results.json"],
+  // intake/ is CLI-only, so it is not a qa-run-phase legacy path
+  "qa-run-phase": PHASE_IDS.filter((phase) => phase !== "intake").map((phase) => `{run}/${phase}/**`),
+  // qa-health --fix removes orphan locks
+  "qa-health": ["runs/**/*.lock", "{run}/reports/.locks/**"],
+  // _qa-init-project creates the runs/ directory
+  "_qa-init-project": ["runs"],
+};
+
 /** aegis subcommands that maintain the framework, not a run: the owner's only. */
 export const FRAMEWORK_COMMANDS: ReadonlySet<string> = new Set(["init", "update", "doctor", "reconfigure", "align"]);
 
 const QA_AGENT = /^qa-[a-z0-9-]+$/;
+const RUN_ID = /^RUN-\d{8}-\d{3}$/;
 const FRAMEWORK_DIRS = ["packages", "apps", ".claude"] as const;
 const DEPENDENCY_FILES: ReadonlySet<string> = new Set(["package.json", "pnpm-lock.yaml", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lockb", "bun.lock"]);
 const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review)\/|taskmaster\/|(^|\/)hooks\/|(^|\/)integrity\/|\.active\b/;
 const PNPM_VALUE_FLAGS: ReadonlySet<string> = new Set(["--filter", "-F", "-C", "--dir"]);
 
 type Caller = { kind: "main" } | { kind: "qa"; agent: string } | { kind: "other"; agent: string };
+type PathVerdict = { deny: string } | { warn: LegacyWrite } | null;
 
-const allow = (claims: string[] = []): GuardResult => ({ allow: true, claims });
-const deny = (reason: string): GuardResult => ({ allow: false, reason, claims: [] });
+const allow = (claims: string[] = [], warnings: LegacyWrite[] = []): GuardResult => ({ allow: true, claims, warnings });
+const deny = (reason: string): GuardResult => ({ allow: false, reason, claims: [], warnings: [] });
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 function callerOf(input: HookToolInput): Caller {
@@ -2913,40 +3001,59 @@ function runRelative(ctx: GuardContext, abs: string): string | null {
   return slash === -1 ? null : rel.slice(slash + 1);
 }
 
-function checkPath(caller: Caller, abs: string, content: string | null, ctx: GuardContext): string | null {
+/** The run id of a path inside runs/<RUN-…>/, or null. */
+function runIdOf(ctx: GuardContext, abs: string): string | null {
+  const rel = relative(join(ctx.aegisRoot, "runs"), abs);
+  const first = rel.split("/")[0] ?? "";
+  return RUN_ID.test(first) ? first : null;
+}
+
+/** The legacy skills whose known run writes match `abs` (decision 24). */
+export function legacySkillsFor(aegisRoot: string, abs: string): string[] {
+  return Object.entries(LEGACY_MAIN_THREAD_RUN_WRITES)
+    .filter(([, globs]) => globs.some((g) => matchGlob(join(aegisRoot, g.replace(/^\{run\}\//, "runs/*/")), abs)))
+    .map(([skill]) => skill);
+}
+
+function checkPath(caller: Caller, abs: string, content: string | null, ctx: GuardContext): PathVerdict {
   if (abs.startsWith("/dev/")) return null;
   const runs = join(ctx.aegisRoot, "runs");
   const inRun = runRelative(ctx, abs);
-  if (abs === join(runs, ".active") || (inRun !== null && CLI_ONLY_RUN_GLOBS.some((g) => matchGlob(g, inRun)))) {
-    return `${abs} is written only by the aegis CLI (spec §4.2 H1 c); use the aegis command that owns it`;
-  }
+  // The brand rule is about content, not about the CLI: it holds for every caller, legacy skills included.
   if (content !== null && inRun !== null && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
     const hit = checkBrandExposure(content);
-    if (hit !== null) return `${abs} is customer-facing and the text matches ${String(hit)}; write "QA team" or the project name instead (CLAUDE.md brand exposure rule)`;
+    if (hit !== null) return { deny: `${abs} is customer-facing and the text matches ${String(hit)}; write "QA team" or the project name instead (CLAUDE.md brand exposure rule)` };
+  }
+  if (caller.kind === "main") {
+    const skills = legacySkillsFor(ctx.aegisRoot, abs);
+    if (skills.length > 0) return { warn: { skills, path: abs, runId: runIdOf(ctx, abs) } };
+  }
+  if (abs === join(runs, ".active") || (inRun !== null && CLI_ONLY_RUN_GLOBS.some((g) => matchGlob(g, inRun)))) {
+    return { deny: `${abs} is written only by the aegis CLI (spec §4.2 H1 c); use the aegis command that owns it` };
   }
   const qaArtefact = inside(runs, abs) || inside(join(ctx.targetRoot, "tests"), abs);
   if (caller.kind === "main") {
-    return qaArtefact ? `the main thread never writes QA artefacts (${abs}); route the request to a /qa-* command (spec D1/D2)` : null;
+    return qaArtefact ? { deny: `the main thread never writes QA artefacts (${abs}); route the request to a /qa-* command (spec D1/D2)` } : null;
   }
   if (caller.kind === "other") {
-    if (qaArtefact) return `${caller.agent} is not a qa-* agent: QA artefacts (${abs}) are written only by qa-* agents`;
+    if (qaArtefact) return { deny: `${caller.agent} is not a qa-* agent: QA artefacts (${abs}) are written only by qa-* agents` };
     if (inside(ctx.aegisRoot, abs)) {
-      return `${caller.agent} is not a qa-* agent and may not write inside the aegis repo (territory rule); do framework work from the main thread, or in a worktree outside it`;
+      return { deny: `${caller.agent} is not a qa-* agent and may not write inside the aegis repo (territory rule); do framework work from the main thread, or in a worktree outside it` };
     }
     return null;
   }
   if (FRAMEWORK_DIRS.some((d) => inside(join(ctx.aegisRoot, d), abs))) {
-    return `agents never modify the framework (${abs}); framework changes are owner branch work (spec D2)`;
+    return { deny: `agents never modify the framework (${abs}); framework changes are owner branch work (spec D2)` };
   }
   if (DEPENDENCY_FILES.has(basename(abs)) && !inside(join(ctx.aegisRoot, "sandbox"), abs)) {
-    return `agents never change dependency manifests or lockfiles (${abs})`;
+    return { deny: `agents never change dependency manifests or lockfiles (${abs})` };
   }
   if (ctx.environment !== null) {
     const verdict = envVerdict(caller.agent, ctx.currentPhase, ctx.environment, ctx.envPolicy);
-    if (!verdict.allowed) return `${verdict.reason} Every write by ${caller.agent} is denied in this run.`;
+    if (!verdict.allowed) return { deny: `${verdict.reason} Every write by ${caller.agent} is denied in this run.` };
   }
   const role = roleOf(caller.agent);
-  if (role === undefined) return `${caller.agent} has no row in the path-guard role table (packages/@qa/path-guard/src/roles.ts)`;
+  if (role === undefined) return { deny: `${caller.agent} has no row in the path-guard role table (packages/@qa/path-guard/src/roles.ts)` };
   if (role.writes.some((g) => {
     const resolved = resolveRoleGlob(g, ctx);
     return resolved !== null && matchGlob(resolved, abs);
@@ -2954,13 +3061,14 @@ function checkPath(caller: Caller, abs: string, content: string | null, ctx: Gua
   const inRepos = inside(ctx.aegisRoot, abs) || inside(ctx.targetRoot, abs);
   if (!inRepos && ctx.tempDirs.some((d) => inside(d, abs))) return null;
   const noRun = ctx.activeRunId === null ? " (no active run: {run} paths are unavailable)" : "";
-  return `${abs} is not writable for ${caller.agent}; it may write: ${role.writes.join(", ") || "nothing directly — it works through the aegis CLI"}${noRun}`;
+  return { deny: `${abs} is not writable for ${caller.agent}; it may write: ${role.writes.join(", ") || "nothing directly — it works through the aegis CLI"}${noRun}` };
 }
 
 function single(caller: Caller, rawPath: string | null, content: string | null, cwd: string, ctx: GuardContext): GuardResult {
   if (rawPath === null || rawPath === "") return allow();
-  const reason = checkPath(caller, resolve(cwd, rawPath), content, ctx);
-  return reason === null ? allow() : deny(reason);
+  const v = checkPath(caller, resolve(cwd, rawPath), content, ctx);
+  if (v === null) return allow();
+  return "deny" in v ? deny(v.deny) : allow([], [v.warn]);
 }
 
 interface CliCall {
@@ -3010,6 +3118,7 @@ function checkCli(caller: Caller, cli: CliCall, deps: GuardDeps): string | null 
 
 function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardContext, deps: GuardDeps): GuardResult {
   const claims: string[] = [];
+  const warnings: LegacyWrite[] = [];
   const { targets, commands } = bashWriteTargets(command, cwd);
   for (const c of commands) {
     const cli = cliInvocation(c);
@@ -3023,10 +3132,12 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
       if (DYNAMIC_CLI_ONLY.test(t.path)) return deny(`write target ${t.path} is not a literal path and looks like a CLI-only run file`);
       continue; // best-effort: the chain and integrity verify are the backstop (spec §4.4)
     }
-    const reason = checkPath(caller, t.path, t.content, ctx);
-    if (reason !== null) return deny(reason);
+    const v = checkPath(caller, t.path, t.content, ctx);
+    if (v === null) continue;
+    if ("deny" in v) return deny(v.deny);
+    warnings.push(v.warn);
   }
-  return allow(claims);
+  return allow(claims, warnings);
 }
 
 function decideAgent(caller: Caller, target: string): GuardResult {
@@ -3040,7 +3151,7 @@ function decideAgent(caller: Caller, target: string): GuardResult {
   return allow();
 }
 
-/** H1 (spec §4.2): allow or deny one tool call. Pure; the hook script loads `ctx` and supplies `deps`. */
+/** H1 (spec §4.2): allow, warn-and-allow (legacy skills, decision 24) or deny one tool call. Pure; the hook loads `ctx`. */
 export function decide(input: HookToolInput, ctx: GuardContext, deps: GuardDeps): GuardResult {
   const caller = callerOf(input);
   const cwd = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : ctx.aegisRoot;
@@ -3099,6 +3210,8 @@ feat(path-guard): H1 decision, guard context and hook ledger
 decide() applies spec 4.2 H1 (a)-(e), the brand rule on customer-facing
 run files, the AEGIS_AGENT identity rule, and dispatch checks (no nested
 orchestrator); paths come from aegis.config.json and runs/.active.
+The 9 legacy skills' main-thread run writes are warn-only
+(LEGACY_MAIN_THREAD_RUN_WRITES) until P0c/P3 rewrite them.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 EOF
@@ -3124,7 +3237,7 @@ Baseline: **0**. Exception: if `.claude/agents/tier2-specialist/qa-ui-designer.m
 - Consumes: `loadGuardContext`, `decide` and `appendLedger` (`packages/@qa/path-guard/dist/index.js`); `CLI_COMMANDS` and `assertCallerAllowed` (`packages/@qa/run-state/dist/caller.js`).
 - Produces:
   - Exit codes: 2 with `aegis guard: <reason>` on stderr denies the call; 0 allows it.
-  - The hook appends `{ kind: "claim" }` ledger entries for subagents.
+  - The hook appends `{ kind: "claim" }` ledger entries for subagents. For a legacy main-thread run write (decision 24) it prints `aegis guard: warning — …` on stderr, appends `{ agentId: "main", kind: "legacy-write", skills, path }`, and exits 0.
   - `runHook(name, input, root, opts?)` and `hookStale()` (`__internal-tests__/helpers/hooks.ts`), for Tasks 10 and 11.
 
 - [ ] **Step 1: Write the test helper** — create `__internal-tests__/helpers/hooks.ts`:
@@ -3221,6 +3334,16 @@ test('uses the real caller tables: the owner may not run an agent-only command',
   expect(r.stderr).toMatch(/agent-only/);
 });
 
+test('a legacy skill main-thread run write is allowed with a stderr warning and a ledger entry (decision 24)', () => {
+  const file = path.join(runDir(t.root, runId), 'reports', 'gate-check', 'staging.json');
+  const r = guard({ tool_name: 'Write', tool_input: { file_path: file, content: '{}' } });
+  expect(r.status).toBe(0);
+  expect(r.stderr).toMatch(/aegis guard: warning — legacy direct run write by qa-gate-check/);
+  expect(readLedger(t.root, runId, 'main')).toEqual([expect.objectContaining({ kind: 'legacy-write', skills: ['qa-gate-check'], path: file })]);
+  const sub = guard({ tool_name: 'Write', tool_input: { file_path: file, content: '{}' }, agent_type: 'qa-test-executor', agent_id: 'a1' });
+  expect(sub.status).toBe(2);
+});
+
 test('a payload that is not JSON is allowed', () => {
   expect(runHook('guard-writes', 'not json', t.root).status).toBe(0);
 });
@@ -3295,7 +3418,7 @@ Expected: FAIL. `scripts/hooks/guard-writes.mjs` does not exist, and `settings.j
 #!/usr/bin/env node
 // H1 guard-writes (P0 spec §4.2): PreToolUse on Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task.
 // The hook payload arrives as JSON on stdin; exit 2 with the reason on stderr denies the call.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -3322,7 +3445,8 @@ try {
   pg = await import(pathToFileURL(join(REPO, "packages/@qa/path-guard/dist/index.js")).href);
   caller = await import(pathToFileURL(join(REPO, "packages/@qa/run-state/dist/caller.js")).href);
 } catch (e) {
-  // No build (decision 3): fail closed for every subagent call and for main-thread calls naming the run directory.
+  // No build (decision 3): fail closed for every subagent call and for main-thread calls naming the run directory
+  // (without the build the legacy list cannot be read, so legacy writes are denied too until pnpm install).
   const text = JSON.stringify(input.tool_input ?? {});
   if (isSubagent || text.includes(join(ROOT, "runs")) || /(^|[\s"'=/])runs\//.test(text)) {
     deny(`enforcement unavailable (${e.message}); run pnpm install, whose prepare script builds the CLI and the hook packages`);
@@ -3343,12 +3467,19 @@ try {
       }
     },
   });
+  const ts = new Date().toISOString();
   if (isSubagent && ctx.activeRunId !== null && typeof input.agent_id === "string") {
     for (const taskId of result.claims) {
-      pg.appendLedger(ROOT, ctx.activeRunId, { ts: new Date().toISOString(), agentId: input.agent_id, agentType: input.agent_type, kind: "claim", taskId });
+      pg.appendLedger(ROOT, ctx.activeRunId, { ts, agentId: input.agent_id, agentType: input.agent_type, kind: "claim", taskId });
     }
   }
   if (!result.allow) deny(result.reason);
+  // Decision 24: a legacy skill's main-thread run write is allowed, but logged and announced.
+  for (const w of result.warnings) {
+    process.stderr.write(`aegis guard: warning — legacy direct run write by ${w.skills.join(" or ")} to ${w.path}; allowed until that skill moves onto the CLI (LEGACY_MAIN_THREAD_RUN_WRITES)\n`);
+    const runId = w.runId !== null && existsSync(join(ROOT, "runs", w.runId)) ? w.runId : ctx.activeRunId;
+    if (runId !== null) pg.appendLedger(ROOT, runId, { ts, agentId: "main", agentType: "owner", kind: "legacy-write", skills: w.skills, path: w.path });
+  }
 } catch (e) {
   if (isSubagent) deny(`guard error (${e.message}); agents stay blocked until it is fixed`);
   process.stderr.write(`aegis guard: internal error (${e.message}); main-thread call allowed\n`);
@@ -3393,13 +3524,15 @@ process.exit(0);
 ```markdown
 Enforced by the PreToolUse hook (`scripts/hooks/guard-writes.mjs`): a subagent whose name does not start with `qa-`
 cannot write inside `aegis/` or any QA artefact; `qa-*` agents write only the paths of their role-table row; the
-main thread writes framework files only — never `runs/**` or the target's `tests/**`. Framework work by subagents
-happens in a git worktree outside this directory.
+main thread writes framework files only — never `runs/**` or the target's `tests/**`, except the direct run writes
+of the not-yet-rewritten skills in `LEGACY_MAIN_THREAD_RUN_WRITES`, which are allowed with a warning and logged in the
+run's hook ledger until P0c/P3 move them onto the CLI. Framework work by subagents happens in a git worktree outside
+this directory.
 ```
 
 - In the Read / write policy table:
   - Replace the row `| \`../tests/**\` | WRITE allowed |` with `| \`../tests/**\` | WRITE by \`qa-*\` agents under \`testsDir\`, per their role row; never by the main thread |`.
-  - Replace `| \`aegis/runs/**\` | WRITE allowed |` with `| \`aegis/runs/**\` | WRITE by \`qa-*\` agents per their role row; CLI-only files (\`events.jsonl\`, \`run.json\`, \`gates/\`, \`reports/work/\`, \`reports/review/\`, \`taskmaster/\`, \`intake/\`, \`hooks/\`, \`integrity/\`) only through \`pnpm aegis\`; never by the main thread |`.
+  - Replace `| \`aegis/runs/**\` | WRITE allowed |` with `| \`aegis/runs/**\` | WRITE by \`qa-*\` agents per their role row; CLI-only files (\`events.jsonl\`, \`run.json\`, \`gates/\`, \`reports/work/\`, \`reports/review/\`, \`taskmaster/\`, \`intake/\`, \`hooks/\`, \`integrity/\`) only through \`pnpm aegis\`; never by the main thread, except the legacy skill writes listed in \`LEGACY_MAIN_THREAD_RUN_WRITES\` (allowed with a warning until P0c/P3 rewrite those skills) |`.
   - Replace the three rows for `aegis/packages/@qa/**`, `aegis/apps/**` and `aegis/agent-memory/**` with:
 
 ```markdown
@@ -3422,7 +3555,9 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
 - Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
   when the written text matches a brand-exposure pattern.
 - The main thread never writes a run directory or the target's `tests/`; a subagent whose name does not start with
-  `qa-` never writes inside this repo either.
+  `qa-` never writes inside this repo either. Rollout exception: the direct run writes of the skills not yet rewritten
+  onto the CLI (`LEGACY_MAIN_THREAD_RUN_WRITES` in `packages/@qa/path-guard/src/guard.ts`) are allowed from the main
+  thread with a warning and a `legacy-write` hook-ledger entry; P0c/P3 remove each skill's entry when they rewrite it.
 - A `qa-*` agent writes only its role row's globs — {run} is the active run, {testsDir} is
   `aegis.config.json#testsDir`, {target} is `targetProjectRoot` — or the OS temp directory; never `packages/`, `apps/`,
   `.claude/`, a `package.json` or a lockfile, and nothing at all while the run's environment forbids it.
@@ -4673,7 +4808,7 @@ const status = {
   'AUD-018': 'fixed — agent wiring (P0a-2); H4 cheat-sheet and the root prepare build (P0b-2)',
   'AUD-019': 'fixed — P0b-2 (H1 PreToolUse guard replaces the PostToolUse hook)',
   'AUD-020': 'fixed — P0b-2 (H1: CLI-only run files, brand rule on customer-facing files)',
-  'AUD-021': 'partial — H1 refuses main-thread and non-qa writes to QA artefacts (P0b-2); router rule and routing.yaml → P0c',
+  'AUD-021': 'partial — H1 refuses main-thread and non-qa writes to QA artefacts (P0b-2; the 9 legacy skills warn-only via LEGACY_MAIN_THREAD_RUN_WRITES until P0c/P3 rewrite them); router rule and routing.yaml → P0c',
   'AUD-022': 'fixed — P0b-2 (H1: CLI-only files, framework and lockfile writes, no nested orchestrator)',
   'AUD-026': 'fixed — P0b-2 (role paths from aegis.config.json and runs/.active)',
   'AUD-040': 'fixed — agent events through the CLI (P0a-2); legacy writers chained or deleted (P0b-2)',
@@ -4734,13 +4869,15 @@ EOF
 - [ ] `pnpm install --frozen-lockfile && pnpm build && pnpm typecheck && pnpm test && pnpm test:smoke && pnpm aegis align` all pass on the branch. No hook or built-CLI suite is skipped after the build.
 - [ ] Baseline: **−7** keys against `main` (6 AUD-112 keys and 1 AUD-042b key). If `qa-ui-designer.md` still existed at Task 9, it is **+4** AUD-050 keys, for a net **−3**, and the PR carries the `baseline-growth` label. `pnpm exec tsx scripts/check-baseline-growth.ts --base main` agrees.
 - [ ] `.claude/settings.json` has no `PostToolUse` entry. It registers `PreToolUse` (H1), `SubagentStop` (H2), `UserPromptSubmit` (H3) and `SubagentStart` (H4).
-- [ ] A manual hook smoke check in a scratch copy, never against a real target. Open the worktree in Claude Code and confirm:
-  1. A main-thread `Write` to `runs/x/plan.json` is denied with `aegis guard:`.
-  2. A `general-purpose` subagent cannot write `HANDBOOK/`.
-  3. A dispatched `qa-test-planner` receives the H4 context.
+- [ ] PR description: the Decisions list, the owner's answers (Owner questions section), and the AUD-054 note for P2 (`sandbox-manager` deleted here).
 
-  Record the result in the PR description. This needs the owner's interactive session, so the implementer lists it as a follow-up check and does not claim it done.
-- [ ] PR description: the Decisions list, Owner question 1 with the applied default, and the AUD-054 note for P2 (`sandbox-manager` deleted here).
+### Pre-flight note
+
+The controller runs the end-of-branch interactive hook smoke check in the owner's session **after merge**. Implementers and reviewers do not block on it and do not claim it done. It runs in a scratch copy, never against a real target, and confirms:
+1. A main-thread `Write` to `runs/x/plan.json` is denied with `aegis guard:`.
+2. A legacy skill write (for example `/qa-gate-check` writing `reports/gate-check/`) is allowed with the `aegis guard: warning` notice.
+3. A `general-purpose` subagent cannot write `HANDBOOK/`.
+4. A dispatched `qa-test-planner` receives the H4 context.
 
 ## Self-review notes
 
