@@ -164,8 +164,9 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 2. Create SPV at `.claude/agents/spv/qa-{name}-spv.md` — SPVs get only `[Read, Bash]`.
 3. Create lessons stub: `echo '{"version":"1.0","lessons":[]}' > agent-memory/qa-{name}/lessons.json`
 4. Register both in `.claude/model-policy.yaml` under the correct tier.
-5. Run `_qa-build-agents` skill to stamp model names into frontmatter.
-6. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
+5. Add a row for each to the role table `packages/@qa/path-guard/src/roles.ts` (writable globs, SPV, `mutatesEnvIn`); the PreToolUse hook denies every write of an agent without a row.
+6. Run `_qa-build-agents` skill to stamp model names into frontmatter.
+7. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
 
 ---
 

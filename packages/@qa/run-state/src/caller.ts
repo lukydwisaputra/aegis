@@ -1,3 +1,4 @@
+import { roleOf } from "@qa/path-guard";
 import { RunStateError } from "./errors.js";
 
 export const OWNER = "owner";
@@ -109,7 +110,10 @@ const SHARED_SPV: Readonly<Record<string, string>> = {
   "qa-github-implementer": "qa-github-spv",
 };
 
-/** The one SPV allowed to review `agent`'s work. */
+/**
+ * The one SPV allowed to review `agent`'s work: its role-table SPV (CO-08). The shared DevOps pairs stay as a
+ * fallback until P2 retires those agents; any other agent pairs with `<agent>-spv`.
+ */
 export function pairedSpv(agent: string): string {
-  return SHARED_SPV[agent] ?? `${agent}-spv`;
+  return roleOf(agent)?.spv ?? SHARED_SPV[agent] ?? `${agent}-spv`;
 }

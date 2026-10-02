@@ -1,6 +1,7 @@
 import { resolve, normalize } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import { checkEnvironmentSpecialists, isReadOnlyEnvironment, specialistShortName } from "@qa/contracts";
+import { checkEnvironmentSpecialists } from "@qa/contracts";
+import { specialistEnvProblem } from "./roles.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,8 +110,6 @@ export function assertWritable(path: string, aegisRoot: string): void {
   }
 }
 
-const canonical = (name: string): string => specialistShortName(name) ?? name;
-
 /**
  * Assert that a mutating action is safe to perform against the given environment.
  * Reads environment config from aegis.config.json.
@@ -123,20 +122,8 @@ export function assertEnvSafe(
   const config = loadConfig(aegisRoot);
   const envConfig: EnvConfig = config.environments?.[env] ?? {};
 
-  if (action.mutates && isReadOnlyEnvironment(envConfig)) {
-    throw new PathGuardError(`Env safety: environment "${env}" is read-only. Mutating action blocked.`, env, "env-read-only");
-  }
-
-  if (action.specialist) {
-    const name = canonical(action.specialist);
-    if ((envConfig.forbiddenSpecialists ?? []).map(canonical).includes(name)) {
-      throw new PathGuardError(`Env safety: specialist "${action.specialist}" is forbidden in environment "${env}".`, env, "specialist-blocked");
-    }
-    const allowed = envConfig.allowedSpecialists?.map(canonical);
-    if (allowed && !allowed.includes("*") && !allowed.includes(name)) {
-      throw new PathGuardError(`Env safety: specialist "${action.specialist}" is not in the allowed list for environment "${env}".`, env, "specialist-blocked");
-    }
-  }
+  const problem = specialistEnvProblem(env, envConfig, action.specialist, action.mutates);
+  if (problem !== null) throw new PathGuardError(problem.message, env, problem.reason);
 }
 
 /**
@@ -237,3 +224,5 @@ export function validateConfig(aegisRoot: string): ConfigValidationResult {
 
   return { valid: errors.length === 0, errors };
 }
+
+export * from "./roles.js";

@@ -37,6 +37,7 @@ Example: adding a Billing module:
 6. Run `pnpm aegis build-agents` to inject the `model:` field
 7. Add agent to the relevant STLC phase in `qa-orchestrator.md`'s dispatch table
 8. Append the `## Contract (machine-checked)` block to the agent and its SPV, and update `.claude/pipeline.yaml` (phase agents, `spvPairs` if the SPV is not `<agent>-spv`) — see §14.11; then run `pnpm aegis align`
+9. Add a row for the agent and its SPV to the path-guard role table (`packages/@qa/path-guard/src/roles.ts`): writable globs, its SPV and the phases in which it changes the environment (`mutatesEnvIn`). Without a row the PreToolUse hook denies all its writes, and `role-table.test.ts` fails.
 
 ## 14.3 Adding a new compliance regulation
 

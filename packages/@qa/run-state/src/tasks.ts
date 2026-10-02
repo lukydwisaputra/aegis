@@ -1,8 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { GATE_AFTER, GateIdSchema, SPECIALISTS, specialistShortName, type RunState } from "@qa/contracts";
+import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { PathGuardError, assertEnvSafe } from "@qa/path-guard";
+import { PathGuardError, assertEnvSafe, envVerdict } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
 import { readSettings } from "./config.js";
@@ -152,6 +152,29 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
   }
 }
 
+/** The run environment's policy from aegis.config.json (undefined when missing or unreadable). */
+function envPolicy(root: string, env: string): EnvironmentSpecialistConfig | undefined {
+  try {
+    const raw = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as { environments?: Record<string, EnvironmentSpecialistConfig> };
+    return raw.environments?.[env];
+  } catch {
+    return undefined;
+  }
+}
+
+/** P0a carry-over: a non-specialist whose role changes the environment in this task's phase is refused on a read-only one. */
+async function assertRoleEnvAllows(root: string, state: RunState, caller: string, taskPhase: string | undefined, now?: Date): Promise<void> {
+  const phase = PhaseIdSchema.safeParse(taskPhase);
+  const verdict = envVerdict(caller, phase.success ? phase.data : null, state.environment, envPolicy(root, state.environment));
+  if (verdict.allowed) return;
+  await appendChained(
+    { type: "env.specialist-blocked", ts: iso(now), env: state.environment, specialist: caller },
+    busPath(root, state.runId),
+    { emittedBy: caller, runId: state.runId }
+  );
+  throw new RunStateError("env-blocked", verdict.reason);
+}
+
 /** I6: a task is claimed only by the agent it was added for. */
 function assertAssignee(task: Task, caller: string): void {
   if (task.assignee !== caller) {
@@ -189,6 +212,8 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
             `${running.length}/${maxSpecialists} specialists already running (aegis.config.json#parallelism.maxSpecialists)`
           );
         }
+      } else {
+        await assertRoleEnvAllows(root, readRun(root, runId), caller, current.phase, now);
       }
       const before = await mustGet(root, runId, taskId);
       try {
