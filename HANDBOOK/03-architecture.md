@@ -59,7 +59,7 @@ Model assignment is in `.claude/model-policy.yaml` (stamped into agent frontmatt
 
 ### 3.4 Tier-1: Domain Managers
 
-Eight managers coordinate domain work:
+Managers coordinate domain work:
 
 | Manager | Domain |
 |---|---|
@@ -69,7 +69,6 @@ Eight managers coordinate domain work:
 | `qa-test-executor` | Execution coordination, Tier-2 fan-out, SPV dispatch |
 | `qa-defect-manager` | Defect lifecycle, triage coordination |
 | `qa-environment-engineer` | playwright.config.ts, fixtures, factories, test data seeding |
-| `qa-knowledge-librarian` | Book ingestion, knowledge base maintenance, query resolution |
 | `qa-curator` | Lesson capture, system-wide promotion proposals |
 
 Managers do not write test artefacts directly. They decompose work and dispatch to Tier-2 workers.

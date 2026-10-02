@@ -48,6 +48,8 @@ describe('DevOps docs (AUD-046)', () => {
 // Retired by owner decision 2026-10-02 (spec §4.1); each retirement task appends its agents.
 const RETIRED: Array<{ name: string; aud: string }> = [
   ...DEVOPS.map((name) => ({ name, aud: 'AUD-046' })),
+  { name: 'qa-knowledge-librarian', aud: 'AUD-047' },
+  { name: 'qa-event-bus', aud: 'AUD-048' },
 ];
 
 /** Frontmatter names of every agent file under .claude/agents/. */

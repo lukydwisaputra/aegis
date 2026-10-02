@@ -154,7 +154,7 @@ Traces a requirement ID to its test cases, defects and RTM rows.
 
 #### `/qa-ingest-book`
 
-Chunks a QA reference book or document into `knowledge/` for the librarian to serve.
+Chunks a QA reference book or document into `knowledge/`, for agents to read through `knowledge_refs`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

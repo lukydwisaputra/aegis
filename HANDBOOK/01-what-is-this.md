@@ -67,7 +67,7 @@ The system uses a tiered agent hierarchy:
 - **Tier-2 specialists** — fourteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-ui-designer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-email-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
 - **SPVs (Supervisors)** — twenty-two reviewer agents that audit work produced by workers and return scored feedback
 - **Compliance agents** — six agents, one per regulation, running in parallel during every cycle
-- **Cross-cutting agents** — five agents handling knowledge ingestion, self-improvement, and metrics
+- **Cross-cutting agents** — three agents: the context scanner, the curator (self-improvement) and the metrics collector
 
 ---
 

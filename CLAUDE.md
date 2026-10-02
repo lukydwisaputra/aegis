@@ -96,7 +96,7 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 | 2 — Specialists | 16 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
 | 3 — SPVs | 24 | Opus | Mirror of Tier 1/2; validate work reports |
 | Compliance | 6 | Opus | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
-| Cross-cutting | 4 | Haiku | context-scanner, librarian, event-bus, metrics-collector |
+| Cross-cutting | 3 | Haiku / Opus | context-scanner, metrics-collector (Haiku); curator (Opus) |
 
 Model assignments are centralized in `.claude/model-policy.yaml` — **never hardcode a model in an agent definition**. Use the `_qa-build-agents` skill to stamp model policy changes into all agent frontmatter.
 
@@ -145,7 +145,7 @@ runs/{runId}/
 
 ### Knowledge pipeline
 
-Books (PDFs in `books/raw/`, gitignored) are ingested via `/qa-ingest-book`, chunked into `knowledge/`, and cross-synthesized into `knowledge/synthesis/`. The `qa-knowledge-librarian` agent resolves worker queries against this corpus — workers query the librarian rather than grepping raw markdown.
+Books (PDFs in `books/raw/`, gitignored) are ingested via `/qa-ingest-book`, chunked into `knowledge/`, and cross-synthesized into `knowledge/synthesis/`. Agents read `knowledge/synthesis/*.md` directly through their `knowledge_refs` frontmatter.
 
 ### ID format
 

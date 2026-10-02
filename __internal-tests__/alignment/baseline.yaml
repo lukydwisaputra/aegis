@@ -88,20 +88,8 @@ entries:
   - key: "CONSUMER:qa-environment-engineer:{run}/playwright-output/**:unread"
     ids: [AUD-108]
     note: "no one reads {run}/playwright-output/**"
-  - key: "CONSUMER:qa-event-bus:{run}/events.jsonl.lock:unread"
-    ids: [AUD-048]
-    note: "no one reads {run}/events.jsonl.lock"
   # --- CONTRACT ---
   # --- DISPATCH ---
-  - key: "DISPATCH:qa-event-bus:-:undispatched"
-    ids: [AUD-048]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-knowledge-librarian:-:undispatched"
-    ids: [AUD-047]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-knowledge-librarian:qa-orchestrator:not-reciprocal"
-    ids: [AUD-047]
-    note: "qa-orchestrator does not list qa-knowledge-librarian in dispatches"
   - key: "DISPATCH:qa-ui-designer-spv:-:undispatched"
     ids: [AUD-050]
     note: "nothing dispatches this agent"
@@ -121,9 +109,6 @@ entries:
   - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
     ids: [AUD-060]
     note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
-  - key: "DOC-REF:CLAUDE.md:crosscutting=4:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"Cross-cutting\" claims 4; .claude/agents/crosscutting has 5"
   - key: "DOC-REF:CLAUDE.md:qa-director:unknown"
     ids: [AUD-076]
     note: "qa-director is not an agent, skill, package or allowlisted name"
@@ -289,9 +274,6 @@ entries:
   - key: "EVENT:qa-deps-update:deps.update.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-event-bus:-:appends-without-cli"
-    ids: [AUD-048]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-export:export.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -666,9 +648,6 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-event-bus:{run}/events.jsonl:cli-only"
-    ids: [AUD-048, CO-01]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"

@@ -23,7 +23,7 @@ All model assignments are centralized in `aegis/.claude/model-policy.yaml`. Agen
 
 **Validation tier (Opus — upgraded from default):** Reviewing requires holding the rules + the artifact + the lessons file simultaneously. The cost of a missed SPV review is a defect that reaches production. Worth upgrading.
 
-**Read-only tier (Haiku):** `qa-context-scanner` lists files and detects frameworks. `qa-knowledge-librarian` returns relevant book chunks by query match. No synthesis needed — just fast retrieval.
+**Read-only tier (Haiku):** `qa-context-scanner` lists files and detects frameworks. `qa-metrics-collector` tails the event log into metric files. No synthesis needed — just fast, cheap passes.
 
 ## Book ingestion uses multiple models per book
 
