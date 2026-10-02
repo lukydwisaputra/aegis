@@ -1,9 +1,10 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { parse } from 'yaml';
 import { SPECIALISTS } from '@qa/contracts';
 import { ROLES, envVerdict, isEnvSafe, matchGlob, roleOf, roleWritable } from '@qa/path-guard';
-import { isSpecialist, pairedSpv } from '@qa/run-state';
+import { SPV_NONE, isSpecialist, pairedSpv } from '@qa/run-state';
 
 const REPO = path.join(__dirname, '..');
 // Retired to agent-graveyard/ by P2 (owner decision 2026-10-02): no role row, so H1 denies their writes until P2 deletes them.
@@ -27,7 +28,7 @@ function agentFiles(): Map<string, string> {
 
 function contractWrites(file: string): string[] {
   const m = /## Contract \(machine-checked\)\s*```yaml\n([\s\S]*?)```/.exec(fs.readFileSync(file, 'utf-8'));
-  if (m === null) return [];
+  if (m === null) throw new Error(`no machine-checked contract block in ${file}`);
   const c = parse(m[1]!) as { writes?: Array<string | { path: string }> };
   return (c.writes ?? []).map((w) => (typeof w === 'string' ? w : w.path));
 }
@@ -42,6 +43,8 @@ function expandBraces(p: string): string[] {
 function sample(p: string): string {
   return p
     .replace(/^\{tests\}\/qa\//, '{testsDir}/')
+    .replace(/\{TC-ID\}/g, 'TC-x1')
+    .replace(/\{DEF-ID\}/g, 'DEF-x1')
     .replace(/\{(?!run\}|testsDir\}|target\})[^{}/]+\}/g, 'x1')
     .replace(/\*\*/g, 'x1/x2')
     .replace(/\*/g, 'x1');
@@ -88,6 +91,39 @@ describe('role table (spec §4.2: one declarative table)', () => {
   });
 });
 
+describe('role table, further invariants', () => {
+  it('rows without an SPV are exactly SPV_NONE (minus the retiring qa-cicd-evaluator)', () => {
+    const none = ROLES.filter((r) => r.kind !== 'spv' && r.spv === null).map((r) => r.agent).sort();
+    expect(none).toEqual([...SPV_NONE].filter((a) => a !== 'qa-cicd-evaluator').sort());
+  });
+
+  it('contractWrites fails loudly when a contract block is missing', () => {
+    const f = path.join(os.tmpdir(), `no-contract-${process.pid}.md`);
+    fs.writeFileSync(f, '# agent without a contract\n');
+    try {
+      expect(() => contractWrites(f)).toThrow(/no machine-checked contract/);
+    } finally {
+      fs.rmSync(f, { force: true });
+    }
+  });
+
+  it('no role glob covers a CLI-only path, at any depth', () => {
+    const paths = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261002-001' };
+    const RUN = paths.runDir;
+    const cliOnly = [
+      `${RUN}/events.jsonl`, `${RUN}/run.json`, `${RUN}/gates/x`, `${RUN}/reports/work/x`, `${RUN}/reports/review/x`,
+      `${RUN}/taskmaster/x`, `${RUN}/intake/x`, `${RUN}/hooks/x`, `${RUN}/integrity/x`, '/r/aegis/runs/.active',
+    ];
+    const lock = `${RUN}/evidence/TC-x1/a/b.lock`;
+    const covered: string[] = [];
+    for (const r of ROLES) for (const p of cliOnly) if (roleWritable(r.agent, p, paths)) covered.push(`${r.agent}: ${p}`);
+    expect(covered).toEqual([]);
+    // Known gap: evidence trees take any file name. Task 8's CLI-only-first rule (c) must deny *.lock at any depth.
+    const lockWriters = ROLES.filter((r) => roleWritable(r.agent, lock, paths)).map((r) => r.agent);
+    expect(lockWriters.length).toBeGreaterThan(0);
+  });
+});
+
 describe('glob matching and path resolution', () => {
   const paths = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261002-001' };
 
@@ -109,6 +145,40 @@ describe('glob matching and path resolution', () => {
     expect(roleWritable('qa-ui-specialist', '/r/playwright.config.ts', paths)).toBe(false);
     expect(roleWritable('qa-made-up', '/r/aegis/sandbox/x', paths)).toBe(false);
   });
+
+  it('refuses relative, non-normalised and dot-dot paths before any glob (I1)', () => {
+    const RUN = paths.runDir;
+    expect(roleWritable('qa-test-executor', `${RUN}/evidence/TC-x1/a.png`, paths)).toBe(true);
+    expect(roleWritable('qa-test-executor', `${RUN}/evidence/TC-x1/../../run.json`, paths)).toBe(false);
+    expect(roleWritable('qa-test-executor', `${RUN}/evidence/../run.json`, paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', '/r/tests/qa/specs/../../src/app.ts', paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', 'tests/qa/specs/login.spec.ts', paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', '/r/tests/qa//specs/login.spec.ts', paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', '/r/tests/qa/specs/./login.spec.ts', paths)).toBe(false);
+  });
+
+  it('excludes beat writes, and evidence trees are per kind (I2)', () => {
+    const RUN = paths.runDir;
+    expect(roleWritable('qa-test-designer', `${RUN}/cases/TC-AUTH-001.json`, paths)).toBe(true);
+    expect(roleWritable('qa-test-designer', `${RUN}/cases/TC-AUTH-001-result.json`, paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', `${RUN}/cases/TC-AUTH-001-result.json`, paths)).toBe(true);
+    expect(roleWritable('qa-ui-specialist', `${RUN}/evidence/DEF-1-AUTH-UI/x.png`, paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', `${RUN}/evidence/run.json`, paths)).toBe(false);
+    expect(roleWritable('qa-defect-manager', `${RUN}/evidence/DEF-1-AUTH-UI/x.png`, paths)).toBe(true);
+    expect(roleWritable('qa-defect-manager', `${RUN}/evidence/TC-x1/x.png`, paths)).toBe(false);
+    expect(roleWritable('qa-exploratory-specialist', `${RUN}/evidence/exploratory/S1/n.png`, paths)).toBe(true);
+    expect(roleWritable('qa-web-explorer', `${RUN}/evidence/discovery/p.png`, paths)).toBe(true);
+  });
+
+  it('shared spec trees are filename-scoped (m4)', () => {
+    expect(roleWritable('qa-accessibility-specialist', '/r/tests/qa/specs/login/a11y.spec.ts', paths)).toBe(true);
+    expect(roleWritable('qa-accessibility-specialist', '/r/tests/qa/specs/login/login.spec.ts', paths)).toBe(false);
+    expect(roleWritable('qa-feature-flag-specialist', '/r/tests/qa/specs/login/flags.spec.ts', paths)).toBe(true);
+    expect(roleWritable('qa-feature-flag-specialist', '/r/tests/qa/specs/login/a11y.spec.ts', paths)).toBe(false);
+    expect(roleWritable('qa-responsive-specialist', '/r/tests/qa/specs/login/responsive.spec.ts', paths)).toBe(true);
+    expect(roleWritable('qa-realtime-specialist', '/r/tests/qa/api/chat.realtime.test.ts', paths)).toBe(true);
+    expect(roleWritable('qa-realtime-specialist', '/r/tests/qa/api/users.test.ts', paths)).toBe(false);
+  });
 });
 
 describe('envVerdict', () => {
@@ -129,5 +199,16 @@ describe('envVerdict', () => {
     expect(envVerdict('qa-environment-engineer', 'env-auth', 'production', readOnly)).toEqual({ allowed: true });
     expect(envVerdict('qa-environment-engineer', 'env-data', 'staging', { mutating: true })).toEqual({ allowed: true });
     expect(envVerdict('qa-test-planner', 'planning', 'production', readOnly)).toEqual({ allowed: true });
+  });
+
+  it('an unknown phase counts as mutating for a role that mutates somewhere (m3)', () => {
+    const readOnly = { readOnly: true };
+    expect(envVerdict('qa-environment-engineer', null, 'production', readOnly)).toMatchObject({ allowed: false });
+    expect(envVerdict('qa-test-planner', null, 'production', readOnly)).toEqual({ allowed: true });
+  });
+
+  it('an unknown qa-*-specialist is treated as mutating (m6)', () => {
+    expect(envVerdict('qa-made-up-specialist', 'execution', 'production', { readOnly: true })).toMatchObject({ allowed: false });
+    expect(envVerdict('qa-made-up-specialist', 'execution', 'staging', { mutating: true })).toEqual({ allowed: true });
   });
 });

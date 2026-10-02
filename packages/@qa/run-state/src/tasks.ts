@@ -152,13 +152,14 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
   }
 }
 
-/** The run environment's policy from aegis.config.json (undefined when missing or unreadable). */
+/** The run environment's policy from aegis.config.json (undefined when the file is missing; an unreadable or corrupt one fails closed). */
 function envPolicy(root: string, env: string): EnvironmentSpecialistConfig | undefined {
   try {
     const raw = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as { environments?: Record<string, EnvironmentSpecialistConfig> };
     return raw.environments?.[env];
-  } catch {
-    return undefined;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
   }
 }
 
@@ -213,7 +214,7 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
           );
         }
       } else {
-        await assertRoleEnvAllows(root, readRun(root, runId), caller, current.phase, now);
+        await assertRoleEnvAllows(root, readRun(root, runId), caller, current.phase ?? readRun(root, runId).currentPhase ?? undefined, now);
       }
       const before = await mustGet(root, runId, taskId);
       try {

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join, posix } from "node:path";
 import {
   SPECIALISTS,
   isReadOnlyEnvironment,
@@ -23,13 +23,15 @@ export interface Role {
    * `*` matches inside one path segment, `**` any number of segments.
    */
   readonly writes: readonly string[];
+  /** Globs that deny a path even when a `writes` glob covers it. */
+  readonly excludes?: readonly string[];
   /** The SPV that reviews this agent; null for an SPV, or for an agent with no SPV yet (spec §4.5, `spv: none (P2)`). */
   readonly spv: string | null;
   /** Phases in which the agent changes the environment under test ("any": every phase). */
   readonly mutatesEnvIn: readonly PhaseId[] | "any";
 }
 
-const SPECIALIST_COMMON: readonly string[] = ["{run}/cases/*-result.json", "{run}/evidence/**", "sandbox/**"];
+const SPECIALIST_COMMON: readonly string[] = ["{run}/cases/*-result.json", "{run}/evidence/TC-*/**", "sandbox/**"];
 
 function row(agent: string, kind: RoleKind, writes: readonly string[], spv: string | null, mutatesEnvIn: Role["mutatesEnvIn"] = []): Role {
   return { agent, kind, writes, spv, mutatesEnvIn };
@@ -72,24 +74,28 @@ export const ROLES: readonly Role[] = [
   ),
   reviewed("qa-web-explorer", "phase", ["{run}/discovery-report.*", "{testsDir}/pages/**", "{run}/evidence/discovery/**", "{run}/defect-candidates/**", "sandbox/**"]),
   reviewed("qa-test-planner", "phase", ["{run}/plan.*", "{run}/risk-register.*"]),
-  reviewed("qa-test-designer", "phase", ["{run}/cases/*", "{run}/scenarios/**", "{run}/rtm.*", "{run}/proposed-changes/**"]),
+  {
+    ...reviewed("qa-test-designer", "phase", ["{run}/cases/*", "{run}/scenarios/**", "{run}/rtm.*", "{run}/proposed-changes/**"]),
+    // Result files belong to the specialists; the designer owns the case files only.
+    excludes: ["{run}/cases/*-result.json"],
+  },
   // execution-summary is rollup-owned from P0c; until then the executor writes it (Execution barrier output).
-  reviewed("qa-test-executor", "phase", ["{run}/execution-summary.*", "{run}/evidence/**"]),
-  reviewed("qa-defect-manager", "phase", ["{run}/defects/**", "{run}/rtm.json", "{run}/evidence/**"]),
+  reviewed("qa-test-executor", "phase", ["{run}/execution-summary.*", "{run}/evidence/TC-*/**"]),
+  reviewed("qa-defect-manager", "phase", ["{run}/defects/**", "{run}/rtm.json", "{run}/evidence/DEF-*/**"]),
   reviewed("qa-closure-reporter", "phase", ["{run}/reports/closure/closure.*"]),
   reviewed("qa-executive-reporter", "phase", ["{run}/reports/executive/**"]),
   ...COMPLIANCE.map((c) => row(`qa-compliance-${c}`, "compliance", [`{run}/reports/compliance/${c}.*`], null)),
   row("qa-curator", "crosscutting", ["{run}/pending-promotions/**"], null),
   row("qa-metrics-collector", "crosscutting", ["{run}/reports/metrics/**"], null),
-  specialist("accessibility", ["{testsDir}/specs/**"]),
+  specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),
   specialist("api", ["{testsDir}/api/**", "{testsDir}/contract/**"]),
   specialist("database", ["{testsDir}/integration/**"]),
   specialist("email", ["{testsDir}/email/**"]),
-  specialist("exploratory", ["{run}/reports/exploratory/**", "{run}/defect-candidates/**"]),
-  specialist("feature-flag", ["{testsDir}/specs/**"]),
+  specialist("exploratory", ["{run}/reports/exploratory/**", "{run}/defect-candidates/**", "{run}/evidence/exploratory/**"]),
+  specialist("feature-flag", ["{testsDir}/specs/**/flags.spec.ts"]),
   specialist("performance", ["{testsDir}/perf/**"]),
-  specialist("realtime", ["{testsDir}/api/**"]),
-  specialist("responsive", ["{testsDir}/specs/**", "{run}/defect-candidates/**"]),
+  specialist("realtime", ["{testsDir}/api/**/*.realtime.test.ts"]),
+  specialist("responsive", ["{testsDir}/specs/**/responsive.spec.ts", "{run}/defect-candidates/**"]),
   specialist("security", ["{testsDir}/security/**"]),
   specialist("ui", ["{testsDir}/specs/**", "{testsDir}/fixtures/files/**", "{testsDir}/pages/**", "{run}/proposed-changes/**"]),
   specialist("unit", ["{testsDir}/unit/**", "{run}/reports/unit-coverage-gaps.json", "{run}/reports/metrics/coverage.json"]),
@@ -145,10 +151,13 @@ export function matchGlob(pattern: string, path: string): boolean {
 export function roleWritable(agent: string, absPath: string, paths: RolePaths): boolean {
   const role = roleOf(agent);
   if (role === undefined) return false;
-  return role.writes.some((g) => {
+  // Globs match text, so a path that is not already canonical (`a/../b`, `//`, relative) could walk out of its glob.
+  if (!isAbsolute(absPath) || posix.normalize(absPath) !== absPath || absPath.split("/").includes("..")) return false;
+  const covers = (g: string): boolean => {
     const resolved = resolveRoleGlob(g, paths);
     return resolved !== null && matchGlob(resolved, absPath);
-  });
+  };
+  return role.writes.some(covers) && !(role.excludes ?? []).some(covers);
 }
 
 // ─── Environment ──────────────────────────────────────────────────────────────
@@ -188,7 +197,7 @@ export type EnvVerdict = { allowed: true } | { allowed: false; reason: string };
 export function envVerdict(agent: string, phase: PhaseId | null, env: string, policy: EnvironmentSpecialistConfig | undefined): EnvVerdict {
   const p = policy ?? {};
   const role = roleOf(agent);
-  const changes = role !== undefined && (role.mutatesEnvIn === "any" || (phase !== null && role.mutatesEnvIn.includes(phase)));
+  const changes = role !== undefined && (role.mutatesEnvIn === "any" || (phase === null ? role.mutatesEnvIn.length > 0 : role.mutatesEnvIn.includes(phase)));
   if (role !== undefined ? role.kind === "specialist" : SPECIALIST_AGENT.test(agent)) {
     const problem = specialistEnvProblem(env, p, agent, role === undefined ? true : changes);
     return problem === null ? { allowed: true } : { allowed: false, reason: problem.message };
