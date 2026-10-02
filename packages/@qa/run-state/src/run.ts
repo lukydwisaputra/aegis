@@ -98,6 +98,7 @@ export async function commitRun(root: string, prior: RunState, next: RunState, r
  * Serialises run.json read-modify-write per run.
  * Lock order (never invert; never take run.lock while holding the bus lock):
  *   integrity.lock -> run.lock -> event-bus lock (verify; resume with an acknowledgement);
+ *   integrity.lock -> event-bus lock (repair-tail; the bus lock is released before the append takes it again).
  *   claims.lock -> run.lock -> (task-file lock) -> event-bus lock.
  *   Nothing may take claims.lock while holding run.lock.
  *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).

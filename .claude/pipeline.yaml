@@ -86,6 +86,7 @@ sources:
     - "{run}/reports/review/**"
     - "{run}/gates/**"
     - "{run}/intake/**"
+    - "{run}/integrity/**"
   owner: []
   target:
     - "{target}/**"

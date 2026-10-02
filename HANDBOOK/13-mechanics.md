@@ -9,7 +9,7 @@ The event bus is an append-only JSONL file at `runs/{runId}/events.jsonl`.
 **Append protocol (`appendChained` in `@qa/event-bus`, called only by the aegis CLI):**
 1. Validate the event against `AegisEventSchema`; refuse undeclared fields and caller-set envelope fields (nothing is written on a refusal)
 2. Acquire the `proper-lockfile` lock on the log (stale 5s)
-3. Refuse a torn tail (an unterminated, unparseable last line)
+3. Refuse a torn tail (an unterminated, unparseable last line); the owner cuts it with `aegis integrity repair-tail`, which keeps the bytes in the run's integrity directory and records `integrity.tail-repaired`
 4. Append one line with the envelope `seq`, `prevHash` (sha256 of the previous line), `emittedBy` and `runId`
 5. Release the lock
 

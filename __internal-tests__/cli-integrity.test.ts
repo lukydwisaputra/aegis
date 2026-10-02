@@ -33,3 +33,11 @@ test('run resume lists the acknowledged errors; run status keeps them as integri
   expect(resumed.out.acknowledgedErrors).toEqual(resumed.out.integrityAcknowledged.errors);
   expect(aegis('owner', 'run', 'status').out.integrityWaived).toEqual(resumed.out.acknowledgedErrors);
 });
+
+test('integrity repair-tail is an owner command of the built CLI (CO-02)', () => {
+  const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
+  fs.appendFileSync(path.join(t.root, 'runs', runId, 'events.jsonl'), '{"seq":2');
+  expect(aegis('qa-orchestrator', 'integrity', 'repair-tail')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+  expect(aegis('owner', 'integrity', 'repair-tail')).toMatchObject({ status: 0, out: { runId, removedBytes: 8 } });
+  expect(aegis('owner', 'integrity', 'repair-tail')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+});

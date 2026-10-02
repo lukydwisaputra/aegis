@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, truncateSync } from "node:fs";
 import { dirname } from "node:path";
 import lockfile from "proper-lockfile";
 import { AegisEventSchema, EventEnvelopeSchema, GENESIS_HASH } from "@qa/contracts";
@@ -112,7 +112,9 @@ export async function appendChained(
       try {
         JSON.parse(tail);
       } catch {
-        throw new Error(`EventBus: torn tail — last line of ${busPath} is incomplete; owner must repair or acknowledge`);
+        throw new Error(
+          `EventBus: torn tail — last line of ${busPath} is incomplete; the owner cuts it with \`AEGIS_AGENT=owner pnpm aegis integrity repair-tail\``
+        );
       }
     }
     const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
@@ -208,4 +210,39 @@ export function verifyCommittedLines({ lines, pendingTail }: CommittedLines): Ch
 
   const messages = errors.map((e) => `line ${e.line}: ${e.message}`);
   return { ok: messages.length === 0, legacyLines, chainedLines, pendingTail, errors: messages };
+}
+
+export interface TornTail {
+  /** The unterminated bytes after the last newline. */
+  bytes: Buffer;
+  sha256: string;
+}
+
+/**
+ * CO-02: cut a torn final segment (unterminated and not a whole JSON line) off the log, under the bus lock so no
+ * append is in flight. `keep` receives the bytes before the file is truncated and must make them durable; if it
+ * throws, nothing is cut. Returns null when the log ends cleanly or its unterminated tail is a whole JSON line
+ * (the next append terminates it).
+ */
+export async function repairTornTail(busPath: string, keep: (tail: TornTail) => void): Promise<TornTail | null> {
+  if (!existsSync(busPath)) return null;
+  const release = await lockfile.lock(busPath, { stale: 5_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
+  try {
+    const raw = readFileSync(busPath);
+    if (raw.length === 0 || raw[raw.length - 1] === 0x0a) return null;
+    const cut = raw.lastIndexOf(0x0a) + 1;
+    const bytes = Buffer.from(raw.subarray(cut));
+    try {
+      JSON.parse(bytes.toString("utf-8"));
+      return null;
+    } catch {
+      // torn: cut it below
+    }
+    const tail: TornTail = { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+    keep(tail);
+    truncateSync(busPath, cut);
+    return tail;
+  } finally {
+    await release();
+  }
 }

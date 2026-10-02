@@ -1537,6 +1537,15 @@ export const IntegrityAcknowledgedEventSchema = EventBase.extend({
   reason: z.string().min(1),
 });
 
+// CO-02: the owner cut a torn (unterminated, unparseable) last line off the log; the bytes are kept under {run}/integrity/.
+export const IntegrityTailRepairedEventSchema = EventBase.extend({
+  type: z.literal("integrity.tail-repaired"),
+  runId: RunIdSchema,
+  removedBytes: z.number().int().positive(),
+  removedSha256: Sha256HexSchema,
+  savedTo: z.string().min(1),
+});
+
 // ─── Phases, gates and escalation (P0a-1) ─────────────────────────────────────
 // Recorded only by the aegis CLI. Every field is declared here: appendChained rejects undeclared ones.
 
@@ -1832,6 +1841,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   ScanWarningEventSchema,
   IntegrityViolationEventSchema,
   IntegrityAcknowledgedEventSchema,
+  IntegrityTailRepairedEventSchema,
   RunPhaseNotApplicableEventSchema,
   GateDecidedEventSchema,
   GateAutoDecidedEventSchema,

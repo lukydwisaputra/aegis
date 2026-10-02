@@ -1,9 +1,11 @@
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, writeSync } from "node:fs";
+import { join, relative } from "node:path";
 import { RunIdSchema, type RunState } from "@qa/contracts";
-import { appendChained, readCommittedLines, verifyCommittedLines, type ChainVerifyResult } from "@qa/event-bus";
+import { appendChained, readCommittedLines, repairTornTail, verifyCommittedLines, type ChainVerifyResult } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
 import { applyAcknowledgement, checkpointOf, logErrors } from "./log-check.js";
-import { busPath, runJsonPath } from "./paths.js";
+import { RunStateError } from "./errors.js";
+import { busPath, runDir, runJsonPath } from "./paths.js";
 import {
   blockRun,
   INTEGRITY_REASON_PREFIX,
@@ -85,5 +87,48 @@ export async function verifyRunIntegrity(root: string, runId: string, caller: st
     }
 
     return { ...chain, ok, errors, runId, runJsonValid: state !== null };
+  });
+}
+
+export interface TailRepairResult {
+  runId: string;
+  removedBytes: number;
+  removedSha256: string;
+  /** Run-relative path of the saved bytes. */
+  savedTo: string;
+}
+
+/**
+ * CO-02: the owner cuts a torn tail off the log (a torn tail refuses every append, the acknowledgement included).
+ * The bytes are saved and fsynced under integrity/ before the cut, then integrity.tail-repaired is recorded.
+ * Lock order: integrity.lock -> event-bus lock (repairTornTail), released before the event-bus lock of the append.
+ */
+export async function repairTail(root: string, runId: string, caller: string, now?: Date): Promise<TailRepairResult> {
+  assertCallerAllowed(caller, "integrity.repair-tail");
+  if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);
+  return withIntegrityLock(root, runId, async () => {
+    const ts = iso(now);
+    const dir = join(runDir(root, runId), "integrity");
+    const saved = join(dir, `torn-tail.${ts.replace(/[:.]/g, "-")}.bin`);
+    const tail = await repairTornTail(busPath(root, runId), ({ bytes }) => {
+      mkdirSync(dir, { recursive: true });
+      const fd = openSync(saved, "wx");
+      try {
+        writeSync(fd, bytes);
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    });
+    if (tail === null) {
+      throw new RunStateError("invalid-input", `run ${runId}: the event log has no torn tail (it ends cleanly, or its last line is complete); nothing to repair`);
+    }
+    const savedTo = relative(runDir(root, runId), saved);
+    await appendChained(
+      { type: "integrity.tail-repaired", ts, runId, removedBytes: tail.bytes.length, removedSha256: tail.sha256, savedTo },
+      busPath(root, runId),
+      { emittedBy: caller, runId }
+    );
+    return { runId, removedBytes: tail.bytes.length, removedSha256: tail.sha256, savedTo };
   });
 }
