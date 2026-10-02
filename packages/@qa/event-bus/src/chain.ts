@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, closeSync, existsSync, fstatSync, fsyncSync, ftruncateSync, mkdirSync, openSync, readFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, fstatSync, fsyncSync, ftruncateSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
 import lockfile from "proper-lockfile";
 import { AegisEventSchema, EventEnvelopeSchema, GENESIS_HASH } from "@qa/contracts";
@@ -131,16 +131,21 @@ function appendChainedLocked(kept: Record<string, unknown>, busPath: string, ctx
     }
   }
   const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
+  const record = chainedRecord(kept, lines, ctx);
+  appendFileSync(busPath, (needsNewline ? "\n" : "") + JSON.stringify(record) + "\n", "utf-8");
+  return record;
+}
+
+/** The chained record for `kept` after `lines` (the committed lines so far): seq and prevHash set, envelope applied. */
+function chainedRecord(kept: Record<string, unknown>, lines: string[], ctx: ChainContext): Record<string, unknown> {
   const prev = lines[lines.length - 1];
-  const record: Record<string, unknown> = {
+  return {
     seq: lastChainedSeq(lines) + 1,
     prevHash: prev === undefined ? GENESIS_HASH : hashLine(prev),
     emittedBy: ctx.emittedBy,
     ...kept,
     runId: ctx.runId,
   };
-  appendFileSync(busPath, (needsNewline ? "\n" : "") + JSON.stringify(record) + "\n", "utf-8");
-  return record;
 }
 
 export interface CommittedLines {
@@ -273,27 +278,36 @@ export async function repairTornTail(
         // torn: cut it below
       }
       tail = { bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
-      const kept = keep(tail) as unknown;
-      if (kept !== null && typeof kept === "object" && typeof (kept as { then?: unknown }).then === "function") {
-        throw new Error("EventBus: repairTornTail keep must be synchronous; nothing was cut");
-      }
+      // Validate the record before anything is saved or cut: a refused record leaves no orphan file.
+      const lines = raw.subarray(0, cut).toString("utf-8").split(/\r?\n/).filter((l) => l.length > 0);
+      let line: Buffer | null = null;
       if (record !== undefined) {
-        const lines = raw.subarray(0, cut).toString("utf-8").split(/\r?\n/).filter((l) => l.length > 0);
-        pending = validateChained(
+        const kept = validateChained(
           record.event({ removedBytes: bytes.length, removedSha256: tail.sha256, keptBytes: cut, atSeq: lastChainedSeq(lines) }),
           record.ctx
         );
+        pending = chainedRecord(kept, lines, record.ctx);
+        line = Buffer.from(JSON.stringify(pending) + "\n", "utf-8");
+      }
+      const saved = keep(tail) as unknown;
+      if (saved !== null && typeof saved === "object" && typeof (saved as { then?: unknown }).then === "function") {
+        throw new Error("EventBus: repairTornTail keep must be synchronous; nothing was cut");
       }
       if (fstatSync(fd).size !== raw.length) {
         throw new Error(`EventBus: ${busPath} changed while it was being repaired; nothing was cut`);
       }
-      ftruncateSync(fd, cut);
+      if (line !== null) {
+        // Record first, then truncate: a crash or error between the two leaves the record (or a still-torn tail), never a clean log without it.
+        for (let off = 0; off < line.length; ) off += writeSync(fd, line, off, line.length - off, cut + off);
+        ftruncateSync(fd, cut + line.length);
+      } else {
+        ftruncateSync(fd, cut);
+      }
       fsyncSync(fd);
     } finally {
       closeSync(fd);
     }
-    const appended = pending !== null && record !== undefined ? appendChainedLocked(pending, busPath, record.ctx) : null;
-    return { tail, record: appended };
+    return { tail, record: pending };
   } finally {
     await release();
   }

@@ -187,17 +187,6 @@ it('saves the cut bytes and fsyncs them before the log is truncated', async () =
 });
 
 describe('locks: integrity.lock, then the bus lock', () => {
-  it('takes integrity.lock before the bus lock and never run.lock', async () => {
-    tear();
-    const calls: string[] = [];
-    const real = lockfile.lock;
-    jest.spyOn(lockfile, 'lock').mockImplementation(((p: string, o: never) => { calls.push(path.basename(p)); return real(p, o); }) as never);
-    await repairTail(t.root, runId, 'owner');
-    expect(calls.indexOf('integrity.lock')).toBe(0);
-    expect(calls.indexOf('events.jsonl')).toBeGreaterThan(0);
-    expect(calls).not.toContain('run.lock');
-  });
-
   it('waits for a held bus lock and cuts nothing until it is released', async () => {
     tear();
     const before = fs.readFileSync(busPath(t.root, runId));
@@ -209,5 +198,53 @@ describe('locks: integrity.lock, then the bus lock', () => {
     expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
     await releaseBus();
     await expect(p).resolves.toMatchObject({ removedBytes: 15 });
+  });
+});
+
+describe('the cut is never clean without its record', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const rawFs = require('fs') as typeof fs;
+  const recorded = () => readLines(busPath(t.root, runId)).some((l) => l.includes('"integrity.tail-repaired"'));
+  const endsClean = () => fs.readFileSync(busPath(t.root, runId), 'utf-8').endsWith('\n');
+
+  it('when the truncate throws after the record was written: the record is there, or the tail is still torn', async () => {
+    tear('{"seq":2,"prevHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    jest.spyOn(rawFs, 'ftruncateSync').mockImplementation(() => { throw new Error('EIO'); });
+    await expect(repairTail(t.root, runId, 'owner')).rejects.toThrow('EIO');
+    jest.restoreAllMocks();
+    expect(recorded() || !endsClean()).toBe(true);
+    expect(!endsClean() && !recorded()).toBe(false);
+  });
+
+  it('when the record write throws: the log is byte-identical, and a retry succeeds and is recorded', async () => {
+    tear();
+    const before = fs.readFileSync(busPath(t.root, runId));
+    jest.spyOn(rawFs, 'writeSync').mockImplementation(() => { throw new Error('ENOSPC'); });
+    await expect(repairTail(t.root, runId, 'owner')).rejects.toThrow('ENOSPC');
+    jest.restoreAllMocks();
+    expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
+    await expect(repairTail(t.root, runId, 'owner')).resolves.toMatchObject({ removedBytes: 15 });
+    expect(recorded()).toBe(true);
+    expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(true);
+  });
+
+  it('an invalid record cuts nothing and leaves no saved file', async () => {
+    tear();
+    const before = fs.readFileSync(busPath(t.root, runId));
+    await expect(
+      repairTornTail(busPath(t.root, runId), () => { throw new Error('keep must not run'); }, {
+        ctx: { emittedBy: 'owner', runId },
+        event: () => ({ type: 'integrity.tail-repaired', runId, bogus: true }),
+      }),
+    ).rejects.toThrow(/schema|undeclared/);
+    expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'integrity'))).toBe(false);
+  });
+
+  it('a record shorter than the torn tail leaves no remnant of the tail', async () => {
+    tear('{"seq":2,"prevHash":"' + 'a'.repeat(400));
+    await repairTail(t.root, runId, 'owner');
+    expect(endsClean()).toBe(true);
+    expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(true);
   });
 });

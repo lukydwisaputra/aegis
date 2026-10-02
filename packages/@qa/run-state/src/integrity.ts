@@ -115,8 +115,8 @@ function fsyncDir(dir: string): void {
 
 /**
  * CO-02: the owner cuts a torn tail off the log (a torn tail refuses every append, the acknowledgement included).
- * The bytes are saved and fsynced under integrity/ (file, then directory entries) before the cut, and the cut and
- * integrity.tail-repaired happen under one bus-lock hold. Lock order: integrity.lock -> event-bus lock; run.lock is never taken.
+ * The bytes are saved and fsynced under integrity/ (file, then directory entries) before the cut. Under one bus-lock hold
+ * and one fd the record is written over the tail first, then the log is truncated behind it and fsynced once, so the log is never clean without integrity.tail-repaired. Lock order: integrity.lock -> event-bus lock; run.lock is never taken.
  * Note: on macOS fsync does not flush the drive's own cache (that needs F_FULLFSYNC), so durability there is best effort.
  */
 export async function repairTail(root: string, runId: string, caller: string, now?: Date): Promise<TailRepairResult> {
@@ -138,12 +138,14 @@ export async function repairTail(root: string, runId: string, caller: string, no
           fd = openSync(saved, "wx");
           writeFileSync(fd, bytes); // loops until every byte is written
           fsyncSync(fd);
-          closeSync(fd);
+          const done = fd;
           fd = undefined;
+          closeSync(done);
           const size = statSync(saved).size;
           if (size !== bytes.length) throw new Error(`saved ${size} of ${bytes.length} torn bytes (short write); nothing was cut`);
         } catch (e) {
-          if (fd !== undefined) closeSync(fd);
+          // Best effort: neither a failed close nor a failed unlink may hide the real error.
+          if (fd !== undefined) { try { closeSync(fd); } catch { /* keep the original error */ } }
           try { unlinkSync(saved); } catch { /* nothing saved */ }
           throw e;
         }
