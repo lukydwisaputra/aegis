@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 
 /**
  * Best-effort Bash write-target parser for the PreToolUse hook (P0 spec §4.2 H1, §10 risk). It sees redirections, the
@@ -21,6 +21,10 @@ export interface SimpleCommand {
   heredoc: string | null;
   /** Subshell nesting depth, set only when above 0, so a `cd` inside `( … )` does not leak out. */
   depth?: number;
+  /** Ids of the ( … ) groups this command sits in, outermost first: sibling subshells do not share a `cd`. */
+  scopes?: number[];
+  /** Set when the previous pipeline stage feeds this command (`|` or `|&`). */
+  pipe?: true;
 }
 
 export interface WriteTarget {
@@ -40,11 +44,49 @@ export interface LocatedCommand extends SimpleCommand {
 
 type Tok = { t: "w"; w: ShellWord } | { t: "op"; op: string };
 
-const OPS = ["&&", "||", ";;", "&>>", "&>", ">>", ">|", "<<<", "<<-", "<<", ";", "|", "&", "(", ")", ">", "<", "\n"] as const;
-const SEPARATORS: ReadonlySet<string> = new Set(["&&", "||", ";;", ";", "|", "&", "(", ")", "\n"]);
+const OPS = ["&&", "||", ";;", "&>>", "&>", ">>", ">|", "<<<", "<<-", "<<", ";", "|&", "|", "&", "(", ")", ">", "<", "\n"] as const;
+const SEPARATORS: ReadonlySet<string> = new Set(["&&", "||", ";;", ";", "|&", "|", "&", "(", ")", "\n"]);
 const FILE_REDIRECTS: ReadonlySet<string> = new Set([">", ">>", ">|", "&>", "&>>"]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const HEREDOC = /(?<!<)<<(?!<)(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/g;
+const HEREDOC_DELIM = /(-?)\s*\\?(['"]?)([^\s;&|<>()'"]+)\2/y;
+
+/** The here-document markers on one line, in order; quoted or commented `<<` is not one. */
+function heredocMarkers(line: string): Array<{ strip: boolean; delimiter: string }> {
+  const out: Array<{ strip: boolean; delimiter: string }> = [];
+  let i = 0;
+  let wordStart = true;
+  while (i < line.length) {
+    const c = line[i]!;
+    if (c === "\\") {
+      i += 2;
+      wordStart = false;
+    } else if (c === "'") {
+      const end = line.indexOf("'", i + 1);
+      i = end === -1 ? line.length : end + 1;
+      wordStart = false;
+    } else if (c === '"' || (c === "$" && line[i + 1] === "'")) {
+      const quote = c === '"' ? '"' : "'";
+      i += c === '"' ? 1 : 2;
+      while (i < line.length && line[i] !== quote) i += line[i] === "\\" ? 2 : 1;
+      i++;
+      wordStart = false;
+    } else if (c === "#" && wordStart) {
+      break;
+    } else if (c === "<" && line[i + 1] === "<" && line[i + 2] !== "<" && line[i - 1] !== "<") {
+      HEREDOC_DELIM.lastIndex = i + 2;
+      const m = HEREDOC_DELIM.exec(line);
+      if (m !== null) {
+        out.push({ strip: m[1] === "-", delimiter: m[3]! });
+        i = HEREDOC_DELIM.lastIndex;
+      } else i += 2;
+      wordStart = false;
+    } else {
+      wordStart = c === " " || c === "\t" || c === ";" || c === "|" || c === "&" || c === "(" || c === ")";
+      i++;
+    }
+  }
+  return out;
+}
 
 /** Remove here-document bodies from the text (they are data, not commands) and return them in order. */
 function extractHeredocs(src: string): { text: string; bodies: string[] } {
@@ -54,9 +96,7 @@ function extractHeredocs(src: string): { text: string; bodies: string[] } {
   for (let k = 0; k < lines.length; k++) {
     const line = lines[k]!;
     kept.push(line);
-    for (const m of line.matchAll(HEREDOC)) {
-      const strip = m[1] === "-";
-      const delimiter = m[3]!;
+    for (const { strip, delimiter } of heredocMarkers(line)) {
       const body: string[] = [];
       k++;
       while (k < lines.length && (strip ? lines[k]!.replace(/^\t+/, "") : lines[k]) !== delimiter) {
@@ -150,6 +190,21 @@ function tokenize(src: string): Tok[] {
       i++;
       continue;
     }
+    if (c === "$" && src[i + 1] === "'") {
+      inWord = true; // ANSI-C quoting: literal up to the closing unescaped quote
+      i += 2;
+      while (i < src.length && src[i] !== "'") {
+        if (src[i] === "\\" && i + 1 < src.length) {
+          cur += src[i + 1];
+          i += 2;
+        } else {
+          cur += src[i];
+          i++;
+        }
+      }
+      i++;
+      continue;
+    }
     if (c === "$" || c === "`") {
       dynamic = true;
       inWord = true;
@@ -177,7 +232,14 @@ function tokenize(src: string): Tok[] {
     if (op !== undefined) {
       flush();
       if ((op === ">" || op === ">>" || op === "<") && src[i + op.length] === "&") {
-        i += op.length + 1; // fd duplication: 2>&1, >&-, <&3
+        i += op.length + 1;
+        let j = i;
+        while (src[j] === " " || src[j] === "\t") j++;
+        if (op === ">" && j < src.length && !/[0-9-]/.test(src[j]!)) {
+          out.push({ t: "op", op: "&>" }); // >&file sends both streams to the file
+          continue;
+        }
+        i = j; // fd duplication: 2>&1, >&-, <&3
         while (/[0-9-]/.test(src[i] ?? "")) i++;
         continue;
       }
@@ -203,20 +265,32 @@ export function parseBash(src: string): SimpleCommand[] {
   let cur = blank();
   let body = 0;
   let depth = 0;
+  let nextScope = 1;
+  let curPipe = false;
+  const scopes: number[] = [];
   const push = (): void => {
-    if (cur.argv.length > 0 || cur.redirects.length > 0) {
+    if (cur.argv.length > 0 || cur.redirects.length > 0 || cur.heredoc !== null) {
       if (depth > 0) cur.depth = depth;
+      if (scopes.length > 0) cur.scopes = [...scopes];
+      if (curPipe) cur.pipe = true;
       cmds.push(cur);
     }
     cur = blank();
+    curPipe = false;
   };
   for (let k = 0; k < toks.length; k++) {
     const tk = toks[k]!;
     if (tk.t === "op") {
       if (SEPARATORS.has(tk.op)) {
         push();
-        if (tk.op === "(") depth++;
-        else if (tk.op === ")") depth = Math.max(0, depth - 1);
+        if (tk.op === "(") {
+          depth++;
+          scopes.push(nextScope++);
+        } else if (tk.op === ")") {
+          depth = Math.max(0, depth - 1);
+          scopes.pop();
+        }
+        curPipe = tk.op === "|" || tk.op === "|&";
         continue;
       }
       const next = toks[k + 1];
@@ -237,9 +311,23 @@ export function parseBash(src: string): SimpleCommand[] {
   return cmds;
 }
 
-const WRAPPERS: ReadonlySet<string> = new Set(["env", "sudo", "command", "exec", "time", "nohup", "nice"]);
+/** Shell reserved words that precede a command (or end a block) without being one. */
+const RESERVED: ReadonlySet<string> = new Set(["!", "{", "}", "do", "then", "else", "elif", "if", "while", "until", "done", "fi", "esac"]);
+/** Compound-command headers (`for x in a b`, `case x in`): they name no command. */
+const HEADERS: ReadonlySet<string> = new Set(["for", "select", "case", "function"]);
+/** Wrappers, with the options of each that take a separate value. */
+const WRAPPERS: Readonly<Record<string, readonly string[]>> = {
+  env: ["-u", "-C", "-S"],
+  sudo: ["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"],
+  command: [],
+  exec: ["-a"],
+  time: ["-f", "-o"],
+  nohup: [],
+  nice: ["-n"],
+  timeout: ["-s", "-k"],
+};
 
-/** The command behind wrappers (`env A=1 sudo rm x` → rm x), with assignments made after a wrapper merged into env. */
+/** The command behind wrappers and reserved words (`env A=1 sudo -u x rm y` → rm y), with assignments made after one merged into env. */
 export function unwrap(c: SimpleCommand): { env: Record<string, string>; argv: ShellWord[] } {
   const env: Record<string, string> = { ...c.env };
   let argv = c.argv;
@@ -247,10 +335,29 @@ export function unwrap(c: SimpleCommand): { env: Record<string, string>; argv: S
   for (;;) {
     const head = argv[0];
     if (head === undefined) break;
-    if (WRAPPERS.has(head.value)) {
-      argv = argv.slice(1);
-      wrapped = true;
-      continue;
+    if (!head.dynamic) {
+      if (HEADERS.has(head.value)) {
+        argv = [];
+        break;
+      }
+      if (RESERVED.has(head.value)) {
+        argv = argv.slice(1);
+        wrapped = true;
+        continue;
+      }
+      const valued = Object.hasOwn(WRAPPERS, head.value) ? WRAPPERS[head.value]! : undefined;
+      if (valued !== undefined) {
+        argv = argv.slice(1);
+        wrapped = true;
+        while (argv[0] !== undefined && !argv[0].dynamic && argv[0].value.startsWith("-") && argv[0].value !== "-") {
+          const opt = argv[0].value;
+          argv = argv.slice(1);
+          if (opt === "--") break;
+          if (valued.includes(opt) && argv.length > 0) argv = argv.slice(1);
+        }
+        if (head.value === "timeout" && argv[0] !== undefined && /^[0-9.]+[smhd]?$/.test(argv[0].value)) argv = argv.slice(1);
+        continue;
+      }
     }
     if (wrapped && ASSIGNMENT.test(head.value)) {
       const eq = head.value.indexOf("=");
@@ -263,7 +370,7 @@ export function unwrap(c: SimpleCommand): { env: Record<string, string>; argv: S
   return { env, argv };
 }
 
-// Flags that take the next word as their value, per command (so the value is not mistaken for a path).
+// Flags that take a value, per command (so the value is not mistaken for a path). Short ones may be attached (-ofile) or clustered (-sSLo file).
 const VALUE_FLAGS: Readonly<Record<string, readonly string[]>> = {
   cp: ["-S", "--suffix", "-t", "--target-directory"],
   mv: ["-S", "--suffix", "-t", "--target-directory"],
@@ -279,10 +386,19 @@ const VALUE_FLAGS: Readonly<Record<string, readonly string[]>> = {
   wget: ["-O", "--output-document", "-P", "--directory-prefix", "--header", "-U", "--user-agent"],
 };
 
-function split(name: string, args: readonly ShellWord[]): { ops: ShellWord[]; valued: Array<[string, ShellWord]> } {
+interface Split {
+  ops: ShellWord[];
+  valued: Array<[string, ShellWord]>;
+  /** Every flag seen: "-x" for a short letter, "--name" for a long one. */
+  flags: Set<string>;
+}
+
+function split(name: string, args: readonly ShellWord[]): Split {
   const takes = new Set(VALUE_FLAGS[name] ?? []);
   const ops: ShellWord[] = [];
   const valued: Array<[string, ShellWord]> = [];
+  const flags = new Set<string>();
+  const suffixAfterI = name === "sed" || name === "perl"; // -i takes the rest of the cluster as a backup suffix
   let flagsDone = false;
   for (let k = 0; k < args.length; k++) {
     const a = args[k]!;
@@ -291,22 +407,54 @@ function split(name: string, args: readonly ShellWord[]): { ops: ShellWord[]; va
       continue;
     }
     if (!flagsDone && !a.dynamic && a.value.startsWith("-") && a.value !== "-") {
-      const eq = a.value.indexOf("=");
-      if (eq > 0) valued.push([a.value.slice(0, eq), { value: a.value.slice(eq + 1), dynamic: a.dynamic }]);
-      else if (takes.has(a.value) && args[k + 1] !== undefined) {
-        valued.push([a.value, args[k + 1]!]);
-        k++;
+      if (a.value.startsWith("--")) {
+        const eq = a.value.indexOf("=");
+        if (eq > 0) {
+          flags.add(a.value.slice(0, eq));
+          valued.push([a.value.slice(0, eq), { value: a.value.slice(eq + 1), dynamic: a.dynamic }]);
+        } else {
+          flags.add(a.value);
+          if (takes.has(a.value) && args[k + 1] !== undefined) {
+            valued.push([a.value, args[k + 1]!]);
+            k++;
+          }
+        }
+        continue;
+      }
+      const cluster = a.value.slice(1);
+      for (let p = 0; p < cluster.length; p++) {
+        const f = `-${cluster[p]!}`;
+        flags.add(f);
+        if (takes.has(f)) {
+          const rest = cluster.slice(p + 1);
+          if (rest !== "") valued.push([f, { value: rest, dynamic: false }]);
+          else if (args[k + 1] !== undefined) {
+            valued.push([f, args[k + 1]!]);
+            k++;
+          }
+          break;
+        }
+        if (f === "-i" && suffixAfterI) break;
       }
       continue;
     }
     ops.push(a);
   }
-  return { ops, valued };
+  return { ops, valued, flags };
+}
+
+/** BSD `sed -i .bak …` / `sed -i '' …`: the word after a bare -i is the backup suffix, not an operand. */
+function dropBsdSuffix(args: readonly ShellWord[]): readonly ShellWord[] {
+  const k = args.findIndex((a) => !a.dynamic && a.value === "-i");
+  const next = k >= 0 ? args[k + 1] : undefined;
+  if (next === undefined || next.dynamic || !(next.value === "" || /^\.[A-Za-z0-9_~.-]+$/.test(next.value))) return args;
+  return [...args.slice(0, k + 1), ...args.slice(k + 2)];
 }
 
 /** The operands a file command writes (or removes). */
-function writtenBy(name: string, args: readonly ShellWord[]): ShellWord[] {
-  const { ops, valued } = split(name, args);
+function writtenBy(name: string, rawArgs: readonly ShellWord[]): ShellWord[] {
+  const args = name === "sed" ? dropBsdSuffix(rawArgs) : rawArgs;
+  const { ops, valued, flags } = split(name, args);
   const flag = (...names: string[]): ShellWord[] => valued.filter(([f]) => names.includes(f)).map(([, w]) => w);
   switch (name) {
     case "rm":
@@ -322,18 +470,19 @@ function writtenBy(name: string, args: readonly ShellWord[]): ShellWord[] {
     case "rsync": {
       const target = flag("-t", "--target-directory");
       if (target.length > 0) return target;
+      if (name === "install" && (flags.has("-d") || flags.has("--directory"))) return ops;
+      if (name === "ln" && ops.length === 1) return [{ value: ops[0]!.dynamic ? ops[0]!.value : basename(ops[0]!.value), dynamic: ops[0]!.dynamic }];
       return ops.length > 1 ? [ops[ops.length - 1]!] : [];
     }
     case "mv":
       return [...ops, ...flag("-t", "--target-directory")];
     case "sed": {
-      if (!args.some((a) => /^-[a-zA-Z]*i/.test(a.value) || a.value.startsWith("--in-place"))) return [];
+      if (!flags.has("-i") && !flags.has("--in-place")) return [];
       const scripted = valued.some(([f]) => f === "-e" || f === "--expression" || f === "-f" || f === "--file");
-      const rest = ops.filter((o) => o.value !== ""); // macOS `sed -i ''`
-      return scripted ? rest : rest.slice(1);
+      return scripted ? ops : ops.slice(1);
     }
     case "perl": {
-      if (!args.some((a) => /^-[a-zA-Z]*i/.test(a.value) && !a.value.startsWith("-e") && !a.value.startsWith("-E"))) return [];
+      if (!flags.has("-i")) return [];
       const scripted = valued.some(([f]) => f === "-e" || f === "-E");
       return scripted ? ops : ops.slice(1);
     }
@@ -348,38 +497,138 @@ function writtenBy(name: string, args: readonly ShellWord[]): ShellWord[] {
   }
 }
 
+/** Where a command runs: `dyn` once a `cd` target could not be resolved (`dir` is then its raw text, `stat` the last literal directory). */
+interface Loc {
+  readonly dir: string;
+  readonly dyn: boolean;
+  readonly stat: string;
+}
+
+/** Git global options that take a separate value (besides -C, handled apart). */
+const GIT_VALUE_OPTS: ReadonlySet<string> = new Set(["-c", "--namespace", "--exec-path", "--super-prefix", "--config-env"]);
+
 /** Every path a Bash command may write, resolved against `cwd` (and `cd` inside the command). */
 export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? ""): { targets: WriteTarget[]; commands: LocatedCommand[] } {
   const targets: WriteTarget[] = [];
   const commands: LocatedCommand[] = [];
-  const walk = (text: string, startCwd: string, depth: number): void => {
-    let dir = startCwd;
-    const saved: string[] = [];
-    const abs = (w: ShellWord): string => (w.dynamic ? w.value : w.value.startsWith("~/") ? join(home, w.value.slice(2)) : resolve(dir, w.value));
+  const homeLoc: Loc = home === "" ? { dir: "~", dyn: true, stat: cwd } : { dir: home, dyn: false, stat: home };
+
+  const locate = (base: Loc, w: ShellWord): { path: string; dynamic: boolean } => {
+    if (w.dynamic) return { path: w.value, dynamic: true };
+    const v = w.value;
+    if (v === "~") return { path: homeLoc.dir, dynamic: homeLoc.dyn };
+    if (v.startsWith("~/")) return { path: join(homeLoc.dir, v.slice(2)), dynamic: homeLoc.dyn };
+    if (isAbsolute(v)) return { path: resolve(v), dynamic: false };
+    if (base.dyn) return { path: `${base.dir}/${v}`, dynamic: true };
+    return { path: resolve(base.dir, v), dynamic: false };
+  };
+  const moveTo = (base: Loc, w: ShellWord): Loc => {
+    const r = locate(base, w);
+    return { dir: r.path, dyn: r.dynamic, stat: r.dynamic ? base.stat : r.path };
+  };
+  const cd = (base: Loc, args: readonly ShellWord[]): Loc => {
+    const d = args.find((a) => a.dynamic || !/^-[LPe@]+$/.test(a.value));
+    if (d === undefined) return homeLoc;
+    if (!d.dynamic && d.value === "-") return { dir: "-", dyn: true, stat: base.stat };
+    return moveTo(base, d);
+  };
+
+  /** Writes of `git` subcommands that change the working tree. */
+  const gitWrites = (base: Loc, args: readonly ShellWord[]): WriteTarget[] => {
+    let at = base;
+    let k = 0;
+    while (k < args.length) {
+      const a = args[k]!;
+      if (a.dynamic || !a.value.startsWith("-")) break;
+      if (a.value === "-C" && args[k + 1] !== undefined) {
+        at = moveTo(at, args[k + 1]!);
+        k += 2;
+      } else k += GIT_VALUE_OPTS.has(a.value) ? 2 : 1;
+    }
+    const sub = args[k]?.value ?? "";
+    const rest = args.slice(k + 1);
+    const flagText = rest.filter((a) => !a.dynamic && a.value.startsWith("-")).map((a) => a.value);
+    const has = (...names: string[]): boolean => flagText.some((f) => names.includes(f));
+    const paths = (ws: readonly ShellWord[]): WriteTarget[] =>
+      ws.map((w) => {
+        const r = locate(at, w);
+        return { path: r.path, dynamic: r.dynamic, content: null, via: "git" };
+      });
+    const everything = (): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via: "git" }];
+    switch (sub) {
+      case "checkout": {
+        const i = rest.findIndex((a) => !a.dynamic && a.value === "--");
+        return i >= 0 ? paths(rest.slice(i + 1)) : [];
+      }
+      case "restore": {
+        if (has("--staged", "-S") && !has("--worktree", "-W")) return [];
+        const ws: ShellWord[] = [];
+        let done = false;
+        for (let j = 0; j < rest.length; j++) {
+          const a = rest[j]!;
+          if (!done && !a.dynamic && a.value === "--") done = true;
+          else if (!done && !a.dynamic && (a.value === "-s" || a.value === "--source")) j++;
+          else if (done || a.dynamic || !a.value.startsWith("-")) ws.push(a);
+        }
+        return paths(ws);
+      }
+      case "apply":
+        return has("--check", "--stat", "--numstat", "--summary") ? [] : everything();
+      case "clean":
+        return flagText.some((f) => f === "--dry-run" || (/^-[a-zA-Z]+$/.test(f) && f.includes("n"))) ? [] : everything();
+      case "reset":
+        return has("--hard") ? everything() : [];
+      case "stash": {
+        const sub2 = rest.find((a) => a.dynamic || !a.value.startsWith("-"))?.value;
+        return sub2 === "list" || sub2 === "show" ? [] : everything();
+      }
+      default:
+        return [];
+    }
+  };
+
+  const walk = (text: string, start: Loc, depth: number): void => {
+    let loc = start;
+    let prevContent: string | null = null;
+    const open: Array<{ id: number; saved: Loc }> = [];
     for (const c of parseBash(text)) {
-      const level = c.depth ?? 0;
-      while (saved.length > level) dir = saved.pop()!;
-      while (saved.length < level) saved.push(dir);
-      commands.push({ ...c, cwd: dir });
+      // Leaving a ( … ) group restores the directory it was entered from.
+      const path = c.scopes ?? [];
+      let common = 0;
+      while (common < open.length && common < path.length && open[common]!.id === path[common]) common++;
+      while (open.length > common) loc = open.pop()!.saved;
+      while (open.length < path.length) open.push({ id: path[open.length]!, saved: loc });
+      commands.push({ ...c, cwd: loc.stat });
       const { argv } = unwrap(c);
       const name = argv[0]?.value ?? "";
       const args = argv.slice(1);
-      const content = c.heredoc ?? (name === "echo" || name === "printf" ? args.map((a) => a.value).join(" ") : null);
-      for (const r of c.redirects) targets.push({ path: abs(r), dynamic: r.dynamic, content, via: ">" });
-      if (name === "cd") {
-        const d = args[0];
-        if (d !== undefined && !d.dynamic) dir = abs(d);
+      const own = c.heredoc ?? (name === "echo" || name === "printf" ? args.map((a) => a.value).join(" ") : null);
+      const content: string | null = own ?? (c.pipe === true && (name === "tee" || name === "cat") ? prevContent : null);
+      prevContent = content;
+      for (const r of c.redirects) {
+        const t = locate(loc, r);
+        targets.push({ path: t.path, dynamic: t.dynamic, content, via: ">" });
+      }
+      if (name === "cd" || (name === "pushd" && args.some((a) => a.dynamic || !a.value.startsWith("-")))) {
+        loc = cd(loc, args);
         continue;
       }
       if ((name === "bash" || name === "sh" || name === "zsh") && depth < 2) {
         const k = args.findIndex((a) => /^-[a-z]*c$/.test(a.value));
         const inner = k >= 0 ? args[k + 1] : undefined;
-        if (inner !== undefined) walk(inner.value, dir, depth + 1);
+        if (inner !== undefined) walk(inner.value, loc, depth + 1);
         continue;
       }
-      for (const w of writtenBy(name, args)) targets.push({ path: abs(w), dynamic: w.dynamic, content: null, via: name });
+      if (name === "git") {
+        targets.push(...gitWrites(loc, args));
+        continue;
+      }
+      for (const w of writtenBy(name, args)) {
+        const t = locate(loc, w);
+        targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name });
+      }
     }
   };
-  walk(src, cwd, 0);
+  walk(src, { dir: cwd, dyn: false, stat: cwd }, 0);
   return { targets, commands };
 }
