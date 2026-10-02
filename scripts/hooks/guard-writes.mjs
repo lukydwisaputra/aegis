@@ -111,6 +111,7 @@ try {
     targetRoot: realpathNearest(loaded.targetRoot),
     testsDir: realpathNearest(loaded.testsDir),
     tempDirs: [...new Set(loaded.tempDirs.map(realpathNearest))],
+    ...(loaded.collectorRoot !== undefined ? { collectorRoot: realpathNearest(loaded.collectorRoot) } : {}),
   };
   const result = pg.decide(payload, ctx, {
     cliAllowed(who, command) {

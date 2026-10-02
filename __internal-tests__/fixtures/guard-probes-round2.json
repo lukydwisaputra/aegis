@@ -1,0 +1,1041 @@
+[
+ {
+  "source": "new.json",
+  "label": "N01 ansi export",
+  "tool": "Bash",
+  "arg": "export $'\\x41EGIS_AGENT=owner'; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N02 ansi env wrapper",
+  "tool": "Bash",
+  "arg": "env $'\\x41EGIS_AGENT=owner' pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N03 declare -x ansi",
+  "tool": "Bash",
+  "arg": "declare -x $'\\x41EGIS_AGENT=owner'; corepack pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N04 nameref + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; declare -n r=$'\\x41EGIS_AGENT'; r=owner; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N05 printf -v + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; printf -v $'\\x41EGIS_AGENT' owner; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N06 read heredoc + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist\nread -r $'\\x41EGIS_AGENT' <<'X'\nowner\nX\npnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N07 source procsub + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; source <(printf '\\x41EGIS_AGENT=owner'); pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N08 dot file + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; . /repo/tests/qa/id.sh; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N09 set -a dot file + corepack",
+  "tool": "Bash",
+  "arg": "set -a; . /repo/tests/qa/id.env; set +a; corepack pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N10 IFS join + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; IFS=_; set -- AEGIS AGENT; export \"$*=owner\"; IFS=' '; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N11 alias ansi",
+  "tool": "Bash",
+  "arg": "shopt -s expand_aliases\nalias p=$'\\x41EGIS_AGENT=owner pnpm'\np aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N12 function export + stale export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; f() { export \"$1\"; }; f $'\\x41EGIS_AGENT=owner'; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N13 env -S ansi",
+  "tool": "Bash",
+  "arg": "env -S $'\\x41EGIS_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved'",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N14 env -S literal",
+  "tool": "Bash",
+  "arg": "env -S 'AEGIS_AGENT=owner pnpm aegis gate decide --gate 1'",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N15 exec env literal",
+  "tool": "Bash",
+  "arg": "exec env AEGIS_AGENT=owner pnpm aegis gate decide --gate 1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N16 nohup env literal",
+  "tool": "Bash",
+  "arg": "nohup env AEGIS_AGENT=owner pnpm aegis gate decide --gate 1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N17 setsid prefix literal",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=owner setsid pnpm aegis gate decide --gate 1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N18 script -c literal",
+  "tool": "Bash",
+  "arg": "script -q /dev/null -c 'AEGIS_AGENT=owner pnpm aegis gate decide --gate 1'",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N19 watch literal",
+  "tool": "Bash",
+  "arg": "watch -n 1 'AEGIS_AGENT=owner pnpm aegis gate decide --gate 1'",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N20 find -exec literal",
+  "tool": "Bash",
+  "arg": "find . -maxdepth 0 -exec env AEGIS_AGENT=owner pnpm aegis gate decide --gate 1 \\;",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N21 find -exec ansi",
+  "tool": "Bash",
+  "arg": "find . -maxdepth 0 -exec env $'\\x41EGIS_AGENT=owner' pnpm aegis gate decide --gate 1 \\;",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N22 xargs -a file",
+  "tool": "Bash",
+  "arg": "xargs -a /repo/tests/qa/id -I{} env {} pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N23 parallel ansi",
+  "tool": "Bash",
+  "arg": "parallel env {} pnpm aegis gate decide --gate 1 ::: $'\\x41EGIS_AGENT=owner'",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N24 make (smuggled Makefile)",
+  "tool": "Bash",
+  "arg": "make -f /repo/tests/qa/Makefile gate",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true,
+  "ruling": "accepted residual: identity smuggled through a script file (P0c CLI-side binding); probe expected deny"
+ },
+ {
+  "source": "new.json",
+  "label": "N25 npm exec literal",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=owner npm exec aegis -- gate decide --gate 1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N26 corepack framework cmd (correct id)",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist corepack pnpm aegis update",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N27 node -e constructed name",
+  "tool": "Bash",
+  "arg": "node -e \"process.env['AEGIS_'+'AGENT']='owner'; process.argv=['n','a','gate','decide','--gate','1','--decision','approved']; require('/repo/aegis/apps/cli/dist/index.js')\"",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N28 node -e literal",
+  "tool": "Bash",
+  "arg": "node -e \"process.env.AEGIS_AGENT='owner'; require('./apps/cli/dist/index.js')\"",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N29 node --require preload + correct prefix",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist node --require /repo/tests/qa/x.cjs apps/cli/dist/index.js gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N30 NODE_OPTIONS preload + correct prefix",
+  "tool": "Bash",
+  "arg": "NODE_OPTIONS=--require=/repo/tests/qa/x.cjs AEGIS_AGENT=qa-ui-specialist pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N31 PATH shim + correct prefix",
+  "tool": "Bash",
+  "arg": "PATH=/repo/tests/qa/bin:$PATH AEGIS_AGENT=qa-ui-specialist pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N32 direct dist exec framework cmd",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist ./apps/cli/dist/index.js update",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N33 bash -c ansi body",
+  "tool": "Bash",
+  "arg": "bash -c $'\\x41EGIS_AGENT=owner pnpm aegis gate decide --gate 1'",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N34 backslash-newline in prefix name",
+  "tool": "Bash",
+  "arg": "AEGIS_AGE\\\nNT=owner pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N35 backslash-newline in export",
+  "tool": "Bash",
+  "arg": "export AEGIS_AG\\\nENT=owner; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N36 quote split early, export",
+  "tool": "Bash",
+  "arg": "export AEGIS_A''GENT=owner; pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N37 quote split early, env",
+  "tool": "Bash",
+  "arg": "env AEGIS''_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N38 quote split, xargs env",
+  "tool": "Bash",
+  "arg": "echo | xargs env AEGIS''_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N39 quote split, find -exec",
+  "tool": "Bash",
+  "arg": "find . -maxdepth 0 -exec env AEGIS_\"AGENT\"=owner pnpm aegis gate decide --gate 1 --decision approved \\;",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N40 quote split, setsid env",
+  "tool": "Bash",
+  "arg": "setsid env A\"EGIS_AGENT\"=owner pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N41 quote split, npx cross-env",
+  "tool": "Bash",
+  "arg": "npx cross-env AEGIS''_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N42 quote split, script -c env",
+  "tool": "Bash",
+  "arg": "script -q /dev/null -c \"env AEGIS_A''GENT=owner pnpm aegis gate decide --gate 1\"",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N43 var concat",
+  "tool": "Bash",
+  "arg": "a=AEGIS_; export \"${a}AGENT=owner\"; corepack pnpm aegis gate decide --gate 1 --decision approved",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N44 spoof other agent via quote split",
+  "tool": "Bash",
+  "arg": "env AEGIS''_AGENT=qa-orchestrator pnpm aegis phase complete --phase execution",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N45 other subagent setsid framework cmd",
+  "tool": "Bash",
+  "arg": "setsid pnpm aegis init",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N46 other subagent corepack status w/o id",
+  "tool": "Bash",
+  "arg": "corepack pnpm aegis run status",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N47 stale export plain (export then pnpm, correct)",
+  "tool": "Bash",
+  "arg": "export AEGIS_AGENT=qa-ui-specialist; pnpm aegis task list",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false,
+  "ruling": "R1: identity only from the CLI command's own prefix; an earlier export is never trusted (probe expected allow)"
+ },
+ {
+  "source": "new.json",
+  "label": "N48 exec -a",
+  "tool": "Bash",
+  "arg": "exec -a x env AEGIS''_AGENT=owner pnpm aegis gate decide --gate 1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N49 stdbuf env",
+  "tool": "Bash",
+  "arg": "stdbuf -oL env AEGIS''_AGENT=owner pnpm aegis gate decide --gate 1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "new.json",
+  "label": "N50 bash script file",
+  "tool": "Bash",
+  "arg": "bash /repo/tests/qa/run.sh",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true,
+  "ruling": "accepted residual: identity smuggled through a script file (P0c CLI-side binding); probe expected deny"
+ },
+ {
+  "source": "new.json",
+  "label": "F01 playwright test",
+  "tool": "Bash",
+  "arg": "cd /repo/tests/qa && pnpm playwright test specs/auth.spec.ts --reporter=list",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F02 env-eng pnpm install in tests",
+  "tool": "Bash",
+  "arg": "cd /repo/tests/qa && pnpm install",
+  "agent": "qa-environment-engineer",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F03 env-eng npx playwright install",
+  "tool": "Bash",
+  "arg": "cd /repo/tests/qa && npx playwright install chromium",
+  "agent": "qa-environment-engineer",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F04 grep -r AEGIS_AGENT",
+  "tool": "Bash",
+  "arg": "grep -rn AEGIS_AGENT /repo/aegis/.claude/agents",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F05 dev-test-reviewer rsync to sandbox",
+  "tool": "Bash",
+  "arg": "rsync -a --exclude node_modules --exclude .git /repo/apps/web/ /repo/aegis/sandbox/RUN-20261002-001/web/",
+  "agent": "qa-dev-test-reviewer",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F06 SPV review submit heredoc with names",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin <<'EOF'\n{\"id\":\"RV-qa-ui-specialist-spv-T-execution-3\",\"reviewer\":\"qa-ui-specialist-spv\",\"target\":{\"agent\":\"qa-ui-specialist\",\"taskId\":\"T-execution-3\",\"workReportId\":\"WR-T-execution-3\"},\"verdict\":\"passed\",\"summary\":\"All specs import the auth fixture and use POM.\",\"findings\":[],\"correctiveInstructions\":[],\"reviewedAt\":\"2026-10-03T00:00:00Z\",\"modelUsed\":\"opus\"}\nEOF",
+  "agent": "qa-ui-specialist-spv",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F07 SPV review with corrective naming AEGIS_AGENT",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin <<'EOF'\n{\"id\":\"RV-x\",\"reviewer\":\"qa-ui-specialist-spv\",\"verdict\":\"requested-changes\",\"correctiveInstructions\":[{\"mistake\":\"ran the CLI without AEGIS_AGENT=qa-ui-specialist\",\"rootCause\":\"forgot prefix\",\"correctiveRule\":\"prefix every CLI call with AEGIS_AGENT=qa-ui-specialist\"}]}\nEOF",
+  "agent": "qa-ui-specialist-spv",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F08 SPV pipe cat heredoc into CLI",
+  "tool": "Bash",
+  "arg": "cat <<'EOF' | AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin\n{\"reviewer\":\"qa-ui-specialist-spv\",\"target\":{\"agent\":\"qa-ui-specialist\"}}\nEOF",
+  "agent": "qa-ui-specialist-spv",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F09 worker work-report heredoc",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-api-specialist pnpm aegis work-report submit --file /dev/stdin <<'EOF'\n{\"id\":\"WR-T-execution-2\",\"agent\":\"qa-api-specialist\",\"summary\":\"api tests pass\"}\nEOF",
+  "agent": "qa-api-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F10 npx playwright test in tests",
+  "tool": "Bash",
+  "arg": "cd /repo/tests/qa && npx playwright test --project=chromium",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F11 specialist bash --version",
+  "tool": "Bash",
+  "arg": "bash --version",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F12 claim then work",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task T-execution-1",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F13 env-eng pnpm add dev dep in tests",
+  "tool": "Bash",
+  "arg": "cd /repo/tests/qa && pnpm add -D @playwright/test",
+  "agent": "qa-environment-engineer",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F14 stryker in sandbox",
+  "tool": "Bash",
+  "arg": "cd /repo/aegis/sandbox/RUN-20261002-001/web && npx stryker run",
+  "agent": "qa-dev-test-reviewer",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "new.json",
+  "label": "F15 grep env names in target src",
+  "tool": "Bash",
+  "arg": "grep -rn 'process.env' /repo/apps/web/src | head -50",
+  "agent": "qa-context-scanner",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "C1 main --note -h hides qa identity",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-orchestrator pnpm aegis gate decide --gate 1 --decision approved --note -h",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "C1 main --reason --help hides qa identity",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-orchestrator pnpm aegis escalation decide --task T-1 --decision retry --reason --help",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "C1 main help without identity is free",
+  "tool": "Bash",
+  "arg": "pnpm aegis gate decide --help",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "C1 qa help without identity",
+  "tool": "Bash",
+  "arg": "pnpm aegis task claim --help",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "C1 qa help with own identity",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --help",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "C1 main correct owner",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved --note -h",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 designer brace .. to gates",
+  "tool": "Write",
+  "arg": "/repo/aegis/runs/RUN-20261002-001/x",
+  "agent": "qa-test-designer",
+  "cwd": "/repo/aegis",
+  "allow": false,
+  "ruling": "probe row error: a plain Write of {run}/x is outside the designer's role (denied since round 0); probe expected allow"
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 redirect brace to events",
+  "tool": "Bash",
+  "arg": "echo x > /repo/aegis/runs/RUN-20261002-001/{cases/a.md,events.jsonl}",
+  "agent": "qa-test-designer",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 relative brace in run dir",
+  "tool": "Bash",
+  "arg": "cd /repo/aegis/runs/RUN-20261002-001 && touch {design/a.md,run.json}",
+  "agent": "qa-test-designer",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 nested brace dotdot",
+  "tool": "Bash",
+  "arg": "touch /repo/aegis/runs/RUN-20261002-001/design/{a,{b,../gates/x}}",
+  "agent": "qa-test-designer",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 brace in cp dest",
+  "tool": "Bash",
+  "arg": "cp /tmp/a /repo/aegis/runs/RUN-20261002-001/design/{a,../../../packages/@qa/x.ts}",
+  "agent": "qa-test-designer",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 main brace overflow rm runs",
+  "tool": "Bash",
+  "arg": "rm -rf /repo/aegis/runs{,{1..300}}",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 main brace small rm runs",
+  "tool": "Bash",
+  "arg": "rm -rf /repo/aegis/runs{,1}",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I1 qa brace overflow",
+  "tool": "Bash",
+  "arg": "touch /repo/tests/qa/specs/{1..300}.ts",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I2 nested lock via Write",
+  "tool": "Write",
+  "arg": "/repo/aegis/runs/RUN-20261002-001/evidence/TC-x1/a/b.lock",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "I2 nested lock dir via Write",
+  "tool": "Write",
+  "arg": "/repo/aegis/runs/RUN-20261002-001/evidence/TC-x1/a.lock/x",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa rm glob ev*",
+  "tool": "Bash",
+  "arg": "rm /repo/aegis/runs/RUN-20261002-001/ev*",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa rm glob run dir",
+  "tool": "Bash",
+  "arg": "rm -rf /repo/aegis/runs/RUN-2026*",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa rm globstar events",
+  "tool": "Bash",
+  "arg": "shopt -s globstar; rm /repo/aegis/runs/**/events.jsonl",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa rm glob ** two levels",
+  "tool": "Bash",
+  "arg": "rm /repo/aegis/runs/*/*/x.lock",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa find -delete events",
+  "tool": "Bash",
+  "arg": "find /repo/aegis/runs -name events.jsonl -delete",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa find -exec rm",
+  "tool": "Bash",
+  "arg": "find /repo/aegis/runs -name '*.jsonl' -exec rm {} +",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa glob in sandbox ok",
+  "tool": "Bash",
+  "arg": "rm -rf /repo/aegis/sandbox/RUN-20261002-001/*",
+  "agent": "qa-dev-test-reviewer",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "m1 qa glob in evidence ok",
+  "tool": "Bash",
+  "arg": "rm -f /repo/aegis/runs/RUN-20261002-001/evidence/TC-x1/*.png",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "m3 dynamic tmp cleanup",
+  "tool": "Bash",
+  "arg": "rm -rf \"$TMPDIR/pw-$RUN\"",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "m3 dynamic naming runs",
+  "tool": "Bash",
+  "arg": "rm -rf \"$X/runs\"",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m9 packages/@qa under tmp",
+  "tool": "Write",
+  "arg": "/tmp/wt2/packages/@qa/path-guard/src/guard.ts",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m9 .claude in sandbox",
+  "tool": "Write",
+  "arg": "/repo/aegis/sandbox/x/.claude/settings.json",
+  "agent": "qa-dev-test-reviewer",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "m9 .claude/agents under tests",
+  "tool": "Write",
+  "arg": "/repo/tests/qa/.claude/agents/x.md",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD1 qa unlink lock",
+  "tool": "Bash",
+  "arg": "unlink /repo/aegis/runs/RUN-20261002-001/locks/T-1.lock",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD1 main git mv run",
+  "tool": "Bash",
+  "arg": "git mv runs/RUN-20261002-001 runs/old",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD2 main git checkout target file",
+  "tool": "Bash",
+  "arg": "git -C /repo checkout -- apps/web/src/a.ts",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD2 main git stash in target",
+  "tool": "Bash",
+  "arg": "cd /repo && git stash",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD2 main git checkout branch at aegis",
+  "tool": "Bash",
+  "arg": "git checkout -b feat/x",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD2 main git restore framework file",
+  "tool": "Bash",
+  "arg": "git restore packages/@qa/path-guard/src/guard.ts",
+  "agent": null,
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "ADD2 qa git checkout tests dir",
+  "tool": "Bash",
+  "arg": "cd /repo/tests/qa && git checkout -- specs/a.spec.ts",
+  "agent": "qa-ui-specialist",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "R3 other outside worktree with grep AEGIS_AGENT",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && grep -rn AEGIS_AGENT .",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "R3 other outside worktree align",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && pnpm aegis align",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "rulings.json",
+  "label": "R3 other in checkout align",
+  "tool": "Bash",
+  "arg": "pnpm aegis align",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "rulings.json",
+  "label": "R3 other tsx src cli in checkout",
+  "tool": "Bash",
+  "arg": "npx tsx apps/cli/src/index.ts init",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": false
+ },
+ {
+  "source": "outside.json",
+  "label": "O1 other cd outside + grep AEGIS_AGENT",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && grep -rn AEGIS_AGENT packages",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O2 other cwd outside + grep AEGIS_AGENT",
+  "tool": "Bash",
+  "arg": "grep -rn AEGIS_AGENT packages",
+  "agent": "general-purpose",
+  "cwd": "/tmp/wt/x",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O3 other cd outside + owner CLI probe",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && AEGIS_AGENT=owner pnpm aegis run status",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O4 other cwd outside + owner CLI probe",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=owner pnpm aegis run status",
+  "agent": "general-purpose",
+  "cwd": "/tmp/wt/x",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O5 other cd outside + git -C",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && git -C /tmp/wt/x show HEAD:packages/@qa/path-guard/src/guard.ts | grep -n AEGIS_AGENT",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O6 other cd outside + node -e test reading json",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && node probe.mjs cases.json",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O7 other cd outside + bash script",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && bash scripts/smoke.sh",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O8 other cd outside + heredoc into bash",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x && bash <<'EOF'\necho hi\nEOF",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O9 other sibling dir sharing prefix",
+  "tool": "Bash",
+  "arg": "AEGIS_AGENT=owner pnpm aegis run status",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis-wt/x",
+  "allow": true
+ },
+ {
+  "source": "outside.json",
+  "label": "O10 other cd outside + jest",
+  "tool": "Bash",
+  "arg": "cd /tmp/wt/x/__internal-tests__ && npx jest path-guard",
+  "agent": "general-purpose",
+  "cwd": "/repo/aegis",
+  "allow": true
+ }
+]

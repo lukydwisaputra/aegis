@@ -86,7 +86,6 @@ const LOCK_REMOVERS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink"]);
 const SHELLS: ReadonlySet<string> = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
 const DECLARERS: ReadonlySet<string> = new Set(["export", "declare", "typeset", "readonly", "local"]);
 const IDENTITY = /AEGIS_AGENT\s*=\s*['"]?([^\s'";|&)]*)/g;
-const BUILT_CLI = /(^|\/)apps\/cli\/dist(\/index(\.m?js)?)?$/;
 /** Package runners, with the options of each that take a separate value. */
 const RUNNERS: Readonly<Record<string, readonly string[]>> = {
   pnpm: ["--filter", "-F", "-C", "--dir", "--reporter", "--loglevel"],
@@ -158,6 +157,9 @@ function isTargetSource(ctx: GuardContext, abs: string, via: string): boolean {
   if (TARGET_QA_FILES.some((g) => matchGlob(g, rel))) return false;
   return !(via === "mkdir" && rel !== "" && TARGET_QA_FILES.some((g) => g.startsWith(`${rel}/`)));
 }
+
+/** Task 9 ruling 2: the /qa-push-reports collector repo, a named target-source exception for the main thread only. */
+const inCollector = (ctx: GuardContext, abs: string): boolean => ctx.collectorRoot !== undefined && inside(ctx.collectorRoot, abs);
 
 /** QA artefacts: runs/, the target's tests/ and the configured tests dir (m2). */
 const isQaArtefact = (ctx: GuardContext, abs: string): boolean =>
@@ -270,13 +272,17 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
   const qaArtefact = isQaArtefact(ctx, abs);
   if (caller.kind === "main") {
     if (qaArtefact) return { deny: `the main thread never writes QA artefacts (${abs}); route the request to a /qa-* command (spec D1/D2)` };
-    if (isTargetSource(ctx, abs, via)) {
+    if (isTargetSource(ctx, abs, via) && !inCollector(ctx, abs)) {
       return { deny: `the main thread never modifies target source (${abs}); file the fix as a defect for the developers (CLAUDE.md read/write policy)` };
     }
     return null;
   }
   if (caller.kind === "other") {
     if (qaArtefact) return { deny: `${caller.agent} is not a qa-* agent: QA artefacts (${abs}) are written only by qa-* agents` };
+    // Task 9 ruling 1: non-qa subagents never modify target source either (slice work happens outside the target root).
+    if (isTargetSource(ctx, abs, via)) {
+      return { deny: `${caller.agent} is not a qa-* agent and may not modify target source (${abs}); file the fix as a defect (CLAUDE.md read/write policy)` };
+    }
     if (inside(ctx.aegisRoot, abs)) {
       return { deny: `${caller.agent} is not a qa-* agent and may not write inside the aegis repo (territory rule); do framework work from the main thread, or in a worktree outside it` };
     }
@@ -316,7 +322,7 @@ function checkTree(caller: Caller, dir: string, via: string, ctx: GuardContext):
   const targetSource =
     inside(dir, ctx.targetRoot) ||
     (inside(ctx.targetRoot, dir) && !inside(ctx.aegisRoot, dir) && !tests.some((t) => inside(t, dir)));
-  if (targetSource) {
+  if (targetSource && !(caller.kind === "main" && inCollector(ctx, dir))) {
     return { deny: `git ${via === "git" ? "writes" : "removes"} ${dir} and everything under it, which holds target source; never modify the target app (file a defect instead)` };
   }
   const sandbox = join(ctx.aegisRoot, "sandbox");
@@ -352,36 +358,72 @@ interface CliCall {
   command: string | null;
   task: string | null;
   help: boolean;
-  /** The directory or script that selects which aegis checkout runs (runner -C/--dir/--prefix/--cwd, or the built CLI path); else null (cwd). */
+  /** The directory or script that selects which aegis checkout runs (runner -C/--dir/--prefix/--cwd, or the CLI script path); else null (cwd). */
   location: string | null;
+  /** node -r/--require/--import/--loader on the CLI process (R4). */
+  preload: boolean;
 }
 
-/** `node [flags] <script> …` running the built CLI (or an aegis bin): the arguments after the script, or null. */
-function nodeCli(argv: readonly string[], cwd: string): { rest: string[]; location: string } | null {
+/** The CLI script, built or source: apps/cli/dist[/index.js] or apps/cli/src[/index.ts]. */
+const CLI_SCRIPT = /(^|\/)apps\/cli\/(dist|src)(\/index(\.m?[jt]s)?)?$/;
+const PRELOAD_FLAGS: ReadonlySet<string> = new Set(["-r", "--require", "--import", "--loader", "--experimental-loader"]);
+const SCRIPT_RUNNERS: ReadonlySet<string> = new Set(["node", "tsx", "ts-node"]);
+/** Launchers peeled in front of a runner (R3), with the options of each that take a separate value. */
+const LAUNCHERS_PEELED: Readonly<Record<string, readonly string[]>> = { setsid: [], stdbuf: ["-i", "-o", "-e"], corepack: [] };
+/** Commands that start another command from their arguments (R3: an `aegis` word after one must be recognised). */
+const LAUNCHERS: ReadonlySet<string> = new Set([
+  "pnpm", "npm", "yarn", "bun", "npx", "pnpx", "bunx", "corepack", "node", "tsx", "ts-node", "deno", "xargs", "find", "parallel",
+  "setsid", "stdbuf", "script", "watch", "env", "cross-env", "sudo", "doas", "nohup", "exec", "nice", "timeout", "time", "command",
+  "chronic", "unbuffer", "flock", "caffeinate",
+]);
+/** Variables that change what a CLI call runs or loads (R4). */
+const TAMPER_VARS: ReadonlySet<string> = new Set(["PATH", "NODE_OPTIONS", "BASH_ENV", "ENV", "LD_PRELOAD"]);
+const AEGIS_WORD = /(^|\s)aegis(\s|$)/;
+const CLI_PATH_WORD = /(^|[\s/'"=(])apps\/cli\/(dist|src)(\/|\b)/;
+const FUNCTION_DEF = /(^|[\s;&|({])(function\s+[A-Za-z_][\w:.-]*|[A-Za-z_][\w:.-]*\s*\(\s*\))/;
+const ASSIGNMENT_WORD = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const NAME_READERS: ReadonlySet<string> = new Set(["read", "mapfile", "readarray", "getopts"]);
+
+type Found = { rest: string[]; location: string | null; preload: boolean };
+
+/** `node|tsx|ts-node [flags] <script> …` running the CLI script (or an aegis bin): the arguments after the script, or null. */
+function scriptCli(argv: readonly string[], cwd: string): Found | null {
   let k = 1;
+  let preload = false;
   while (k < argv.length && argv[k]!.startsWith("-")) {
     const flag = argv[k]!;
-    if (flag === "-e" || flag === "--eval" || flag === "-p" || flag === "--print") return null;
-    k += !flag.includes("=") && NODE_VALUE_FLAGS.has(flag) ? 2 : 1;
+    const eq = flag.indexOf("=");
+    const name = eq > 0 ? flag.slice(0, eq) : flag;
+    if (name === "-e" || name === "--eval" || name === "-p" || name === "--print") return null;
+    if (PRELOAD_FLAGS.has(name)) preload = true;
+    k += eq < 0 && NODE_VALUE_FLAGS.has(flag) ? 2 : 1;
   }
   const script = argv[k];
   if (script === undefined) return null;
   const at = resolve(cwd, script);
-  return BUILT_CLI.test(at) || basename(at) === "aegis" ? { rest: argv.slice(k + 1), location: at } : null;
+  return CLI_SCRIPT.test(at) || basename(at) === "aegis" ? { rest: argv.slice(k + 1), location: at, preload } : null;
 }
 
 /** The arguments after the CLI name, for any recognised way of starting the aegis CLI; null for any other command. */
-function cliArgs(argv: readonly string[], cwd: string, depth = 0): { rest: string[]; location: string | null } | null {
+function cliArgs(argv: readonly string[], cwd: string, depth = 0): Found | null {
   const head = argv[0] ?? "";
   const program = basename(head);
-  if (depth > 3) return null;
+  if (depth > 4) return null;
   if (program === "xargs") {
     let k = 1;
     while (k < argv.length && argv[k]!.startsWith("-")) k += XARGS_VALUE_FLAGS.has(argv[k]!) ? 2 : 1;
     return cliArgs(argv.slice(k), cwd, depth + 1);
   }
-  if (program === "node") return nodeCli(argv, cwd);
-  if (program === "aegis") return { rest: argv.slice(1), location: head.includes("/") ? resolve(cwd, head) : null };
+  const peeled = Object.hasOwn(LAUNCHERS_PEELED, program) ? LAUNCHERS_PEELED[program]! : undefined;
+  if (peeled !== undefined) {
+    let k = 1;
+    while (k < argv.length && argv[k]!.startsWith("-")) k += peeled.includes(argv[k]!) ? 2 : 1;
+    return cliArgs(argv.slice(k), cwd, depth + 1);
+  }
+  if (SCRIPT_RUNNERS.has(program)) return scriptCli(argv, cwd);
+  if (program === "aegis") return { rest: argv.slice(1), location: head.includes("/") ? resolve(cwd, head) : null, preload: false };
+  // The CLI script run directly (./apps/cli/dist/index.js has a shebang).
+  if (head.includes("/") && CLI_SCRIPT.test(resolve(cwd, head))) return { rest: argv.slice(1), location: resolve(cwd, head), preload: false };
   const valued = Object.hasOwn(RUNNERS, program) ? RUNNERS[program]! : undefined;
   if (valued === undefined) return null;
   let location: string | null = null;
@@ -406,20 +448,18 @@ function cliArgs(argv: readonly string[], cwd: string, depth = 0): { rest: strin
   if (argv[i] === "--") i++;
   if (argv[i] === "aegis") {
     const rest = argv.slice(i + 1);
-    return { rest: rest[0] === "--" ? rest.slice(1) : rest, location };
+    return { rest: rest[0] === "--" ? rest.slice(1) : rest, location, preload: false };
   }
-  if (argv[i] === "node") {
-    const n = nodeCli(argv.slice(i), location ?? cwd);
-    return n === null ? null : { rest: n.rest, location: n.location };
-  }
+  if (SCRIPT_RUNNERS.has(argv[i] ?? "")) return scriptCli(argv.slice(i), location ?? cwd);
   return null;
 }
 
+/** A recognised aegis CLI call. Its identity is its own prefix or env wrapper only; `exported` is honoured for the main thread alone (R1). */
 function cliInvocation(c: LocatedCommand, exported: string | null): CliCall | null {
   const { env, argv: words } = unwrap(c);
   const found = cliArgs(words.map((w) => w.value), c.cwd);
   if (found === null) return null;
-  const { rest, location } = found;
+  const { rest, location, preload } = found;
   const positional = rest.filter((a) => !a.startsWith("-"));
   const group = positional[0];
   const verb = positional[1];
@@ -427,7 +467,7 @@ function cliInvocation(c: LocatedCommand, exported: string | null): CliCall | nu
   const at = rest.findIndex((a) => a === "--task" || a.startsWith("--task="));
   const flag = at < 0 ? undefined : rest[at];
   const task = flag === undefined ? null : flag.includes("=") ? flag.slice("--task=".length) : rest[at + 1] ?? null;
-  return { identity: env["AEGIS_AGENT"] ?? exported, command, task, help: rest.includes("--help") || rest.includes("-h"), location };
+  return { identity: env["AEGIS_AGENT"] ?? exported, command, task, help: rest.includes("--help") || rest.includes("-h"), location, preload };
 }
 
 function checkCli(caller: Caller, cli: CliCall, c: LocatedCommand, ctx: GuardContext, deps: GuardDeps): string | null {
@@ -437,6 +477,7 @@ function checkCli(caller: Caller, cli: CliCall, c: LocatedCommand, ctx: GuardCon
     const here = c.cwdDynamic === true || inside(ctx.aegisRoot, c.cwd) || (cli.location !== null && inside(ctx.aegisRoot, cli.location));
     return here ? `${caller.agent} is not a qa-* agent: the aegis CLI in ${ctx.aegisRoot} is for qa-* agents and the owner` : null;
   }
+  if (caller.kind === "qa" && cli.preload) return "a node preload (-r/--require/--import/--loader) on an aegis CLI call is refused for subagents (R4)";
   if (cli.command === null) return null;
   // C1: help is free only without an identity; a value such as `--note -h` must not hide a spoofed one.
   if (cli.help && cli.identity === null) return null;
@@ -451,30 +492,102 @@ function checkCli(caller: Caller, cli: CliCall, c: LocatedCommand, ctx: GuardCon
   return deps.cliAllowed(expected, cli.command);
 }
 
+/** ANSI-C ($'…') and printf-style escapes decoded; used to see a name the shell would assemble from escapes (R2). */
+function decodeEscapes(text: string): string {
+  return text.replace(/\\(x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8}|0?[0-7]{1,3}|[nrtabefv\\'"])/g, (m, e: string) => {
+    const c = e[0]!;
+    if (c === "x" || c === "u" || c === "U") return String.fromCodePoint(parseInt(e.slice(1), 16));
+    if (/[0-7]/.test(c)) return String.fromCharCode(parseInt(e, 8));
+    const simple: Record<string, string> = { n: "\n", r: "\r", t: "\t", a: "\u0007", b: "\b", e: "\u001b", f: "\f", v: "\v", "\\": "\\", "'": "'", '"': '"' };
+    return simple[c] ?? m;
+  });
+}
+
+/** R2: a copy of the raw text with escapes decoded, then quotes, backslashes and backslash-newlines removed. */
+export function normalizeShellText(raw: string): string {
+  return decodeEscapes(raw.replace(/\\\n/g, "")).replace(/['"\\]/g, "");
+}
+
+const identityMismatch = (caller: Exclude<Caller, { kind: "main" }>, value: string): string =>
+  caller.kind === "other"
+    ? `${caller.agent} is not a qa-* agent and may not set AEGIS_AGENT=${value} (spec §4.1)`
+    : `AEGIS_AGENT=${value} does not match the caller (${caller.agent}); prefix the command with AEGIS_AGENT=${caller.agent}`;
+
 /**
- * C2: a subagent's identity, whatever the command around it. Every AEGIS_AGENT the parser sees (prefix, env, export,
- * bash -c bodies) and every one in the raw text must be the caller; a mention the guard cannot resolve (quote-split
- * names, unset, eval-built text) is refused. Independent of recognising the CLI.
+ * C2 and fix round 2 (R1–R3): a subagent's identity, whatever the command around it. Identity comes only from the
+ * recognised CLI command's own prefix or env wrapper; any other AEGIS_AGENT assignment (export, declare, printf -v,
+ * read, nameref, a bare assignment) is refused, and so are shell indirections next to a CLI call (source, functions,
+ * aliases). The raw text and a normalized copy must name no other identity. Independent of recognising the CLI.
  */
-function identityProblem(caller: Exclude<Caller, { kind: "main" }>, raw: string, commands: readonly LocatedCommand[]): string | null {
-  const mismatch = (value: string): string =>
-    caller.kind === "other"
-      ? `${caller.agent} is not a qa-* agent and may not set AEGIS_AGENT=${value} (spec §4.1)`
-      : `AEGIS_AGENT=${value} does not match the caller (${caller.agent}); prefix the command with AEGIS_AGENT=${caller.agent}`;
+function subagentProblem(caller: Exclude<Caller, { kind: "main" }>, raw: string, commands: readonly LocatedCommand[], cliCommands: ReadonlySet<LocatedCommand>): string | null {
+  const mentionsAegis = (v: string): boolean => /AEGIS/.test(normalizeShellText(v));
+  const aegisWords = commands.some((c) => !cliCommands.has(c) && launcherWithAegis(c));
+  const nearCli = cliCommands.size > 0 || aegisWords;
   for (const c of commands) {
-    const v = c.assigned["AEGIS_AGENT"];
-    if (v !== undefined && v !== caller.agent) return mismatch(v);
+    const { argv } = unwrap(c);
+    const name = basename(argv[0]?.value ?? "");
+    const args = argv.slice(1);
+    const own = c.assigned["AEGIS_AGENT"];
+    if (own !== undefined) {
+      if (!cliCommands.has(c)) return `AEGIS_AGENT may be set only as the prefix of the aegis command itself, not on ${name === "" ? "the shell" : name} (spec §4.1)`;
+      if (own !== caller.agent) return identityMismatch(caller, own);
+    }
+    if (DECLARERS.has(name)) {
+      for (const a of args) {
+        if (!a.dynamic && a.value.startsWith("-")) continue;
+        if (a.dynamic && !ASSIGNMENT_WORD.test(a.value)) return `${name} with a variable name the guard cannot read (${a.value}) is refused for subagents`;
+        if (mentionsAegis(a.value)) return `${name} ${a.value} touches AEGIS_AGENT; set it only as the prefix of the aegis command (spec §4.1)`;
+      }
+    }
+    if (name === "printf") {
+      const k = args.findIndex((a) => !a.dynamic && a.value === "-v");
+      const target = k < 0 ? undefined : args[k + 1];
+      if (target !== undefined && (target.dynamic || mentionsAegis(target.value))) return "printf -v into AEGIS_AGENT (or a name the guard cannot read) is refused for subagents";
+    }
+    if (NAME_READERS.has(name) && args.some((a) => (a.dynamic && !a.value.startsWith("-")) || mentionsAegis(a.value))) {
+      return `${name} into AEGIS_AGENT (or a name the guard cannot read) is refused for subagents`;
+    }
+    if (name === "alias" && args.some((a) => a.value.includes("="))) return "alias definitions are refused for subagents: an alias can hide the aegis CLI or its identity";
+    if ((name === "source" || name === ".") && nearCli) return `${name} in the same call as the aegis CLI is refused for subagents: the sourced file can change the identity`;
+    const shell = shellProblem(c);
+    if (shell !== null) return shell;
+    if (!cliCommands.has(c) && launcherWithAegis(c)) {
+      return "the aegis CLI is started here in a form the guard does not recognise; run it as AEGIS_AGENT=<you> pnpm aegis …";
+    }
   }
-  let resolved = 0;
-  for (const m of raw.matchAll(IDENTITY)) {
-    if (m[1] !== caller.agent) return mismatch(m[1] ?? "");
-    resolved++;
+  // FD2: the heredoc body of a CLI call (or of a command piped into one) is JSON for the CLI, not shell.
+  let text = raw;
+  commands.forEach((c, i) => {
+    const next = commands[i + 1];
+    const feedsCli = cliCommands.has(c) || (next !== undefined && next.pipe === true && cliCommands.has(next));
+    if (feedsCli && c.heredoc !== null && c.heredoc !== "") {
+      const at = text.lastIndexOf(c.heredoc);
+      if (at >= 0) text = text.slice(0, at) + text.slice(at + c.heredoc.length);
+    }
+  });
+  if (nearCli && FUNCTION_DEF.test(text)) return "a shell function in the same call as the aegis CLI is refused for subagents: it can redefine the command";
+  const normalized = normalizeShellText(text);
+  for (const t of [text, normalized]) {
+    for (const m of t.matchAll(IDENTITY)) if (m[1] !== caller.agent) return identityMismatch(caller, m[1] ?? "");
   }
-  const mentions = raw.split("AEGIS_AGEN").length - 1;
+  // Every assignment-shaped mention must resolve to the caller once quotes and escapes are gone (quote-split names, …).
+  const mentions = normalized.match(/AEGIS_AGEN[A-Za-z0-9_]*\s*=/g)?.length ?? 0;
+  const resolved = [...normalized.matchAll(IDENTITY)].filter((m) => m[1] === caller.agent).length;
   if (mentions > resolved) {
-    return `the command names AEGIS_AGENT in a form the guard cannot resolve to ${caller.agent}; set it only as a plain AEGIS_AGENT=${caller.agent} prefix`;
+    return `the command sets AEGIS_AGENT in a form the guard cannot resolve to ${caller.agent}; set it only as a plain AEGIS_AGENT=${caller.agent} prefix`;
   }
   return null;
+}
+
+/** R3: a launcher (pnpm, npx, node, xargs, find, env, setsid, script, watch, …) whose later words name aegis or the CLI script. */
+function launcherWithAegis(c: LocatedCommand): boolean {
+  const { argv } = unwrap(c);
+  const heads = [c.argv[0], argv[0]].filter((w): w is ShellWord => w !== undefined).map((w) => w.value);
+  if (!heads.some((h) => LAUNCHERS.has(basename(h)) || h.includes("/"))) return false;
+  return c.argv.slice(1).some((w) => {
+    const v = normalizeShellText(w.value);
+    return AEGIS_WORD.test(v) || CLI_PATH_WORD.test(v);
+  });
 }
 
 /** A subagent never feeds a shell from stdin (pipe, heredoc, here-string, redirect) or evals text about aegis (C2). */
@@ -484,12 +597,34 @@ function shellProblem(c: LocatedCommand): string | null {
   const args = argv.slice(1);
   if (SHELLS.has(name)) {
     const operand = args.some((a) => a.dynamic || !a.value.startsWith("-"));
-    if (c.pipe === true || c.heredoc !== null || !operand || args.some((a) => a.value === "-s")) {
+    const info = args.some((a) => /^--?(version|help)$/.test(a.value));
+    if (c.pipe === true || c.heredoc !== null || args.some((a) => a.value === "-s") || (!operand && !info)) {
       return `a shell fed from stdin (${name} after a pipe, heredoc, here-string or redirect) is refused for subagents: the guard cannot see its commands; run them directly`;
     }
   }
   if (name === "eval" && /aegis/i.test(args.map((a: ShellWord) => a.value).join(" "))) {
     return "eval of text that names aegis is refused for subagents: the guard cannot check it; run the command directly";
+  }
+  return null;
+}
+
+/** m1 (fix round 2): `find <runs or above> … -delete|-exec|-ok` by a subagent can remove CLI-only files. */
+function findProblem(c: LocatedCommand, ctx: GuardContext, canon: Canon): string | null {
+  const { argv } = unwrap(c);
+  if (basename(argv[0]?.value ?? "") !== "find") return null;
+  const args = argv.slice(1);
+  if (!args.some((a) => ["-delete", "-exec", "-execdir", "-ok", "-okdir"].includes(a.value))) return null;
+  const starts: ShellWord[] = [];
+  for (const a of args) {
+    if (!a.dynamic && (a.value.startsWith("-") || a.value === "(" || a.value === "!")) break;
+    starts.push(a);
+  }
+  for (const s of starts.length > 0 ? starts : [{ value: ".", dynamic: false }]) {
+    if (s.dynamic) return `find from ${s.value} with -delete/-exec: the guard cannot tell where it starts`;
+    const at = canon(resolve(c.cwd, s.value));
+    if (holdsRuns(ctx, at) || inside(join(ctx.aegisRoot, "runs"), at)) {
+      return `find ${s.value} with -delete/-exec can remove files written only by the aegis CLI; name the paths literally`;
+    }
   }
   return null;
 }
@@ -501,6 +636,23 @@ const removesHere = (c: LocatedCommand): boolean => {
   return name === "git" && argv.some((a) => ["clean", "reset", "rm", "mv", "checkout", "restore", "stash"].includes(a.value));
 };
 
+/** Absolute paths named in a word (bare, or after = : ' " and the like). */
+const pathTokens = (value: string): string[] => [...value.matchAll(/(?:^|[\s"'=:`;|&<>(])(\/[^\s"'`;|&<>()]*)/g)].map((m) => m[1]!);
+
+/**
+ * FD1: does a non-qa subagent's call touch this checkout? Decided by each real command (not cd/pushd/popd): its cwd,
+ * or an absolute path in its words or redirects, canonicalized and compared on path boundaries (aegis-wt is outside).
+ */
+function touchesCheckout(commands: readonly LocatedCommand[], ctx: GuardContext, canon: Canon): boolean {
+  return commands.some((c) => {
+    const { argv } = unwrap(c);
+    const name = basename(argv[0]?.value ?? "");
+    if (argv.length === 0 || name === "cd" || name === "pushd" || name === "popd") return false;
+    if (c.cwdDynamic === true || inside(ctx.aegisRoot, c.cwd)) return true;
+    return [...c.argv, ...c.redirects].some((w) => !w.dynamic && pathTokens(w.value).some((t) => inside(ctx.aegisRoot, canon(resolve(t)))));
+  });
+}
+
 function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardContext, deps: GuardDeps, canon: Canon): GuardResult {
   const claims: string[] = [];
   const warnings: LegacyWrite[] = [];
@@ -511,7 +663,7 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
   let exported: string | null = null;
   const calls: Array<{ cli: CliCall; c: LocatedCommand }> = [];
   for (const c of commands) {
-    const cli = cliInvocation(c, exported);
+    const cli = cliInvocation(c, caller.kind === "main" ? exported : null);
     if (cli !== null) calls.push({ cli: cli.location === null ? cli : { ...cli, location: canon(cli.location) }, c });
     const head = unwrap(c).argv[0];
     if (head !== undefined && !head.dynamic && DECLARERS.has(head.value) && c.assigned["AEGIS_AGENT"] !== undefined) exported = c.assigned["AEGIS_AGENT"]!;
@@ -519,15 +671,21 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
   // Every path below is resolved against cwd; a relative one would resolve against the hook's own directory.
   if (!isAbsolute(cwd) && (targets.length > 0 || calls.length > 0)) return notAbsolute(`the Bash cwd ${cwd}`);
   if (caller.kind !== "main") {
-    // A qa-* agent is always checked; a non-qa subagent only where it touches this checkout (decision 4).
-    const here = caller.kind === "qa" || command.includes(ctx.aegisRoot) || commands.some((c) => c.cwdDynamic === true || inside(ctx.aegisRoot, c.cwd));
-    if (here) {
-      const id = identityProblem(caller, command, commands);
-      if (id !== null) return deny(id);
-      for (const c of commands) {
-        const shell = shellProblem(c);
-        if (shell !== null) return deny(shell);
+    // A qa-* agent is always checked; a non-qa subagent only where it touches this checkout (decision 4, FD1).
+    if (caller.kind === "qa" || touchesCheckout(commands, ctx, canon)) {
+      const problem = subagentProblem(caller, command, commands, new Set(calls.map((x) => x.c)));
+      if (problem !== null) return deny(problem);
+      // R4: nothing that changes what a CLI call runs or loads, anywhere in the call.
+      if (calls.length > 0) {
+        for (const c of commands) {
+          const bad = Object.keys(c.assigned).find((k) => TAMPER_VARS.has(k) || k.startsWith("DYLD_"));
+          if (bad !== undefined) return deny(`${bad} is set in the same call as an aegis CLI call; subagents may not change what the CLI runs or loads (R4)`);
+        }
       }
+    }
+    for (const c of commands) {
+      const f = findProblem(c, ctx, canon);
+      if (f !== null) return deny(f);
     }
   }
   // m8: after a dynamic cd the guard does not know where a removal lands, so it may hold runs/.
@@ -569,7 +727,8 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
     if (t.pattern === true) {
       const expanded = expandBraces(t.path);
       if (expanded === null) {
-        if (caller.kind !== "main") return deny(`${t.path} expands to more than 256 paths; the guard cannot check them all`);
+        // R5: an overflowing removal is refused for every caller; any other overflow only for subagents.
+        if (caller.kind !== "main" || REMOVE_OPS.has(t.via)) return deny(`${t.path} expands to more than 256 paths; the guard cannot check them all`);
       } else paths = expanded;
     }
     for (const raw of paths) {

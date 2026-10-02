@@ -29,13 +29,15 @@ const SPOOFS: Array<[string, string, string | null]> = [
   ['yarn aegis', 'AEGIS_AGENT=owner yarn aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} yarn aegis task claim --task T-1`],
   ['timeout env', `timeout 60 env AEGIS_AGENT=owner pnpm aegis integrity repair-tail --run ${RUN}`, `timeout 60 env AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1`],
   ['if/then', 'if true; then AEGIS_AGENT=owner pnpm aegis gate decide --gate 1; fi', `if true; then AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1; fi`],
-  ['export then pnpm', 'export AEGIS_AGENT=owner; pnpm aegis gate decide --gate 1', `export AEGIS_AGENT=${AGENT}; pnpm aegis task claim --task T-1`],
-  ['export then timeout pnpm', 'export AEGIS_AGENT=owner; timeout 9 pnpm aegis gate decide --gate 1', `export AEGIS_AGENT=${AGENT}; timeout 9 pnpm aegis task claim --task T-1`],
+  // Fix round 2 R1: an earlier export is never trusted, so the export forms have no legitimate subagent form.
+  ['export then pnpm', 'export AEGIS_AGENT=owner; pnpm aegis gate decide --gate 1', null],
+  ['export then timeout pnpm', 'export AEGIS_AGENT=owner; timeout 9 pnpm aegis gate decide --gate 1', null],
   ['quoted export split', "export AEGIS_AGEN''T=owner; timeout 9 pnpm aegis gate decide --gate 1", null],
   ['env -i', 'env -i AEGIS_AGENT=owner pnpm aegis gate decide --gate 1', `env -i AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1`],
   ['quoted value', "AEGIS_AGENT='owner' pnpm aegis gate decide --gate 1", `AEGIS_AGENT='${AGENT}' pnpm aegis task claim --task T-1`],
   ['env quoted', 'env "AEGIS_AGENT=owner" pnpm aegis gate decide --gate 1', `env "AEGIS_AGENT=${AGENT}" pnpm aegis task claim --task T-1`],
-  ['node --require', 'AEGIS_AGENT=owner node --require ./x.js apps/cli/dist/index.js gate decide --gate 1', `AEGIS_AGENT=${AGENT} node --require ./x.js apps/cli/dist/index.js task claim --task T-1`],
+  // Fix round 2 R4: a preload on a CLI call is refused, so --require has no legitimate subagent form.
+  ['node --require', 'AEGIS_AGENT=owner node --require ./x.js apps/cli/dist/index.js gate decide --gate 1', null],
   ['node doubled slash', 'AEGIS_AGENT=owner node apps/cli/dist//index.js gate decide --gate 1', `AEGIS_AGENT=${AGENT} node apps/cli/dist//index.js task claim --task T-1`],
   ['npx -p', 'AEGIS_AGENT=owner npx -p @aegis-qa/cli aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} npx -p @aegis-qa/cli aegis task claim --task T-1`],
   ['pnpm exec node', 'AEGIS_AGENT=owner pnpm exec node apps/cli/dist/index.js gate decide --gate 1', `AEGIS_AGENT=${AGENT} pnpm exec node apps/cli/dist/index.js task claim --task T-1`],
@@ -66,8 +68,8 @@ describe('C2: identity spoofing by a subagent, whatever the CLI form (the review
     expect(decide(bash(legit), ctx, deps)).toMatchObject({ allow: true });
   });
 
-  it('the three shell-stdin and quote-split forms have no legitimate subagent form', () => {
-    expect(SPOOFS.filter((s) => s[2] === null).map((s) => s[0])).toEqual(['quoted export split', 'herestring bash', 'pipe into sh']);
+  it('the export, preload, shell-stdin and quote-split forms have no legitimate subagent form', () => {
+    expect(SPOOFS.filter((s) => s[2] === null).map((s) => s[0])).toEqual(['export then pnpm', 'export then timeout pnpm', 'quoted export split', 'node --require', 'herestring bash', 'pipe into sh']);
   });
 
   it.each<[string, string, RegExp]>([

@@ -14,13 +14,22 @@ export interface GuardContext extends RolePaths {
   tempDirs: string[];
   /** Set when runs/.active names a run whose run.json cannot be read or parsed: qa-* writes are then denied (fail closed, m6). */
   runStateUnreadable?: true;
+  /**
+   * The /qa-push-reports collector repo (aegis.config.json#collector.path, default as that skill documents): a named
+   * target-source exception for the main thread only (Task 9 ruling 2).
+   */
+  collectorRoot?: string;
 }
 
 interface RawConfig {
   targetProjectRoot?: unknown;
   testsDir?: unknown;
   environments?: Record<string, EnvironmentSpecialistConfig>;
+  collector?: { path?: unknown };
 }
+
+/** The collector default that /qa-push-reports documents when aegis.config.json#collector.path is absent. */
+export const DEFAULT_COLLECTOR_PATH = "/Users/lukydwisaputra/Desktop/QA/testing-reports";
 
 const RUN_ID = /^RUN-\d{8}-\d{3}$/;
 
@@ -106,6 +115,8 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
     currentPhase,
     envPolicy: environment === null ? undefined : config.environments?.[environment],
     tempDirs: [...new Set(["/tmp", "/private/tmp", resolve(tmpdir())])],
+    // Resolved as /qa-push-reports resolves it: aegis.config.json#collector.path, else the documented default.
+    collectorRoot: resolve(root, typeof config.collector?.path === "string" ? config.collector.path : DEFAULT_COLLECTOR_PATH),
     ...(runStateUnreadable ? { runStateUnreadable: true as const } : {}),
   };
 }
