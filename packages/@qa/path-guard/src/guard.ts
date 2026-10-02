@@ -16,6 +16,11 @@ export interface HookToolInput {
 export interface GuardDeps {
   /** null when `caller` may run CLI command `command` (e.g. "task.claim"), else the refusal; run-state's caller tables. */
   cliAllowed(caller: string, command: string): string | null;
+  /**
+   * m10: the canonical form of an absolute, normalized path (realpath of its nearest existing parent, plus the rest).
+   * The hook passes fs.realpathSync-based canonicalization; without it paths are compared as written.
+   */
+  realpath?(abs: string): string;
 }
 
 /** A main-thread write into runs/ that a legacy skill still makes directly: allowed with a warning (decision 24). */
@@ -140,6 +145,20 @@ function holdsRuns(ctx: GuardContext, abs: string): boolean {
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel) && !rel.includes("/");
 }
 
+/** QA-owned files inside the target (decision 12, named exceptions); relative to the target root. Not target source. */
+const TARGET_QA_FILES: readonly string[] = ["playwright.config.ts", ".github/workflows/qa-*.yml"];
+
+/**
+ * Target source (Task 9 ruling): inside the target root but outside the aegis root, the tests dirs and the named
+ * exceptions. `mkdir` of a directory that holds a named exception (.github/workflows) is not a change to source.
+ */
+function isTargetSource(ctx: GuardContext, abs: string, via: string): boolean {
+  if (!inside(ctx.targetRoot, abs) || inside(ctx.aegisRoot, abs) || isQaArtefact(ctx, abs)) return false;
+  const rel = relative(ctx.targetRoot, abs);
+  if (TARGET_QA_FILES.some((g) => matchGlob(g, rel))) return false;
+  return !(via === "mkdir" && rel !== "" && TARGET_QA_FILES.some((g) => g.startsWith(`${rel}/`)));
+}
+
 /** QA artefacts: runs/, the target's tests/ and the configured tests dir (m2). */
 const isQaArtefact = (ctx: GuardContext, abs: string): boolean =>
   inside(join(ctx.aegisRoot, "runs"), abs) || inside(join(ctx.targetRoot, "tests"), abs) || inside(ctx.testsDir, abs);
@@ -250,7 +269,11 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
   if (cliOnly) return { deny: `${abs} is written only by the aegis CLI (spec §4.2 H1 c); use the aegis command that owns it` };
   const qaArtefact = isQaArtefact(ctx, abs);
   if (caller.kind === "main") {
-    return qaArtefact ? { deny: `the main thread never writes QA artefacts (${abs}); route the request to a /qa-* command (spec D1/D2)` } : null;
+    if (qaArtefact) return { deny: `the main thread never writes QA artefacts (${abs}); route the request to a /qa-* command (spec D1/D2)` };
+    if (isTargetSource(ctx, abs, via)) {
+      return { deny: `the main thread never modifies target source (${abs}); file the fix as a defect for the developers (CLAUDE.md read/write policy)` };
+    }
+    return null;
   }
   if (caller.kind === "other") {
     if (qaArtefact) return { deny: `${caller.agent} is not a qa-* agent: QA artefacts (${abs}) are written only by qa-* agents` };
@@ -308,14 +331,16 @@ function checkTree(caller: Caller, dir: string, via: string, ctx: GuardContext):
 const notAbsolute = (what: string): GuardResult =>
   deny(`${what} is not an absolute path, so the guard cannot tell what it writes; use an absolute path`);
 
-function single(caller: Caller, tool: string, rawPath: string | null, content: string | null, cwd: string, ctx: GuardContext): GuardResult {
+type Canon = (abs: string) => string;
+
+function single(caller: Caller, tool: string, rawPath: string | null, content: string | null, cwd: string, ctx: GuardContext, canon: Canon): GuardResult {
   if (rawPath === null || rawPath === "") return allow();
   // Normalize before any rule runs: `..`, `.` and doubled slashes must not walk a path out of the glob it seems to match.
   let abs: string;
   if (isAbsolute(rawPath)) abs = resolve(rawPath);
   else if (isAbsolute(cwd)) abs = resolve(cwd, rawPath);
   else return notAbsolute(`${rawPath} (cwd ${cwd})`);
-  const v = checkPath(caller, abs, content, tool, ctx);
+  const v = checkPath(caller, canon(abs), content, tool, ctx);
   if (v === null) return allow();
   return "deny" in v ? deny(v.deny) : allow([], [v.warn]);
 }
@@ -476,15 +501,18 @@ const removesHere = (c: LocatedCommand): boolean => {
   return name === "git" && argv.some((a) => ["clean", "reset", "rm", "mv", "checkout", "restore", "stash"].includes(a.value));
 };
 
-function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardContext, deps: GuardDeps): GuardResult {
+function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardContext, deps: GuardDeps, canon: Canon): GuardResult {
   const claims: string[] = [];
   const warnings: LegacyWrite[] = [];
-  const { targets, commands } = bashWriteTargets(command, cwd);
+  const parsed = bashWriteTargets(command, cwd);
+  const targets = parsed.targets;
+  // m10: a literal cd through a symlink lands in the canonical directory.
+  const commands = parsed.commands.map((c) => (isAbsolute(c.cwd) ? { ...c, cwd: canon(c.cwd) } : c));
   let exported: string | null = null;
   const calls: Array<{ cli: CliCall; c: LocatedCommand }> = [];
   for (const c of commands) {
     const cli = cliInvocation(c, exported);
-    if (cli !== null) calls.push({ cli, c });
+    if (cli !== null) calls.push({ cli: cli.location === null ? cli : { ...cli, location: canon(cli.location) }, c });
     const head = unwrap(c).argv[0];
     if (head !== undefined && !head.dynamic && DECLARERS.has(head.value) && c.assigned["AEGIS_AGENT"] !== undefined) exported = c.assigned["AEGIS_AGENT"]!;
   }
@@ -524,7 +552,7 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
     if (t.dynamic) {
       // git checkout ., clean, reset --hard, stash: a literal directory, flagged dynamic because it stands for all of it.
       if (git && isAbsolute(t.path) && !/[$`]/.test(t.path)) {
-        const out = verdict(checkTree(caller, resolve(t.path), t.via, ctx));
+        const out = verdict(checkTree(caller, canon(resolve(t.path)), t.via, ctx));
         if (out !== null) return out;
         continue;
       }
@@ -545,7 +573,7 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
       } else paths = expanded;
     }
     for (const raw of paths) {
-      const p = resolve(raw);
+      const p = canon(resolve(raw));
       if (GLOB_CHARS.test(p)) {
         const g = globProblem(ctx, p, t.via);
         if (g !== null) return deny(g);
@@ -571,23 +599,25 @@ function decideAgent(caller: Caller, target: string): GuardResult {
 /** H1 (spec §4.2): allow, warn-and-allow (legacy skills, decision 24) or deny one tool call. Pure; the hook loads `ctx`. */
 export function decide(input: HookToolInput, ctx: GuardContext, deps: GuardDeps): GuardResult {
   const caller = callerOf(input);
-  const cwd = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : ctx.aegisRoot;
+  const canon: Canon = deps.realpath ?? ((abs) => abs);
+  const rawCwd = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : ctx.aegisRoot;
+  const cwd = isAbsolute(rawCwd) ? canon(resolve(rawCwd)) : rawCwd;
   const ti = input.tool_input ?? {};
   const tool = input.tool_name ?? "";
   switch (tool) {
     case "Write":
-      return single(caller, tool, str(ti["file_path"]), str(ti["content"]), cwd, ctx);
+      return single(caller, tool, str(ti["file_path"]), str(ti["content"]), cwd, ctx, canon);
     case "Edit":
-      return single(caller, tool, str(ti["file_path"]), str(ti["new_string"]), cwd, ctx);
+      return single(caller, tool, str(ti["file_path"]), str(ti["new_string"]), cwd, ctx, canon);
     case "MultiEdit": {
       const edits = Array.isArray(ti["edits"]) ? (ti["edits"] as unknown[]) : [];
       const text = edits.map((e) => (e !== null && typeof e === "object" ? str((e as Record<string, unknown>)["new_string"]) ?? "" : "")).join("\n");
-      return single(caller, tool, str(ti["file_path"]), text, cwd, ctx);
+      return single(caller, tool, str(ti["file_path"]), text, cwd, ctx, canon);
     }
     case "NotebookEdit":
-      return single(caller, tool, str(ti["notebook_path"]), str(ti["new_source"]), cwd, ctx);
+      return single(caller, tool, str(ti["notebook_path"]), str(ti["new_source"]), cwd, ctx, canon);
     case "Bash":
-      return decideBash(caller, str(ti["command"]) ?? "", cwd, ctx, deps);
+      return decideBash(caller, str(ti["command"]) ?? "", cwd, ctx, deps, canon);
     case "Agent":
     case "Task":
       return decideAgent(caller, str(ti["subagent_type"]) ?? "");

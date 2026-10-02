@@ -36,26 +36,44 @@ If an agent crashes after claiming but before releasing, the orphan lock is dete
 
 ## 13.3 Path-guard enforcement
 
-Every write in the system routes through `@qa/path-guard.assertWritable(path)`.
+Writes are enforced by the PreToolUse hook `scripts/hooks/guard-writes.mjs` (H1). It applies the role table in
+`packages/@qa/path-guard/src/roles.ts` to every `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` call and checks
+every `Agent` dispatch. Exit 2 denies the call with the reason.
 
-The allowlist is derived from `aegis.config.json` at runtime:
-- `../tests/**` (target test files)
-- `aegis/runs/**`
-- `aegis/packages/@qa/**`
-- `aegis/apps/**`
-- `aegis/agent-memory/**`
-- `aegis/sandbox/**` (sandbox-first exploration, gitignored)
+- The caller is the subagent's `agent_type`; a call without one is the main thread.
+- Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`,
+  `intake/`, `hooks/`, `integrity/`, lock files and the active-run pointer — are refused for every caller.
+- Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
+  when the written text matches a brand-exposure pattern.
+- The main thread never writes a run directory or the target's `tests/`; a subagent whose name does not start with
+  `qa-` never writes inside this repo either. Rollout exception: the direct run writes of the skills not yet rewritten
+  onto the CLI (`LEGACY_MAIN_THREAD_RUN_WRITES` in `packages/@qa/path-guard/src/guard.ts`) are allowed from the main
+  thread with a warning and a `legacy-write` hook-ledger entry; P0c/P3 remove each skill's entry when they rewrite it.
+- The main thread never writes target source either: anything inside the target outside this repo, the tests
+  directories and the two named exceptions (the target's Playwright config and its QA-owned workflow files).
+- A `qa-*` agent writes only its role row's globs — {run} is the active run, {testsDir} is
+  `aegis.config.json#testsDir`, {target} is `targetProjectRoot` — or the OS temp directory; never `packages/`, `apps/`,
+  `.claude/`, a `package.json` or a lockfile, and nothing at all while the run's environment forbids it.
+- A `pnpm aegis` call carries `AEGIS_AGENT=<caller>` (`owner` for the main thread) and must be a command that caller
+  may run; `aegis align`, `init`, `update`, `doctor` and `reconfigure` are the owner's.
+- A `qa-*` agent dispatches only `qa-*` agents, never `qa-orchestrator`.
+- Paths are compared by realpath (the nearest existing parent for a path not created yet), so a symlink cannot carry a
+  write past a rule.
+- Without a build, or on a guard error, the hook fails closed for `qa-*` agents, for other subagents inside this repo
+  and for main-thread calls that name the runs directory; anything else is allowed with a warning.
 
-Territory rule — `assertAegisOwnership(agent, path)`:
-- If path is under `aegis/` AND agent name does not start with `qa-` → throw `AegisTerritoryViolation`
-- Emit `aegis.territory.violated` event
-- SPV auto-fails the work-report
+Bash targets are parsed best-effort (redirections, `tee`, `cp`, `mv`, `rm`, `sed -i`, `rsync`, heredocs, `cd`,
+`bash -c`); writes inside interpreters are not seen. The hash chain and `aegis integrity verify` make such writes
+detectable (spec §4.4).
 
-**Env-safety extension — `assertEnvSafe(env, action)`** (called by the CLI whenever a specialist claims a task):
+**Env-safety — `envVerdict(agent, phase, env, policy)`** (H1, the SubagentStart context and `aegis task claim`):
 - Names match by short name (`SPECIALISTS` in `@qa/contracts`); agent names are normalised
-- If the env is read-only (`readOnly: true` or `mutating: false`) AND the specialist's `mutates` flag is set → throw
-- If the specialist is in `forbiddenSpecialists`, or `allowedSpecialists` lacks both `*` and the specialist → throw
-- On any refusal the CLI records `env.specialist-blocked` and the claim fails with `env-blocked`
+- If the env is read-only (`readOnly: true` or `mutating: false`) AND the specialist's `mutates` flag is set → refused
+- If the specialist is in `forbiddenSpecialists`, or `allowedSpecialists` lacks both `*` and the specialist → refused
+- A non-specialist is refused on a read-only env in a phase where its role changes the environment (`mutatesEnvIn`,
+  e.g. the environment engineer in Env-data)
+- On a refused claim the CLI records `env.specialist-blocked` and the claim fails with `env-blocked`; H1 denies every
+  write of a refused agent
 
 ## 13.4 Agent-memory dedup algorithm
 

@@ -105,6 +105,7 @@ Model assignments are centralized in `.claude/model-policy.yaml` — **never har
 3. Every worker claims its task, submits its work report and releases the task through the aegis CLI (`aegis task claim`, `aegis work-report submit`, `aegis task release`). Its SPV then submits a verdict with `aegis review submit`, which pipes any `CorrectiveInstruction` into the worker's lessons and escalates the third rejection to the owner.
 4. Agents record their events with `aegis event append`, which hash-chains them into `runs/{runId}/events.jsonl` (the only crash-recovery source of truth) through `@qa/event-bus`. Nothing writes that file directly.
 5. Three locked human gates pause every full cycle: G1 Plan approval (after Planning), G2 Defect triage (after Triage), G3 Closure (after Closure-final). They cannot be disabled. The owner decides each with `/qa-gate-decide`; the CLI writes `gates/gate-{N}-decision.json`. `/qa-smoke` has no human gate — its G2 is auto-decided from `thresholds.yaml#smoke`.
+6. Hooks in `.claude/settings.json` (scripts in `scripts/hooks/`) make the rules physical. H1 (PreToolUse) checks every write, Bash command and agent dispatch against the path-guard role table (`packages/@qa/path-guard/src/roles.ts`), the CLI-only run files, the brand rule and the `AEGIS_AGENT` identity rule, and denies what breaks them.
 
 ### Key packages under `packages/@qa/`
 
@@ -172,9 +173,12 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 
 ## Territory rule
 
-Only agents whose name starts with `qa-` may write files inside `aegis/`.
-If you are operating as a general-purpose assistant (not a named `qa-*` agent),
-treat `aegis/` as read-only except for the explicitly permitted paths below.
+Enforced by the PreToolUse hook (`scripts/hooks/guard-writes.mjs`): a subagent whose name does not start with `qa-`
+cannot write inside `aegis/` or any QA artefact; `qa-*` agents write only the paths of their role-table row; the
+main thread writes framework files only — never `runs/**` or the target's `tests/**`, except the direct run writes
+of the not-yet-rewritten skills in `LEGACY_MAIN_THREAD_RUN_WRITES`, which are allowed with a warning and logged in the
+run's hook ledger until P0c/P3 move them onto the CLI. Framework work by subagents happens in a git worktree outside
+this directory.
 
 ---
 
@@ -186,16 +190,15 @@ treat `aegis/` as read-only except for the explicitly permitted paths below.
 | `../packages/**` | READ-ONLY |
 | `../services/**` | READ-ONLY |
 | `../src/**` | READ-ONLY |
-| `../tests/**` | WRITE allowed |
+| `../tests/**` | WRITE by `qa-*` agents under `testsDir`, per their role row; never by the main thread |
 | `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
 | `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
-| `aegis/runs/**` | WRITE allowed |
-| `aegis/packages/@qa/**` | WRITE allowed |
-| `aegis/apps/**` | WRITE allowed |
-| `aegis/agent-memory/**` | WRITE allowed |
+| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
+| `aegis/packages/**`, `aegis/apps/**`, `aegis/.claude/**` | Framework source: owner branch work only; agents are denied |
+| `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |
 
-Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report.
+Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report. The PreToolUse hook denies the main thread every write to target source outside the named exceptions.
 
 ---
 
