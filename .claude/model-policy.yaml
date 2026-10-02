@@ -31,9 +31,6 @@ assignments:
     - qa-compliance-cmmi
     - qa-compliance-gdpr
     - qa-compliance-pdpa
-    # DevOps planner roles
-    - qa-github-planner
-    - qa-cicd-planner
 
   implementation:
     # Tier-1 STLC phase agents
@@ -58,9 +55,6 @@ assignments:
     - qa-realtime-specialist
     - qa-feature-flag-specialist
     - qa-responsive-specialist
-    # DevOps implementer roles
-    - qa-github-implementer
-    - qa-cicd-implementer
 
   validation:
     # Tier-1 SPVs
@@ -91,9 +85,6 @@ assignments:
     - qa-realtime-specialist-spv
     - qa-feature-flag-specialist-spv
     - qa-responsive-specialist-spv
-    # DevOps SPVs
-    - qa-github-spv
-    - qa-cicd-spv
 
   read-only:
     # Cross-cutting read-only agents
@@ -101,8 +92,6 @@ assignments:
     - qa-knowledge-librarian
     - qa-metrics-collector
     - qa-event-bus
-    # DevOps read-only
-    - qa-cicd-evaluator
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Book ingestion uses a multi-model per-book strategy (see docs/71-book-ingestion-model-strategy.md).

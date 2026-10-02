@@ -1,6 +1,8 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { parse } from 'yaml';
+import { AegisEventSchema } from '@qa/contracts';
 
 // P2a — roster and review coverage (docs/superpowers/specs/2026-10-02-p2-roster-design.md §7).
 const ROOT = path.join(__dirname, '..');
@@ -40,5 +42,53 @@ describe('DevOps docs (AUD-046)', () => {
       (f) => f.endsWith('.md') && !/^(docs\/superpowers|knowledge|plan-validation|agent-graveyard)\//.test(f) && /D11-[a-z-]+\.md/.test(read(f)),
     );
     expect(linking).toEqual([]);
+  });
+});
+
+// Retired by owner decision 2026-10-02 (spec §4.1); each retirement task appends its agents.
+const RETIRED: Array<{ name: string; aud: string }> = [
+  ...DEVOPS.map((name) => ({ name, aud: 'AUD-046' })),
+];
+
+/** Frontmatter names of every agent file under .claude/agents/. */
+function agentNames(): string[] {
+  const dir = path.join(ROOT, '.claude', 'agents');
+  return fs.readdirSync(dir).flatMap((tier) =>
+    fs
+      .readdirSync(path.join(dir, tier))
+      .filter((f) => f.endsWith('.md') && f !== 'README.md')
+      .map((f) => /^name:\s*(\S+)/m.exec(fs.readFileSync(path.join(dir, tier, f), 'utf-8'))?.[1] ?? f),
+  );
+}
+
+describe('retired agents (spec §4.1)', () => {
+  it.each(RETIRED)('$name lives only in agent-graveyard/, with retiredAt and reason', ({ name, aud }) => {
+    expect(agentNames()).not.toContain(name);
+    const fm = /^---\n([\s\S]*?)\n---\n/.exec(read(`agent-graveyard/${name}.md`))![1]!;
+    expect(fm).toMatch(new RegExp(`^name: ${name}$`, 'm'));
+    expect(fm).toMatch(/^retiredAt: 2026-10-02$/m);
+    expect(fm).toMatch(new RegExp(`^reason: "${aud}, owner decision 2026-10-02: .+"$`, 'm'));
+  });
+
+  it('no doc in the DOC-REF scope and no .claude/** file names a retired agent', () => {
+    const hits = tracked()
+      .filter((f) => inDocScope(f) || f.startsWith('.claude/'))
+      .flatMap((f) => RETIRED.filter(({ name }) => names(read(f), name)).map(({ name }) => `${f}: ${name}`));
+    expect(hits).toEqual([]);
+  });
+
+  it('model-policy.yaml assigns exactly the agent files', () => {
+    const policy = parse(read('.claude/model-policy.yaml')) as { assignments: Record<string, string[]> };
+    expect(Object.values(policy.assignments).flat().sort()).toEqual(agentNames().sort());
+  });
+
+  it('aegis.config.json has no github block and no environment secretsRef (spec §4.2.2)', () => {
+    const config = JSON.parse(read('aegis.config.json')) as { github?: unknown; environments: Record<string, Record<string, unknown>> };
+    expect(config.github).toBeUndefined();
+    expect(Object.entries(config.environments).filter(([, e]) => 'secretsRef' in e).map(([env]) => env)).toEqual([]);
+  });
+
+  it('historical devops.* events still parse (T8)', () => {
+    expect(AegisEventSchema.safeParse({ type: 'devops.flake-detected', ts: '2026-06-28T08:00:00.000Z', testRef: 'TC-AUTH-031', flakeRate: 0.2 }).success).toBe(true);
   });
 });

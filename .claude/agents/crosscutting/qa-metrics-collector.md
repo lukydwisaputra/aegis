@@ -59,8 +59,8 @@ Output: `runs/{runId}/reports/metrics/effectiveness.json`.
 Per agent: `{ reviewPassRate, requestedChangesCount, meanTaskDurationMs, lessonAppendCount }`
 Output: `runs/{runId}/reports/metrics/agent-reliability.json`.
 
-### Flaky Tests (from `devops.flake-detected` events)
-- Per test: `{ testRef, flakeRate, retryCount }`
+### Flaky Tests (from retry and attempt data)
+- Per test: `{ testRef, flakeRate, retryCount }`, from the retry and attempt data in `runs/{runId}/cases/*-result.json` (a test that failed and then passed on a retry counts as a flake)
 Output: `runs/{runId}/reports/metrics/flaky.json`.
 
 ## Process
@@ -120,7 +120,6 @@ awaits:
   - run.completed
   - token.used
   - run.phase.started
-  - devops.flake-detected
   - defect.opened
   - defect.closed
   - defect.reopened

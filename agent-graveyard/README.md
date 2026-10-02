@@ -21,7 +21,7 @@ agent-graveyard/
 
 When an agent is retired:
 
-1. Move `.claude/agents/temp/{name}.md` → `agent-graveyard/{name}.md`
+1. Move `.claude/agents/<tier>/<name>.md` → `agent-graveyard/<name>.md` (`git mv`)
 2. Update its frontmatter:
    ```yaml
    ---
@@ -29,7 +29,7 @@ When an agent is retired:
    reason: "Phase A.B complete; no longer needed"
    ---
    ```
-3. Emit `agent.retired` event with the agent name + reason
+3. Record the retirement in the remediation matrix and in the commit message (a framework change happens outside any run, so no event records it)
 4. The agent's `agent-memory/{name}/lessons.json` stays in place (do not delete; preserves history)
 
 ## What agents are eligible for retirement?
@@ -38,4 +38,4 @@ When an agent is retired:
 - Agents superseded by a renamed/refactored version (rename to versioned slug; old one comes here)
 - Agents whose function has been absorbed into another agent
 
-Permanent roster agents (the 63 in full mode) are not retired during normal operation.
+Permanent roster agents are retired only by an owner decision recorded in the remediation matrix (2026-10-02: 11 agents, P2).

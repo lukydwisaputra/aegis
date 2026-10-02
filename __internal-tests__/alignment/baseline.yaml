@@ -73,15 +73,6 @@ entries:
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
   # --- CONSUMER ---
-  - key: "CONSUMER:qa-cicd-evaluator:{run}/devops/ci-summary.json:unread"
-    ids: [AUD-046]
-    note: "no one reads {run}/devops/ci-summary.json"
-  - key: "CONSUMER:qa-cicd-implementer:{run}/devops/cicd-results.json:unread"
-    ids: [AUD-046]
-    note: "no one reads {run}/devops/cicd-results.json"
-  - key: "CONSUMER:qa-cicd-implementer:{target}/.husky/**:unread"
-    ids: [AUD-046]
-    note: "no one reads {target}/.husky/**"
   - key: "CONSUMER:qa-curator:{run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json:unread"
     ids: [AUD-059]
     note: "no one reads {run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json"
@@ -102,41 +93,8 @@ entries:
     note: "no one reads {run}/events.jsonl.lock"
   # --- CONTRACT ---
   # --- DISPATCH ---
-  - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-cicd-evaluator:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-cicd-evaluator in dispatches"
-  - key: "DISPATCH:qa-cicd-implementer:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-cicd-planner:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-cicd-planner:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-cicd-planner in dispatches"
-  - key: "DISPATCH:qa-cicd-spv:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
   - key: "DISPATCH:qa-event-bus:-:undispatched"
     ids: [AUD-048]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-github-implementer:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-github-implementer:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-github-implementer in dispatches"
-  - key: "DISPATCH:qa-github-planner:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-github-planner:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-github-planner in dispatches"
-  - key: "DISPATCH:qa-github-spv:-:undispatched"
-    ids: [AUD-046]
     note: "nothing dispatches this agent"
   - key: "DISPATCH:qa-knowledge-librarian:-:undispatched"
     ids: [AUD-047]
@@ -379,9 +337,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:defect.reopened:no-emitter"
     ids: [AUD-102]
     note: "nobody emits defect.reopened"
-  - key: "EVENT:qa-metrics-collector:devops.flake-detected:unreachable-emitter"
-    ids: [AUD-011]
-    note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
   - key: "EVENT:qa-promote-stage:run.gate.check.triggered:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -494,30 +449,6 @@ entries:
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   # --- PRODUCER ---
-  - key: "PRODUCER:qa-cicd-evaluator:{run}/devops/github-results.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-cicd-implementer:templates/github-workflows/**:unreachable-producer"
-    ids: [AUD-046]
-    note: "templates/github-workflows/** is produced only by _qa-init-project, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-cicd-implementer:{run}/devops/cicd-plan.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/cicd-plan.json is produced only by qa-cicd-planner, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
-    ids: [AUD-074]
-    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
-  - key: "PRODUCER:qa-github-implementer:{run}/devops/github-plan.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-github-spv:agent-memory/qa-github-spv/lessons.md:missing-source"
-    ids: [AUD-074]
-    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
-  - key: "PRODUCER:qa-github-spv:{run}/devops/github-plan.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-github-spv:{run}/devops/github-results.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
   # --- ROUTE ---
   # --- SKILL ---
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
@@ -683,18 +614,6 @@ entries:
     ids: [AUD-012]
     note: "execution skill dispatches qa-unit-specialist directly"
   # --- SPV ---
-  - key: "SPV:qa-cicd-implementer:qa-cicd-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-cicd-spv is not dispatched by qa-cicd-implementer's dispatcher"
-  - key: "SPV:qa-cicd-planner:qa-cicd-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-cicd-spv is not dispatched by qa-cicd-planner's dispatcher"
-  - key: "SPV:qa-github-implementer:qa-github-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-github-spv is not dispatched by qa-github-implementer's dispatcher"
-  - key: "SPV:qa-github-planner:qa-github-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-github-spv is not dispatched by qa-github-planner's dispatcher"
   - key: "SPV:qa-orchestrator:qa-orchestrator-spv:not-dispatched-together"
     ids: [AUD-049]
     note: "qa-orchestrator-spv is not dispatched by qa-orchestrator's dispatcher"
@@ -732,12 +651,6 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.github/workflows/qa-*.yml:target-source"
-    ids: [AUD-112, AUD-046]
-    note: "write to {target}/.github/workflows/qa-*.yml violates the write policy (target-source)"
-  - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.husky/**:target-source"
-    ids: [AUD-112, AUD-046]
-    note: "write to {target}/.husky/** violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-compare:comparisons/{runA}-vs-{runB}/comparison.md:not-writable"
     ids: [AUD-068]
     note: "write to comparisons/{runA}-vs-{runB}/comparison.md violates the write policy (not-writable)"

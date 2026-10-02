@@ -238,6 +238,7 @@ export const TokenUsedEventSchema = EventBase.extend({
 });
 
 // ─── DevOps tier ──────────────────────────────────────────────────────────────
+// Emitters retired in P2 (agent-graveyard/); kept so historical logs parse.
 
 export const DevOpsBranchCreatedEventSchema = EventBase.extend({
   type: z.literal("devops.branch-created"),
@@ -1096,6 +1097,7 @@ export const CicdRunCompletedEventSchema = EventBase.extend({
   jobFailures: z.array(z.string()).default([]),
 });
 
+// Emitters retired in P2 (agent-graveyard/); kept so historical logs parse.
 export const DevopsGithubPlanCompletedEventSchema = EventBase.extend({
   type: z.literal("devops.github-plan-completed"),
   branchName: z.string(),
