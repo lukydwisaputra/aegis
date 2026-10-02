@@ -6,12 +6,12 @@
 
 The event bus is an append-only JSONL file at `runs/{runId}/events.jsonl`.
 
-**Append protocol (in `@qa/event-bus`):**
-1. Acquire `proper-lockfile` on `{busPath}.lock` (stale 5s, retries 8)
-2. Zod-validate the event against `AegisEventSchema`
-3. Append single JSON line
-4. Release lock
-5. On schema failure: write `bus.error` event (best-effort), throw
+**Append protocol (`appendChained` in `@qa/event-bus`, called only by the aegis CLI):**
+1. Validate the event against `AegisEventSchema`; refuse undeclared fields and caller-set envelope fields (nothing is written on a refusal)
+2. Acquire the `proper-lockfile` lock on the log (stale 5s)
+3. Refuse a torn tail (an unterminated, unparseable last line)
+4. Append one line with the envelope `seq`, `prevHash` (sha256 of the previous line), `emittedBy` and `runId`
+5. Release the lock
 
 Every event includes `ts: string` (ISO-8601 UTC). No agent overwrites another's events. Reads are unrestricted and concurrent; only writes are serialized.
 

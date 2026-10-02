@@ -98,7 +98,7 @@ At session end (durable):
 
    Do not file candidates from observations that cannot be reproduced (apply COTE first).
 
-7. **Clean up the sandbox.** After every observation is processed, remove the session sandbox (`rm -rf sandbox/{YYYY-MM-DD}-{session-slug}`) and append `sandbox.experiment-completed` with its path. Do not call `completeSandbox()` from `@qa/sandbox-manager`: it appends to the event log without the hash chain. No sandbox survives past the session.
+7. **Clean up the sandbox.** After every observation is processed, remove the session sandbox (`rm -rf sandbox/{YYYY-MM-DD}-{session-slug}`) and append `sandbox.experiment-completed` with its path. No sandbox survives past the session.
 
 8. **Do not automate-on-the-fly.** Exploratory testing is about discovery, not automation. Never write a scripted Playwright test and never create a test case — propose it with `tc.proposal`.
 

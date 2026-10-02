@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { append, readAll } from '@qa/event-bus';
+import { appendChained, readAll } from '@qa/event-bus';
 import { AegisEventSchema } from '@qa/contracts';
 
 let tmpDir: string;
@@ -9,7 +9,7 @@ let busPath: string;
 
 const TS = '2026-05-25T00:00:00.000Z';
 const RUN_A = 'RUN-20260525-001';
-const RUN_B = 'RUN-20260525-002';
+const ctx = { emittedBy: 'qa-orchestrator', runId: RUN_A };
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-eb-test-'));
@@ -21,48 +21,30 @@ afterEach(() => {
 });
 
 describe('@qa/event-bus', () => {
-  it('append() writes a valid JSONL event to disk', async () => {
-    await append({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_A }, busPath);
-    const raw = fs.readFileSync(busPath, 'utf8').trim();
-    const parsed = JSON.parse(raw);
-    expect(parsed.type).toBe('gate.requested');
-    expect(parsed.runId).toBe(RUN_A);
+  it('appendChained() writes a valid JSONL event to disk', async () => {
+    await appendChained({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_A }, busPath, ctx);
+    const parsed = JSON.parse(fs.readFileSync(busPath, 'utf8').trim());
+    expect(parsed).toMatchObject({ type: 'gate.requested', runId: RUN_A, seq: 1 });
   });
 
   it('readAll() returns previously appended events in order', async () => {
-    await append({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_B }, busPath);
-    await append({ type: 'gate.approved', ts: TS, gate: 'G1', runId: RUN_B, approvedBy: 'ci-bot' }, busPath);
+    await appendChained({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_A }, busPath, ctx);
+    await appendChained({ type: 'gate.approved', ts: TS, gate: 'G1', runId: RUN_A, approvedBy: 'ci-bot' }, busPath, ctx);
     const events = readAll(busPath);
-    expect(events).toHaveLength(2);
-    expect(events[0]!.type).toBe('gate.requested');
-    expect(events[1]!.type).toBe('gate.approved');
+    expect(events.map((e) => e.type)).toEqual(['gate.requested', 'gate.approved']);
   });
 
   it('sequential appends (10 writers) produce 10 valid JSONL lines', async () => {
     for (let i = 0; i < 10; i++) {
-      await append(
-        { type: 'gate.requested', ts: TS, gate: 'G1', runId: `RUN-20260525-${String(i + 1).padStart(3, '0')}` },
-        busPath
-      );
+      await appendChained({ type: 'gate.requested', ts: TS, gate: 'G1', runId: RUN_A }, busPath, ctx);
     }
-    const raw = fs.readFileSync(busPath, 'utf8');
-    const lines = raw.trim().split('\n');
+    const lines = fs.readFileSync(busPath, 'utf8').trim().split('\n');
     expect(lines).toHaveLength(10);
-    lines.forEach((line: string) => {
-      expect(() => JSON.parse(line)).not.toThrow();
-    });
+    lines.forEach((line: string) => expect(() => JSON.parse(line)).not.toThrow());
   });
 
   it('throws on invalid event schema (missing type)', async () => {
-    await expect(
-      append({ ts: TS, gate: 'G1', runId: RUN_A } as any, busPath)
-    ).rejects.toThrow();
-  });
-
-  it('throws on invalid event schema (missing runId)', async () => {
-    await expect(
-      append({ type: 'gate.requested', ts: TS, gate: 'G1' } as any, busPath)
-    ).rejects.toThrow();
+    await expect(appendChained({ ts: TS, gate: 'G1', runId: RUN_A }, busPath, ctx)).rejects.toThrow();
   });
 });
 
@@ -70,10 +52,10 @@ describe('event field declarations (AUD-039)', () => {
   const lines = () => (fs.existsSync(busPath) ? fs.readFileSync(busPath, 'utf-8').split('\n').filter(Boolean) : []);
   const artifact = { type: 'artifact.created', ts: TS, kind: 'plan', path: 'runs/x/plan.json', schemaVersion: '1.0' } as const;
   const valid = (ev: object) => AegisEventSchema.safeParse(ev).success;
-  it('append() refuses undeclared fields instead of stripping them, but keeps runId', async () => {
-    await expect(append({ ...artifact, brief: 'x' } as any, busPath)).rejects.toThrow(/undeclared field\(s\).*brief/);
+  it('appendChained() refuses undeclared fields instead of stripping them, but keeps runId', async () => {
+    await expect(appendChained({ ...artifact, brief: 'x' }, busPath, ctx)).rejects.toThrow(/undeclared field\(s\).*brief/);
     expect(lines()).toHaveLength(0);
-    await append({ ...artifact, runId: RUN_A } as any, busPath);
+    await appendChained({ ...artifact, runId: RUN_A }, busPath, ctx);
     expect(JSON.parse(lines()[0]!)).toMatchObject({ type: 'artifact.created', runId: RUN_A });
   });
   it('specialist.dispatched declares a strict brief', () => {
