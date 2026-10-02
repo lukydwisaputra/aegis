@@ -129,13 +129,18 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 
 | ID | Finding | Evidence | Sev | Status |
 |----|---------|----------|-----|--------|
-| AUD-070 | No IDOR / object-level authz test and no integer-vs-UUID ID enumerability check anywhere in the pipeline | grep idor/uuid/CWE-639/ATHZ-04 → none | HIGH | open |
+| AUD-070 | No IDOR / object-level authz test and no integer-vs-UUID ID enumerability check anywhere in the pipeline | grep idor/uuid/CWE-639/ATHZ-04 → none | HIGH | in-spec |
 
-Agreed design inputs (approach A): detection in scanner + web-explorer → `target-profile.json#objectRoutes[]`;
-designer emits `testType: Security`, `testTechnique: ["ObjectAuthz"]`; environment engineer auto-provisions
-userA/userB per role on `mutating` envs only; security specialist runs B→A matrix (GET/PUT/PATCH/DELETE,
-`id±1` for integer IDs, vertical cross-role too), pass = 403/404 and A's data unchanged; never on production.
-Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID with correct authz = Sev3.
+Spec: `2026-09-30-p4-object-authz-design.md`. Agreed design inputs (approach A): detection in scanner +
+web-explorer → `target-profile.json#objectRoutes[]`; designer emits `testType: Security`,
+`testTechnique: ["ObjectAuthz"]`; environment engineer writes a peer factory that provisions userA/userB per
+role at test time, on `development` and `testing` only; security specialist runs the B→A matrix
+(GET/PUT/PATCH/DELETE on userA's fixture, `id±1` GET-only for integer IDs, vertical cross-role too, a
+control probe per request); pass = **404 only** and A's data unchanged; 403 = Sev2; DELETE fixture-owned
+only; never on staging or production. Severity: authz leak = Sev1 (CWE-639, `WSTG-v42-ATHZ-04`); integer
+ID with correct authz = Sev3, once per resource type. Sev→threshold mapping for P3's `qa-gate-check`
+rewrite (AUD-056b): Sev1 → `maxCritical`, Sev2 → `maxHigh`, ObjectAuthz Sev3 excluded from the security
+counts.
 
 ## P5 — Invariant tests & documentation
 
