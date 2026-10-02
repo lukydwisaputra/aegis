@@ -156,3 +156,17 @@ it('SPV: not dispatched together', () => {
   expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-w1:qa-w1-spv:not-dispatched-together']);
   t.cleanup();
 });
+
+it('AUD-049: a worker that dispatches its own SPV is dispatched together with it; disjoint dispatchers still fail', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-boss': cc({ reviewedBy: 'qa-boss-spv', dispatches: ['qa-boss-spv', 'qa-w'] }),
+      'qa-boss-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-boss'], reviewedBy: none, reviews: ['qa-boss'] } },
+      'qa-w': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-boss'], reviewedBy: 'qa-w-spv' } },
+      'qa-other': cc({ dispatches: ['qa-w-spv'] }),
+      'qa-w-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-other'], reviewedBy: none, reviews: ['qa-w'] } },
+    },
+  });
+  expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-w:qa-w-spv:not-dispatched-together']);
+  t.cleanup();
+});

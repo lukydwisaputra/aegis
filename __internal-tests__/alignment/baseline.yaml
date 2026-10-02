@@ -596,9 +596,6 @@ entries:
     ids: [AUD-012]
     note: "execution skill dispatches qa-unit-specialist directly"
   # --- SPV ---
-  - key: "SPV:qa-orchestrator:qa-orchestrator-spv:not-dispatched-together"
-    ids: [AUD-049]
-    note: "qa-orchestrator-spv is not dispatched by qa-orchestrator's dispatcher"
   - key: "SPV:qa-ui-designer:qa-ui-designer-spv:not-dispatched-together"
     ids: [AUD-050]
     note: "qa-ui-designer-spv is not dispatched by qa-ui-designer's dispatcher"

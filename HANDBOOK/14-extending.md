@@ -212,7 +212,8 @@ saying "during <Phase>"; with no such line the check reports
 `CONTRACT:qa-orchestrator:during-phase:anchor-missing`. An anchor whose heading or line is missing
 reports `…:anchor-missing` instead of passing. Reword an anchor only together with the rule in
 `packages/@qa/alignment/src/rules/pipeline.ts`. Other graph checks: dispatching needs the
-`Agent`/`Skill` tool and writing needs `Write`/`Edit`; a producer counts only when a pipeline phase
+`Agent`/`Skill` tool and writing needs `Write`/`Edit`; an SPV is dispatched together with its worker when they share a
+dispatcher or when the worker dispatches its SPV itself (`qa-orchestrator` → `qa-orchestrator-spv`); a producer counts only when a pipeline phase
 or execution skill reaches it; an agent dispatched in several phases is listed under each in `pipeline.yaml`, its
 contract `phase` names the last of them (`CONTRACT … multi-phase` otherwise) and its writes count as produced from
 the first; same-phase units must not read each other's writes; a worker with an

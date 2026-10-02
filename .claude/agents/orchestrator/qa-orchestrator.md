@@ -122,6 +122,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | `qa-web-explorer` | `qa-web-explorer-spv` |
    | `qa-exploratory-specialist` (Explore only) | `qa-exploratory-specialist-spv` |
    | `qa-dev-test-reviewer` | `qa-dev-test-reviewer-spv` |
+   | `qa-orchestrator` (your gate tasks `T-GATE-G<N>`, step 5) | `qa-orchestrator-spv`, which you dispatch yourself |
    | `qa-context-scanner`, `qa-compliance-*`, `qa-curator` | none yet — the barrier accepts them without a review (`SPV_NONE` in `@qa/run-state`) |
 
    Tier-2 specialist SPVs are dispatched by `qa-test-executor`, not by you, except `qa-exploratory-specialist-spv` in Explore.
