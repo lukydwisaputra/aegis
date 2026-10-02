@@ -35,14 +35,6 @@ For example, `D13-event-bus-spec.md` is a deep dive into [HANDBOOK chapter 13 �
 | [D10-per-agent-auto-learning.md](D10-per-agent-auto-learning.md) | Dedup algorithm, lesson archive format |
 | [D10-self-improvement-cycle.md](D10-self-improvement-cycle.md) | Curator flow, proposal format |
 
-### D11 — DevOps Tier ([HANDBOOK/11](../HANDBOOK/11-devops-tier.md))
-| File | Topic |
-|------|-------|
-| [D11-devops-tier-overview.md](D11-devops-tier-overview.md) | Purpose, sub-roles, activation gates |
-| [D11-github-workflow.md](D11-github-workflow.md) | Branch strategy, PR conventions, gh CLI usage |
-| [D11-worktree-isolation.md](D11-worktree-isolation.md) | When/why worktree isolation is used |
-| [D11-secrets-handling.md](D11-secrets-handling.md) | Secret resolution, naming, scanning |
-
 ### D12 — CI/CD Operations ([HANDBOOK/12](../HANDBOOK/12-cicd-operations.md))
 | File | Topic |
 |------|-------|

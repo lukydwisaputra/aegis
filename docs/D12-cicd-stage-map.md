@@ -119,5 +119,5 @@ All workflows use pnpm, detect Node version from `target-profile.json`, cache `n
 
 - [D12-environments-overview.md](D12-environments-overview.md)
 - [D12-env-safety-and-prod.md](D12-env-safety-and-prod.md)
-- [D11-secrets-handling.md](D11-secrets-handling.md)
+- [secrets/README.md](../secrets/README.md)
 - [HANDBOOK/12-cicd-operations.md](../HANDBOOK/12-cicd-operations.md)

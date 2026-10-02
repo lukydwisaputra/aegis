@@ -178,9 +178,6 @@ entries:
   - key: "DOC-REF:CLAUDE.md:qa-specialist:unknown"
     ids: [AUD-076]
     note: "qa-specialist is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:CLAUDE.md:tier2-5-devops=6:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"2.5 \u2014 DevOps\" claims 6; .claude/agents/tier2-5-devops has 7"
   - key: "DOC-REF:CLAUDE.md:tier2-specialist=16:count-mismatch"
     ids: [AUD-075]
     note: "CLAUDE.md tier row \"2 \u2014 Specialists\" claims 16; .claude/agents/tier2-specialist has 14"
@@ -190,24 +187,9 @@ entries:
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-defect-reporter:unknown"
     ids: [AUD-076]
     note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-deployment-monitor:unknown"
-    ids: [AUD-076]
-    note: "qa-deployment-monitor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-env-provisioner:unknown"
-    ids: [AUD-076]
-    note: "qa-env-provisioner is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-rtm-builder:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-sandbox-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-secrets-auditor:unknown"
-    ids: [AUD-076]
-    note: "qa-secrets-auditor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-worktree-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"

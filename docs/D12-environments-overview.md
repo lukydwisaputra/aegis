@@ -180,4 +180,4 @@ The most common causes:
 
 - **Hardcoded IDs** — the test references a record that exists locally but not on staging; use factories that create data dynamically instead
 - **Timing** — add explicit `waitFor` assertions rather than fixed `sleep` calls
-- **Missing secret** — a value available locally is not set on staging; check `aegis.config.json#environments.staging.secretsRef`
+- **Missing secret** — a value available locally is not set on staging; check the repository secrets with the `STAGING_` prefix

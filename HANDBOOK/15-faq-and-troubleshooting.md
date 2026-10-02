@@ -82,7 +82,7 @@ Decision tree:
 ```
 Is the metric genuinely unachievable for this project right now?
   YES → Adjust threshold in thresholds.yaml with a documented reason
-        qa-cicd-spv will flag it as a relaxation from industry default (informational)
+        and record the reason under the thresholds.yaml overrides[] entry
   NO  →
     Is it a temporary regression (flaky test, environment issue)?
       YES → Quarantine the flaky test; fix the environment; don't relax the gate

@@ -1,90 +1,30 @@
-# Chapter 11 — DevOps Tier
+# Chapter 11 — CI and GitHub boundary
 
-> _GitHub and CI/CD masters: branch strategy, PR flow, workflow implementation, safety gates._
+> _No agent writes to the target's GitHub repository or CI; CI setup is the owner's action, and flaky-test data comes from the run itself._
 
-## 11.1 Why DevOps is its own tier
+## 11.1 The rule
 
-Most QA systems stop at "write tests, run tests, report results." Aegis extends into the delivery pipeline because quality gates only work if they're wired into the code review and deployment flows.
+No agent writes to the target's GitHub repository or CI. No agent creates a branch, a commit, a pull request, an issue or a PR comment, edits a workflow file, or sets a repository secret. What reaches the target repository is decided by the owner and the developers, outside the run.
 
-The DevOps tier (Tier-2.5) operates **continuously across multiple STLC phases** — not just at the end. It creates branches during execution, opens PRs for test artifacts, watches CI runs for flakes, and manages workflow files.
+There is no DevOps tier. The seven agent definitions that once planned branches, opened pull requests and watched CI runs are kept for audit history in `agent-graveyard/`; nothing dispatches them.
 
-## 11.2 The 7 DevOps agents
+## 11.2 What happens instead
 
-| Agent | Role | Tier |
-|-------|------|------|
-| `qa-github-planner` | Plans branch/PR strategy; drafts PR descriptions | Planning (Opus) |
-| `qa-github-implementer` | Creates branches, opens PRs, manages labels/reviewers | Implementation (Sonnet) |
-| `qa-github-spv` | Reviews PR readiness, Conventional Commit format, CI green | Validation (Opus) |
-| `qa-cicd-planner` | Designs CI workflow jobs, matrix, caching, gates | Planning (Opus) |
-| `qa-cicd-implementer` | Writes `.github/workflows/*.yml`, configures secrets | Implementation (Sonnet) |
-| `qa-cicd-spv` | Validates workflows: yamllint, actionlint, no secret leakage | Validation (Opus) |
-| `qa-cicd-evaluator` | Watches `gh run list/view`, detects flakes, recommends fixes | Read-only (Haiku) |
+| Need | Where it comes from |
+|---|---|
+| CI workflows for the target | The owner runs `/qa-ci-bootstrap` (Chapter 12). It writes only the QA-owned `qa-*.yml` workflow files, a named exception in the CLAUDE.md read/write table, and prints the Husky hook and the secrets guide for the developers to add. |
+| Flaky-test data | The run's own retry and attempt data in `runs/<RUN-ID>/cases/*-result.json`, read by the metrics collector. |
+| Committing the QA test suite | The developers commit `tests/qa/` through their own branch and review flow. |
+| Repository secrets | The developers set them from the guide `/qa-ci-bootstrap` prints; local secrets are described in `secrets/README.md`. |
 
-## 11.3 When DevOps agents activate in the STLC
+The rule binds the agents. A skill the owner invokes explicitly, such as `/qa-ci-bootstrap`, is the owner's own action.
 
-| Phase | DevOps activity |
-|-------|----------------|
-| Planning | `qa-cicd-planner` proposes workflow plan based on the test plan |
-| Env Setup | `qa-cicd-implementer` writes initial workflows; `qa-github-planner` plans branch strategy |
-| Execution | `qa-cicd-evaluator` watches CI runs; `qa-github-implementer` creates branches for test file commits |
-| Defects | `qa-github-implementer` files GitHub issues for tracked defects (with reproduction + evidence links) |
-| Closure | `qa-github-implementer` opens PR for cycle's test artifacts; `qa-cicd-evaluator` posts CI summary; `qa-github-spv` validates readiness |
+## 11.3 ⚠ Pitfalls
 
-## 11.4 Worktree isolation
+- **Don't ask an agent to open a pull request or push a branch.** No agent has that role.
+- **Don't put secrets in YAML workflows.** Use `${{ secrets.NAME }}` references, never an inline value.
 
-DevOps agents run with `isolation: "worktree"` because they execute `git checkout`, `gh pr create`, and similar working-tree mutations. The orchestrator passes the worktree flag automatically for this tier.
+## 11.4 → Deep dives
 
-Non-DevOps agents never need worktree isolation — they only write to `aegis/runs/` and `tests/`, never touching the git working tree.
-
-## 11.5 Branch and commit conventions
-
-**Branches** (Conventional Branch):
-```
-<type>/<TICKET-ID>-<kebab-summary>
-  feat/STORY-AUTH-204-sso-plus-email
-  fix/DEF-001-AUTH-UI-sso-callback-500
-  test/TC-AUTH-031-add-sso-e2e
-```
-
-**Commits** (Conventional Commits 1.0):
-```
-test(auth): add SSO regression for plus-aliased emails
-fix(auth): reject malformed SSO callback (closes DEF-001-AUTH-UI)
-```
-
-Commit footer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>` (model name, never "Aegis").
-
-## 11.6 Safety gates (prevent autonomous merge to main)
-
-Three rules that cannot be overridden by DevOps agents:
-
-1. **DevOps agents never merge to `main`.** They open PRs; merge is part of human Gate 3 (closure sign-off).
-2. **`gh secret set` only from `secretsRef` config.** Secret values never come from agent context (prevents secrets being committed via memory).
-3. **SPV reviews before any PR goes live.** `qa-github-spv` must issue `review.passed` before `qa-github-implementer` can mark a PR ready for review.
-
-## 11.7 Secrets handling
-
-DevOps agents reference secrets via `aegis.config.json.environments.{env}.secretsRef`:
-```jsonc
-"secretsRef": {
-  "type": "github-actions-secrets",
-  "prefix": "STAGING_"
-}
-```
-
-`@qa/secrets.get(name, env)` resolves from the configured source. Secrets are never logged, never in lessons.json, never in events.jsonl.
-
-## 11.8 ⚠ Pitfalls
-
-- **Don't push to `main` directly from DevOps agents.** Even if branch protection is off, the audit trail depends on PRs.
-- **Don't use `--no-verify` to bypass the pre-commit hook.** If Husky fails, diagnose the root cause.
-- **CI flakes vs. real failures**: `qa-cicd-evaluator` distinguishes these by looking at run history. Don't disable a gate because of a single flaky run — quarantine the test first.
-- **Don't put secrets in YAML workflows.** Use `${{ secrets.NAME }}` references; `qa-cicd-spv` will reject workflows that inline secret values.
-- **Worktree cleanup**: if an agent crashes mid-PR, the worktree may be orphaned. Run `/qa-health --fix` to detect and clean up.
-
-## 11.9 → Deep dives
-
-- [docs/D11-devops-tier-overview.md](../docs/D11-devops-tier-overview.md) — purpose, sub-roles, activation gates
-- [docs/D11-github-workflow.md](../docs/D11-github-workflow.md) — branch strategy, PR conventions, gh CLI usage
 - [docs/D12-cicd-workflow.md](../docs/D12-cicd-workflow.md) — GitHub Actions workflow templates + safety
-- [docs/D11-worktree-isolation.md](../docs/D11-worktree-isolation.md) — when/why worktree is used
+- [HANDBOOK/12-cicd-operations.md](12-cicd-operations.md) — stages, triggers, gates and commands

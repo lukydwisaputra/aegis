@@ -94,8 +94,7 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 | 0 — Orchestrator | 1 | Opus | Reads Taskmaster tree, dispatches phases, enforces gates |
 | 1 — Phase managers | 9 | Sonnet/Opus | One per STLC phase (requirements → closure), plus the developer-test reviewer |
 | 2 — Specialists | 16 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
-| 2.5 — DevOps | 6 | Sonnet/Opus | GitHub, CI/CD planning & implementation |
-| 3 — SPVs | 24 | Opus | Mirror of Tier 1/2; validate work reports (the 2 DevOps SPVs, `qa-cicd-spv` and `qa-github-spv`, sit in tier 2.5: 26 SPV files in all) |
+| 3 — SPVs | 24 | Opus | Mirror of Tier 1/2; validate work reports |
 | Compliance | 6 | Opus | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
 | Cross-cutting | 4 | Haiku | context-scanner, librarian, event-bus, metrics-collector |
 

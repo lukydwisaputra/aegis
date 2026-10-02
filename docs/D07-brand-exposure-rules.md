@@ -22,7 +22,6 @@ The framework name and internal agent identifiers must NEVER appear in:
 - `runs/{id}/defects/*.{md,json}` — defect reports
 - `runs/{id}/reports/closure.{md,json}` — closure report
 - `runs/{id}/reports/compliance/*.{md,json}`
-- PR descriptions and commit messages from DevOps agents
 - Dashboard pages, browser titles, exported PDFs
 - Default (non-verbose) CLI output
 

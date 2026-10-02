@@ -9,7 +9,7 @@ Modules group all IDs (TC-AUTH-031, DEF-BILL-0017) and are the primary scoping d
 1. Open `aegis/module-codes.md`
 2. Add a row: `| ABBR | Full name | Owner | Description |`
 3. Run `/qa-health` — it validates all module codes used in artifacts against this registry
-4. Open a PR via the standard flow; `qa-github-spv` will verify the registry update
+4. Open a PR via the standard flow; the reviewer checks the registry update
 
 Example: adding a Billing module:
 ```markdown
@@ -18,7 +18,7 @@ Example: adding a Billing module:
 
 ## 14.2 Adding a new agent
 
-1. Choose a tier: Tier-1 (STLC phase), Tier-2 (specialist), Tier-2.5 (DevOps), Tier-3 (cross-cutting)
+1. Choose a tier: Tier-1 (STLC phase), Tier-2 (specialist), compliance, or cross-cutting
 2. Create `aegis/.claude/agents/{tier}/{name}.md` with this frontmatter:
    ```yaml
    ---
@@ -58,7 +58,7 @@ A specialist is a Tier-2 agent invoked by the test executor for a specific testi
 2. Add its short name and `mutates` flag to `SPECIALISTS` in `packages/@qa/contracts/src/specialists.ts`, then list the short name in `aegis.config.json.environments.{env}.allowedSpecialists` where it should run (read-only environments refuse mutating specialists)
 3. Add a `/qa-run-specialist --specialist={name}` path to the skill
 4. Wire it into `qa-test-executor.md`'s dispatch table
-5. If the specialist uses worktree isolation (rare for non-DevOps specialists), add the `isolation: "worktree"` annotation
+5. If the specialist uses worktree isolation (rare), add the `isolation: "worktree"` annotation
 6. Update `.claude/pipeline.yaml`: a `routing` route (`byType` / `byTechnique`) for each test type or technique it serves, and an `envSpecialists` short name if environments list it — see §14.11
 
 ## 14.5 Adding a new command/skill

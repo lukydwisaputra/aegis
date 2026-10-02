@@ -2,7 +2,7 @@
 
 ## Overview
 
-Every Tier-1, Tier-2, and Tier-2.5 worker agent has a paired Supervisor (SPV) reviewer. The SPV is the quality gate for that agent's output — not a human replacement, but an automated high-standards review before work advances.
+Every Tier-1 and Tier-2 worker agent has a paired Supervisor (SPV) reviewer. The SPV is the quality gate for that agent's output — not a human replacement, but an automated high-standards review before work advances.
 
 ## The loop
 
