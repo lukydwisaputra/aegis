@@ -207,19 +207,38 @@ describe('the cut is never clean without its record', () => {
   const recorded = () => readLines(busPath(t.root, runId)).some((l) => l.includes('"integrity.tail-repaired"'));
   const endsClean = () => fs.readFileSync(busPath(t.root, runId), 'utf-8').endsWith('\n');
 
-  it('when the truncate throws after the record was written: the record is there, or the tail is still torn', async () => {
-    tear('{"seq":2,"prevHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  it('when the truncate throws after the record was written: the record is there, or the tail is still torn, never clean without it', async () => {
+    tear('{"seq":2,"prevHash":"' + 'a'.repeat(1000)); // longer than the record, so a remnant survives
     jest.spyOn(rawFs, 'ftruncateSync').mockImplementation(() => { throw new Error('EIO'); });
     await expect(repairTail(t.root, runId, 'owner')).rejects.toThrow('EIO');
     jest.restoreAllMocks();
-    expect(recorded() || !endsClean()).toBe(true);
-    expect(!endsClean() && !recorded()).toBe(false);
+    expect(endsClean() && !recorded()).toBe(false);
+  });
+
+  it('a surviving remnant is whitespace, so the log stays torn and a retry repairs it (no wedge)', async () => {
+    tear('{"seq":2,"prevHash":"' + 'a'.repeat(1000));
+    jest.spyOn(rawFs, 'ftruncateSync').mockImplementation(() => { throw new Error('EIO'); });
+    await expect(repairTail(t.root, runId, 'owner')).rejects.toThrow('EIO');
+    jest.restoreAllMocks();
+    expect(recorded()).toBe(true);
+    const tailAfter = fs.readFileSync(busPath(t.root, runId), 'utf-8').split('\n').pop()!;
+    expect(tailAfter.length).toBeGreaterThan(0);
+    expect(tailAfter.trim()).toBe('');
+    await expect(repairTail(t.root, runId, 'owner')).resolves.toMatchObject({ removedBytes: tailAfter.length });
+    const types = readLines(busPath(t.root, runId)).map((l) => JSON.parse(l).type);
+    expect(types.filter((x: string) => x === 'integrity.tail-repaired')).toHaveLength(2);
+    expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(true);
   });
 
   it('when the record write throws: the log is byte-identical, and a retry succeeds and is recorded', async () => {
     tear();
     const before = fs.readFileSync(busPath(t.root, runId));
-    jest.spyOn(rawFs, 'writeSync').mockImplementation(() => { throw new Error('ENOSPC'); });
+    const realWrite = rawFs.writeSync;
+    // Only the positioned record write fails (5 args); keep()'s own writes pass through to the real writeSync.
+    jest.spyOn(rawFs, 'writeSync').mockImplementation(((...a: unknown[]) => {
+      if (a.length === 5) throw new Error('ENOSPC');
+      return (realWrite as (...x: unknown[]) => number)(...a);
+    }) as never);
     await expect(repairTail(t.root, runId, 'owner')).rejects.toThrow('ENOSPC');
     jest.restoreAllMocks();
     expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
@@ -242,7 +261,7 @@ describe('the cut is never clean without its record', () => {
   });
 
   it('a record shorter than the torn tail leaves no remnant of the tail', async () => {
-    tear('{"seq":2,"prevHash":"' + 'a'.repeat(400));
+    tear('{"seq":2,"prevHash":"' + 'a'.repeat(1000));
     await repairTail(t.root, runId, 'owner');
     expect(endsClean()).toBe(true);
     expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(true);

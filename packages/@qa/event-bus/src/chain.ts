@@ -244,7 +244,7 @@ export interface TornTailRecord {
 
 export interface TornTailRepair {
   tail: TornTail;
-  /** The appended record, or null when no `record` builder was given. */
+  /** The record written over the tail, or null when no `record` builder was given. */
   record: Record<string, unknown> | null;
 }
 
@@ -252,7 +252,10 @@ export interface TornTailRepair {
  * CO-02: cut a torn final segment (unterminated and not a whole JSON line) off the log, under ONE bus-lock hold so no
  * append is in flight and the cut and its record are atomic. `keep` receives the bytes before the file is truncated,
  * must make them durable synchronously, and throws to abort the cut. When `record` is given, its event is validated
- * before the cut and appended under the same lock. Returns null when the log ends cleanly or its unterminated tail is
+ * before anything is saved, then written over the tail (followed by spaces when the record is shorter than the tail, so
+ * a remnant that survives an unfinished truncate is whitespace and the log stays torn, never valid JSON), then the log
+ * is truncated behind it and fsynced once. If closeSync throws after that fsync the record is already committed and a
+ * retry reports "no torn tail". Returns null when the log ends cleanly or its unterminated tail is
  * a whole JSON line (the next append terminates it).
  */
 export async function repairTornTail(
@@ -298,7 +301,8 @@ export async function repairTornTail(
       }
       if (line !== null) {
         // Record first, then truncate: a crash or error between the two leaves the record (or a still-torn tail), never a clean log without it.
-        for (let off = 0; off < line.length; ) off += writeSync(fd, line, off, line.length - off, cut + off);
+        const out = Buffer.concat([line, Buffer.alloc(Math.max(0, bytes.length - line.length), 0x20)]);
+        for (let off = 0; off < out.length; ) off += writeSync(fd, out, off, out.length - off, cut + off);
         ftruncateSync(fd, cut + line.length);
       } else {
         ftruncateSync(fd, cut);
