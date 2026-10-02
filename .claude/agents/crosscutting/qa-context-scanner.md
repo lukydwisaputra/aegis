@@ -22,13 +22,13 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 ## Scanning Checklist
 
 1. **Package manager.** Detect from lockfile: `pnpm-lock.yaml` → pnpm, `package-lock.json` → npm, `yarn.lock` → yarn, `bun.lockb` → bun.
-2. **Framework.** Read root `package.json` dependencies: `next` → nextjs; `vite` + `react` → vite-react. Detect Next.js version + router type (App Router = `app/` dir exists; Pages Router = `pages/` dir). Detect Vite + React version.
+2. **Framework.** Read root `package.json` dependencies: `next` → nextjs; `vite` + `react` → vite-react. Detect Next.js version + router type. Record `framework.appRouter` as `true` (App Router: `app/` dir exists), `false` (Pages Router: `pages/` dir) or `null` when the target is not Next.js. Detect Vite + React version.
 3. **Language mix.** Count `.tsx` and `.jsx` files under `apps/`, `src/`, `packages/`. Record `tsxFiles`, `jsxFiles`, `hasMixedJsxTsx`.
-4. **Monorepo.** Detect `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`. Record `monorepoTool` and `workspaces[]`.
+4. **Monorepo.** Detect `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`. Record `monorepo.tool` and `monorepo.workspaces[]` (nested under `monorepo`, never a flat top-level field).
 5. **Apps list.** For pnpm monorepos: read `pnpm-workspace.yaml` and enumerate actual `apps/*` directories. For each app: detect `name`, `path`, `framework` (vite-react-ts / vite-react-jsx / nextjs-app / nextjs-pages), `language` (ts/jsx).
-6. **Supabase detection.** Check `package.json` for `@supabase/supabase-js`. If found, read `supabase/config.toml` or `.env.example` for `SUPABASE_PROJECT_REF`. Count migration files in `supabase/migrations/` or `services/auth/migrations/`. Set `platform: "supabase"` and record `projectRef`, `migrationCount`, `migrationDir`.
-7. **Existing tests.** Scan for `jest.config.*`, `vitest.config.*`, `playwright.config.*`. Count test files by type (`*.test.{ts,tsx}`, `*.spec.ts`, `*.api.test.ts`, etc.). Detect co-located vs mirror layout. Record `unitTestStyle` (colocated / tests-dir / mixed / none) and every test file path in `existingTests.files[]`.
-8. **CI provider.** Check for `.github/workflows/` (GitHub Actions), `.gitlab-ci.yml` (GitLab CI), `circle.yml` / `.circleci/` (CircleCI). Record `ciProvider` and `workflowFiles[]`.
+6. **Supabase detection.** Check `package.json` for `@supabase/supabase-js`. If found, read `supabase/config.toml` or `.env.example` for `SUPABASE_PROJECT_REF`. Count migration files in `supabase/migrations/` or `services/auth/migrations/`. Set `platform: "supabase"` (when Supabase is not detected, `platform` is `"generic"` and the `supabase` object is omitted) and record `projectRef`, `migrationCount`, `migrationDir`.
+7. **Existing tests.** Scan for `jest.config.*`, `vitest.config.*`, `playwright.config.*`. Detect co-located vs mirror layout. Record only `existingTests.files[]` (every test file path), `frameworks[]`, `locations[]`, the total `existingTests.count` and `unitTestStyle` (colocated / tests-dir / mixed / none). The profile has no per-type breakdown; put one in your work report's evidence if it is useful.
+8. **CI provider.** Check for `.github/workflows/`, `.gitlab-ci.yml`, `circle.yml` / `.circleci/`. Record `ci.provider` as exactly one of `github-actions` (`.github/workflows/`), `gitlab-ci` (`.gitlab-ci.yml`), `circleci` (`circle.yml` or `.circleci/`) or `none`, never a display name such as "GitHub Actions", plus `ci.workflowFiles[]`.
 9. **API surface.** For Next.js: list files under `app/api/` or `pages/api/`. For Vite: check for Express/Fastify configs. Record route paths (names only, not content).
 10. **Env var names.** Read all `.env.example` files across all apps. Extract variable names (never values). Record `envVarNames[]`.
 11. **Auth detection.** Check for `next-auth`, `@supabase/auth-js`, `@auth0/*`, custom auth routes. Set `hasAuth: true/false` and `authProvider`.
@@ -48,6 +48,8 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 ## Outputs
 
 - `runs/{runId}/target-profile.json` — written at the run root. This is the path every downstream agent reads as `target-profile.json`. (Previously documented as `aegis/.aegis/target-profile.json`; standardized to the run root so the ~28 consumers that reference the bare name resolve correctly.)
+
+`scannedAt` is an ISO-8601 UTC timestamp ending in `Z` (no `+HH:MM` offset). Top-level fields are exactly those below; the strict schema refuses any other.
 
 ```jsonc
 {
