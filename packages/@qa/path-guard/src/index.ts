@@ -227,3 +227,6 @@ export function validateConfig(aegisRoot: string): ConfigValidationResult {
 
 export * from "./roles.js";
 export * from "./bash.js";
+export * from "./context.js";
+export * from "./ledger.js";
+export * from "./guard.js";

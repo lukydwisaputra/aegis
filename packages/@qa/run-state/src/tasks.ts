@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { PathGuardError, assertEnvSafe, envVerdict } from "@qa/path-guard";
+import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
 import { readSettings } from "./config.js";
@@ -153,13 +153,12 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
 }
 
 /** The run environment's policy from aegis.config.json (undefined when the file is missing; an unreadable or corrupt one fails closed). */
+/** The run's environment policy; a corrupt or unreadable aegis.config.json refuses the claim (fail closed). */
 function envPolicy(root: string, env: string): EnvironmentSpecialistConfig | undefined {
   try {
-    const raw = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as { environments?: Record<string, EnvironmentSpecialistConfig> };
-    return raw.environments?.[env];
+    return readEnvPolicy(root, env);
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
+    throw new RunStateError("invalid-input", (e as Error).message);
   }
 }
 

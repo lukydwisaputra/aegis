@@ -29,6 +29,13 @@ export interface WriteTarget {
   readonly dynamic: boolean;
   /** Text known to be written: a heredoc body, or echo/printf arguments for a redirect. */
   readonly content: string | null;
+  /** How it is written: ">" for a redirection, else the command name (rm, mkdir, cp, …). */
+  readonly via: string;
+}
+
+/** A simple command with the directory it runs in (after any earlier `cd`). */
+export interface LocatedCommand extends SimpleCommand {
+  readonly cwd: string;
 }
 
 type Tok = { t: "w"; w: ShellWord } | { t: "op"; op: string };
@@ -342,23 +349,23 @@ function writtenBy(name: string, args: readonly ShellWord[]): ShellWord[] {
 }
 
 /** Every path a Bash command may write, resolved against `cwd` (and `cd` inside the command). */
-export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? ""): { targets: WriteTarget[]; commands: SimpleCommand[] } {
+export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? ""): { targets: WriteTarget[]; commands: LocatedCommand[] } {
   const targets: WriteTarget[] = [];
-  const commands: SimpleCommand[] = [];
+  const commands: LocatedCommand[] = [];
   const walk = (text: string, startCwd: string, depth: number): void => {
     let dir = startCwd;
     const saved: string[] = [];
     const abs = (w: ShellWord): string => (w.dynamic ? w.value : w.value.startsWith("~/") ? join(home, w.value.slice(2)) : resolve(dir, w.value));
     for (const c of parseBash(text)) {
-      commands.push(c);
       const level = c.depth ?? 0;
       while (saved.length > level) dir = saved.pop()!;
       while (saved.length < level) saved.push(dir);
+      commands.push({ ...c, cwd: dir });
       const { argv } = unwrap(c);
       const name = argv[0]?.value ?? "";
       const args = argv.slice(1);
       const content = c.heredoc ?? (name === "echo" || name === "printf" ? args.map((a) => a.value).join(" ") : null);
-      for (const r of c.redirects) targets.push({ path: abs(r), dynamic: r.dynamic, content });
+      for (const r of c.redirects) targets.push({ path: abs(r), dynamic: r.dynamic, content, via: ">" });
       if (name === "cd") {
         const d = args[0];
         if (d !== undefined && !d.dynamic) dir = abs(d);
@@ -370,7 +377,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
         if (inner !== undefined) walk(inner.value, dir, depth + 1);
         continue;
       }
-      for (const w of writtenBy(name, args)) targets.push({ path: abs(w), dynamic: w.dynamic, content: null });
+      for (const w of writtenBy(name, args)) targets.push({ path: abs(w), dynamic: w.dynamic, content: null, via: name });
     }
   };
   walk(src, cwd, 0);

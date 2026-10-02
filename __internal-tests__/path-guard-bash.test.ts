@@ -47,10 +47,16 @@ describe('bashWriteTargets: what a command writes', () => {
   it('attaches heredoc and echo bodies to the redirect target', () => {
     const cmd = "cat <<'EOF' > runs/RUN-20261002-001/cases/TC-AUTH-001.md\nWritten by the QA team\n$NOT_EXPANDED\nEOF\necho next > n.txt";
     expect(bashWriteTargets(cmd, CWD).targets).toEqual([
-      { path: '/repo/aegis/runs/RUN-20261002-001/cases/TC-AUTH-001.md', dynamic: false, content: 'Written by the QA team\n$NOT_EXPANDED' },
-      { path: '/repo/aegis/n.txt', dynamic: false, content: 'next' },
+      { path: '/repo/aegis/runs/RUN-20261002-001/cases/TC-AUTH-001.md', dynamic: false, content: 'Written by the QA team\n$NOT_EXPANDED', via: '>' },
+      { path: '/repo/aegis/n.txt', dynamic: false, content: 'next', via: '>' },
     ]);
-    expect(bashWriteTargets('cat > a.json <<-EOF\n\t{}\n\tEOF', CWD).targets).toEqual([{ path: '/repo/aegis/a.json', dynamic: false, content: '\t{}' }]);
+    expect(bashWriteTargets('cat > a.json <<-EOF\n\t{}\n\tEOF', CWD).targets).toEqual([{ path: '/repo/aegis/a.json', dynamic: false, content: '\t{}', via: '>' }]);
+  });
+
+  it('records how each target is written and the directory each command runs in', () => {
+    const { targets, commands } = bashWriteTargets('rm -rf a; (cd sub && mkdir b); sudo mv c d; pnpm aegis align', CWD);
+    expect(targets.map((t) => `${t.via} ${t.path}`)).toEqual(['rm /repo/aegis/a', 'mkdir /repo/aegis/sub/b', 'mv /repo/aegis/c', 'mv /repo/aegis/d']);
+    expect(commands.map((c) => c.cwd)).toEqual(['/repo/aegis', '/repo/aegis', '/repo/aegis/sub', '/repo/aegis', '/repo/aegis']);
   });
 });
 
