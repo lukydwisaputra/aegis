@@ -97,6 +97,8 @@ describe('decide: H1 rules (spec §4.2)', () => {
     ['R3: non-qa subagent runs align inside aegis', bash('pnpm aegis align', 'general-purpose'), false, /not a qa-\* agent/],
     ['R3: non-qa subagent cds into aegis first', bash(`cd ${ROOT} && pnpm aegis align`, 'general-purpose', OUTSIDE), false, /not a qa-\* agent/],
     ['R3: non-qa subagent points pnpm -C at aegis', bash(`pnpm -C ${ROOT} aegis align`, 'general-purpose', OUTSIDE), false, /not a qa-\* agent/],
+    ['R3: attached -C<dir> points pnpm at aegis too', bash(`pnpm -C${ROOT} aegis align`, 'general-purpose', OUTSIDE), false, /not a qa-\* agent/],
+    ['R3: attached --dir=<dir> points pnpm at aegis too', bash(`pnpm --dir=${ROOT} aegis align`, 'general-purpose', OUTSIDE), false, /not a qa-\* agent/],
     ['R3: non-qa subagent runs the aegis built CLI by path', bash(`node ${ROOT}/apps/cli/dist/index.js align`, 'general-purpose', OUTSIDE), false, /not a qa-\* agent/],
     // dynamic targets
     ['dynamic target naming the log', bash('echo x > "$RUN_DIR/events.jsonl"', 'qa-ui-specialist'), false, /not a literal path/],

@@ -90,7 +90,7 @@ describe('fix round 1: minor', () => {
 
   it.each(['git clean -fd', 'git reset --hard', 'git stash', 'git apply p.diff', 'git -C sub stash push'])('%s is a dynamic write in its cwd', (cmd) => {
     const [t] = targets(cmd);
-    expect(t).toMatchObject({ dynamic: true, via: 'git' });
+    expect(t).toMatchObject({ dynamic: true, via: /clean|reset/.test(cmd) ? 'git-rm' : 'git' });
     expect(t!.path).toBe(cmd.includes('-C sub') ? `${R}/sub` : R);
     expect(targets(cmd)).toHaveLength(1);
   });

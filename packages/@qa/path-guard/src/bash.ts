@@ -10,6 +10,8 @@ import { basename, isAbsolute, join, resolve } from "node:path";
 export interface ShellWord {
   readonly value: string;
   readonly dynamic: boolean;
+  /** Unquoted brace expansion ({a,b}, {1..3}) or glob (* ? [): the word names several paths, not one. */
+  readonly pattern?: true;
 }
 
 export interface SimpleCommand {
@@ -36,11 +38,18 @@ export interface WriteTarget {
   readonly content: string | null;
   /** How it is written: ">" for a redirection, else the command name (rm, mkdir, cp, …). */
   readonly via: string;
+  /** The path text holds an unquoted brace or glob pattern (see expandBraces). */
+  readonly pattern?: true;
 }
 
 /** A simple command with the directory it runs in (after any earlier `cd`). */
 export interface LocatedCommand extends SimpleCommand {
+  /** The last literal directory the command runs in (after a dynamic `cd` it is the directory before it). */
   readonly cwd: string;
+  /** Set after a `cd` whose target could not be resolved: `cwd` is then not where the command really runs. */
+  readonly cwdDynamic?: true;
+  /** Every NAME=value this command sets: prefix, after wrappers, and export/declare arguments (see assignmentsOf). */
+  readonly assigned: Record<string, string>;
 }
 
 type Tok = { t: "w"; w: ShellWord } | { t: "op"; op: string };
@@ -196,9 +205,16 @@ function tokenize(src: string): Tok[] {
   let cur = "";
   let dynamic = false;
   let inWord = false;
+  let glob = false;
+  let brace = false;
   const flush = (): void => {
-    if (inWord) out.push({ t: "w", w: { value: cur, dynamic } });
+    if (inWord) {
+      const pattern = glob || (brace && /\{[^{}]*(,|\.\.)[^{}]*\}/.test(cur));
+      out.push({ t: "w", w: pattern ? { value: cur, dynamic, pattern: true } : { value: cur, dynamic } });
+    }
     cur = "";
+    glob = false;
+    brace = false;
     dynamic = false;
     inWord = false;
   };
@@ -313,6 +329,8 @@ function tokenize(src: string): Tok[] {
       i += op.length;
       continue;
     }
+    if (c === "*" || c === "?" || c === "[") glob = true;
+    else if (c === "{") brace = true;
     cur += c;
     inWord = true;
     i++;
@@ -335,7 +353,7 @@ export function parseBash(src: string): SimpleCommand[] {
   let curPipe = false;
   const scopes: number[] = [];
   const push = (followedByPipe = false): void => {
-    if (cur.argv.length > 0 || cur.redirects.length > 0 || cur.heredoc !== null) {
+    if (cur.argv.length > 0 || cur.redirects.length > 0 || cur.heredoc !== null || Object.keys(cur.env).length > 0) {
       if (depth > 0) cur.depth = depth;
       // Every stage of a pipeline runs in its own subshell: a `cd` there does not reach the next command.
       const stage = curPipe || followedByPipe ? [nextScope++] : [];
@@ -438,6 +456,85 @@ export function unwrap(c: SimpleCommand): { env: Record<string, string>; argv: S
   return { env, argv };
 }
 
+const DECLARERS: ReadonlySet<string> = new Set(["export", "declare", "typeset", "readonly", "local"]);
+
+/** Every NAME=value the command sets for itself or its children: prefix, after wrappers, and export/declare arguments. */
+export function assignmentsOf(c: SimpleCommand): Record<string, string> {
+  const { env, argv } = unwrap(c);
+  const out: Record<string, string> = { ...env };
+  if (argv[0] !== undefined && !argv[0].dynamic && DECLARERS.has(argv[0].value)) {
+    for (const a of argv.slice(1)) {
+      if (ASSIGNMENT.test(a.value)) out[a.value.slice(0, a.value.indexOf("="))] = a.value.slice(a.value.indexOf("=") + 1);
+    }
+  }
+  return out;
+}
+
+const MAX_BRACE_EXPANSIONS = 256;
+
+/** Expand the alternatives of the first expandable brace group in `w`; null when over the cap. */
+function expandOnce(w: string): string[] | null {
+  for (let s = 0; s < w.length; s++) {
+    if (w[s] !== "{") continue;
+    let depth = 0;
+    let end = -1;
+    const commas: number[] = [];
+    for (let k = s; k < w.length; k++) {
+      const ch = w[k]!;
+      if (ch === "{") depth++;
+      else if (ch === "}" && --depth === 0) {
+        end = k;
+        break;
+      } else if (ch === "," && depth === 1) commas.push(k);
+    }
+    if (end < 0) continue;
+    const inner = w.slice(s + 1, end);
+    let alts: string[] | null = null;
+    if (commas.length > 0) {
+      alts = [];
+      let from = s + 1;
+      for (const c of [...commas, end]) {
+        alts.push(w.slice(from, c));
+        from = c + 1;
+      }
+    } else {
+      const num = /^(-?\d+)\.\.(-?\d+)(?:\.\.(-?\d+))?$/.exec(inner);
+      const chr = /^([A-Za-z])\.\.([A-Za-z])(?:\.\.(-?\d+))?$/.exec(inner);
+      const m = num ?? chr;
+      if (m !== null) {
+        const a = num !== null ? Number(m[1]) : m[1]!.charCodeAt(0);
+        const b = num !== null ? Number(m[2]) : m[2]!.charCodeAt(0);
+        const step = Math.abs(Number(m[3] ?? 1));
+        if (step === 0) return null;
+        if (Math.floor(Math.abs(b - a) / step) + 1 > MAX_BRACE_EXPANSIONS) return null;
+        alts = [];
+        for (let v = a; a <= b ? v <= b : v >= b; v += a <= b ? step : -step) alts.push(num !== null ? String(v) : String.fromCharCode(v));
+      }
+    }
+    if (alts === null) continue;
+    const posts = expandOnce(w.slice(end + 1));
+    if (posts === null) return null;
+    const out: string[] = [];
+    for (const alt of alts) {
+      const heads = expandOnce(alt);
+      if (heads === null) return null;
+      for (const h of heads) {
+        for (const t of posts) {
+          out.push(w.slice(0, s) + h + t);
+          if (out.length > MAX_BRACE_EXPANSIONS) return null;
+        }
+      }
+    }
+    return out;
+  }
+  return [w];
+}
+
+/** Brace expansion of one word ({a,b}, {1..3}, {a..c}, nested); null when it would give more than 256 words. */
+export function expandBraces(word: string): string[] | null {
+  return expandOnce(word);
+}
+
 // Flags that take a value, per command (so the value is not mistaken for a path). Short ones may be attached (-ofile) or clustered (-sSLo file).
 const VALUE_FLAGS: Readonly<Record<string, readonly string[]>> = {
   cp: ["-S", "--suffix", "-t", "--target-directory"],
@@ -526,6 +623,7 @@ function writtenBy(name: string, rawArgs: readonly ShellWord[]): ShellWord[] {
   const flag = (...names: string[]): ShellWord[] => valued.filter(([f]) => names.includes(f)).map(([, w]) => w);
   switch (name) {
     case "rm":
+    case "unlink":
     case "rmdir":
     case "touch":
     case "mkdir":
@@ -555,7 +653,7 @@ function writtenBy(name: string, rawArgs: readonly ShellWord[]): ShellWord[] {
       return scripted ? ops : ops.slice(1);
     }
     case "dd":
-      return ops.filter((o) => o.value.startsWith("of=")).map((o) => ({ value: o.value.slice(3), dynamic: o.dynamic }));
+      return ops.filter((o) => o.value.startsWith("of=")).map((o) => ({ value: o.value.slice(3), dynamic: o.dynamic, ...(o.pattern ? { pattern: true as const } : {}) }));
     case "curl":
       return flag("-o", "--output");
     case "wget":
@@ -590,6 +688,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     if (base.dyn) return { path: `${base.dir}/${v}`, dynamic: true };
     return { path: resolve(base.dir, v), dynamic: false };
   };
+  const pat = (w: ShellWord): { pattern?: true } => (w.pattern === true ? { pattern: true } : {});
   const moveTo = (base: Loc, w: ShellWord): Loc => {
     const r = locate(base, w);
     return { dir: r.path, dyn: r.dynamic, stat: r.dynamic ? base.stat : r.path };
@@ -621,9 +720,9 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     const paths = (ws: readonly ShellWord[]): WriteTarget[] =>
       ws.map((w) => {
         const r = locate(at, w);
-        return { path: r.path, dynamic: r.dynamic, content: null, via: "git" };
+        return { path: r.path, dynamic: r.dynamic, content: null, via: "git", ...pat(w) };
       });
-    const everything = (): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via: "git" }];
+    const everything = (via = "git"): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via }];
     switch (sub) {
       case "checkout": {
         const i = rest.findIndex((a) => !a.dynamic && a.value === "--");
@@ -654,9 +753,9 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       case "apply":
         return has("--check", "--stat", "--numstat", "--summary") ? [] : everything();
       case "clean":
-        return flagText.some((f) => f === "--dry-run" || (/^-[a-zA-Z]+$/.test(f) && f.includes("n"))) ? [] : everything();
+        return flagText.some((f) => f === "--dry-run" || (/^-[a-zA-Z]+$/.test(f) && f.includes("n"))) ? [] : everything("git-rm");
       case "reset":
-        return has("--hard") ? everything() : [];
+        return has("--hard") ? everything("git-rm") : [];
       case "stash": {
         const sub2 = rest.find((a) => a.dynamic || !a.value.startsWith("-"))?.value;
         return sub2 === "list" || sub2 === "show" ? [] : everything();
@@ -678,7 +777,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       while (common < open.length && common < path.length && open[common]!.id === path[common]) common++;
       while (open.length > common) loc = open.pop()!.saved;
       while (open.length < path.length) open.push({ id: path[open.length]!, saved: loc });
-      commands.push({ ...c, cwd: loc.stat });
+      commands.push({ ...c, cwd: loc.stat, ...(loc.dyn ? { cwdDynamic: true as const } : {}), assigned: assignmentsOf(c) });
       const { argv } = unwrap(c);
       const name = argv[0]?.value ?? "";
       const args = argv.slice(1);
@@ -687,7 +786,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       prevContent = content;
       for (const r of c.redirects) {
         const t = locate(loc, r);
-        targets.push({ path: t.path, dynamic: t.dynamic, content, via: ">" });
+        targets.push({ path: t.path, dynamic: t.dynamic, content, via: ">", ...pat(r) });
       }
       if (name === "cd" || (name === "pushd" && args.some((a) => a.dynamic || !a.value.startsWith("-")))) {
         if (name === "pushd") dirStack.push(loc);
@@ -710,7 +809,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       }
       for (const w of writtenBy(name, args)) {
         const t = locate(loc, w);
-        targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name });
+        targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name, ...pat(w) });
       }
     }
   };

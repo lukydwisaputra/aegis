@@ -237,8 +237,9 @@ function cliInvocation(c: LocatedCommand): CliCall | null {
     while (i < argv.length && argv[i]!.startsWith("-")) {
       const flag = argv[i]!;
       const eq = flag.indexOf("=");
-      const name = eq > 0 ? flag.slice(0, eq) : flag;
-      const value = eq > 0 ? flag.slice(eq + 1) : PNPM_VALUE_FLAGS.has(flag) ? argv[i + 1] : undefined;
+      const attachedC = flag.length > 2 && flag.startsWith("-C") && eq < 0; // -C<dir>
+      const name = attachedC ? "-C" : eq > 0 ? flag.slice(0, eq) : flag;
+      const value = attachedC ? flag.slice(2) : eq > 0 ? flag.slice(eq + 1) : PNPM_VALUE_FLAGS.has(flag) ? argv[i + 1] : undefined;
       if ((name === "-C" || name === "--dir") && value !== undefined) location = resolve(c.cwd, value);
       i += eq < 0 && PNPM_VALUE_FLAGS.has(flag) ? 2 : 1;
     }
