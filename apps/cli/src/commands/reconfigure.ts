@@ -11,7 +11,6 @@ export function reconfigureCommand(): Command {
     .argument("[aegis-dir]", "path to aegis/ directory", "aegis")
     .option("--email <adapter>", "change email adapter (mailpit|gmail)")
     .option("--project-name <name>", "change dashboard project name")
-    .option("--profile <profile>", "change profile (full|lite)")
     .action(action((aegisDir: string, opts: ReconfigureOptions) => {
       const aegisRoot = resolve(aegisDir);
       const configPath = join(aegisRoot, "aegis.config.json");
@@ -27,7 +26,6 @@ export function reconfigureCommand(): Command {
         dashboard.projectName = opts.projectName;
         config.dashboard = dashboard;
       }
-      if (opts.profile) (config as { profile: string }).profile = opts.profile;
 
       writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
       console.log(pc.green("aegis.config.json updated."));
@@ -37,5 +35,4 @@ export function reconfigureCommand(): Command {
 interface ReconfigureOptions {
   email?: string;
   projectName?: string;
-  profile?: string;
 }

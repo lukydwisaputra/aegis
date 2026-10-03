@@ -43,6 +43,15 @@ describe('commander parse errors are JSON envelopes (CO-04)', () => {
     }
   });
 
+  it('reconfigure has no --profile option: the lite profile is deleted (AUD-053)', async () => {
+    // Inspect first: while the option exists, parsing would run the action.
+    const reconfigure = buildProgram().commands.find((c) => c.name() === 'reconfigure')!;
+    expect(reconfigure.options.map((o) => o.long)).not.toContain('--profile');
+    const err = (await parseError(['reconfigure', 'aegis', '--profile', 'full']))!;
+    expect(err.code).toBe('commander.unknownOption');
+    expect(JSON.parse(envelopeFor(err).stderr)).toEqual({ error: 'invalid-input', message: "unknown option '--profile'" });
+  });
+
   it('help and version keep their own exit code and print no envelope', () => {
     expect(envelopeFor({ code: 'commander.helpDisplayed', exitCode: 0, message: '(outputHelp)' })).toEqual({ exitCode: 0, stderr: '' });
     expect(envelopeFor({ code: 'commander.version', exitCode: 0, message: '1.0.0' })).toEqual({ exitCode: 0, stderr: '' });
@@ -105,7 +114,7 @@ describe('locks (CO-04)', () => {
 (stale ? it.skip : it)('A5: init and reconfigure refuse a missing directory with the JSON envelope (exit 2), not a bare exit 1', () => {
   const missing = path.join(os.tmpdir(), `aegis-no-such-dir-${process.pid}`);
   const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { cwd: os.tmpdir(), encoding: 'utf-8' });
-  for (const args of [['init', missing], ['reconfigure', missing, '--profile', 'lite']]) {
+  for (const args of [['init', missing], ['reconfigure', missing, '--project-name', 'QA']]) {
     const r = run(...args);
     expect(r.status).toBe(2);
     expect(JSON.parse(r.stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining(missing) });

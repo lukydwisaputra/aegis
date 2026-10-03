@@ -37,7 +37,8 @@ export const RunStateSchema = z
   .object({
     runId: RunIdSchema,
     cycleType: CycleTypeSchema,
-    profile: z.enum(["full", "lite"]),
+    // AUD-053: the lite profile is deleted. run.json files written before P2b carry "full"; new runs omit the field.
+    profile: z.literal("full").optional(),
     environment: z.string().min(1),
     modules: z.array(z.string()).default([]),
     status: RunStatusSchema,

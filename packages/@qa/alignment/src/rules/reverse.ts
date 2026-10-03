@@ -163,8 +163,6 @@ export function countRule(m: Model): Violation[] {
     source.split("\n").forEach((line, i) => {
       for (const c of line.matchAll(/\b(\d{2,}) agents\b/g)) {
         const claim = `${c[1]} agents`;
-        const near = line.slice(0, c.index).split(/\s+/).slice(-6).join(" "); // the 5 words before the number
-        if (/\blite\b[^,.;:()|]*$/i.test(near) && !/\bfull\b/i.test(near)) continue; // a lite-profile subset, not the total
         if (Number(c[1]) === agentUnits.length || seen.has(claim)) continue;
         seen.add(claim);
         out.push(violation("DOC-REF", file, claim, "count-mismatch", file, i + 1, `${file} claims ${claim}; .claude/agents has ${agentUnits.length} agent files`));

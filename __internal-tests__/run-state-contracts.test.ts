@@ -30,12 +30,21 @@ describe('@qa/contracts — RunStateSchema', () => {
   const minimal = {
     runId: 'RUN-20260929-001',
     cycleType: 'full',
-    profile: 'full',
     environment: 'development',
     status: 'created',
     createdAt: TS,
     updatedAt: TS,
   };
+
+  it('has no profile: a pre-P2b run.json with profile "full" still parses, "lite" never does (AUD-053)', () => {
+    expect(RunStateSchema.parse(minimal)).not.toHaveProperty('profile');
+    expect(RunStateSchema.safeParse({ ...minimal, profile: 'full' }).success).toBe(true);
+    expect(RunStateSchema.safeParse({ ...minimal, profile: 'lite' }).success).toBe(false);
+    const created = { type: 'run.created', ts: TS, runId: 'RUN-20260929-001', environment: 'development', modules: ['AUTH'] };
+    expect(AegisEventSchema.safeParse(created).success).toBe(true);
+    expect(AegisEventSchema.safeParse({ ...created, profile: 'full' }).success).toBe(true);
+    expect(AegisEventSchema.safeParse({ ...created, profile: 'lite' }).success).toBe(false);
+  });
 
   it('fills defaults for a minimal run', () => {
     const parsed = RunStateSchema.parse(minimal);

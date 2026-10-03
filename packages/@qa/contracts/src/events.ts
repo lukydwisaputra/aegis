@@ -482,7 +482,8 @@ export const ThresholdOverriddenEventSchema = EventBase.extend({
 export const RunCreatedEventSchema = EventBase.extend({
   type: z.literal("run.created"),
   runId: RunIdSchema,
-  profile: z.enum(["full", "lite"]),
+  // AUD-053: run.created lines written before P2b carry "full"; new runs omit the field.
+  profile: z.literal("full").optional(),
   environment: z.string(),
   modules: z.array(z.string()).default([]),
 });

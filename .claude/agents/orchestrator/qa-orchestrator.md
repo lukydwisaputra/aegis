@@ -32,7 +32,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
 - `runs/{runId}/run.json` — read through `aegis run status`: status, phase statuses, gate statuses, block causes and the `next` step
 - `runs/{runId}/intake/**` — requirement documents copied from the target at run creation, for the mission ranking
-- `aegis/aegis.config.json` — profile, `aegis.config.json#compliance` (which compliance agents run) and `aegis.config.json#preCycleHealthCheck`
+- `aegis/aegis.config.json` — `aegis.config.json#compliance` (which compliance agents run) and `aegis.config.json#preCycleHealthCheck`
 - `runs/{runId}/events.jsonl` — read only, to build briefs
 - `runs/{runId}/reports/work/*.json` and `runs/{runId}/reports/review/*.json` — work reports and SPV reviews, read to build briefs
 - `runs/{runId}/target-profile.json` — scanner output, read to build briefs

@@ -165,7 +165,6 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
     packageManager: detected,
     emailAdapter: opts.email,
     compliance: opts.compliance.split(","),
-    profile: "full",
     parallelism: { maxSpecialists: 4 },
     intake: { sources: [] },
     ports: {

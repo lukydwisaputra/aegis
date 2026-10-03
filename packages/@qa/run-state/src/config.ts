@@ -4,7 +4,6 @@ import { isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/con
 import { RunStateError } from "./errors.js";
 
 export interface AegisSettings {
-  profile: "full" | "lite";
   maxSpecialists: number;
   environments: string[];
   /** Environments with `readOnly: true` or `mutating: false`. */
@@ -12,7 +11,6 @@ export interface AegisSettings {
 }
 
 interface RawConfig {
-  profile?: unknown;
   parallelism?: { maxSpecialists?: unknown };
   environments?: Record<string, unknown>;
 }
@@ -29,7 +27,6 @@ export function readSettings(root: string): AegisSettings {
     throw new RunStateError("invalid-input", "aegis.config.json#parallelism.maxSpecialists must be a positive integer");
   }
   return {
-    profile: raw.profile === "lite" ? "lite" : "full",
     maxSpecialists: cap,
     environments: Object.keys(raw.environments ?? {}),
     readOnlyEnvironments: Object.entries(raw.environments ?? {})
