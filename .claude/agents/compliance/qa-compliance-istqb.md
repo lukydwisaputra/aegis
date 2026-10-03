@@ -48,6 +48,7 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 
 ## Quality Standards
 
+- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - ISTQB defines terms precisely — flag incorrect usage, even if the meaning is "close enough"
 - Technique evaluation is against the technique's definition, not just "was it mentioned?"
 - Do not conflate ISTQB conformance with quality — a test suite can be ISTQB-compliant and still miss critical functionality

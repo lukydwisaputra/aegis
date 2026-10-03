@@ -57,6 +57,7 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 
 ## Quality Standards
 
+- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - CMMI evaluates process, not product quality — keep these separate
 - "Partially Implemented" is distinct from "Not Implemented" — document the partial evidence
 - ML2 baseline required; ML3 practices are aspirational and noted as improvement opportunities, not gaps

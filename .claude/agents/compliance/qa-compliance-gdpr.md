@@ -67,6 +67,7 @@ You evaluate whether the test cycle adequately covers GDPR obligations for the a
 
 ## Quality Standards
 
+- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - Tag format: `GDPR-Art{N}` (e.g., `GDPR-Art32`, `GDPR-Art17`)
 - Do not assert whether the app IS GDPR-compliant — identify test coverage gaps
 - Synthetic data check is not optional — real PII in tests = Sev1 finding

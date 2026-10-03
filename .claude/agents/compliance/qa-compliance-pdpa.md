@@ -78,6 +78,7 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 
 ## Quality Standards
 
+- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - Tag format: `PDPA-Sec{N}` (e.g., `PDPA-Sec24`, `PDPA-Sec13`)
 - PDPA applies to Singapore operations — note if the target app is SG-facing
 - Do not assert whether the app IS PDPA-compliant — identify testing coverage gaps

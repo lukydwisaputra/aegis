@@ -64,6 +64,7 @@ You evaluate the QA cycle against ISO/IEC 5055:2021, which defines automated sou
 
 ## Quality Standards
 
+- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - Never merge analysis with ISO 25010 — these are separate evaluations
 - Tag format strictly: `ISO5055-{Characteristic}-CWE-{id}` (camelCase characteristic)
 - Focus on code-level weaknesses detectable by SAST or targeted tests — not architectural design decisions

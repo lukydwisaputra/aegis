@@ -52,6 +52,7 @@ Evaluate coverage for each:
 
 ## Quality Standards
 
+- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - Never merge with another compliance reviewer's analysis
 - Tag format strictly: `ISO25010-{Characteristic}-{Subcharacteristic}` (exact camel case)
 - Gap severity: High (no coverage), Medium (partial), Low (minor gap)

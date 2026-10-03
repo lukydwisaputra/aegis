@@ -28,6 +28,12 @@ You are the one reviewer of all six compliance agents. Each of them maps the cyc
 - `runs/{runId}/defects/*.json` — the defects the gaps cite
 - `runs/{runId}/events.jsonl` — read only, for the worker's completion event
 - `knowledge/synthesis/compliance-and-regulations.md` — the clause catalogue
+- `.claude/agents/compliance/qa-compliance-iso25010.md`
+- `.claude/agents/compliance/qa-compliance-iso5055.md`
+- `.claude/agents/compliance/qa-compliance-istqb.md`
+- `.claude/agents/compliance/qa-compliance-cmmi.md`
+- `.claude/agents/compliance/qa-compliance-gdpr.md`
+- `.claude/agents/compliance/qa-compliance-pdpa.md`
 - `agent-memory/qa-compliance-iso25010/lessons.md`
 - `agent-memory/qa-compliance-iso5055/lessons.md`
 - `agent-memory/qa-compliance-istqb/lessons.md`
@@ -39,18 +45,18 @@ You are the one reviewer of all six compliance agents. Each of them maps the cyc
 
 1. **Report present.** The worker's Markdown and JSON reports for its regulation id exist, and the JSON parses. A missing or unparseable report = requested-changes.
 2. **Tag format.** Every tag matches its regulation's pattern exactly: `ISO25010-{Characteristic}-{Subcharacteristic}`, `ISO5055-{Characteristic}-CWE-{id}`, `ISTQB-{level}-{section}`, `CMMI-{process-area}-{practice}`, `GDPR-Art{N}` or `PDPA-Sec{N}`. A malformed tag = requested-changes.
-3. **Clause exists.** Every article, section, characteristic or practice the report cites appears in the worker's own clause catalogue: its prose and its knowledge references. An invented clause = requested-changes.
-4. **Evidence-backed gaps.** Every gap cites existing run artefacts: TC, DEF or REQ ids, or run-relative paths. Open at least three citations and confirm each one exists and says what the gap claims. An unsupported or dangling citation = requested-changes.
+3. **Clause exists.** Every article, section, characteristic or practice the report cites appears in the worker's own clause catalogue: its agent file (Inputs) and its knowledge references. A real clause outside the catalogue = passed-with-notes. A clause that does not exist = requested-changes.
+4. **Evidence-backed gaps.** Every gap cites existing run artefacts: TC, DEF or REQ ids, or run-relative paths. For a coverage gap, a pointer to the run artefact that shows the absence (for example the RTM or the test plan) is the evidence. Open at least three citations and confirm each one exists and says what the gap claims. An unsupported or dangling citation = requested-changes.
 5. **Coverage, not a verdict.** The report states test-coverage gaps. It never says the application is or is not compliant, and it gives no ship/no-ship verdict. Either one = requested-changes.
 6. **Brand-clean.** The report feeds the customer-facing closure report: `grep -i` it for the framework name and for internal agent names (the `STAKEHOLDER_FORBIDDEN_PATTERNS` list in `@qa/contracts`). A hit = requested-changes.
-7. **Data checks (GDPR, PDPA).** The work report records the synthetic-data check and the HAR-sanitisation check of the worker's Process steps 4–5. A missing check = passed-with-notes.
+7. **Data checks (GDPR, PDPA).** GDPR: synthetic-data and HAR-sanitisation checks (Process steps 4–5); PDPA: synthetic-data check (Process step 4). The work report records each check its worker runs. A missing check = passed-with-notes.
 8. **Event matches the report.** The worker appended `compliance.review-complete`, and its counts equal the report's. A missing event or a mismatch = passed-with-notes.
 
 ## Verdict
 
 - `passed` — all checks pass
-- `passed-with-notes` — a missing data check (7) or an event that does not match the report (8); add a CorrectiveInstruction
-- `requested-changes` — a missing or unparseable report, a malformed tag, an invented clause, an unsupported gap, a compliance or ship verdict, or a brand leak (1–6)
+- `passed-with-notes` — a real clause outside the catalogue (3), a missing data check (7) or an event that does not match the report (8); add a CorrectiveInstruction
+- `requested-changes` — a missing or unparseable report, a malformed tag, a clause that does not exist, an unsupported gap, a compliance or ship verdict, or a brand leak (1–6)
 
 ## Submitting Your Verdict
 
@@ -76,6 +82,12 @@ reads:
   - "{run}/defects/*.json"
   - "{run}/events.jsonl"
   - knowledge/synthesis/compliance-and-regulations.md
+  - .claude/agents/compliance/qa-compliance-iso25010.md
+  - .claude/agents/compliance/qa-compliance-iso5055.md
+  - .claude/agents/compliance/qa-compliance-istqb.md
+  - .claude/agents/compliance/qa-compliance-cmmi.md
+  - .claude/agents/compliance/qa-compliance-gdpr.md
+  - .claude/agents/compliance/qa-compliance-pdpa.md
   - agent-memory/qa-compliance-iso25010/lessons.md
   - agent-memory/qa-compliance-iso5055/lessons.md
   - agent-memory/qa-compliance-istqb/lessons.md

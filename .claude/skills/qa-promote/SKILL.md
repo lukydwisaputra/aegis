@@ -6,7 +6,7 @@ description: Interactively review and approve or reject the curator agent's pend
 # /qa-promote
 
 ## Purpose
-The curator agent automatically surfaces lessons learned, reusable skills, and memory updates from completed runs into a pending promotion queue. This command walks through each pending item and prompts for human approval before the item is written to the permanent knowledge store, skills library, or memory files. Low-risk items can be auto-approved with a flag.
+The curator agent automatically surfaces lessons learned, reusable skills, and memory updates from completed runs into a pending promotion queue. This command walks through each pending item and prompts for human approval before the item is written to the permanent knowledge store, skills library, or memory files. Low-risk items can be auto-approved with a flag. This is the owner's review of the curator: no SPV reviews `qa-curator`.
 
 ## Usage
 ```
