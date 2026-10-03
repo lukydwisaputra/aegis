@@ -99,8 +99,21 @@ describe('TargetProfileSchema (AUD-031)', () => {
     const authPackages = ['next-auth', '@auth/*', '@supabase/auth-js', '@auth0/*', '@clerk/*', 'firebase/auth', 'passport', 'lucia', 'better-auth', '@supabase/supabase-js', '@supabase/ssr'];
     const emailEnv = ['*EMAIL*', '*SMTP*', '*MAIL*', 'RESEND_*', 'SENDGRID_*', 'POSTMARK_*', 'MAILGUN_*'];
     const emailDeps = ['nodemailer', 'resend', '@sendgrid/mail', '@sendgrid/*', 'postmark', 'mailgun.js', 'mailgun-js', '@react-email/*', '@aws-sdk/client-ses'];
-    for (const t of [...personalTerms, ...analytics, ...authPackages, ...emailEnv, ...emailDeps]) expect(CHECKLIST).toContain('`' + t + '`');
+    // Each list is checked against its own sentence: a term deleted from its list fails even if it appears elsewhere.
+    const segment = (from: string, to: string): string[] => {
+      const start = CHECKLIST.indexOf(from);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const end = CHECKLIST.indexOf(to, start + from.length);
+      expect(end).toBeGreaterThan(start);
+      return [...CHECKLIST.slice(start + from.length, end).matchAll(/`([^`]+)`/g)].map((m) => m[1]!);
+    };
+    expect(segment('Terms: ', ' Match by token')).toEqual(expect.arrayContaining(personalTerms));
+    expect(segment('monitoring dependency is present, by presence alone: ', '\n')).toEqual(expect.arrayContaining(analytics));
+    expect(segment('Check for these auth packages: ', 'Custom auth routes')).toEqual(expect.arrayContaining(authPackages));
+    expect(segment('a name matching ', 'is in `envVarNames`')).toEqual(expect.arrayContaining(emailEnv));
+    expect(segment('depends on a mail library (', ');')).toEqual(expect.arrayContaining(emailDeps));
     expect(CHECKLIST).toMatch(/Match by token/);
+    expect(CHECKLIST).toContain('Plurals count: a token equal to a term followed by `s` or `es` also matches (`emails`, `phones`, `addresses`).');
     expect(CHECKLIST).toMatch(/`final`, `find` and `hotel` do not match/);
     for (const scope of ['supabase/migrations/**', 'prisma/schema.prisma', 'models/**', 'zod schemas', 'never row or seed values']) expect(CHECKLIST).toContain(scope);
     expect(CHECKLIST).toMatch(/`\.auth\.` call/);

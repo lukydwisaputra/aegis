@@ -40,7 +40,8 @@ export const RunStateSchema = z
   .object({
     runId: RunIdSchema,
     cycleType: CycleTypeSchema,
-    // AUD-053: the lite profile is deleted. run.json files written before P2b carry "full"; new runs omit the field.
+    // AUD-053: only the full profile remains. run.json files written before P2b carry "full"; new runs omit the field.
+    // Compatibility shim: tolerated only so pre-P2b run.json parses; droppable once no supported run predates P2b.
     profile: z.literal("full").optional(),
     environment: z.string().min(1),
     modules: z.array(z.string()).default([]),

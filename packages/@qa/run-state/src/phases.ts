@@ -6,6 +6,7 @@ import {
   PHASE_IDS,
   PhaseIdSchema,
   ReviewSchema,
+  complianceAgent,
   type BlockCause,
   type GateId,
   type PhaseId,
@@ -14,7 +15,7 @@ import {
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed, ORCHESTRATOR, pairedSpv } from "./caller.js";
-import { complianceAgent, relevantRegulations, showsPersonalData } from "./compliance.js";
+import { relevantRegulations, showsPersonalData } from "./compliance.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";

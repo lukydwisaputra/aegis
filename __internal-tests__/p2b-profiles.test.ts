@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
 import { parse } from 'yaml';
-import { routeTestCase } from '@qa/contracts';
+import { checkBrandExposure, routeTestCase } from '@qa/contracts';
 import { roleWritable } from '@qa/path-guard';
 
 // P2b — profiles and relevance (docs/superpowers/specs/2026-10-02-p2-roster-design.md §4.8–4.10, §7).
@@ -25,7 +25,7 @@ describe('the lite profile is gone from code and config (AUD-053, code half)', (
   it('no contracts, run-state or CLI source names a lite profile', () => {
     const sources = tracked().filter((f) => /^(packages\/@qa\/(contracts|run-state)|apps\/cli)\/src\/.*\.ts$/.test(f));
     expect(sources.length).toBeGreaterThan(20);
-    expect(sources.filter((f) => /["']lite["']|\|lite\b/.test(read(f)))).toEqual([]);
+    expect(sources.filter((f) => /\blite\b/i.test(read(f)))).toEqual([]);
   });
 
   it('aegis.config.json and the init template have no profile key', () => {
@@ -50,12 +50,44 @@ describe('compliance relevance is stated where it is acted on (AUD-055)', () => 
     expect(read('HANDBOOK/08-compliance.md')).toMatch(/except `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data/);
   });
 
-  it('the orchestrator skips gdpr and pdpa on the three signals the CLI uses', () => {
+  it('the orchestrator skips gdpr and pdpa on the Scan snapshot the CLI uses, never on the profile file', () => {
     const orch = read('.claude/agents/orchestrator/qa-orchestrator.md');
     expect(orch).toContain(
-      'Skip `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data: `target-profile.json#hasPersonalData` and `target-profile.json#hasAuth` are both false and `target-profile.json#personalDataSignals` is empty.',
+      'Skip `qa-compliance-gdpr` and `qa-compliance-pdpa` only when `aegis run status` shows `phases.scan.personalData: false`, the snapshot Scan recorded when it passed: it is false only when `target-profile.json#hasPersonalData` and `target-profile.json#hasAuth` were both false and `target-profile.json#personalDataSignals` was empty.',
     );
+    expect(orch).toContain('Decide from that snapshot, never from `target-profile.json` itself');
+    expect(orch).toContain('an absent snapshot counts as personal data present');
     expect(orch).toContain('Compliance (an empty compliance list, or no listed regulation applies because the target profile shows no personal data)');
+  });
+
+  describe('report consumers expect one report per relevant regulation, never a fixed six', () => {
+    const SKILL = '.claude/skills/_qa-report-technical-pdf/SKILL.md';
+    const EXEC = '.claude/agents/tier1-phase/qa-executive-reporter.md';
+    const CLOSURE = '.claude/agents/tier1-phase/qa-closure-reporter.md';
+    const PLANNER = '.claude/agents/tier1-phase/qa-test-planner.md';
+    const RULE = 'minus gdpr and pdpa when `aegis run status` shows `phases.scan.personalData: false`';
+
+    it('each consumer states the relevance rule', () => {
+      expect(read(SKILL)).toContain('- One compliance section per report in `reports/compliance/`; omitted when the Compliance phase was not-applicable');
+      expect(read(SKILL)).toContain('one gap report per relevant regulation');
+      expect(read(EXEC)).toContain('the per-regulation compliance reports (one per relevant regulation)');
+      expect(read(CLOSURE)).toContain('Expect one compliance report per relevant regulation: the regulations in `aegis.config.json#compliance` (all six when the key is absent), ' + RULE + '.');
+      expect(read(CLOSURE)).toContain('A missing report for a relevant regulation is a closure gap, not a pass.');
+      expect(read(CLOSURE)).toContain('"GDPR and PDPA were not assessed: no personal data was detected in the application."');
+      expect(read(PLANNER)).toContain('one compliance report per relevant regulation');
+      expect(read(PLANNER)).toContain(RULE + '; never promise a GDPR or PDPA report then.');
+      expect(read(PLANNER)).toContain('- `aegis/aegis.config.json` — compliance flags, environment model\n');
+    });
+
+    it('no consumer promises six compliance reports or sections', () => {
+      for (const f of [SKILL, EXEC, CLOSURE, PLANNER]) {
+        expect(read(f)).not.toMatch(/\b(six|6)\b[^\n.]{0,30}compliance (reports?|sections?)|\b(six|6) per-regulation/i);
+      }
+    });
+
+    it('the brand-clean closure sentence names no framework or agent', () => {
+      expect(checkBrandExposure('GDPR and PDPA were not assessed: no personal data was detected in the application.')).toBeNull();
+    });
   });
 });
 
@@ -98,11 +130,16 @@ describe('the email specialist detects, no-ops, and reads the inbox through its 
     type Call = { url: string; method: string };
     const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
-    function loadHelper(fetchStub: (url: string, init: { method: string }) => Promise<unknown>, env: Record<string, string> = {}) {
+    type Init = { method: string; signal: AbortSignal };
+    function loadHelper(
+      fetchStub: (url: string, init: Init) => Promise<unknown>,
+      env: Record<string, string> = {},
+      abortSignal: { timeout(ms: number): AbortSignal } = AbortSignal,
+    ) {
       const code = /```ts\n([\s\S]*?)\n```/.exec(section(md(), 'Mailpit helper'))![1]!;
       const js = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
       const mod = { exports: {} as Record<string, (...args: never[]) => Promise<unknown>> };
-      new Function('exports', 'module', 'fetch', 'process', js)(mod.exports, mod, fetchStub, { env });
+      new Function('exports', 'module', 'fetch', 'process', 'AbortSignal', js)(mod.exports, mod, fetchStub, { env }, abortSignal);
       return { code, api: mod.exports as unknown as {
         purgeAll(): Promise<void>;
         listMessages(): Promise<Array<{ ID: string; Subject: string }>>;
@@ -111,9 +148,12 @@ describe('the email specialist detects, no-ops, and reads the inbox through its 
       } };
     }
 
-    it('imports nothing and defaults to the configured Mailpit http port', () => {
+    it('imports nothing, is brand-clean, and defaults to the configured Mailpit http port', () => {
       const { code } = loadHelper(async () => response({}));
       expect(code).not.toMatch(/^\s*import\s|require\(/m);
+      // The helper is copied into the target's tests: it must not name the framework or an agent.
+      expect(checkBrandExposure(code)).toBeNull();
+      expect(code).toContain('const DEFAULT_URL = "http://localhost:8025"; // QA config ports.mailpit.http');
       const port = (JSON.parse(read('aegis.config.json')) as { ports: { mailpit: { http: number } } }).ports.mailpit.http;
       expect(code).toContain(`const DEFAULT_URL = "http://localhost:${port}";`);
     });
@@ -149,6 +189,18 @@ describe('the email specialist detects, no-ops, and reads the inbox through its 
       await expect(api.waitForEmail(() => false, 50)).rejects.toThrow('no matching email within 50 ms');
       const down = loadHelper(async () => response({}, 503)).api;
       await expect(down.listMessages()).rejects.toThrow('Mailpit GET /api/v1/messages failed: HTTP 503');
+    });
+
+    it('every request carries a 10 s timeout, so a hung inbox makes waitForEmail reject instead of hang', async () => {
+      const asked: number[] = [];
+      // The stub honours the abort signal like the real fetch; the injected timeout fires after 20 ms instead of 10 s.
+      const hung = (_url: string, init: Init) =>
+        new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(new Error('The operation was aborted due to timeout'))));
+      const { api } = loadHelper(hung, {}, { timeout: (ms: number) => (asked.push(ms), AbortSignal.timeout(20)) });
+      const started = Date.now();
+      await expect(api.waitForEmail(() => true, 60_000)).rejects.toThrow('Mailpit GET /api/v1/messages failed: The operation was aborted due to timeout');
+      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(asked).toEqual([10_000]);
     });
   });
 });
@@ -189,6 +241,8 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
     for (const [md, flag] of [[realtimeMd, 'hasRealtimeFeatures'], [emailMd, 'hasEmailFlows']] as const) {
       expect(section(md, 'Process')).toMatch(/missing, unreadable or schema-invalid, or `\w+` is not a boolean, emit `execution\.blocked`[^\n]*release the task `failed`/);
       expect(section(md, 'Quality Standards \\(SPV rejects if violated\\)')).toContain(`A \`specialist.no-op\` without a readable \`${flag}: false\``);
+      // One no-op rule per worker, not two bullets with overlapping meaning.
+      expect(section(md, 'Quality Standards \\(SPV rejects if violated\\)').split('\n').filter((l) => /no-op/.test(l))).toHaveLength(1);
       expect(contractOf(md).emits.map((e) => e.event)).toEqual(expect.arrayContaining(['specialist.no-op', 'execution.blocked']));
     }
   });
@@ -206,6 +260,11 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
     expect(checklist).toContain('10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasEmailFlows` is `false`; a missing or unreadable profile, or `true`, = requested-changes.');
     expect(checklist).toContain('11. **Inbox URL matches config.** `DEFAULT_URL` in `tests/qa/support/mailpit.ts` equals `http://localhost:` plus the port in `aegis.config.json#ports.mailpit.http`.');
     expect(checklist).toContain('is recorded in the work report');
+    expect(checklist).toContain("A `MAILPIT_URL` named in the work report must be the run environment's Mailpit address; otherwise requested-changes.");
+    expect(checklist).toContain('An existing helper whose port had drifted is updated by the worker');
+    expect(section(read('.claude/agents/tier2-specialist/qa-email-specialist.md'), 'Process')).toContain(
+      "if the existing helper's `DEFAULT_URL` port differs from `aegis.config.json#ports.mailpit.http`, update that line and say so in your work report",
+    );
     expect(checklist).toContain('asserted valid, HTTP 200');
     expect(contractOf(emailSpv).config).toEqual(expect.arrayContaining(['aegis.config.json#ports.mailpit.http']));
     expect(checklist).toContain('1. **Inbox through the helper.** Specs reach the inbox only through `tests/qa/support/mailpit.ts`: no raw SMTP or `nodemailer`, and no Mailpit REST call in a spec body. A violation = requested-changes.');
@@ -234,8 +293,10 @@ describe('Mailpit is the only inbox (AUD-051, T4)', () => {
       'apps/cli/src/commands/init.ts',
       'apps/cli/src/commands/reconfigure.ts',
       'docs/D12-environments-overview.md',
+      'secrets/README.md',
     ];
     expect(files.filter((f) => /gmail/i.test(read(f)))).toEqual([]);
+    expect(read('docs/D12-environments-overview.md')).toContain('| Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit; needs `MAILPIT_URL` set) | ✗ |');
     expect(JSON.parse(read('aegis.config.json')).emailAdapter).toBe('mailpit');
   });
 

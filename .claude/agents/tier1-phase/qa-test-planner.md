@@ -36,7 +36,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 - `runs/{runId}/reports/exploratory/` — the Explore-phase session notes, and the `tc.proposal` / `observation.recorded` events in `runs/{runId}/events.jsonl`: risk evidence from the live app
 - `runs/{runId}/intake/` — any PRD, feature spec, prior run data
 - `target-profile.json` — stack context; detected modules
-- `aegis/aegis.config.json` — compliance flags, environment model, profile
+- `aegis/aegis.config.json` — compliance flags, environment model
 - `agent-memory/qa-test-planner/lessons.md`
 
 ## Outputs
@@ -64,7 +64,7 @@ Mixing them produces plans that are either too abstract to execute (strategy onl
 
 5. **Write the logistics section.** Specify: test levels in scope, Tier-2 specialists to dispatch, test data strategy (factories/seed files), environment assignments, schedule per phase, exit criteria per gate.
 
-6. **Write the work-products section.** List every artefact the cycle will produce: test cases, RTM, defects, closure report, compliance reports, executive PDFs.
+6. **Write the work-products section.** List every artefact the cycle will produce: test cases, RTM, defects, closure report, one compliance report per relevant regulation, executive PDFs. The relevant regulations are those in `aegis.config.json#compliance` (all six when the key is absent), minus gdpr and pdpa when `aegis run status` shows `phases.scan.personalData: false`; never promise a GDPR or PDPA report then.
 
 7. **Produce the plan document.** Render both `.json` (machine-readable, Zod-validated) and `.md` (human-readable via EJS template). All 16 IEEE 829 clauses + the modern additions (automation strategy, test-data strategy, traceability approach).
 
@@ -144,8 +144,8 @@ emits:
   - {event: risk.flagged, via: append}
   - {event: planning.blocked, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, run.status]
 runs: []
 dispatches: []
-config: []
+config: [aegis.config.json#compliance]
 ```

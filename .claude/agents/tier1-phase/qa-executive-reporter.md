@@ -27,7 +27,7 @@ You operate after Gate 3 (cycle approved for closure). Your three outputs are Cl
 - `runs/{runId}/cases/*.json` — every test case record
 - `runs/{runId}/events.jsonl` — full event timeline
 - `runs/{runId}/gates/gate-{1,2,3}-decision.json` — gate decisions
-- `runs/{runId}/reports/compliance/*.json` — six per-regulation compliance reports
+- `runs/{runId}/reports/compliance/*.json` — the per-regulation compliance reports (one per relevant regulation)
 - `runs/{runId}/reports/metrics/*.json` — token spend, duration, cost, and other computed metrics from qa-metrics-collector
 - `aegis.config.json#dashboard.projectName` and `#dashboard.footerText` — brand-clean labels
 - `agent-memory/qa-executive-reporter/lessons.md` — prior cycles' lessons
@@ -60,7 +60,7 @@ Structure (all sections required):
 - Defect summary (list, severity histogram, status by phase, escape rate)
 - Performance metrics (p50/p95/p99, Lighthouse, Core Web Vitals — trend chart vs last run)
 - Security findings (CVE, OWASP, a11y — by severity)
-- Compliance posture (6 per-regulation reports concatenated)
+- Compliance posture (the per-regulation reports, one per relevant regulation, concatenated)
 - Quality gate evaluation (gates passed/failed with thresholds compared)
 - Cycle metadata (duration, token spend, cost in USD)
 - Appendices: full defect list, evidence index, event timeline

@@ -52,8 +52,7 @@ If `target-profile.json#hasRealtimeFeatures` is false (the scanner found no `ws:
 
 ## Quality Standards (SPV rejects if violated)
 
-- Real-time tests skipped without emitting `specialist.no-op` when feature is absent
-- A `specialist.no-op` without a readable `hasRealtimeFeatures: false`
+- A `specialist.no-op` without a readable `hasRealtimeFeatures: false`, or real-time tests skipped without a `specialist.no-op` when that flag is false
 - Message ordering not asserted (delivery alone is insufficient)
 - Tests run against production environment
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)

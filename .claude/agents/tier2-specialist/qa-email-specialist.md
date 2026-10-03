@@ -37,7 +37,7 @@ You are forbidden against the production environment.
 
 1. **Check for email flows.** Read `runs/{runId}/target-profile.json#hasEmailFlows`. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist.no-op` with the reason `target-profile.json#hasEmailFlows is false`, then submit your work report and release the task `done` (Task Protocol steps 3–4). Write no spec and no helper. When the profile is missing, unreadable or schema-invalid, or `hasEmailFlows` is not a boolean, emit `execution.blocked` with the reason, submit your work report and release the task `failed`: unknown never means skip.
 
-2. **Write the inbox helper.** When `tests/qa/support/mailpit.ts` does not exist, write it exactly as shown in "Mailpit helper", with `DEFAULT_URL` set to `http://localhost:{ports.mailpit.http}` from `aegis.config.json`. When it exists, use it as it is; if a spec needs a function it lacks, add the function and say so in your work report.
+2. **Write the inbox helper.** When `tests/qa/support/mailpit.ts` does not exist, write it exactly as shown in "Mailpit helper", with `DEFAULT_URL` set to `http://localhost:{ports.mailpit.http}` from `aegis.config.json`. When it exists, use it as it is, with two exceptions: if the existing helper's `DEFAULT_URL` port differs from `aegis.config.json#ports.mailpit.http`, update that line and say so in your work report; if a spec needs a function it lacks, add the function and say so in your work report.
 
 3. **Check that the inbox answers.** Your first sandbox script calls `listMessages()`. When it throws, no Mailpit inbox answers at `MAILPIT_URL` or `http://localhost:{ports.mailpit.http}`: emit `execution.blocked` with the URL and the error, submit your work report and release the task `failed` (it escalates to the owner). An unreachable inbox is a real gap, never a no-op.
 
@@ -66,11 +66,17 @@ export interface MailAddress { Name: string; Address: string }
 export interface MessageSummary { ID: string; From: MailAddress; To: MailAddress[]; Subject: string; Created: string }
 export interface Message extends MessageSummary { Text: string; HTML: string }
 
-const DEFAULT_URL = "http://localhost:8025"; // aegis.config.json ports.mailpit.http
+const DEFAULT_URL = "http://localhost:8025"; // QA config ports.mailpit.http
 const base = (): string => (process.env.MAILPIT_URL ?? DEFAULT_URL).replace(/\/+$/, "");
 
 async function call(method: "GET" | "DELETE", path: string): Promise<Response> {
-  const res = await fetch(base() + path, { method });
+  let res: Response;
+  try {
+    // A hung inbox fails the request after 10 s instead of stalling the test.
+    res = await fetch(base() + path, { method, signal: AbortSignal.timeout(10_000) });
+  } catch (e) {
+    throw new Error("Mailpit " + method + " " + path + " failed: " + (e instanceof Error ? e.message : String(e)));
+  }
   if (!res.ok) throw new Error("Mailpit " + method + " " + path + " failed: HTTP " + res.status);
   return res;
 }

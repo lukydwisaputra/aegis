@@ -56,7 +56,6 @@ For production deployments, secrets typically come from a vault (1Password / AWS
 - `APP_BASE_URL`, `APP_API_URL`
 - `DATABASE_URL`, `DATABASE_PASSWORD`, etc.
 - `SUPABASE_*` (when target.platform === "supabase")
-- `GMAIL_OAUTH_*` (when email adapter = gmail)
 - `MAILPIT_URL`
 - `GITHUB_TOKEN`
 - `LINEAR_API_KEY` / `JIRA_API_TOKEN` / `CLICKUP_API_TOKEN` (optional)

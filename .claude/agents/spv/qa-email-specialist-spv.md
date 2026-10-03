@@ -36,7 +36,7 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate `specialist.no-op` run.
 9. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasEmailFlows` is `false`; a missing or unreadable profile, or `true`, = requested-changes.
-11. **Inbox URL matches config.** `DEFAULT_URL` in `tests/qa/support/mailpit.ts` equals `http://localhost:` plus the port in `aegis.config.json#ports.mailpit.http`. A `MAILPIT_URL`, when used, is the run environment's Mailpit and is recorded in the work report. A mismatch, or a used `MAILPIT_URL` that is not recorded = requested-changes.
+11. **Inbox URL matches config.** `DEFAULT_URL` in `tests/qa/support/mailpit.ts` equals `http://localhost:` plus the port in `aegis.config.json#ports.mailpit.http`. An existing helper whose port had drifted is updated by the worker, and the update is recorded in the work report. A `MAILPIT_URL` named in the work report must be the run environment's Mailpit address; otherwise requested-changes. A `DEFAULT_URL` mismatch, or a used `MAILPIT_URL` that is not recorded in the work report = requested-changes.
 
 ## Verdict
 

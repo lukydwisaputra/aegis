@@ -13,6 +13,3 @@ export function relevantRegulations(configured: readonly string[], personalData:
   const needsPersonalData = new Set<string>(PERSONAL_DATA_REGULATIONS);
   return personalData === false ? configured.filter((id) => !needsPersonalData.has(id)) : [...configured];
 }
-
-/** The agent that runs one regulation. */
-export const complianceAgent = (id: string): string => `qa-compliance-${id}`;

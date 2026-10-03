@@ -130,7 +130,7 @@ escapes:
   - {unit: qa-closure-reporter-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-compliance-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
   - {unit: qa-context-scanner, field: reviewedBy.none, reason: "the Scan barrier validates the profile against the strict TargetProfileSchema"}
-  - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:94 compares with the previous run's target-profile.json only if one is referenced"}
+  - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:105 compares with the previous run's target-profile.json only if one is referenced"}
   - {unit: qa-curator, field: reviewedBy.none, reason: "the owner reviews its proposals through /qa-promote"}
   - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}
   - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}

@@ -157,6 +157,9 @@ describe('the owner reviews the curator through /qa-promote (AUD-052)', () => {
 describe('qa-compliance-spv reviews every compliance task (AUD-052)', () => {
   const approved = { status: 'approved', decisions: 1 };
   beforeEach(async () => {
+    // One listed regulation: an absent compliance key now means all six (AUD-055), and this suite is about review.
+    const cfg = path.join(t.root, 'aegis.config.json');
+    fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), compliance: ['gdpr'] }));
     fastForward(t.root, runId, 'compliance', { G1: approved, G2: approved });
     await startPhase(t.root, runId, 'compliance', ORCH);
   });

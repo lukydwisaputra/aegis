@@ -14,6 +14,7 @@ import {
   TaskRefSchema,
 } from "./ids.js";
 import { PackageManagerSchema } from "./target-profile.js";
+import { COMPLIANCE_REGULATIONS } from "./compliance.js";
 import { SeveritySchema } from "./severity.js";
 import { Sha256HexSchema } from "./chain.js";
 import { GateIdSchema, PhaseIdSchema } from "./phases.js";
@@ -221,7 +222,7 @@ export const LogoutCompletedEventSchema = EventBase.extend({
 
 export const ComplianceFlaggedEventSchema = EventBase.extend({
   type: z.literal("compliance.flagged"),
-  regulation: z.enum(["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"]),
+  regulation: z.enum(COMPLIANCE_REGULATIONS),
   ref: z.string(),
   severity: z.enum(["info", "low", "medium", "high", "blocker"]),
 });
@@ -483,6 +484,7 @@ export const RunCreatedEventSchema = EventBase.extend({
   type: z.literal("run.created"),
   runId: RunIdSchema,
   // AUD-053: run.created lines written before P2b carry "full"; new runs omit the field.
+  // Compatibility shim: tolerated only so pre-P2b run.created lines parse; droppable once no supported run predates P2b.
   profile: z.literal("full").optional(),
   environment: z.string(),
   modules: z.array(z.string()).default([]),

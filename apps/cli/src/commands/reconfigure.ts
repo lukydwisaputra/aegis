@@ -2,7 +2,7 @@ import { Command, Option } from "commander";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import pc from "picocolors";
-import { RunStateError } from "@qa/run-state";
+import { RunStateError, assertMailpitAdapter } from "@qa/run-state";
 import { action } from "./_io.js";
 
 export function reconfigureCommand(): Command {
@@ -22,6 +22,8 @@ export function reconfigureCommand(): Command {
       const config = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
 
       if (opts.email) (config as { emailAdapter: string }).emailAdapter = opts.email;
+      // A config left on another adapter is refused, not rewritten; `--email mailpit` is the fix.
+      assertMailpitAdapter(config.emailAdapter);
       if (opts.projectName) {
         const dashboard = (config.dashboard ?? {}) as Record<string, unknown>;
         dashboard.projectName = opts.projectName;

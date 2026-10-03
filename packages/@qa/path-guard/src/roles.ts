@@ -2,6 +2,7 @@ import { isAbsolute, join, posix } from "node:path";
 import {
   COMPLIANCE_REGULATIONS,
   SPECIALISTS,
+  complianceAgent,
   isReadOnlyEnvironment,
   specialistShortName,
   type EnvironmentSpecialistConfig,
@@ -83,7 +84,7 @@ export const ROLES: readonly Role[] = [
   reviewed("qa-defect-manager", "phase", ["{run}/defects/**", "{run}/rtm.json", "{run}/evidence/DEF-*/**"]),
   reviewed("qa-closure-reporter", "phase", ["{run}/reports/closure/closure.*"]),
   reviewed("qa-executive-reporter", "phase", ["{run}/reports/executive/**"]),
-  ...COMPLIANCE_REGULATIONS.map((c) => row(`qa-compliance-${c}`, "compliance", [`{run}/reports/compliance/${c}.*`], "qa-compliance-spv")),
+  ...COMPLIANCE_REGULATIONS.map((c) => row(complianceAgent(c), "compliance", [`{run}/reports/compliance/${c}.*`], "qa-compliance-spv")),
   row("qa-curator", "crosscutting", ["{run}/pending-promotions/**"], null),
   row("qa-metrics-collector", "crosscutting", ["{run}/reports/metrics/**"], null),
   specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),
