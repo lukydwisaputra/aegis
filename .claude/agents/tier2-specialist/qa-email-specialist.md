@@ -35,7 +35,7 @@ You are forbidden against the production environment.
 
 ## Process
 
-1. **Check for email flows.** Read `target-profile.json#hasEmailFlows`. When it is false, emit `specialist.no-op` with the reason `target-profile.json#hasEmailFlows is false`, then submit your work report and release the task `done` (Task Protocol steps 3–4). Write no spec and no helper.
+1. **Check for email flows.** Read `runs/{runId}/target-profile.json#hasEmailFlows`. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist.no-op` with the reason `target-profile.json#hasEmailFlows is false`, then submit your work report and release the task `done` (Task Protocol steps 3–4). Write no spec and no helper. When the profile is missing, unreadable or schema-invalid, or `hasEmailFlows` is not a boolean, emit `execution.blocked` with the reason, submit your work report and release the task `failed`: unknown never means skip.
 
 2. **Write the inbox helper.** When `tests/qa/support/mailpit.ts` does not exist, write it exactly as shown in "Mailpit helper", with `DEFAULT_URL` set to `http://localhost:{ports.mailpit.http}` from `aegis.config.json`. When it exists, use it as it is; if a spec needs a function it lacks, add the function and say so in your work report.
 
@@ -52,7 +52,7 @@ You are forbidden against the production environment.
    - Links in email are valid (HTTP 200 response)
    - Plus-aliased email addresses receive mail correctly
 
-7. **Never send email to real external recipients.** Test addresses must use `qa_`, `test_`, or `e2e_` prefixes, or be Mailpit-captured addresses. Production addresses are forbidden.
+7. **Never send email to real external recipients.** Recipients are `qa_`, `test_` or `e2e_` prefixed addresses, or `qa+*@example.com` / `test+*@example.com` aliases, all captured by Mailpit; never a real external recipient. Production addresses are forbidden.
 
 Specs reach the inbox only by importing the helper: never `nodemailer`, raw SMTP, or a Mailpit REST call in a spec body.
 
@@ -106,7 +106,7 @@ export async function waitForEmail(predicate: (m: MessageSummary) => boolean, ti
 - Test run against production env
 - Email content not asserted (delivery-only tests are insufficient)
 - `purgeAll()` not called before each test (stale messages cause false passes)
-- A `specialist.no-op` while `target-profile.json#hasEmailFlows` is true
+- A `specialist.no-op` without a readable `hasEmailFlows: false`
 - A committed spec contains zero assertions (every spec must carry at least one assertion that can fail — no assertion-free "smoke" scripts)
 
 ## Task Protocol
@@ -115,7 +115,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-email-specialis
 
 1. **Claim before any other work:** `aegis task claim --task <taskId>`. A refusal — stop requested, run not running, environment forbids you, specialist cap reached, or the task is not yours — ends your turn: report the refusal text to your dispatcher and change nothing. A refusal saying `already-claimed` means you hold the task from an interrupted dispatch: continue the work without claiming it again.
 2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
-3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-email-specialist`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
+3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-email-specialist`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. Record the Mailpit URL your specs used (`MAILPIT_URL`, or the `DEFAULT_URL` of the helper) in `approach` or `evidence[]`. The CLI stores it as the next attempt; you never write report files yourself.
 4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
 5. **Rework.** Your SPV reviews only after the release. When it requests changes the CLI reopens the task, except on the third rejection in a round, which escalates to the owner instead (the CLI does that, not you). After a reopen your dispatcher re-dispatches you with the `CorrectiveInstruction`: claim the same task id again and repeat steps 1–4.
 
@@ -123,7 +123,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-email-specialis
 
 - `test.passed` / `test.failed` — per TC; test.failed includes which assertion failed
 - `specialist.no-op` — `{ specialist, reason }`, when `target-profile.json#hasEmailFlows` is false
-- `execution.blocked` — `{ reason }`, when no Mailpit inbox answers; followed by the work report and a `failed` release
+- `execution.blocked` — `{ reason }`, when no Mailpit inbox answers or the profile is missing, unreadable or has no boolean `hasEmailFlows`; followed by the work report and a `failed` release
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
 
 ## Contract (machine-checked)

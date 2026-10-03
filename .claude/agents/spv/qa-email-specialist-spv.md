@@ -21,27 +21,28 @@ You review email test files and reports from `qa-email-specialist`. You verify t
 - `runs/{runId}/target-profile.json` — `hasEmailFlows`, for the no-op check
 - Email test files at `tests/qa/email/`
 - `tests/qa/support/mailpit.ts` — the inbox helper the specs import
-- `aegis/aegis.config.json` — for `emailAdapter` setting
+- `aegis/aegis.config.json` — for the `emailAdapter` setting and `ports.mailpit.http`
 - `agent-memory/qa-email-specialist/lessons.md`
 
 ## Review Checklist
 
 1. **Inbox through the helper.** Specs reach the inbox only through `tests/qa/support/mailpit.ts`: no raw SMTP or `nodemailer`, and no Mailpit REST call in a spec body. A violation = requested-changes.
-2. **No real external recipients.** All email test recipients use `plus-alias` addresses (`qa+*@example.com`, `test+*@example.com`) captured by the Mailpit inbox. Real external domain addresses = requested-changes.
-3. **Triple assertion.** Every email test asserts: (a) delivery (email received within timeout), (b) content (subject, body sections, sender), (c) links (at least one link in the email is asserted for format/target). Missing any of the three = passed-with-notes.
+2. **No real external recipients.** Recipients are `qa_`, `test_` or `e2e_` prefixed addresses, or `qa+*@example.com` / `test+*@example.com` aliases, all captured by Mailpit; never a real external recipient. A real external address = requested-changes.
+3. **Triple assertion.** Every email test asserts: (a) delivery (email received within timeout), (b) content (subject, body sections, sender), (c) links (at least one link in the email is asserted valid, HTTP 200). Missing any of the three = passed-with-notes.
 4. **Production prohibition.** Work report confirms tests ran against `development`, `testing` or `staging` only. The email specialist is in `aegis.config.json#environments.production.forbiddenSpecialists`. Any attempt to test against production = requested-changes.
 5. **Adapter matches config.** `aegis.config.json#emailAdapter` is `mailpit`, the only supported inbox. Any other value = requested-changes.
 6. **Inbox purged before each test.** Each test calls `purgeAll()` from the helper in `beforeEach`. Tests that skip the purge may produce false passes from stale messages = requested-changes.
 7. **File naming.** Email tests match `*.email.spec.ts`. Incorrect extension = passed-with-notes.
 8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate `specialist.no-op` run.
 9. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
-10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json#hasEmailFlows` is false. Otherwise = requested-changes.
+10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasEmailFlows` is `false`; a missing or unreadable profile, or `true`, = requested-changes.
+11. **Inbox URL matches config.** `DEFAULT_URL` in `tests/qa/support/mailpit.ts` equals `http://localhost:` plus the port in `aegis.config.json#ports.mailpit.http`. A `MAILPIT_URL`, when used, is the run environment's Mailpit and is recorded in the work report. A mismatch, or a used `MAILPIT_URL` that is not recorded = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — incomplete triple assertion; emit CorrectiveInstruction
-- `requested-changes` — inbox reached outside the helper (direct SMTP), an illegitimate no-op, real external recipients, production targeted, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
+- `requested-changes` — inbox reached outside the helper (direct SMTP), an illegitimate no-op, an inbox URL that does not match the config, real external recipients, production targeted, a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule), a committed spec with zero assertions; block
 
 ## Submitting Your Verdict
 
@@ -78,5 +79,5 @@ awaits: []
 cli: [review.submit]
 runs: []
 dispatches: []
-config: ["aegis.config.json#emailAdapter", "aegis.config.json#environments.production.forbiddenSpecialists"]
+config: ["aegis.config.json#emailAdapter", "aegis.config.json#ports.mailpit", "aegis.config.json#ports.mailpit.http", "aegis.config.json#environments.production.forbiddenSpecialists"]
 ```

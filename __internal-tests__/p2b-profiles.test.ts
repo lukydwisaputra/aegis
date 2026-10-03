@@ -17,7 +17,7 @@ function tracked(): string[] {
 }
 const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8');
 const section = (md: string, heading: string): string => new RegExp(`\\n## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`).exec(md)![1]!;
-interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string }> }
+interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string }>; config: string[] }
 const contractOf = (md: string): Contract => parse(/## Contract \(machine-checked\)\s*```yaml\n([\s\S]*?)```/.exec(md)![1]!) as Contract;
 const paths = (xs: Array<string | { path: string }>): string[] => xs.map((x) => (typeof x === 'string' ? x : x.path));
 
@@ -65,7 +65,8 @@ describe('the email specialist detects, no-ops, and reads the inbox through its 
 
   it('reports a no-op exactly when the profile shows no email flows, and never over an unreachable inbox', () => {
     const process = section(md(), 'Process');
-    expect(process).toMatch(/1\. \*\*Check for email flows\.\*\* Read `target-profile\.json#hasEmailFlows`\. When it is false, emit `specialist\.no-op`[^\n]*release the task `done`/);
+    expect(process).toMatch(/1\. \*\*Check for email flows\.\*\* Read `runs\/\{runId\}\/target-profile\.json#hasEmailFlows`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`[^\n]*release the task `done`[^\n]*missing, unreadable or schema-invalid[^\n]*emit `execution\.blocked`[^\n]*release the task `failed`/);
+    expect(section(md(), 'Quality Standards \\(SPV rejects if violated\\)')).toContain('A `specialist.no-op` without a readable `hasEmailFlows: false`');
     expect(process).toMatch(/3\. \*\*Check that the inbox answers\.\*\*[^\n]*emit `execution\.blocked`[^\n]*release the task `failed`[^\n]*never a no-op/);
     expect(section(md(), 'Your Role')).toContain('Never report a no-op while `hasEmailFlows` is true.');
   });
@@ -158,6 +159,13 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
     expect(routeTestCase({ testType: ['API'], testTechnique: ['Realtime'] })).toEqual(['qa-api-specialist', 'qa-realtime-specialist']);
   });
 
+  it('a TC without the Email or Realtime technique routes to neither specialist', () => {
+    const routed = routeTestCase({ testType: ['E2E'], testTechnique: ['Flow'] });
+    expect(routed).toEqual(['qa-ui-specialist']);
+    expect(routed).not.toContain('qa-email-specialist');
+    expect(routed).not.toContain('qa-realtime-specialist');
+  });
+
   it('the designer tags Email only when the profile shows email flows', () => {
     expect(read('.claude/agents/tier1-phase/qa-test-designer.md')).toContain(
       '`Email` when target-profile.json `hasEmailFlows` is true and the requirement sends mail (sign-up confirmation, password reset, invitation, notification)',
@@ -165,24 +173,55 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
   });
 
   it('both specialists name their profile field in the no-op path', () => {
-    const realtime = section(read('.claude/agents/tier2-specialist/qa-realtime-specialist.md'), 'Process');
-    expect(realtime).toMatch(/If `target-profile\.json#hasRealtimeFeatures` is false, emit `specialist\.no-op`/);
-    const email = section(read('.claude/agents/tier2-specialist/qa-email-specialist.md'), 'Process');
-    expect(email).toMatch(/`target-profile\.json#hasEmailFlows`\. When it is false, emit `specialist\.no-op`/);
+    const realtimeMd = read('.claude/agents/tier2-specialist/qa-realtime-specialist.md');
+    expect(realtimeMd).not.toMatch(/If no WS or SSE detected|does not detect any real-time|when no real-time features detected|detected WebSocket\/SSE routes/);
+    expect(section(realtimeMd, 'Your Role')).toMatch(/If `target-profile\.json#hasRealtimeFeatures` is false[^\n]*emit `specialist\.no-op`/);
+    expect(section(realtimeMd, 'Process')).toMatch(/`runs\/\{runId\}\/target-profile\.json#hasRealtimeFeatures`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`/);
+    const emailMd = read('.claude/agents/tier2-specialist/qa-email-specialist.md');
+    expect(section(emailMd, 'Process')).toMatch(/`runs\/\{runId\}\/target-profile\.json#hasEmailFlows`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`/);
+  });
+
+  it('both workers never no-op over a true flag, and block (failed release) on a missing or unreadable profile', () => {
+    const realtimeMd = read('.claude/agents/tier2-specialist/qa-realtime-specialist.md');
+    const emailMd = read('.claude/agents/tier2-specialist/qa-email-specialist.md');
+    expect(section(realtimeMd, 'Your Role')).toContain('Never report a no-op while `hasRealtimeFeatures` is true.');
+    expect(section(emailMd, 'Your Role')).toContain('Never report a no-op while `hasEmailFlows` is true.');
+    for (const [md, flag] of [[realtimeMd, 'hasRealtimeFeatures'], [emailMd, 'hasEmailFlows']] as const) {
+      expect(section(md, 'Process')).toMatch(/missing, unreadable or schema-invalid, or `\w+` is not a boolean, emit `execution\.blocked`[^\n]*release the task `failed`/);
+      expect(section(md, 'Quality Standards \\(SPV rejects if violated\\)')).toContain(`A \`specialist.no-op\` without a readable \`${flag}: false\``);
+      expect(contractOf(md).emits.map((e) => e.event)).toEqual(expect.arrayContaining(['specialist.no-op', 'execution.blocked']));
+    }
+  });
+
+  it('worker and reviewer state one recipient rule, and the worker records the Mailpit URL it used', () => {
+    const rule = '`qa_`, `test_` or `e2e_` prefixed addresses, or `qa+*@example.com` / `test+*@example.com` aliases, all captured by Mailpit; never a real external recipient';
+    expect(section(read('.claude/agents/tier2-specialist/qa-email-specialist.md'), 'Process')).toContain(rule);
+    expect(section(read('.claude/agents/spv/qa-email-specialist-spv.md'), 'Review Checklist')).toContain(rule);
+    expect(read('.claude/agents/tier2-specialist/qa-email-specialist.md')).toContain('Record the Mailpit URL your specs used');
   });
 
   it('both SPVs judge a no-op by the same field, and the email SPV checks the helper and the adapter', () => {
     const emailSpv = read('.claude/agents/spv/qa-email-specialist-spv.md');
     const checklist = section(emailSpv, 'Review Checklist');
-    expect(checklist).toContain('10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json#hasEmailFlows` is false. Otherwise = requested-changes.');
+    expect(checklist).toContain('10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasEmailFlows` is `false`; a missing or unreadable profile, or `true`, = requested-changes.');
+    expect(checklist).toContain('11. **Inbox URL matches config.** `DEFAULT_URL` in `tests/qa/support/mailpit.ts` equals `http://localhost:` plus the port in `aegis.config.json#ports.mailpit.http`.');
+    expect(checklist).toContain('is recorded in the work report');
+    expect(checklist).toContain('asserted valid, HTTP 200');
+    expect(contractOf(emailSpv).config).toEqual(expect.arrayContaining(['aegis.config.json#ports.mailpit.http']));
     expect(checklist).toContain('1. **Inbox through the helper.** Specs reach the inbox only through `tests/qa/support/mailpit.ts`: no raw SMTP or `nodemailer`, and no Mailpit REST call in a spec body. A violation = requested-changes.');
     expect(checklist).toContain('5. **Adapter matches config.** `aegis.config.json#emailAdapter` is `mailpit`, the only supported inbox.');
     expect(checklist).toContain('Each test calls `purgeAll()` from the helper in `beforeEach`.');
     expect(emailSpv).not.toMatch(/gmail/i);
     expect(emailSpv).not.toMatch(/@qa\/email-adapters|\bEmailAdapter\b|adapter\.purgeAll/);
     expect(paths(contractOf(emailSpv).reads)).toEqual(expect.arrayContaining(['{run}/target-profile.json', '{tests}/qa/support/mailpit.ts']));
-    const realtimeSpv = section(read('.claude/agents/spv/qa-realtime-specialist-spv.md'), 'Review Checklist');
-    expect(realtimeSpv).toContain('A `specialist.no-op` is legitimate only when `target-profile.json#hasRealtimeFeatures` is false');
+    const realtimeSpvMd = read('.claude/agents/spv/qa-realtime-specialist-spv.md');
+    expect(section(realtimeSpvMd, 'Review Checklist')).toContain(
+      'A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasRealtimeFeatures` is `false`',
+    );
+    expect(section(realtimeSpvMd, 'Review Checklist')).toContain('a missing or unreadable profile, or `true`, = requested-changes');
+    expect(section(realtimeSpvMd, 'Verdict')).toContain('illegitimate NoOp');
+    expect(realtimeSpvMd).not.toMatch(/when no real-time features were detected|for feature detection/);
+    expect(paths(contractOf(realtimeSpvMd).reads)).toContain('{run}/target-profile.json');
   });
 });
 
