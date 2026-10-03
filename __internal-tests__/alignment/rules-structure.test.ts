@@ -49,7 +49,7 @@ it('SPV: pairing, missing, dispatched together, reciprocity, orphan, pipeline mi
       'qa-w1-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ['qa-w1'] } },
       'qa-w2': { contract: { contract: 1, phase: 'design', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-other-spv' } },
       'qa-other-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: [], dispatch: none, reviewedBy: none } },
-      'qa-cicd-planner': { contract: { contract: 1, phase: 'devops', dispatchedBy: [], dispatch: none, reviewedBy: { none: 'x y' } } },
+      'qa-cicd-planner': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], dispatch: none, reviewedBy: { none: 'x y' } } },
       'qa-lonely-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: [], dispatch: none, reviewedBy: none } },
     },
     pipeline: { ...pipe(['qa-w1', 'qa-w2']), spvPairs: { 'qa-cicd-planner': 'qa-wrong-spv' } },
@@ -65,6 +65,13 @@ it('SPV: pairing, missing, dispatched together, reciprocity, orphan, pipeline mi
 });
 
 const cc = (extra: object = {}) => ({ contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], dispatch: none, reviewedBy: none, ...extra } });
+
+it('T9: devops and tooling are no longer special phases', () => {
+  const agent = (phase: string) => ({ contract: { contract: 1, phase, dispatchedBy: [], dispatch: none, reviewedBy: none } });
+  const t = makeRepo({ agents: { 'qa-a': agent('devops'), 'qa-b': agent('tooling'), 'qa-c': agent('crosscutting'), 'qa-d': agent('spv') }, pipeline: pipe([]) });
+  expect(keys(contractRule(loadModel(t.root)))).toEqual(['CONTRACT:qa-a:devops:unknown-phase', 'CONTRACT:qa-b:tooling:unknown-phase']);
+  t.cleanup();
+});
 
 it('CONTRACT: agent listed in two phases', () => {
   const t = makeRepo({
@@ -115,7 +122,7 @@ it('SPV: shared SPV via spvPairs is consistent', () => {
     'qa-orchestrator': cc({ dispatches: [...ws, 'qa-cicd-spv'] }),
     'qa-cicd-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
   };
-  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'devops', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-cicd-spv' } };
+  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-cicd-spv' } };
   const t = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-cicd-spv'])) } });
   expect(keys(spvRule(loadModel(t.root)))).toEqual([]);
   t.cleanup();

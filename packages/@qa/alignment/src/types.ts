@@ -1,6 +1,7 @@
 import type { AgentContract, PathEntry, Pipeline, SkillContract } from "./schema.js";
 
-export const SPECIAL_PHASES: ReadonlySet<string> = new Set(["crosscutting", "spv", "devops", "tooling"]);
+// Non-pipeline phases a contract may name (T9, P2): the DevOps tier and qa-ui-designer, the last `devops` and `tooling` units, are retired.
+export const SPECIAL_PHASES: ReadonlySet<string> = new Set(["crosscutting", "spv"]);
 
 export const RULE_IDS = [
   "CONTRACT", "DISPATCH", "SPV", "PRODUCER", "CONSUMER", "EVENT", "CLI",

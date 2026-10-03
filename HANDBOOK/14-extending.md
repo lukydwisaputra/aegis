@@ -147,7 +147,7 @@ contracts, with `.claude/pipeline.yaml`, with the config files and with the docs
 | Field | Meaning |
 |-------|---------|
 | `contract` | Schema version, always `1` |
-| `phase` | A phase id from `pipeline.yaml`, or `crosscutting` / `spv` / `devops` / `tooling` |
+| `phase` | A phase id from `pipeline.yaml`, or `crosscutting` / `spv` |
 | `dispatchedBy` | Agents or skills that dispatch this agent |
 | `dispatch` | `{none: "<reason>"}` when nothing dispatches it |
 | `reviewedBy` | Its SPV, or `{none: "<reason>"}` |
