@@ -16,7 +16,10 @@ const SECRET_EXCLUDES = [
 
 const DEP_EXCLUDES = [
   "'node_modules/**/.npmrc'", "'node_modules/**/.env'", "'node_modules/**/.env.*'", 'node_modules/.npmrc',
+  // A18: a dotenv file directly in a node_modules root
+  'node_modules/.env', "'node_modules/.env.*'",
   "'**/node_modules/**/.npmrc'", "'**/node_modules/**/.env'", "'**/node_modules/**/.env.*'", "'**/node_modules/.npmrc'",
+  "'**/node_modules/.env'", "'**/node_modules/.env.*'",
 ];
 
 const rsync = /`(rsync -a [^`]+)`/.exec(agent)?.[1] ?? '';
@@ -54,7 +57,11 @@ it('the copy gets an allowlisted .npmrc, and the SPV checks the copy and the exc
   expect(spv).toMatch(/--exclude '\*\.pem'/);
   expect(spv).toMatch(/--exclude 'node_modules\/\*\*\/\.npmrc'/);
   expect(spv).toMatch(/only `registry=` and `@scope:registry=` lines/);
-  expect(spv).toMatch(/no URL in it contains `@`/);
+  // A18: the check is about userinfo in a URL, not any `@` (a scope name or a path may hold one).
+  expect(spv).toMatch(/no URL in it carries `user@` or `user:pass@` userinfo/);
+  expect(spv).not.toMatch(/no URL in it contains `@`/);
+  // Check 6 lists the same dependency excludes as the agent's command (lockstep).
+  for (const x of DEP_EXCLUDES) expect(spv).toContain(`--exclude ${x}`);
 });
 
 // Behavioural fixtures: run the documented commands on a temp tree (argv only, no shell).
@@ -81,6 +88,8 @@ const DROPPED = [
   'AuthKey_ABC123.p8', 'prod.tfvars', 'infra/dev.tfvars',
   'node_modules/.npmrc', 'node_modules/dep/.npmrc', 'node_modules/dep/.env', 'node_modules/dep/.env.local', 'node_modules/@s/dep/.npmrc',
   'pkgs/a/node_modules/.npmrc', 'pkgs/a/node_modules/dep/.npmrc', 'pkgs/a/node_modules/dep/.env', 'pkgs/a/node_modules/dep/.env.local',
+  // A18: dotenv files directly in the root and a nested node_modules
+  'node_modules/.env', 'node_modules/.env.local', 'pkgs/a/node_modules/.env', 'pkgs/a/node_modules/.env.production',
 ];
 const KEPT = [
   '.env.example', 'src/app.ts', 'package.json', 'config.json', '.docker/other.json', 'node_modules/pkg/index.js', 'node_modules/pkg/ca-bundle.pem',
