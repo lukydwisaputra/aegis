@@ -6,6 +6,7 @@ import {
   PHASE_IDS,
   PhaseIdSchema,
   ReviewSchema,
+  complianceAgent,
   type BlockCause,
   type GateId,
   type PhaseId,
@@ -14,6 +15,7 @@ import {
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed, ORCHESTRATOR, pairedSpv } from "./caller.js";
+import { relevantRegulations, showsPersonalData } from "./compliance.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";
@@ -127,7 +129,11 @@ export async function startPhase(root: string, runId: string, phase: string, cal
 /** Why a phase may be skipped, computed from config and the target profile — never from caller text. */
 export function notApplicableReason(root: string, runId: string, phase: PhaseId): string | null {
   if (phase === "compliance") {
-    return readRunConfig(root).compliance.length === 0 ? "aegis.config.json#compliance is empty" : null;
+    const configured = readRunConfig(root).compliance;
+    if (configured.length === 0) return "aegis.config.json#compliance is empty";
+    // The Scan snapshot, not the file: a later rewrite of the profile cannot force a skip (AUD-055).
+    const relevant = relevantRegulations(configured, readRun(root, runId).phases.scan?.personalData);
+    return relevant.length === 0 ? "no listed regulation applies: gdpr and pdpa need personal data (target-profile.json#hasPersonalData is false)" : null;
   }
   if (phase === "env-data") {
     // Nothing may be seeded on a read-only environment (spec §6.3; production is never mutated).
@@ -213,6 +219,14 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       problems.push(`task ${t.id}: attempt ${latest} of ${agent} has no passing review`);
     }
   }
+  // AUD-055: every relevant regulation has a task. An extra gdpr or pdpa task on a target without personal data is
+  // not refused: running a regulation is never unsafe, and the relevance rule exists to save cost.
+  if (phase === "compliance") {
+    const assigned = new Set(tasks.map((t) => t.assignee));
+    for (const id of relevantRegulations(readRunConfig(root).compliance, state.phases.scan?.personalData)) {
+      if (!assigned.has(complianceAgent(id))) problems.push(`regulation ${id} has no task; add one for ${complianceAgent(id)} (aegis.config.json#compliance)`);
+    }
+  }
   // A gated phase of a full cycle ends with its gate-precondition task (spec §3.2); smoke's G2 is auto-decided.
   if (state.cycleType === "full") {
     for (const gate of GATE_IDS) {
@@ -247,11 +261,14 @@ export function preflightProblem(root: string, runId: string, state: RunState): 
   return null;
 }
 
-/** target-profile.json#existingTests.files.length; called only after the Scan barrier validated the profile. */
-function scanExistingTestsCount(root: string, runId: string): number {
+/**
+ * What Scan records when it completes; called only after the Scan barrier validated the profile. Later phases read
+ * this snapshot, never the file, so a rewrite of target-profile.json cannot force a skip.
+ */
+function scanSnapshot(root: string, runId: string): { existingTestsCount: number; personalData: boolean } {
   const profile = ScanProfileSchema.safeParse(loadJson(join(runDir(root, runId), "target-profile.json")));
   if (!profile.success) throw new RunStateError("barrier", `output target-profile.json is invalid: ${formatIssues(profile.error.issues)}`);
-  return profile.data.existingTests.files.length;
+  return { existingTestsCount: profile.data.existingTests.files.length, personalData: showsPersonalData(profile.data) };
 }
 
 export interface CompletePhaseOptions {
@@ -291,7 +308,7 @@ export async function completePhase(root: string, runId: string, phase: string, 
     if (id === "scan") {
       const preflight = preflightProblem(root, runId, state);
       if (preflight !== null) return { preflight };
-      snapshot = { existingTestsCount: scanExistingTestsCount(root, runId) };
+      snapshot = scanSnapshot(root, runId);
     }
     const record = state.phases[id]!;
     const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, ...snapshot, status: "completed", completedAt: ts } }, updatedAt: ts };

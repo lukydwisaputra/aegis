@@ -130,7 +130,7 @@ escapes:
   - {unit: qa-closure-reporter-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-compliance-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
   - {unit: qa-context-scanner, field: reviewedBy.none, reason: "the Scan barrier validates the profile against the strict TargetProfileSchema"}
-  - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:94 compares with the previous run's target-profile.json only if one is referenced"}
+  - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:105 compares with the previous run's target-profile.json only if one is referenced"}
   - {unit: qa-curator, field: reviewedBy.none, reason: "the owner reviews its proposals through /qa-promote"}
   - {unit: qa-curator, field: optional, value: "{run}/pending-promotions/**", reason: "qa-curator.md:28 prior unreviewed proposals, read when present (don't re-propose)"}
   - {unit: qa-curator, field: terminal, value: "{run}/pending-promotions/summary.md", reason: "qa-curator.md:112 human-readable digest for the /qa-promote reviewer"}
@@ -143,7 +143,6 @@ escapes:
   - {unit: qa-defect-manager-spv, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager-spv.md:22 candidates exist only when a session found a suspect"}
   - {unit: qa-defect-manager-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager-spv.md:23 read when the Dev-test-review phase ran"}
   - {unit: qa-dev-test-reviewer-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
-  - {unit: qa-email-specialist, field: optional, value: "secrets/.env.{env}", reason: "qa-email-specialist.md:25 Gmail OAuth credentials if adapter is gmail"}
   - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-environment-engineer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.pdf", reason: "qa-executive-reporter.md:40 Deliverable 1, final human-facing PDF"}

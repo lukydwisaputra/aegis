@@ -1,8 +1,9 @@
 import * as fs from 'fs'; import * as path from 'path';
-import { TargetProfileCoreSchema, TargetProfileSchema } from '@qa/contracts';
-import { PROFILE } from './helpers/pipeline';
+import { ScanWarningEventSchema, TargetProfileCoreSchema, TargetProfileSchema } from '@qa/contracts';
+import { PROFILE, TS } from './helpers/pipeline';
 const md = fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', 'crosscutting', 'qa-context-scanner.md'), 'utf-8');
 const example = JSON.parse(/```jsonc\n([\s\S]*?)\n```/.exec(md)![1]!);
+const CHECKLIST = /## Scanning Checklist\n([\s\S]*?)\n## Outputs/.exec(md)![1]!;
 describe('TargetProfileSchema (AUD-031)', () => {
   it('parses the scanner prose example (the file agents write)', () =>
     expect(TargetProfileSchema.safeParse(example).error?.issues ?? []).toEqual([]));
@@ -64,6 +65,69 @@ describe('TargetProfileSchema (AUD-031)', () => {
       framework: { name: 'vite-react', version: null }, monorepo: { tool: 'none', workspaces: [] },
     };
     expect(TargetProfileSchema.safeParse(generic).error?.issues ?? []).toEqual([]);
+  });
+  it('every required field is in the pipeline PROFILE fixture and the prose example (a new field updates both)', () => {
+    const required = Object.entries(TargetProfileSchema.shape).filter(([, s]) => !s.isOptional()).map(([k]) => k);
+    expect(required).toEqual(expect.arrayContaining(['hasPersonalData', 'personalDataSignals', 'hasEmailFlows']));
+    for (const key of required) {
+      expect(PROFILE).toHaveProperty(key);
+      expect(example).toHaveProperty(key);
+    }
+  });
+  it('the checklist records the P2b fields by their schema paths, with their detection rules (AUD-051, AUD-055)', () => {
+    expect(CHECKLIST).toMatch(/Record `hasPersonalData` \(`true` or `false`\) and `personalDataSignals\[\]`/);
+    expect(CHECKLIST).toMatch(/`hasAuth` is `true`, because accounts hold at least an email or a username \(signal `"hasAuth"`\)/);
+    for (const f of ['email', 'phone', 'nric', 'date_of_birth', 'ip_address']) expect(CHECKLIST).toContain('`' + f + '`');
+    expect(CHECKLIST).toMatch(/When in doubt, record `true`/);
+    expect(CHECKLIST).toMatch(/`hasPersonalData` is `false` only when you found no signal, and then `personalDataSignals` is empty/);
+    expect(CHECKLIST).toMatch(/Record `hasEmailFlows` \(`true` or `false`\)/);
+    for (const lib of ['nodemailer', 'resend', '@sendgrid/mail', 'postmark', 'mailgun.js', '@aws-sdk/client-ses']) expect(CHECKLIST).toContain('`' + lib + '`');
+    expect(CHECKLIST).toMatch(/`platform` is `"supabase"` and `hasAuth` is `true`/);
+  });
+  it('the strict schema refuses a profile missing a P2b field or carrying a wrong value', () => {
+    for (const key of ['hasPersonalData', 'personalDataSignals', 'hasEmailFlows']) {
+      const { [key]: _gone, ...rest } = example;
+      expect(TargetProfileSchema.safeParse(rest).success).toBe(false);
+    }
+    expect(TargetProfileSchema.safeParse({ ...example, hasPersonalData: 'yes' }).success).toBe(false);
+    expect(TargetProfileSchema.safeParse({ ...example, personalDataSignals: [''] }).success).toBe(false);
+    expect(TargetProfileSchema.safeParse({ ...example, hasEmailFlows: 'yes' }).success).toBe(false);
+  });
+  it('the full detection term lists stay in the checklist (deleting any term fails)', () => {
+    const personalTerms = ['email', 'phone', 'telephone', 'tel', 'mobile', 'name', 'username', 'surname', 'first_name', 'last_name', 'full_name', 'given_name', 'family_name', 'address', 'street', 'city', 'zip', 'postcode', 'postal', 'dob', 'date_of_birth', 'birth', 'nric', 'fin', 'passport', 'national_id', 'tax_id', 'ssn', 'gender', 'password', 'ip_address'];
+    const analytics = ['posthog-js', 'mixpanel-browser', '@segment/analytics-next', '@amplitude/analytics-browser', '@hubspot/api-client', '@vercel/analytics', 'react-ga4', 'hotjar', 'intercom', '@sentry/*'];
+    const authPackages = ['next-auth', '@auth/*', '@supabase/auth-js', '@auth0/*', '@clerk/*', 'firebase/auth', 'passport', 'lucia', 'better-auth', '@supabase/supabase-js', '@supabase/ssr'];
+    const emailEnv = ['*EMAIL*', '*SMTP*', '*MAIL*', 'RESEND_*', 'SENDGRID_*', 'POSTMARK_*', 'MAILGUN_*'];
+    const emailDeps = ['nodemailer', 'resend', '@sendgrid/mail', '@sendgrid/*', 'postmark', 'mailgun.js', 'mailgun-js', '@react-email/*', '@aws-sdk/client-ses'];
+    // Each list is checked against its own sentence: a term deleted from its list fails even if it appears elsewhere.
+    const segment = (from: string, to: string): string[] => {
+      const start = CHECKLIST.indexOf(from);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const end = CHECKLIST.indexOf(to, start + from.length);
+      expect(end).toBeGreaterThan(start);
+      return [...CHECKLIST.slice(start + from.length, end).matchAll(/`([^`]+)`/g)].map((m) => m[1]!);
+    };
+    expect(segment('Terms: ', ' Match by token')).toEqual(expect.arrayContaining(personalTerms));
+    expect(segment('monitoring dependency is present, by presence alone: ', '\n')).toEqual(expect.arrayContaining(analytics));
+    expect(segment('Check for these auth packages: ', 'Custom auth routes')).toEqual(expect.arrayContaining(authPackages));
+    expect(segment('a name matching ', 'is in `envVarNames`')).toEqual(expect.arrayContaining(emailEnv));
+    expect(segment('depends on a mail library (', ');')).toEqual(expect.arrayContaining(emailDeps));
+    expect(CHECKLIST).toMatch(/Match by token/);
+    expect(CHECKLIST).toContain('Plurals count: a token equal to a term followed by `s` or `es` also matches (`emails`, `phones`, `addresses`).');
+    expect(CHECKLIST).toMatch(/`final`, `find` and `hotel` do not match/);
+    for (const scope of ['supabase/migrations/**', 'prisma/schema.prisma', 'models/**', 'zod schemas', 'never row or seed values']) expect(CHECKLIST).toContain(scope);
+    expect(CHECKLIST).toMatch(/`\.auth\.` call/);
+  });
+  it('generic targets: framework fallback, a root app entry, scan.warning fields (P2a final-review carries)', () => {
+    expect(CHECKLIST).toMatch(/`framework\.name` \(`"unknown"` when the target is neither nextjs nor vite-react\)/);
+    const appsLine = CHECKLIST.split('\n').find((l) => l.includes('**Apps list.**'))!;
+    expect(appsLine).toMatch(/single-app target \(no monorepo\), record one entry for the root[^\n]*`path` `"\."`/);
+    expect(CHECKLIST).toMatch(/`scan\.warning` event with `path` \(`package\.json`\) and `reason`/);
+    expect(md).toMatch(/append `scan\.warning` with that `path` and the `reason`/);
+    const events = /## Events You Emit\n([\s\S]*?)\n## /.exec(md)![1]!;
+    expect(events).toMatch(/^- `scan\.warning` — `\{ path, reason \}`, both required/m);
+    expect(ScanWarningEventSchema.safeParse({ type: 'scan.warning', ts: TS, path: 'package.json' }).success).toBe(false);
+    expect(ScanWarningEventSchema.safeParse({ type: 'scan.warning', ts: TS, path: 'package.json', reason: 'no lockfile' }).success).toBe(true);
   });
   it('the core schema reads the three preflight fields from a full profile', () => {
     const core = TargetProfileCoreSchema.parse(example);

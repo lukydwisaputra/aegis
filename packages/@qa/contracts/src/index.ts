@@ -15,6 +15,7 @@ export * from "./specialists.js";
 export * from "./phases.js";
 export * from "./gate-decision.js";
 export * from "./target-profile.js";
+export * from "./compliance.js";
 export * from "./escalation-decision.js";
 export * from "./stories.js";
 export * from "./dev-test-review.js";

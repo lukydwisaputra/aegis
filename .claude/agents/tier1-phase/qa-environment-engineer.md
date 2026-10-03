@@ -81,8 +81,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 5. **Wire environment variables.** For each environment in scope:
    - Verify `aegis/secrets/.env.{env}` exists (gitignored; non-example only)
    - If Supabase: verify SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY are set
-   - If Mailpit email adapter: verify `MAILPIT_URL` is set and reachable — `GET {MAILPIT_URL}/api/v1/messages` must return HTTP 200; emit `env.setup-failed` if not
-   - If Gmail email adapter: verify GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN, GMAIL_OAUTH_USER_EMAIL are set
+   - If `target-profile.json#hasEmailFlows` is true: verify the Mailpit inbox answers at `MAILPIT_URL` (default `http://localhost:{ports.mailpit.http}`) — `GET /api/v1/messages` must return HTTP 200; emit `env.setup-failed` if not. Mailpit is the only inbox (`emailAdapter` is always `mailpit`).
    - Emit `env.setup-failed` with specific missing vars if any are absent
 
 6. **Install Playwright Agent CLI.** Run `npm install -g @playwright/cli@latest` then `playwright-cli install --skills` to install the Playwright Agent CLI and its skills. This tool is used by `qa-web-explorer` and `qa-exploratory-specialist` for browser automation via shell commands. If the install fails, emit `env.setup-failed` — discovery and exploratory phases cannot run without it. Record the installed version in the env-auth-report.

@@ -32,7 +32,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
 - `runs/{runId}/run.json` — read through `aegis run status`: status, phase statuses, gate statuses, block causes and the `next` step
 - `runs/{runId}/intake/**` — requirement documents copied from the target at run creation, for the mission ranking
-- `aegis/aegis.config.json` — profile, `aegis.config.json#compliance` (which compliance agents run) and `aegis.config.json#preCycleHealthCheck`
+- `aegis/aegis.config.json` — `aegis.config.json#compliance` (which compliance agents run) and `aegis.config.json#preCycleHealthCheck`
 - `runs/{runId}/events.jsonl` — read only, to build briefs
 - `runs/{runId}/reports/work/*.json` and `runs/{runId}/reports/review/*.json` — work reports and SPV reviews, read to build briefs
 - `runs/{runId}/target-profile.json` — scanner output, read to build briefs
@@ -82,7 +82,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs; you never dispatch a specialist in Execution. |
    | Triage | `triage` | `qa-defect-manager` | Followed by Gate 2. |
    | Closure-draft | `closure-draft` | `qa-closure-reporter` (draft pass) | |
-   | Compliance | `compliance` | `qa-compliance-*` from `aegis.config.json#compliance` | Not-applicable when the list is empty. |
+   | Compliance | `compliance` | `qa-compliance-*` from `aegis.config.json#compliance` | GDPR and PDPA only when the target profile shows personal data. Not-applicable when no listed regulation applies. |
    | Closure-final | `closure-final` | `qa-closure-reporter` (final pass) | Followed by Gate 3. |
    | Executive | `executive` | `qa-executive-reporter` | Starts only after Gate 3 is approved. |
    | Curator | `curator` | `qa-curator` | Last phase. |
@@ -91,7 +91,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
    **Explore exception.** `qa-exploratory-specialist` is the one Tier-2 specialist you dispatch yourself: in Explore, after `qa-web-explorer` returns, add one task per story or story cluster (`aegis task add --id T-explore-<n> --title "<charter>" --agent qa-exploratory-specialist`, with n counting up from 2: `T-explore-1` is the web explorer's task) and dispatch it with the stories in its brief, then dispatch its SPV like any worker's. Its claim counts against `aegis.config.json#parallelism.maxSpecialists` and is refused where the environment does not allow `exploratory` (`aegis.config.json#environments.{env}.allowedSpecialists`): on such an environment add no exploratory task — the web explorer alone covers Explore. An exploratory specialist refused with `cap-reached` returns without work: re-dispatch it for the same task id after another specialist's task is released — never cancel the task or add a new id for it.
 
-   Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them.
+   Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each. Skip `qa-compliance-gdpr` and `qa-compliance-pdpa` only when `aegis run status` shows `phases.scan.personalData: false`, the snapshot Scan recorded when it passed: it is false only when `target-profile.json#hasPersonalData` and `target-profile.json#hasAuth` were both false and `target-profile.json#personalDataSignals` was empty. Decide from that snapshot, never from `target-profile.json` itself, which may have changed since Scan; the barrier and not-applicable use the snapshot too, and an absent snapshot counts as personal data present. The Compliance barrier names any relevant regulation that has no task. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them.
 
    Dispatch `qa-curator` during Curator.
 
@@ -103,7 +103,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
       - `requested-changes` → the CLI has reopened the task; re-dispatch the same worker for the same task id with the `CorrectiveInstruction` in its brief.
       - A third `requested-changes` for the same task makes the CLI record `task.escalated` and block the run. Stop dispatching and tell the owner the run waits for `/qa-escalation`. Never loop past it.
    4. `aegis phase complete --phase <id>`. The barrier refuses unless every task of the phase (cancelled ones aside) is released by its assignee, every assignee's latest work report has a passing review by its paired SPV (or an `accept-with-risk` escalation decision), a gated phase of a full cycle has its passed gate task `T-GATE-G<N>` (steps 5.1–5.3), the phase outputs exist and validate, the preceding gate is approved and the event log verifies. Read the refusal, fix the cause it names by re-dispatching the responsible agent, and try again.
-   5. A phase with nothing to do is recorded with `aegis phase complete --phase <id> --not-applicable` instead of starting it. The CLI computes the reason itself and accepts it only for Dev-test-review (no existing tests), Env-data (read-only environment) and Compliance (empty compliance list).
+   5. A phase with nothing to do is recorded with `aegis phase complete --phase <id> --not-applicable` instead of starting it. The CLI computes the reason itself and accepts it only for Dev-test-review (no existing tests), Env-data (read-only environment) and Compliance (an empty compliance list, or no listed regulation applies because the target profile shows no personal data).
 
    **Preflight.** Completing Scan checks that `target-profile.json#targetIsSingleProject` is `true` and, when `aegis.config.json#preCycleHealthCheck` is true, that the pre-cycle health check recorded at run creation passed. On failure the CLI records `preflight.failed` and blocks the run; stop and report the reason to the owner.
 

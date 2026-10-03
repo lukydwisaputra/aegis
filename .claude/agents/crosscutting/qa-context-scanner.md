@@ -1,6 +1,6 @@
 ---
 name: qa-context-scanner
-description: Runs first every cycle. Read-only scan of the target project. Detects framework, package manager, monorepo layout, JSX/TSX ratio, existing tests, CI provider, API surface, env var names, Supabase usage, and app list. Writes target-profile.json. Emits target.profiled and target.changed events. Never modifies target code.
+description: Runs first every cycle. Read-only scan of the target project. Detects framework, package manager, monorepo layout, JSX/TSX ratio, existing tests, CI provider, API surface, env var names, Supabase usage, app list, personal data and email flows. Writes target-profile.json. Emits target.profiled and target.changed events. Never modifies target code.
 modelTier: read-only
 model: claude-haiku-4-5-20251001
 tools: [Read, Write, Bash]
@@ -21,17 +21,17 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 
 ## Scanning Checklist
 
-1. **Package manager.** Detect from lockfile: `pnpm-lock.yaml` → pnpm, `package-lock.json` → npm, `yarn.lock` → yarn, `bun.lockb` → bun. Record `packageManager`. When there is no lockfile and a `package.json` exists, write `"npm"` and append a `scan.warning` event that names the missing lockfile.
-2. **Framework.** Read root `package.json` dependencies: `next` → nextjs; `vite` + `react` → vite-react. Record `framework.name` and `framework.version` (null when not found). Detect the Next.js router type: record `framework.appRouter` as `true` (App Router: `app/` dir exists), `false` (Pages Router: `pages/` dir) or `null` when the target is not Next.js.
+1. **Package manager.** Detect from lockfile: `pnpm-lock.yaml` → pnpm, `package-lock.json` → npm, `yarn.lock` → yarn, `bun.lockb` → bun. Record `packageManager`. When there is no lockfile and a `package.json` exists, write `"npm"` and append a `scan.warning` event with `path` (`package.json`) and `reason` (`no lockfile; packageManager recorded as npm`).
+2. **Framework.** Read root `package.json` dependencies: `next` → nextjs; `vite` + `react` → vite-react. Record `framework.name` (`"unknown"` when the target is neither nextjs nor vite-react) and `framework.version` (null when not found). Detect the Next.js router type: record `framework.appRouter` as `true` (App Router: `app/` dir exists), `false` (Pages Router: `pages/` dir) or `null` when the target is not Next.js.
 3. **Language mix.** Count `.tsx` and `.jsx` files under `apps/`, `src/`, `packages/`. Record `language.typescript` (a `tsconfig.json` or any `.ts`/`.tsx` file exists), `language.tsxFiles`, `language.jsxFiles` and `language.hasMixedJsxTsx`.
 4. **Monorepo.** Detect `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`. Record `monorepo.tool` and `monorepo.workspaces[]` (nested under `monorepo`, never a flat top-level field). When there is no monorepo, `monorepo.tool` is `"none"` and `monorepo.workspaces` is empty.
-5. **Apps list.** For pnpm monorepos: read `pnpm-workspace.yaml` and enumerate actual `apps/*` directories. Record `apps[]`, one entry per app: `name`, `path`, `framework` (vite-react-ts / vite-react-jsx / nextjs-app / nextjs-pages) and `language`, exactly one of `ts`, `tsx` or `jsx`.
+5. **Apps list.** For pnpm monorepos: read `pnpm-workspace.yaml` and enumerate actual `apps/*` directories, one entry per app. For a single-app target (no monorepo), record one entry for the root: `name` from the root `package.json` (the directory name when it has none) and `path` `"."`. Record `apps[]`; each entry has `name`, `path`, `framework` (vite-react-ts / vite-react-jsx / nextjs-app / nextjs-pages, or `"unknown"`) and `language`, exactly one of `ts`, `tsx` or `jsx`.
 6. **Supabase detection.** Check `package.json` for `@supabase/supabase-js`. If found, read `supabase/config.toml` or `.env.example` for `SUPABASE_PROJECT_REF`. Count migration files in `supabase/migrations/` or `services/auth/migrations/`. Set `platform: "supabase"` (when Supabase is not detected, `platform` is `"generic"` and the `supabase` object is omitted) and record `supabase.projectRef` and `supabase.migrationDir` (each null when not found) and `supabase.migrationCount`.
 7. **Existing tests.** Scan for `jest.config.*`, `vitest.config.*`, `playwright.config.*`. Detect co-located vs mirror layout. Record only `existingTests.files[]` (every test file path), `frameworks[]`, `locations[]`, the total `existingTests.count` and `unitTestStyle` (colocated / tests-dir / mixed / none). The profile has no per-type breakdown; put one in your work report's evidence if it is useful.
 8. **CI provider.** Check for `.github/workflows/`, `.gitlab-ci.yml`, `circle.yml` / `.circleci/`. Record `ci.provider` as exactly one of `github-actions` (`.github/workflows/`), `gitlab-ci` (`.gitlab-ci.yml`), `circleci` (`circle.yml` or `.circleci/`) or `none`, never a display name such as "GitHub Actions", plus `ci.workflowFiles[]`.
 9. **API surface.** For Next.js: list files under `app/api/` or `pages/api/`. For Vite: check for Express/Fastify configs. Record the route paths as `apiSurface[]` (names only, not content; empty when none).
 10. **Env var names.** Read all `.env.example` files across all apps. Extract variable names (never values). Record `envVarNames[]`.
-11. **Auth detection.** Check for `next-auth`, `@supabase/auth-js`, `@auth0/*`, custom auth routes. Record `hasAuth` (`true` or `false`) and `authProvider` (null when absent).
+11. **Auth detection.** Check for these auth packages: `next-auth`, `@auth/*`, `@supabase/auth-js`, `@auth0/*`, `@clerk/*`, `firebase/auth` (or `firebase` with `getAuth`), `passport`, `lucia`, `better-auth`. `@supabase/supabase-js` or `@supabase/ssr` counts as auth when the source also has an `.auth.` call (`supabase.auth.signInWithPassword`, for example) or a login route. Custom auth routes (login, signup, session) count too. Record `hasAuth` (`true` or `false`) and `authProvider` (null when absent).
 12. **Roles.** If Supabase: read `supabase/migrations/` for role INSERT statements or `aegis.config.json.target.supabase.rolesToTest[]`. Record `roles[]` (empty when no roles are found or the target is not Supabase).
 13. **Node version.** Read `.nvmrc`, `.node-version`, or `engines.node` from root `package.json`. Record `nodeVersion` (null when absent).
 14. **Real-time features.** Detect `socket.io`, `@supabase/realtime`, native WebSocket usage in source files. Record `hasRealtimeFeatures`.
@@ -44,6 +44,12 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
     - `existingTestFiles[]` — already-present test files (path + type)
     Names and paths only — never file contents. This is the source-of-truth that `qa-requirements-analyst` and `qa-test-designer` cross-reference to flag requirements with no matching implementation.
 17. **Single-target detection.** Count nested `playwright.config.*` files under `targetProjectRoot` and check for a `package.json` at the resolved root. If more than one nested `playwright.config.*` is found, OR no `package.json` exists at the root, the target is a multi-project parent, not a single app repo. Record the result as `targetIsSingleProject: boolean`. The Scan phase cannot complete unless it is `true`: the orchestrator's phase completion runs the preflight check and blocks the run otherwise.
+18. **Personal data.** Record `hasPersonalData` (`true` or `false`) and `personalDataSignals[]`, the evidence: each signal is `"<file>:<field-or-dependency>"` or `"hasAuth"`. `hasPersonalData` is `true` when any of these holds:
+    - `hasAuth` is `true`, because accounts hold at least an email or a username (signal `"hasAuth"`);
+    - a field name in scope matches a personal-data term. Scope: names only (never row or seed values) found in `supabase/migrations/**`, `prisma/schema.prisma`, drizzle schema files, `models/**`, form fields (`<input name=…>`, `register("…")`, `name="…"` in `.tsx` and `.jsx`), zod schemas and API handler request bodies. Terms: `email`, `phone`, `telephone`, `tel`, `mobile`, `name`, `username`, `surname`, `first_name`, `last_name`, `full_name`, `given_name`, `family_name`, `address`, `street`, `city`, `zip`, `postcode`, `postal`, `dob`, `date_of_birth`, `birth`, `nric`, `fin`, `passport`, `national_id`, `tax_id`, `ssn`, `gender`, `password` and `ip_address`. Match by token: split the field name on separators (`_`, `-`, `.`, space) and at camelCase boundaries, then lowercase; the name matches when any token equals a single-word term, or consecutive tokens equal a multi-word term. Plurals count: a token equal to a term followed by `s` or `es` also matches (`emails`, `phones`, `addresses`). `user_email`, `phoneNumber` and `postal_code` match `email`, `phone` and `postal`; `firstName`, `first-name` and `FIRST_NAME` all match `first_name`; a short term such as `fin` or `tel` must be a whole token, so `final`, `find` and `hotel` do not match;
+    - an analytics, CRM, support or monitoring dependency is present, by presence alone: `posthog-js`, `mixpanel-browser`, `@segment/analytics-next`, `@amplitude/analytics-browser`, `@hubspot/api-client`, `@vercel/analytics`, `react-ga4`, `hotjar`, `intercom` or any `@sentry/*` package.
+    When in doubt, record `true` and put what made you unsure in `personalDataSignals[]`. `hasPersonalData` is `false` only when you found no signal, and then `personalDataSignals` is empty. GDPR and PDPA run only when the profile shows personal data.
+19. **Email flows.** Record `hasEmailFlows` (`true` or `false`). It is `true` when any of these holds: the target depends on a mail library (`nodemailer`, `resend`, `@sendgrid/mail`, `@sendgrid/*`, `postmark`, `mailgun.js`, `mailgun-js`, `@react-email/*`, `@aws-sdk/client-ses`); a name matching `*EMAIL*`, `*SMTP*`, `*MAIL*`, `RESEND_*`, `SENDGRID_*`, `POSTMARK_*` or `MAILGUN_*` is in `envVarNames`; a Supabase edge function (`supabase/functions/**`) calls a mail API; or `platform` is `"supabase"` and `hasAuth` is `true` (Supabase auth sends confirmation mail). When it is `false`, the email specialist reports a no-op.
 
 ## Outputs
 
@@ -81,6 +87,9 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
   "nodeVersion": "20",
   "hasRealtimeFeatures": false,
   "hasFeatureFlags": false,
+  "hasPersonalData": true,
+  "personalDataSignals": ["hasAuth", "services/auth/migrations/0003_profiles.sql:phone"],
+  "hasEmailFlows": true,
   "sourceInventory": {
     "routes": [{ "path": "/auth/login", "file": "apps/prospect/src/routes/auth/login.tsx" }],
     "components": [{ "name": "LoginForm", "file": "apps/prospect/src/components/LoginForm.tsx" }],
@@ -103,7 +112,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
 - Never read secret values — only variable names from `.env.example` files
 - `sourceInventory` records names and paths only — never file contents
 - Scan must complete in < 30 seconds (bash find + read, no heavy processing)
-- If scanning fails on a path, log `scan.warning` event and continue (no crash)
+- If scanning fails on a path, append `scan.warning` with that `path` and the `reason`, and continue (no crash)
 
 ## Task Protocol
 
@@ -120,6 +129,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-context-scanner
 - `target.profiled` — always, includes `appCount`, `framework`, `packageManager` and `platform` (the event `ts` is the scan time)
 - `target.changed` — when profile differs from previous, includes `changedFields[]`
 - `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }` (informational; the phase advances through the orchestrator's phase barrier)
+- `scan.warning` — `{ path, reason }`, both required: a path the scan could not read, or the missing lockfile (checklist step 1); the scan continues
 
 ## Contract (machine-checked)
 

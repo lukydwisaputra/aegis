@@ -13,7 +13,6 @@ export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Re
   fs.writeFileSync(
     path.join(root, 'aegis.config.json'),
     JSON.stringify({
-      profile: 'full',
       parallelism: { maxSpecialists: opts.maxSpecialists ?? 2 },
       environments: opts.environments ?? {
         development: { url: 'http://localhost:5173', mutating: true },

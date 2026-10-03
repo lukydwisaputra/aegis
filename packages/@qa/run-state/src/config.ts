@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
+import { COMPLIANCE_REGULATIONS, isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
 
 export interface AegisSettings {
-  profile: "full" | "lite";
   maxSpecialists: number;
   environments: string[];
   /** Environments with `readOnly: true` or `mutating: false`. */
@@ -12,7 +11,6 @@ export interface AegisSettings {
 }
 
 interface RawConfig {
-  profile?: unknown;
   parallelism?: { maxSpecialists?: unknown };
   environments?: Record<string, unknown>;
 }
@@ -29,7 +27,6 @@ export function readSettings(root: string): AegisSettings {
     throw new RunStateError("invalid-input", "aegis.config.json#parallelism.maxSpecialists must be a positive integer");
   }
   return {
-    profile: raw.profile === "lite" ? "lite" : "full",
     maxSpecialists: cap,
     environments: Object.keys(raw.environments ?? {}),
     readOnlyEnvironments: Object.entries(raw.environments ?? {})
@@ -53,6 +50,13 @@ function stringList(value: unknown, key: string): string[] {
   return value as string[];
 }
 
+/** AUD-051 (T4): Mailpit is the only supported inbox. An absent key is fine; any other value is refused. */
+export function assertMailpitAdapter(value: unknown): void {
+  if (value !== undefined && value !== "mailpit") {
+    throw new RunStateError("invalid-input", `aegis.config.json#emailAdapter must be mailpit (the only supported inbox), found ${typeof value === "string" ? value : JSON.stringify(value)}`);
+  }
+}
+
 export function readRunConfig(root: string): RunConfig {
   let raw: Record<string, unknown>;
   try {
@@ -61,9 +65,18 @@ export function readRunConfig(root: string): RunConfig {
     throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
   }
   const intake = raw["intake"];
+  // Compliance is on by default (AUD-055): an absent key means all six; only an explicit [] turns the phase off.
+  const compliance = raw["compliance"] === undefined ? [...COMPLIANCE_REGULATIONS] : stringList(raw["compliance"], "compliance");
+  // A regulation with no qa-compliance-<id> agent could never get a task, so the Compliance barrier would never pass.
+  const known = new Set<string>(COMPLIANCE_REGULATIONS);
+  const unknown = compliance.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    throw new RunStateError("invalid-input", `aegis.config.json#compliance lists unknown regulation(s) ${unknown.join(", ")}; known: ${COMPLIANCE_REGULATIONS.join(", ")}`);
+  }
+  assertMailpitAdapter(raw["emailAdapter"]);
   return {
     targetProjectRoot: typeof raw["targetProjectRoot"] === "string" ? raw["targetProjectRoot"] : "..",
-    compliance: stringList(raw["compliance"], "compliance"),
+    compliance,
     preCycleHealthCheck: raw["preCycleHealthCheck"] === true,
     intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
   };

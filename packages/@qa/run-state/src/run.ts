@@ -159,14 +159,13 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
   // CO-03: record run.created before run.json exists, so a concurrent verify finds no run (not an empty log),
   // and seed the integrity checkpoint from that first line.
   const created = await appendChained(
-    { type: "run.created", ts, runId, profile: settings.profile, environment: input.environment, modules: input.modules },
+    { type: "run.created", ts, runId, environment: input.environment, modules: input.modules },
     busPath(root, runId),
     { emittedBy: caller, runId }
   );
   const state: RunState = {
     runId,
     cycleType: input.cycleType,
-    profile: settings.profile,
     environment: input.environment,
     modules: input.modules,
     status: "created",

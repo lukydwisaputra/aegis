@@ -40,7 +40,7 @@ This handbook is the complete guide to the Aegis QA framework. Read it cover-to-
 | 5 | Twenty-eight commands cover run lifecycle, defect management, knowledge ingestion, CI/CD, dashboard, and self-improvement in six groups. |
 | 6 | One orchestrator dispatches phase managers, specialists, compliance and cross-cutting agents; every reviewed worker has an SPV, and the six compliance agents share `qa-compliance-spv`. |
 | 7 | All artefact IDs follow `TYPE-MODULE-SEQUENCE`; severity and priority are independent axes; teardown is required on every test case. |
-| 8 | Compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`; their findings are merged into the run report and do not block execution. |
+| 8 | Compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance` (GDPR and PDPA only when the target profile shows personal data); their findings are merged into the run report and do not block execution. |
 | 9 | The run report is a self-contained HTML file; the dashboard at port 3030 streams live run state via SSE. |
 | 10 | Lessons are only created from SPV feedback, not from routine successes; they take effect in the next run after `/qa-promote`. |
 | 11 | No agent writes to the target's GitHub repository or CI; the owner runs `/qa-ci-bootstrap` for the QA workflows, and merging is always a human action. |

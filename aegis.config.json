@@ -8,7 +8,6 @@
   "stack": "auto-detect",
   "packageManager": "auto-detect",
   "emailAdapter": "mailpit",
-  "profile": "full",
   "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 2 },

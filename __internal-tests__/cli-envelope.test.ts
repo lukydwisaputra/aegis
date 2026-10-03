@@ -43,6 +43,30 @@ describe('commander parse errors are JSON envelopes (CO-04)', () => {
     }
   });
 
+  it('reconfigure has no --profile option: the lite profile is deleted (AUD-053)', async () => {
+    // Inspect first: while the option exists, parsing would run the action.
+    const reconfigure = buildProgram().commands.find((c) => c.name() === 'reconfigure')!;
+    expect(reconfigure.options.map((o) => o.long)).not.toContain('--profile');
+    const err = (await parseError(['reconfigure', 'aegis', '--profile', 'full']))!;
+    expect(err.code).toBe('commander.unknownOption');
+    expect(JSON.parse(envelopeFor(err).stderr)).toEqual({ error: 'invalid-input', message: "unknown option '--profile'" });
+  });
+
+  it('init and reconfigure accept only the mailpit inbox (AUD-051, T4)', async () => {
+    // Inspect first: while gmail is accepted, parsing would run the action.
+    const program = buildProgram();
+    for (const name of ['init', 'reconfigure']) {
+      const email = program.commands.find((c) => c.name() === name)!.options.find((o) => o.long === '--email')!;
+      expect(email.argChoices).toEqual(['mailpit']);
+    }
+    for (const argv of [['init', 'x', '--email', 'gmail'], ['reconfigure', 'x', '--email', 'gmail']]) {
+      const err = (await parseError(argv))!;
+      expect(err.code).toBe('commander.invalidArgument');
+      expect(envelopeFor(err).exitCode).toBe(2);
+      expect(JSON.parse(envelopeFor(err).stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining('Allowed choices are mailpit') });
+    }
+  });
+
   it('help and version keep their own exit code and print no envelope', () => {
     expect(envelopeFor({ code: 'commander.helpDisplayed', exitCode: 0, message: '(outputHelp)' })).toEqual({ exitCode: 0, stderr: '' });
     expect(envelopeFor({ code: 'commander.version', exitCode: 0, message: '1.0.0' })).toEqual({ exitCode: 0, stderr: '' });
@@ -105,10 +129,31 @@ describe('locks (CO-04)', () => {
 (stale ? it.skip : it)('A5: init and reconfigure refuse a missing directory with the JSON envelope (exit 2), not a bare exit 1', () => {
   const missing = path.join(os.tmpdir(), `aegis-no-such-dir-${process.pid}`);
   const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { cwd: os.tmpdir(), encoding: 'utf-8' });
-  for (const args of [['init', missing], ['reconfigure', missing, '--profile', 'lite']]) {
+  for (const args of [['init', missing], ['reconfigure', missing, '--project-name', 'QA']]) {
     const r = run(...args);
     expect(r.status).toBe(2);
     expect(JSON.parse(r.stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining(missing) });
   }
   expect(fs.existsSync(missing)).toBe(false);
+});
+
+(stale ? it.skip : it)('reconfigure refuses a config left on another email adapter, and --email mailpit repairs it (AUD-051)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-reconf-'));
+  try {
+    const cfg = path.join(dir, 'aegis.config.json');
+    const before = JSON.stringify({ emailAdapter: 'gmail', dashboard: { projectName: 'Old' } }, null, 2) + '\n';
+    fs.writeFileSync(cfg, before);
+    const run = (...args: string[]) => spawnSync(process.execPath, [CLI, 'reconfigure', dir, ...args], { cwd: os.tmpdir(), encoding: 'utf-8' });
+    const refused = run('--project-name', 'QA');
+    expect(refused.status).toBe(2);
+    expect(JSON.parse(refused.stderr)).toEqual({
+      error: 'invalid-input',
+      message: 'aegis.config.json#emailAdapter must be mailpit (the only supported inbox), found gmail',
+    });
+    expect(fs.readFileSync(cfg, 'utf-8')).toBe(before);
+    expect(run('--email', 'mailpit').status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(cfg, 'utf-8'))).toMatchObject({ emailAdapter: 'mailpit' });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

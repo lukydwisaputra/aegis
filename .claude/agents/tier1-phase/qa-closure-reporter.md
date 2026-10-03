@@ -70,7 +70,7 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 ## Process
 
-1. **Read context.** Load all input files and your lessons.md. Check that all compliance reports exist if compliance was in scope — if a compliance report is missing, flag it as a closure gap, not a pass.
+1. **Read context.** Load all input files and your lessons.md. Expect one compliance report per relevant regulation: the regulations in `aegis.config.json#compliance` (all six when the key is absent), minus gdpr and pdpa when `aegis run status` shows `phases.scan.personalData: false`. A missing report for a relevant regulation is a closure gap, not a pass. When gdpr and pdpa were dropped, the closure report states: "GDPR and PDPA were not assessed: no personal data was detected in the application."
 
 2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If any required metric file is missing, emit `blocking.dependency` (with the missing filename) and wait — never silently recompute or fabricate a metric.
 
@@ -161,8 +161,8 @@ emits:
   - {event: closure.report-drafted, via: append}
   - {event: blocking.dependency, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, run.status]
 runs: []
 dispatches: []
-config: []
+config: [aegis.config.json#compliance]
 ```

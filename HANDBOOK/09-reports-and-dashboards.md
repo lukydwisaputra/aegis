@@ -35,7 +35,7 @@ runs/{runId}/reports/
 
 The closure artefact (`closure.md` + `closure.json`) is the developer-facing summary, owned by `qa-closure-reporter`. It contains:
 
-1. **Run metadata** — run ID, date, environment, profile, agent count
+1. **Run metadata** — run ID, date, environment, agent count
 2. **Coverage summary** — cases planned vs executed, pass/fail/blocked/not-run counts
 3. **Test results by type** — unit / API / UI / security / accessibility / performance / email
 4. **Defect list** — all defects with severity, priority, status, and linked test cases
@@ -105,7 +105,7 @@ The event stream at `http://localhost:3031/events` emits Server-Sent Events for 
 Event types (partial list):
 
 ```
-run.started          { runId, profile, environment }
+run.started          { runId, environment }
 phase.started        { runId, phase, phaseName }
 task.claimed         { runId, taskId, agentName }
 task.completed       { runId, taskId, agentName, score }
@@ -136,7 +136,6 @@ The closure artefact for `RUN-20260523-001` showed:
 Run:        RUN-20260523-001
 Date:       2026-05-23
 Environment: testing
-Profile:    full
 Duration:   34 minutes
 
 Coverage:

@@ -31,7 +31,7 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 - `reports/closure.json` — pass/fail counts, coverage, open/closed defects, token cost
 - `defects/*.json` — full defect list (id, title, severity, status)
 - `rtm.json` — coverage % derived from this
-- `reports/compliance/*.json` — six per-regulation gap reports (compliance section)
+- `reports/compliance/*.json` — one gap report per relevant regulation (compliance section)
 - `plan.json` — scope and project name (project name also from `aegis.config.json#dashboard.projectName`)
 - `reports/metrics/cycle.json` — token cost in USD
 - `evidence/screenshots/` (optional) — base64-encoded PNG evidence for defects
@@ -70,7 +70,7 @@ node aegis/.claude/skills/_qa-report-technical-pdf/run.mjs --run=$RUN_ID
 - Output file exists and is >10 KB
 - No internal agent names ("qa-orchestrator", "qa-test-executor", etc.) anywhere in the rendered text
 - The literal word "Aegis" does not appear (brand-clean rule)
-- All six compliance sections present if compliance phase ran; gracefully omitted if not
+- One compliance section per report in `reports/compliance/`; omitted when the Compliance phase was not-applicable
 
 ## Example
 

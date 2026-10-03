@@ -55,12 +55,12 @@ it('AH-11: a tier-table row with no agent directory (the retired DevOps tier) pr
   t.cleanup();
 });
 
-it('AH-11: a lite-profile agent count is a subset claim, not the total', () => {
+it('AH-11: with the lite profile deleted (AUD-053), a "lite" count is a total claim like any other', () => {
   const t = makeRepo({
     agents: { 'qa-o': { dir: 'orchestrator', contract: null } },
-    docs: { 'HANDBOOK.md': 'Lite mode drops to 14 agents.\nFull has 12 agents; `full` (13 agents) or `lite`.\nUnlike the lite profile, all 70 agents run; an elite team of 15 agents.\n' },
+    docs: { 'HANDBOOK.md': 'Lite mode drops to 14 agents.\nFull has 12 agents; an elite team of 15 agents.\n' },
   });
-  expect(keys(countRule(loadModel(t.root)))).toEqual(['DOC-REF:HANDBOOK.md:12 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:13 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:15 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:70 agents:count-mismatch']);
+  expect(keys(countRule(loadModel(t.root)))).toEqual(['DOC-REF:HANDBOOK.md:12 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:14 agents:count-mismatch', 'DOC-REF:HANDBOOK.md:15 agents:count-mismatch']);
   t.cleanup();
 });
 

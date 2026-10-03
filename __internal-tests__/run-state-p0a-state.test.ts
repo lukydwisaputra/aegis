@@ -24,7 +24,7 @@ const types = (runId: string) => readLines(busPath(t.root, runId)).map((l) => JS
 const forbidden = expect.objectContaining({ code: 'caller-forbidden' });
 
 it('run.json is strict with an enum currentPhase; a run starts with its phases initialised (CO-06)', async () => {
-  const base = { runId: 'RUN-20260930-001', cycleType: 'full', profile: 'full', environment: 'development', status: 'created', createdAt: TS, updatedAt: TS };
+  const base = { runId: 'RUN-20260930-001', cycleType: 'full', environment: 'development', status: 'created', createdAt: TS, updatedAt: TS };
   expect(RunStateSchema.safeParse(base).success).toBe(true);
   expect(RunStateSchema.safeParse({ ...base, blockedReason: 'x' }).success).toBe(false);
   expect(RunStateSchema.safeParse({ ...base, currentPhase: 'discovery' }).success).toBe(false);

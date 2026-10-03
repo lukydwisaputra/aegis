@@ -19,6 +19,9 @@ export const PhaseRecordSchema = z
     reason: z.string().min(1).optional(),
     // Scan only: target-profile.json#existingTests.files.length when Scan completed; dev-test-review's not-applicable reads this snapshot.
     existingTestsCount: z.number().int().nonnegative().optional(),
+    // Scan only: whether target-profile.json showed personal data when Scan completed; compliance relevance reads this
+    // snapshot (AUD-055). Absent on runs scanned before P2b, which counts as true.
+    personalData: z.boolean().optional(),
   })
   .strict();
 
@@ -37,7 +40,9 @@ export const RunStateSchema = z
   .object({
     runId: RunIdSchema,
     cycleType: CycleTypeSchema,
-    profile: z.enum(["full", "lite"]),
+    // AUD-053: only the full profile remains. run.json files written before P2b carry "full"; new runs omit the field.
+    // Compatibility shim: tolerated only so pre-P2b run.json parses; droppable once no supported run predates P2b.
+    profile: z.literal("full").optional(),
     environment: z.string().min(1),
     modules: z.array(z.string()).default([]),
     status: RunStatusSchema,

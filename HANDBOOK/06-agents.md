@@ -96,7 +96,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-closure-reporter-spv` | Closure artefact | 85 |
 | `qa-executive-reporter-spv` | Executive PDFs | 85 |
 | `qa-test-executor-spv` | Test result fidelity | 88 |
-| `qa-compliance-spv` | All six compliance reports (shared reviewer) | n/a (categorical verdict) |
+| `qa-compliance-spv` | Every compliance report (shared reviewer) | n/a (categorical verdict) |
 
 SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict.
 
@@ -104,7 +104,7 @@ SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegi
 
 ### 6.7 Compliance Agents
 
-The compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`. Each produces a compliance annotation file, and `qa-compliance-spv` reviews each one.
+The compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance` (default all six). GDPR and PDPA run only when the target profile shows personal data. The phase is not-applicable when no listed regulation applies. Each produces a compliance annotation file, and `qa-compliance-spv` reviews each one.
 
 | Agent | Regulation | Output |
 |---|---|---|

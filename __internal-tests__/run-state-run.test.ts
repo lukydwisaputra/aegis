@@ -31,8 +31,14 @@ describe('createRun', () => {
     expect(fs.existsSync(taskmasterDir(t.root, run.runId))).toBe(true);
     expect(readActiveRun(t.root)).toBe(run.runId);
     expect(events(run.runId)).toEqual([
-      expect.objectContaining({ seq: 1, type: 'run.created', emittedBy: 'owner', runId: run.runId, profile: 'full', environment: 'development' }),
+      expect.objectContaining({ seq: 1, type: 'run.created', emittedBy: 'owner', runId: run.runId, environment: 'development' }),
     ]);
+  });
+
+  it('records no profile in run.json or run.created (AUD-053)', async () => {
+    const run = await create();
+    expect(readRun(t.root, run.runId)).not.toHaveProperty('profile');
+    expect(events(run.runId)[0]).not.toHaveProperty('profile');
   });
 
   it('numbers runs created on the same day sequentially', async () => {
