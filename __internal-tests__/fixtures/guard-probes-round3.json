@@ -317,7 +317,11 @@
   "ctx": "real",
   "agent": "qa-environment-engineer",
   "arg": "cd $T/tests/qa && pnpm install && npx playwright install --with-deps chromium",
-  "expect": "allow"
+  "expect": "allow",
+  "override": {
+   "expect": "deny",
+   "reason": "final wave I1: pnpm install inside the target is denied for qa-* agents (no agent prose installs into tests/qa); npx playwright install on its own stays allowed"
+  }
  },
  {
   "source": "t8r2-probes.json",

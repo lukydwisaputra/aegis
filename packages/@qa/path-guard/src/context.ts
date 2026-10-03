@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { PhaseIdSchema, type EnvironmentSpecialistConfig, type PhaseId } from "@qa/contracts";
@@ -15,10 +15,15 @@ export interface GuardContext extends RolePaths {
   /** Set when runs/.active names a run whose run.json cannot be read or parsed: qa-* writes are then denied (fail closed, m6). */
   runStateUnreadable?: true;
   /**
-   * The /qa-push-reports collector repo (aegis.config.json#collector.path, default as that skill documents): a named
-   * target-source exception for the main thread only (Task 9 ruling 2).
+   * The /qa-push-reports collector repo (aegis.config.json#collector.path): a named target-source exception for the
+   * main thread only (Task 9 ruling 2). Unset when the config names none (M3): there is then no exception.
    */
   collectorRoot?: string;
+  /**
+   * A13: the directories directly in {aegisRoot}/.claude/worktrees/ (native isolation: "worktree" checkouts). A loose
+   * file there is not a worktree. Unset (a hand-built context): every entry there counts as a worktree.
+   */
+  nativeWorktrees?: string[];
 }
 
 interface RawConfig {
@@ -27,9 +32,6 @@ interface RawConfig {
   environments?: Record<string, EnvironmentSpecialistConfig>;
   collector?: { path?: unknown };
 }
-
-/** The collector default that /qa-push-reports documents when aegis.config.json#collector.path is absent. */
-export const DEFAULT_COLLECTOR_PATH = "/Users/lukydwisaputra/Desktop/QA/testing-reports";
 
 const RUN_ID = /^RUN-\d{8}-\d{3}$/;
 
@@ -115,8 +117,30 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
     currentPhase,
     envPolicy: environment === null ? undefined : config.environments?.[environment],
     tempDirs: [...new Set(["/tmp", "/private/tmp", resolve(tmpdir())])],
-    // Resolved as /qa-push-reports resolves it: aegis.config.json#collector.path, else the documented default.
-    collectorRoot: resolve(root, typeof config.collector?.path === "string" ? config.collector.path : DEFAULT_COLLECTOR_PATH),
+    // M3: only a configured collector is an exception; without aegis.config.json#collector.path there is none.
+    ...(typeof config.collector?.path === "string" ? { collectorRoot: resolve(root, config.collector.path) } : {}),
+    nativeWorktrees: nativeWorktrees(root),
     ...(runStateUnreadable ? { runStateUnreadable: true as const } : {}),
   };
+}
+
+/** A13: the directories directly in .claude/worktrees/ (the native worktrees); files there are left out. */
+function nativeWorktrees(root: string): string[] {
+  const dir = join(root, ".claude", "worktrees");
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() || (e.isSymbolicLink() && isDirectory(join(dir, e.name))))
+      .map((e) => join(dir, e.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+function isDirectory(p: string): boolean {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
 }

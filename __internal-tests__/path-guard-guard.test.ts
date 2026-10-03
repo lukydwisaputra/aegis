@@ -127,7 +127,7 @@ describe('decide: H1 rules (spec §4.2)', () => {
   });
 
   it('returns the task ids an agent claims, for the hook ledger', () => {
-    expect(decide(bash('AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task=T-execution-3', 'qa-ui-specialist'), ctx, deps)).toEqual({ allow: true, claims: ['T-execution-3'], warnings: [] });
+    expect(decide(bash('AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task=T-execution-3', 'qa-ui-specialist'), ctx, deps)).toEqual({ allow: true, claims: [{ taskId: 'T-execution-3', runId: null }], warnings: [] });
   });
 
   it('carry (a): refuses a write it cannot resolve to an absolute path', () => {

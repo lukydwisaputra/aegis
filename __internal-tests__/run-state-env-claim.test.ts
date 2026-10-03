@@ -63,5 +63,28 @@ it('a corrupt aegis.config.json fails closed on claim (m2)', async () => {
   enterPhase('planning');
   await addTask(t.root, runId, { id: 'T-planning-2', title: 'plan', agent: 'qa-test-planner' }, 'qa-orchestrator');
   fs.writeFileSync(path.join(t.root, 'aegis.config.json'), '{ not json');
-  await expect(claimTask(t.root, runId, 'T-planning-2', 'qa-test-planner')).rejects.toThrow();
+  // M-c: the refusal is an invalid-input envelope that names the file, not a crash.
+  await expect(claimTask(t.root, runId, 'T-planning-2', 'qa-test-planner')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/aegis\.config\.json/) });
+});
+
+it('a task without a phase tag is judged in the run\'s current phase (M-d: the currentPhase fallback)', async () => {
+  enterPhase('env-data');
+  await addTask(t.root, runId, { id: 'T-envdata-2', title: 'seed data', agent: 'qa-environment-engineer' }, 'qa-orchestrator');
+  const file = path.join(taskmasterDir(t.root, runId), 'tasks', 'T-envdata-2.json');
+  const task = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete task.phase;
+  fs.writeFileSync(file, JSON.stringify(task));
+  makeDevelopmentReadOnly();
+  await expect(claimTask(t.root, runId, 'T-envdata-2', 'qa-environment-engineer')).rejects.toMatchObject({ code: 'env-blocked' });
+});
+
+it('an untagged task in env-auth claims on a read-only environment: the fallback phase, not "unknown = mutating" (M-d)', async () => {
+  enterPhase('env-auth');
+  await addTask(t.root, runId, { id: 'T-envauth-2', title: 'log in per role', agent: 'qa-environment-engineer' }, 'qa-orchestrator');
+  const file = path.join(taskmasterDir(t.root, runId), 'tasks', 'T-envauth-2.json');
+  const task = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete task.phase;
+  fs.writeFileSync(file, JSON.stringify(task));
+  makeDevelopmentReadOnly();
+  await expect(claimTask(t.root, runId, 'T-envauth-2', 'qa-environment-engineer')).resolves.toMatchObject({ status: 'in-progress' });
 });

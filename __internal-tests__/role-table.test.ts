@@ -78,16 +78,24 @@ describe('role table (spec §4.2: one declarative table)', () => {
     }
   });
 
-  it('every contract write of an agent lies inside its role globs', () => {
+  it('every contract write of an agent is writable for it through roleWritable (writes and excludes, M-b)', () => {
+    const paths = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261002-001' };
+    const absolute = (s: string): string =>
+      s.startsWith('{run}/') ? `${paths.runDir}/${s.slice(6)}`
+        : s.startsWith('{testsDir}/') ? `${paths.testsDir}/${s.slice(11)}`
+          : s.startsWith('{target}/') ? `${paths.targetRoot}/${s.slice(9)}`
+            : `${paths.aegisRoot}/${s}`;
     const misses: string[] = [];
     for (const [agent, file] of agentFiles()) {
       if (RETIRING.has(agent)) continue;
-      const globs = roleOf(agent)!.writes;
       for (const w of contractWrites(file)) {
-        for (const s of expandBraces(w).map(sample)) if (!globs.some((g) => matchGlob(g, s))) misses.push(`${agent}: ${w}`);
+        for (const s of expandBraces(w).map(sample)) if (!roleWritable(agent, absolute(s), paths)) misses.push(`${agent}: ${w}`);
       }
     }
     expect(misses).toEqual([]);
+    // The excludes are live in this check: the designer's contract never names a specialist's result file.
+    expect(roleWritable('qa-test-designer', `${paths.runDir}/cases/TC-x1-result.json`, paths)).toBe(false);
+    expect(roleWritable('qa-test-designer', `${paths.runDir}/cases/TC-x1.json`, paths)).toBe(true);
   });
 });
 
@@ -155,6 +163,14 @@ describe('glob matching and path resolution', () => {
     expect(roleWritable('qa-ui-specialist', 'tests/qa/specs/login.spec.ts', paths)).toBe(false);
     expect(roleWritable('qa-ui-specialist', '/r/tests/qa//specs/login.spec.ts', paths)).toBe(false);
     expect(roleWritable('qa-ui-specialist', '/r/tests/qa/specs/./login.spec.ts', paths)).toBe(false);
+  });
+
+  it('refuses a path with a trailing slash (M-a): a write target is a file, never a directory spelling', () => {
+    const RUN = paths.runDir;
+    expect(roleWritable('qa-test-planner', `${RUN}/plan.json`, paths)).toBe(true);
+    expect(roleWritable('qa-test-planner', `${RUN}/plan.json/`, paths)).toBe(false);
+    expect(roleWritable('qa-test-executor', `${RUN}/evidence/TC-x1/`, paths)).toBe(false);
+    expect(roleWritable('qa-ui-specialist', '/r/tests/qa/specs/', paths)).toBe(false);
   });
 
   it('excludes beat writes, and evidence trees are per kind (I2)', () => {

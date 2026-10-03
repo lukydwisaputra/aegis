@@ -2,7 +2,7 @@
 // H1 guard-writes (P0 spec §4.2): PreToolUse on Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task.
 // The hook payload arrives as JSON on stdin. Exit 2 with the reason on stderr denies the call; a warning goes to stdout
 // as {"systemMessage": …} with exit 0 (never a permissionDecision: the normal permission flow still applies).
-import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -70,24 +70,42 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RAW_ROOT = process.env.AEGIS_ROOT ? resolve(process.env.AEGIS_ROOT) : REPO;
 const ROOT = canonical(RAW_ROOT);
 const RUNS = join(ROOT, "runs");
-const PACKAGES_FIX = "run pnpm install, whose prepare script builds the CLI and the hook packages";
+const PACKAGES_FIX = "run pnpm build (or pnpm install without --ignore-scripts, whose prepare script builds the CLI and the hook packages)";
 
 const oneLine = (e) => String(e && e.message ? e.message : e).split("\n")[0];
 const within = (dir, p) => {
   const rel = relative(dir, p);
   return rel === "" || (rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel));
 };
-/** B4: {root}/.claude/worktrees/<name>/ is a separate checkout (native isolation: "worktree"). */
+/**
+ * B4: {root}/.claude/worktrees/<name>/ is a separate checkout (native isolation: "worktree"). A13: <name> itself counts
+ * only when it is a directory; a loose file directly in .claude/worktrees/ is in this checkout.
+ */
 const inCheckout = (p) => {
   const wt = relative(join(ROOT, ".claude", "worktrees"), p);
-  return within(ROOT, p) && !(wt !== "" && wt !== ".." && !wt.startsWith("../") && !isAbsolute(wt));
+  const underWorktrees = wt !== "" && wt !== ".." && !wt.startsWith("../") && !isAbsolute(wt);
+  const worktree = underWorktrees && (wt.includes("/") || isDir(p));
+  return within(ROOT, p) && !worktree;
 };
+const isDir = (p) => {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
+/** A13: any non-empty agent_id marks a subagent, a non-string one included. */
+const isSubagentId = (id) => id !== undefined && id !== null && id !== false && id !== "";
 
-/** m4: a Bash command without heredoc bodies and without quoted text that holds whitespace (messages, not paths). */
+/**
+ * m4: a Bash command without heredoc bodies and without quoted text that holds whitespace (messages, not paths).
+ * A12: a quoted string that starts with runs/ or ./runs, or holds /runs/, is a path and is kept.
+ */
 function stripQuoted(cmd) {
   const noHeredocs = cmd.replace(/(<<-?[ \t]*(['"]?)([A-Za-z_][\w-]*)\2)([^\n]*)\n[\s\S]*?\n[ \t]*\3[ \t]*(?=\n|$)/g, "$4");
   return noHeredocs.replace(/'([^']*)'|"((?:[^"\\]|\\.)*)"/g, (_m, a, b) => {
     const v = a ?? b;
+    if (/^(\.\/)?runs(\/|$)/.test(v) || v.includes("/runs/")) return v;
     return /\s/.test(v) ? " " : v;
   });
 }
@@ -115,7 +133,8 @@ function namedPaths(ti) {
 function mainRule(what, fix, cwd) {
   const ti = input !== null && typeof input === "object" ? input.tool_input : null;
   const { fields, command } = pathTexts(ti);
-  const relRuns = /(^|[\s=/])runs(\/|[\s;&|)]|$)/;
+  // A12: a redirect operator (<, >) right before runs/ names it too.
+  const relRuns = /(^|[\s=/<>])runs(\/|[\s;&|)]|$)/;
   const namesRuns =
     namedPaths(ti).some((p) => within(RUNS, p)) ||
     fields.some((f) => !isAbsolute(f) && relRuns.test(f)) ||
@@ -149,9 +168,10 @@ if (input === null || typeof input !== "object" || Array.isArray(input)) {
 }
 
 // B4: agent_id is the subagent signal. Without it the call is the main thread's (a `--agent` session sets only
-// agent_type); with it but no usable agent_type, it is a non-qa subagent of unknown type.
-const agentId = typeof input.agent_id === "string" && input.agent_id !== "" ? input.agent_id : null;
-const isSubagent = agentId !== null;
+// agent_type); with it but no usable agent_type, it is a non-qa subagent of unknown type. A13: any non-empty agent_id
+// counts, a non-string one included (recorded in the ledger as its JSON text).
+const isSubagent = isSubagentId(input.agent_id);
+const agentId = !isSubagent ? null : typeof input.agent_id === "string" ? input.agent_id : JSON.stringify(input.agent_id);
 const agentType = !isSubagent ? null : typeof input.agent_type === "string" && input.agent_type !== "" ? input.agent_type : "unknown-subagent";
 const isQa = isSubagent && /^qa-[a-z0-9-]+$/.test(agentType);
 const cwd = typeof input.cwd === "string" && isAbsolute(input.cwd) ? canonical(input.cwd) : null;
@@ -186,7 +206,7 @@ try {
   pg = await import(pathToFileURL(join(REPO, "packages/@qa/path-guard/dist/index.js")).href);
   caller = await import(pathToFileURL(join(REPO, "packages/@qa/run-state/dist/caller.js")).href);
 } catch (e) {
-  // Without the build the legacy list cannot be read either, so legacy writes are denied too until pnpm install.
+  // Without the build the legacy list cannot be read either, so legacy writes are denied too until pnpm build.
   failClosed(`enforcement unavailable (${oneLine(e)})`, PACKAGES_FIX);
 }
 
@@ -199,6 +219,7 @@ try {
     testsDir: canonical(loaded.testsDir),
     tempDirs: [...new Set(loaded.tempDirs.map(canonical))],
     ...(loaded.collectorRoot !== undefined ? { collectorRoot: canonical(loaded.collectorRoot) } : {}),
+    ...(Array.isArray(loaded.nativeWorktrees) ? { nativeWorktrees: loaded.nativeWorktrees.map(canonical) } : {}),
   };
   const result = pg.decide(payload, ctx, {
     cliAllowed(who, command) {
@@ -215,9 +236,11 @@ try {
   });
   if (!result.allow) deny(result.reason);
   const ts = new Date().toISOString();
-  if (isSubagent && ctx.activeRunId !== null) {
-    for (const taskId of result.claims) {
-      pg.appendLedger(ROOT, ctx.activeRunId, { ts, agentId, agentType, kind: "claim", taskId });
+  // M2: a claim goes to the ledger of the run its --run names (when that run resolves), else of the active run.
+  if (isSubagent) {
+    for (const { taskId, runId: named } of result.claims) {
+      const runId = named === null ? ctx.activeRunId : /^RUN-\d{8}-\d{3}$/.test(named) && existsSync(join(RUNS, named, "run.json")) ? named : null;
+      if (runId !== null) pg.appendLedger(ROOT, runId, { ts, agentId, agentType, kind: "claim", taskId });
     }
   }
   // Decision 24: a legacy skill's main-thread run write is allowed, but logged and announced.

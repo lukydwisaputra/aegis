@@ -468,7 +468,8 @@
   "arg": "cd /repo/tests/qa && pnpm install",
   "agent": "qa-environment-engineer",
   "cwd": "/repo/aegis",
-  "allow": true
+  "allow": false,
+  "ruling": "final wave I1: package-manager mutations inside the target are denied for qa-* agents; no agent prose installs into tests/qa, and agents never write a manifest there (probe expected allow)"
  },
  {
   "source": "new.json",
@@ -567,7 +568,8 @@
   "arg": "cd /repo/tests/qa && pnpm add -D @playwright/test",
   "agent": "qa-environment-engineer",
   "cwd": "/repo/aegis",
-  "allow": true
+  "allow": false,
+  "ruling": "final wave I1: package-manager mutations inside the target are denied for qa-* agents; no agent prose installs into tests/qa, and agents never write a manifest there (probe expected allow)"
  },
  {
   "source": "new.json",

@@ -173,7 +173,9 @@ export function roleWritable(agent: string, absPath: string, paths: RolePaths): 
   const role = roleOf(agent);
   if (role === undefined) return false;
   // Globs match text, so a path that is not already canonical (`a/../b`, `//`, relative) could walk out of its glob.
+  // M-a: a trailing slash spells a directory, never a file a role writes; it is refused too.
   if (!isAbsolute(absPath) || posix.normalize(absPath) !== absPath || absPath.split("/").includes("..")) return false;
+  if (absPath.length > 1 && absPath.endsWith("/")) return false;
   // No role glob reaches a CLI-only file, whatever it covers (rule c).
   if (isCliOnlyRunPath(paths.aegisRoot, absPath)) return false;
   const covers = (g: string): boolean => {

@@ -113,4 +113,20 @@ describe('bashWriteTargets: pinned forms and robustness', () => {
       expect(() => bashWriteTargets(s, CWD, '/h')).not.toThrow();
     }
   });
+
+  it("never throws on the wider alphabet (A11: $', $(, <<, <<-, braces, \\x, pushd/popd, git, export/declare, --, -C)", () => {
+    const odd = ["$'", "$'\\x", "$'\\x4", "$'\\x41'", '$(', '$( )', '<<-', '<<-EOF\n\tx\n\tEOF', '{a,b}', '{1..3}', '{', '}', '\\x', 'pushd', 'popd', 'pushd -n x', 'git -C', 'git -C x checkout --', 'export', 'declare -x', '--', '-C', 'cd -- --'];
+    for (const s of odd) expect(() => bashWriteTargets(s, CWD, '/h')).not.toThrow();
+    let seed = 11;
+    const rnd = (): number => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const alphabet = [
+      "$'", '$(', '<<', '<<-', '{', '}', ',', '..', '\\x', '\\x41', '\\n', 'pushd ', 'popd', 'git ', 'checkout ', 'rm ', '-C ', '--', ' -- ',
+      'export ', 'declare ', 'A=', 'x', '/', 'runs/', ' ', '\n', ';', '|', '&', '>', "'", '"', ')', 'EOF', 'bash -c ', 'cd ',
+    ];
+    for (let n = 0; n < 3000; n++) {
+      let s = '';
+      for (let k = Math.floor(rnd() * 30); k > 0; k--) s += alphabet[Math.floor(rnd() * alphabet.length)];
+      expect(() => bashWriteTargets(s, CWD, '/h')).not.toThrow();
+    }
+  });
 });

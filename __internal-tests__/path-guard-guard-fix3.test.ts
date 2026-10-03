@@ -45,9 +45,9 @@ const inputOf = (p: Probe): HookToolInput => {
 };
 
 describe("the reviewer's round-3 probes", () => {
-  it('has all 157 rows, 4 of them with a recorded override', () => {
+  it('has all 157 rows, 5 of them with a recorded override (Q05: final wave I1)', () => {
     expect(PROBES).toHaveLength(157);
-    expect(PROBES.filter((p) => p.override !== undefined).map((p) => p.id.split(' ')[0])).toEqual(['Q09', 'D26', 'FD1c', 'G4']);
+    expect(PROBES.filter((p) => p.override !== undefined).map((p) => p.id.split(' ')[0])).toEqual(['Q05', 'Q09', 'D26', 'FD1c', 'G4']);
   });
   it.each(PROBES.map((p) => [`${p.source} ${p.id}`, p] as const))('%s', (_label, p) => {
     const want = (p.override?.expect ?? p.expect) === 'allow';

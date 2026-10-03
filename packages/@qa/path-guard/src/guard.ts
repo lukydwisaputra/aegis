@@ -10,7 +10,14 @@ export interface HookToolInput {
   tool_input?: Record<string, unknown>;
   cwd?: string;
   agent_type?: string;
-  agent_id?: string;
+  /** A13: any non-empty value (a string, or a non-string the harness might send) marks a subagent call. */
+  agent_id?: unknown;
+}
+
+/** M2: a task an agent claims, and the run its `--run` names (null: the active run). */
+export interface ClaimRef {
+  taskId: string;
+  runId: string | null;
 }
 
 export interface GuardDeps {
@@ -36,8 +43,8 @@ export interface LegacyWrite {
 }
 
 export type GuardResult =
-  | { allow: true; claims: string[]; warnings: LegacyWrite[] }
-  | { allow: false; reason: string; claims: string[]; warnings: LegacyWrite[] };
+  | { allow: true; claims: ClaimRef[]; warnings: LegacyWrite[] }
+  | { allow: false; reason: string; claims: ClaimRef[]; warnings: LegacyWrite[] };
 
 /** Rollup-owned files (spec §5.1). CLI-only from P0c, when `aegis rollup` writes them (decision 5); not enforced yet. */
 export const ROLLUP_OWNED_RUN_GLOBS: readonly string[] = ["execution-summary.json", "reports/metrics/**", "reports/closure/metrics.json"];
@@ -118,16 +125,21 @@ const CLI_ONLY_RUN_DIRS: readonly string[] = ["gates", "reports/work", "reports/
 type Caller = { kind: "main" } | { kind: "qa"; agent: string } | { kind: "other"; agent: string };
 type PathVerdict = { deny: string } | { warn: LegacyWrite } | null;
 
-const allow = (claims: string[] = [], warnings: LegacyWrite[] = []): GuardResult => ({ allow: true, claims, warnings });
+const allow = (claims: ClaimRef[] = [], warnings: LegacyWrite[] = []): GuardResult => ({ allow: true, claims, warnings });
 const deny = (reason: string): GuardResult => ({ allow: false, reason, claims: [], warnings: [] });
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 /**
  * B4: `agent_id` is the subagent signal. A payload with agent_type but no agent_id (a `--agent` session) is the main
- * thread; one with agent_id but no usable agent_type is a subagent of unknown type (a non-qa one).
+ * thread; one with agent_id but no usable agent_type is a subagent of unknown type (a non-qa one). A13: any non-empty
+ * agent_id counts, a non-string one included; only a missing, null, false or empty-string one is the main thread.
  */
+export function isSubagentId(id: unknown): boolean {
+  return id !== undefined && id !== null && id !== false && id !== "";
+}
+
 function callerOf(input: HookToolInput): Caller {
-  if (typeof input.agent_id !== "string" || input.agent_id === "") return { kind: "main" };
+  if (!isSubagentId(input.agent_id)) return { kind: "main" };
   const t = typeof input.agent_type === "string" && input.agent_type !== "" ? input.agent_type : "unknown-subagent";
   return QA_AGENT.test(t) ? { kind: "qa", agent: t } : { kind: "other", agent: t };
 }
@@ -135,10 +147,15 @@ function callerOf(input: HookToolInput): Caller {
 /** `v` against `base` without normalizing: `..` must be applied physically, after symlinks (I1). */
 const rawJoin = (base: string, v: string): string => (isAbsolute(v) ? v : `${base}/${v}`);
 
-/** B4: {aegisRoot}/.claude/worktrees/<name>/… is a separate checkout (native isolation: "worktree"), not this one. */
+/**
+ * B4: {aegisRoot}/.claude/worktrees/<name>/… is a separate checkout (native isolation: "worktree"), not this one.
+ * A13: `<name>` itself is a worktree only when it is a directory (ctx.nativeWorktrees); a loose file there is not.
+ */
 function inNativeWorktree(ctx: GuardContext, abs: string): boolean {
   const rel = relative(join(ctx.aegisRoot, ".claude", "worktrees"), abs);
-  return rel !== "" && rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
+  if (rel === "" || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return false;
+  if (rel.includes("/") || ctx.nativeWorktrees === undefined) return true;
+  return ctx.nativeWorktrees.includes(abs);
 }
 
 /** This checkout, as a non-qa subagent sees it: the aegis root minus the native worktrees inside it. */
@@ -281,6 +298,16 @@ function globProblem(ctx: GuardContext, pattern: string, via: string): string | 
 
 // ─── Path rules ───────────────────────────────────────────────────────────────
 
+/** The two files git tracks in runs/ (framework files, not QA artefacts). */
+const TRACKED_RUNS_FILES: readonly string[] = ["README.md", ".gitkeep"];
+/** How the main thread may change them: edit or write them, restore them with git checkout/restore, or git rm them. */
+const TRACKED_RUNS_OPS: ReadonlySet<string> = new Set(["Write", "Edit", "MultiEdit", "git", "git-rm"]);
+
+/** Final wave: the main thread edits, restores or git-rms runs/README.md or runs/.gitkeep (exactly those two paths). */
+function trackedRunsFileOp(caller: Caller, abs: string, via: string, ctx: GuardContext): boolean {
+  return caller.kind === "main" && TRACKED_RUNS_OPS.has(via) && TRACKED_RUNS_FILES.some((f) => abs === join(ctx.aegisRoot, "runs", f));
+}
+
 /**
  * One write target. `abs` is absolute and normalized (decide() refuses anything else); `via` is the tool name, ">" for a
  * redirect, or the Bash command that writes or removes the path. Rule order: brand, runs/ removal, legacy allowance,
@@ -288,6 +315,7 @@ function globProblem(ctx: GuardContext, pattern: string, via: string): string | 
  */
 function checkPath(caller: Caller, abs: string, content: string | null, via: string, ctx: GuardContext): PathVerdict {
   if (abs.startsWith("/dev/")) return null;
+  if (trackedRunsFileOp(caller, abs, via, ctx)) return null;
   const inRun = runRelative(ctx, abs);
   // The brand rule is about content, not about the CLI: it holds for every caller, legacy skills included.
   if (content !== null && inRun !== null && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
@@ -354,6 +382,7 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
  * A tree holding target source is never changed; one holding the framework only by the main thread; removals follow R2.
  */
 function checkTree(caller: Caller, dir: string, via: string, ctx: GuardContext): PathVerdict {
+  if (trackedRunsFileOp(caller, dir, via, ctx)) return null;
   if (REMOVE_OPS.has(via) && holdsRuns(ctx, dir)) {
     return { deny: `${via} in ${dir} can remove runs/ or a run directory, with the CLI-only files in it` };
   }
@@ -399,6 +428,8 @@ interface CliCall {
   identity: string | null;
   command: string | null;
   task: string | null;
+  /** M2: the run `--run` names; null when the call has none (the CLI then uses runs/.active). */
+  run: string | null;
   help: boolean;
   /** The directory or script that selects which aegis checkout runs (runner -C/--dir/--prefix/--cwd, or the CLI script path); else null (cwd). */
   location: string | null;
@@ -515,10 +546,16 @@ function cliInvocation(c: LocatedCommand, exported: string | null): CliCall | nu
   const group = positional[0];
   const verb = positional[1];
   const command = group === undefined ? null : FRAMEWORK_COMMANDS.has(group) || verb === undefined ? group : `${group}.${verb}`;
-  const at = rest.findIndex((a) => a === "--task" || a.startsWith("--task="));
+  const task = optionValue(rest, "--task");
+  const run = optionValue(rest, "--run");
+  return { identity: env["AEGIS_AGENT"] ?? exported, command, task, run, help: rest.includes("--help") || rest.includes("-h"), location, preload, runnerFlags, envFile };
+}
+
+/** The value of `--name <v>` or `--name=<v>` among the CLI arguments, or null. */
+function optionValue(rest: readonly string[], name: string): string | null {
+  const at = rest.findIndex((a) => a === name || a.startsWith(`${name}=`));
   const flag = at < 0 ? undefined : rest[at];
-  const task = flag === undefined ? null : flag.includes("=") ? flag.slice("--task=".length) : rest[at + 1] ?? null;
-  return { identity: env["AEGIS_AGENT"] ?? exported, command, task, help: rest.includes("--help") || rest.includes("-h"), location, preload, runnerFlags, envFile };
+  return flag === undefined ? null : flag.includes("=") ? flag.slice(name.length + 1) : rest[at + 1] ?? null;
 }
 
 function checkCli(caller: Caller, cli: CliCall, c: LocatedCommand, ctx: GuardContext, deps: GuardDeps): string | null {
@@ -618,7 +655,8 @@ const identityMismatch = (caller: Exclude<Caller, { kind: "main" }>, value: stri
  */
 function subagentProblem(caller: Exclude<Caller, { kind: "main" }>, raw: string, commands: readonly LocatedCommand[], cliCommands: ReadonlySet<LocatedCommand>): string | null {
   const mentionsAegis = (v: string): boolean => /AEGIS/.test(normalizeShellText(v));
-  const aegisWords = commands.some((c) => !cliCommands.has(c) && launcherWithAegis(c));
+  const suspicious = suspiciousCall(raw, commands);
+  const aegisWords = commands.some((c) => !cliCommands.has(c) && launcherWithAegis(c, suspicious) !== null);
   const nearCli = cliCommands.size > 0 || aegisWords;
   for (const c of commands) {
     const { argv } = unwrap(c);
@@ -648,8 +686,13 @@ function subagentProblem(caller: Exclude<Caller, { kind: "main" }>, raw: string,
     if ((name === "source" || name === ".") && nearCli) return `${name} in the same call as the aegis CLI is refused for subagents: the sourced file can change the identity`;
     const shell = shellProblem(c);
     if (shell !== null) return shell;
-    if (!cliCommands.has(c) && launcherWithAegis(c)) {
-      return "the aegis CLI is started here in a form the guard does not recognise; run it as AEGIS_AGENT=<you> pnpm aegis …";
+    const launch = cliCommands.has(c) ? null : launcherWithAegis(c, suspicious);
+    if (launch !== null) {
+      const you = caller.kind === "qa" ? caller.agent : "<you>";
+      if (launch.dynamic !== null) {
+        return `the runner target ${launch.dynamic} is not a literal name, and this call names aegis or AEGIS_AGENT (or runs eval), so the guard cannot tell whether it starts the aegis CLI; name the script literally, or run the aegis CLI in its own call as AEGIS_AGENT=${you} pnpm aegis …`;
+      }
+      return `the aegis CLI is started here in a form the guard does not recognise; run it as AEGIS_AGENT=${you} pnpm aegis …`;
     }
   }
   // FD2: the heredoc body of a CLI call (or of a command piped into one) is JSON for the CLI, not shell. Item 1: only
@@ -679,9 +722,24 @@ function subagentProblem(caller: Exclude<Caller, { kind: "main" }>, raw: string,
   return null;
 }
 
-/** R3: a launcher (pnpm, npx, node, xargs, find, env, setsid, script, watch, …) whose later words name aegis or the CLI script. */
-function launcherWithAegis(c: LocatedCommand): boolean {
-  return launchesAegis(c.argv, 0) || launchesAegis(unwrap(c).argv, 0);
+/**
+ * R3: a launcher (pnpm, npx, node, xargs, find, env, setsid, script, watch, …) whose later words name aegis or the CLI
+ * script. The launch, or null; `dynamic` is the runner target that is not a literal name, when that is the reason (A15).
+ */
+function launcherWithAegis(c: LocatedCommand, suspicious: boolean): Launch {
+  return launchesAegis(c.argv, 0, suspicious) ?? launchesAegis(unwrap(c).argv, 0, suspicious);
+}
+
+type Launch = { dynamic: string | null } | null;
+
+/** A15: the literal text of a word once its expansions ($X, ${X}, $(…), `…`) are removed. */
+function expansionStripped(value: string): string {
+  return normalizeShellText(value.replace(/\$\{[^}]*\}|\$\([^)]*\)|`[^`]*`|\$[A-Za-z_][A-Za-z0-9_]*|\$[0-9@*#?$!-]/g, ""));
+}
+
+/** A15: does the call give a dynamic runner target a way to become the aegis CLI (an AEGIS_AGENT mention, or eval)? */
+function suspiciousCall(raw: string, commands: readonly LocatedCommand[]): boolean {
+  return /AEGIS_AGEN/.test(normalizeShellText(raw)) || commands.some((c) => basename(unwrap(c).argv[0]?.value ?? "") === "eval");
 }
 
 /** Runners that start a binary named by their first operand (npx x, pnpm exec x, …), not a package.json script. */
@@ -692,22 +750,29 @@ const BINARY_VERBS: ReadonlySet<string> = new Set(["exec", "x", "dlx"]);
  * R3 with fix round 3: does this command start something that names aegis or the CLI script? A variable as the command
  * name counts as a launcher (item 4). find starts only its -exec/-ok commands, xargs only its command, and npx (or
  * pnpm exec) only the binary it names, so `find -name aegis`, `xargs grep aegis` and `npx playwright --grep aegis` are
- * not launches (item 5: read-only -exec grep is allowed). A runner whose script or binary is a variable is.
+ * not launches (item 5: read-only -exec grep is allowed). A15: a runner whose script or binary is not a literal name
+ * is a launch only when its literal text names aegis or the CLI script, or the call is `suspicious` (it mentions
+ * AEGIS_AGENT or runs eval); `npm run $SCRIPT` and `pnpm run "test:${SUITE}"` alone are not.
  */
-function launchesAegis(words: readonly ShellWord[], depth: number): boolean {
+function launchesAegis(words: readonly ShellWord[], depth: number, suspicious: boolean): Launch {
   const head = words[0];
-  if (head === undefined || depth > 4) return false;
+  if (head === undefined || depth > 4) return null;
   const rest = words.slice(1);
-  const named = (): boolean => rest.some((w) => {
-    const v = normalizeShellText(w.value);
-    return AEGIS_WORD.test(v) || CLI_PATH_WORD.test(v);
-  });
+  const launch: Launch = { dynamic: null };
+  const namesAegis = (v: string): boolean => AEGIS_WORD.test(v) || CLI_PATH_WORD.test(v);
+  const named = (): Launch => (rest.some((w) => namesAegis(normalizeShellText(w.value))) ? launch : null);
   if (head.dynamic) return named();
   const program = basename(head.value);
-  if (program === "find") return findParts(rest).execs.some((e) => launchesAegis(e.words, depth + 1));
-  if (program === "xargs") return launchesAegis(xargsCommand(rest), depth + 1);
+  if (program === "find") {
+    for (const e of findParts(rest).execs) {
+      const l = launchesAegis(e.words, depth + 1, suspicious);
+      if (l !== null) return l;
+    }
+    return null;
+  }
+  if (program === "xargs") return launchesAegis(xargsCommand(rest), depth + 1, suspicious);
   // A top-level `bash -c` body is parsed and its commands judged directly; a shell started by find or xargs is a launch.
-  if (SHELLS.has(program)) return depth > 0 && named();
+  if (SHELLS.has(program)) return depth > 0 ? named() : null;
   const valued = Object.hasOwn(RUNNERS, program) ? RUNNERS[program]! : undefined;
   if (valued !== undefined) {
     let i = 0;
@@ -725,13 +790,13 @@ function launchesAegis(words: readonly ShellWord[], depth: number): boolean {
     }
     if (rest[i]?.value === "--") i++;
     const target = rest[i];
-    if (target === undefined) return false;
-    if (target.dynamic) return true;
-    if (binary) return launchesAegis(rest.slice(i), depth + 1);
+    if (target === undefined) return null;
+    if (target.dynamic) return suspicious || namesAegis(expansionStripped(target.value)) ? { dynamic: target.value } : null;
+    if (binary) return launchesAegis(rest.slice(i), depth + 1, suspicious);
     return named();
   }
-  if (LAUNCHERS.has(program) || head.value.includes("/") || program === "aegis") return named() || program === "aegis";
-  return false;
+  if (LAUNCHERS.has(program) || head.value.includes("/") || program === "aegis") return program === "aegis" ? launch : named();
+  return null;
 }
 
 /** A subagent never feeds a shell from stdin (pipe, heredoc, here-string, redirect) or evals text about aegis (C2). */
@@ -788,6 +853,77 @@ function findProblem(c: LocatedCommand, ctx: GuardContext, canon: Canon): string
   return null;
 }
 
+// ─── Package managers (final wave I1, AUD-022) ────────────────────────────────
+
+const PACKAGE_MANAGERS: ReadonlySet<string> = new Set(["pnpm", "npm", "yarn", "bun"]);
+/**
+ * Verbs that change dependencies, manifests or lockfiles: the ruling's list, the review's (ci, dedupe, prune, import)
+ * and npm's documented aliases of install, uninstall and update.
+ */
+const DEPENDENCY_VERBS: ReadonlySet<string> = new Set([
+  "add", "install", "i", "ci", "remove", "rm", "uninstall", "update", "up", "upgrade", "link", "unlink", "dedupe", "prune", "import",
+  "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal", "isntall", "install-test", "it", "install-ci-test", "cit",
+  "clean-install", "ic", "r", "un", "udpate", "ln", "ddp",
+]);
+const GLOBAL_FLAGS: ReadonlySet<string> = new Set(["-g", "--global"]);
+const INFO_FLAGS: ReadonlySet<string> = new Set(["-v", "--version", "-h", "--help"]);
+
+/**
+ * I1: a qa-* agent's `pnpm|npm|yarn|bun add|install|remove|update|link|…` whose effective directory (the command cwd, or
+ * -C/--dir/--prefix/--cwd) is inside the aegis root or the target root and outside sandbox/. A global install
+ * (-g/--global, yarn global) changes neither repo and is allowed: the environment engineer's `npm install -g
+ * @playwright/cli` is its only install. Bare `yarn` is an install. A location or cwd the guard cannot resolve is refused.
+ */
+function packageManagerProblem(c: LocatedCommand, ctx: GuardContext, canon: Canon): string | null {
+  let words = unwrap(c).argv;
+  if (words[0] !== undefined && !words[0].dynamic && basename(words[0].value) === "corepack") words = words.slice(1);
+  const head = words[0];
+  if (head === undefined || head.dynamic) return null;
+  const pm = basename(head.value);
+  if (!PACKAGE_MANAGERS.has(pm)) return null;
+  const valued = RUNNERS[pm] ?? [];
+  let location: string | null = null;
+  let dynamicLocation: string | null = null;
+  let global = false;
+  let info = false;
+  let verb: ShellWord | null = null;
+  for (let i = 1; i < words.length; i++) {
+    const w = words[i]!;
+    if (w.value === "--") break;
+    if (w.value.startsWith("-")) {
+      const eq = w.value.indexOf("=");
+      const attachedC = pm === "pnpm" && w.value.length > 2 && w.value.startsWith("-C") && eq < 0;
+      const name = attachedC ? "-C" : eq > 0 ? w.value.slice(0, eq) : w.value;
+      const separate = !attachedC && eq < 0 && valued.includes(name);
+      const value: ShellWord | undefined = attachedC || eq > 0 ? { value: attachedC ? w.value.slice(2) : w.value.slice(eq + 1), dynamic: w.dynamic } : separate ? words[i + 1] : undefined;
+      if (GLOBAL_FLAGS.has(name)) global = true;
+      if (INFO_FLAGS.has(name)) info = true;
+      if (LOCATION_FLAGS.has(name) && value !== undefined) {
+        if (value.dynamic) dynamicLocation = value.value;
+        else location = rawJoin(c.cwd, value.value);
+      }
+      if (separate) i++;
+      continue;
+    }
+    if (verb === null) {
+      verb = w;
+      if (pm === "yarn" && !w.dynamic && w.value === "global") global = true;
+    }
+  }
+  const mutates = verb === null ? pm === "yarn" && !info : verb.dynamic || DEPENDENCY_VERBS.has(verb.value);
+  if (!mutates || global) return null;
+  const what = `${pm} ${verb?.value ?? "(install)"}`;
+  if (dynamicLocation !== null || (location === null && (c.cwdDynamic === true || !isAbsolute(c.cwd)))) {
+    return `${what} runs in a directory the guard cannot resolve (${dynamicLocation ?? c.cwd}); agents never change dependencies in the aegis or target repo (AUD-022)`;
+  }
+  const dir = canon(location ?? c.cwd);
+  if (inside(join(ctx.aegisRoot, "sandbox"), dir)) return null;
+  if (inside(ctx.aegisRoot, dir) || inside(ctx.targetRoot, dir)) {
+    return `${what} in ${dir} changes dependencies, manifests or lockfiles; agents never change dependencies in the aegis or target repo (AUD-022): work in a sandbox/ copy, or file the need as a finding`;
+  }
+  return null;
+}
+
 const removesHere = (c: LocatedCommand): boolean => {
   const { argv } = unwrap(c);
   const name = basename(argv[0]?.value ?? "");
@@ -813,7 +949,7 @@ function touchesCheckout(commands: readonly LocatedCommand[], ctx: GuardContext,
 }
 
 function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardContext, deps: GuardDeps, canon: Canon): GuardResult {
-  const claims: string[] = [];
+  const claims: ClaimRef[] = [];
   const warnings: LegacyWrite[] = [];
   const parsed = bashWriteTargets(command, cwd);
   const targets = parsed.targets;
@@ -850,6 +986,8 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
     for (const c of commands) {
       const f = findProblem(c, ctx, canon);
       if (f !== null) return deny(f);
+      const pm = caller.kind === "qa" ? packageManagerProblem(c, ctx, canon) : null;
+      if (pm !== null) return deny(pm);
     }
   }
   // m8: after a dynamic cd the guard does not know where a removal lands, so it may hold runs/.
@@ -861,7 +999,7 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
   for (const { cli, c } of calls) {
     const refusal = checkCli(caller, cli, c, ctx, deps);
     if (refusal !== null) return deny(refusal);
-    if (caller.kind === "qa" && cli.command === "task.claim" && cli.task !== null) claims.push(cli.task);
+    if (caller.kind === "qa" && cli.command === "task.claim" && cli.task !== null) claims.push({ taskId: cli.task, runId: cli.run });
   }
   const verdict = (v: PathVerdict): GuardResult | null => {
     if (v === null) return null;

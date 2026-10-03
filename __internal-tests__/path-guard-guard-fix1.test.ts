@@ -146,7 +146,7 @@ describe('R2 and removal probes', () => {
   });
 
   it('a claim followed by || true is still recorded', () => {
-    expect(decide(bash(`AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1 || true`), ctx, deps)).toEqual({ allow: true, claims: ['T-1'], warnings: [] });
+    expect(decide(bash(`AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1 || true`), ctx, deps)).toEqual({ allow: true, claims: [{ taskId: 'T-1', runId: null }], warnings: [] });
   });
 });
 

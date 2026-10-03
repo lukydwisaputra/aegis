@@ -173,13 +173,13 @@ describe('T9-2: the /qa-push-reports collector repo is a named exception for the
     expect(decide(input, withCollector, deps).allow).toBe(allow);
   });
 
-  it('loadGuardContext reads aegis.config.json#collector.path, as the skill does, and falls back to the documented default', () => {
+  it('loadGuardContext reads aegis.config.json#collector.path, as the skill does; without it there is no collector (M3)', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-col-'));
     try {
       fs.writeFileSync(path.join(root, 'aegis.config.json'), JSON.stringify({ targetProjectRoot: '..', testsDir: '../tests/qa', collector: { path: '../testing-reports' } }));
       expect(loadGuardContext(root).collectorRoot).toBe(path.join(path.dirname(root), 'testing-reports'));
       fs.writeFileSync(path.join(root, 'aegis.config.json'), JSON.stringify({ targetProjectRoot: '..', testsDir: '../tests/qa' }));
-      expect(loadGuardContext(root).collectorRoot).toBe('/Users/lukydwisaputra/Desktop/QA/testing-reports');
+      expect(loadGuardContext(root).collectorRoot).toBeUndefined();
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
