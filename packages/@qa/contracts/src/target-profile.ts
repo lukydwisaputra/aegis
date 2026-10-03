@@ -34,6 +34,10 @@ export const TargetProfileSchema = TargetProfileCoreSchema.extend({
   envVarNames: z.array(z.string()),
   hasAuth: z.boolean(), authProvider: z.string().nullable(), nodeVersion: z.string().nullable(),
   hasRealtimeFeatures: z.boolean(), hasFeatureFlags: z.boolean(), featureFlagProvider: z.string().nullable().optional(),
+  // P2b (AUD-055): personal data decides whether GDPR and PDPA apply; each signal is "<file>:<field-or-dependency>" or "hasAuth".
+  hasPersonalData: z.boolean(), personalDataSignals: z.array(S),
+  // P2b (AUD-051): a mail library, an SMTP_*/MAIL_* env var name, or Supabase auth; false makes the email specialist a no-op.
+  hasEmailFlows: z.boolean(),
 }).strict();
 export type TargetProfile = z.infer<typeof TargetProfileSchema>;
 export type TargetProfileCore = z.infer<typeof TargetProfileCoreSchema>;

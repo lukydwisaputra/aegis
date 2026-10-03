@@ -91,6 +91,9 @@ export const PROFILE = {
   nodeVersion: null,
   hasRealtimeFeatures: false,
   hasFeatureFlags: false,
+  hasPersonalData: false,
+  personalDataSignals: [] as string[],
+  hasEmailFlows: false,
   sourceInventory: {},
 };
 
