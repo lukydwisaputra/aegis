@@ -17,8 +17,8 @@ function tracked(): string[] {
 /** Program records, the ingested corpus and retired agents keep history; nothing else may name a deleted package. */
 const HISTORY = /^(docs\/superpowers|knowledge|plan-validation|agent-graveyard)\//;
 
-// Deleted packages (AUD-054). sandbox-manager went in P0b-2; email-adapters joins after the P2b rebase.
-const DELETED = ['artifact-policy', 'auth-fixtures', 'dashboard-ui', 'deps-updater', 'multi-app', 'sandbox-manager', 'secrets', 'target-scanner', 'web-explorer'];
+// Deleted packages (AUD-054). sandbox-manager went in P0b-2.
+const DELETED = ['artifact-policy', 'auth-fixtures', 'dashboard-ui', 'deps-updater', 'email-adapters', 'multi-app', 'sandbox-manager', 'secrets', 'target-scanner', 'web-explorer'];
 const named = new RegExp(`@qa/(?:${DELETED.join('|')})(?![\\w-])`);
 
 describe('deleted packages (AUD-054)', () => {

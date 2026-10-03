@@ -216,15 +216,6 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
 
-  packages/@qa/email-adapters:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      node-fetch:
-        specifier: ^3.3.2
-        version: 3.3.2
-
   packages/@qa/eslint-plugin:
     devDependencies:
       '@types/eslint':
