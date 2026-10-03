@@ -154,6 +154,27 @@ describe('the owner reviews the curator through /qa-promote (AUD-052)', () => {
   });
 });
 
+describe('qa-compliance-spv reviews every compliance task (AUD-052)', () => {
+  const approved = { status: 'approved', decisions: 1 };
+  beforeEach(async () => {
+    fastForward(t.root, runId, 'compliance', { G1: approved, G2: approved });
+    await startPhase(t.root, runId, 'compliance', ORCH);
+  });
+
+  it('an unreviewed compliance task blocks Compliance and the refusal names it', async () => {
+    await workTask(t.root, runId, 'T-compliance-1', 'qa-compliance-gdpr', null);
+    await expect(completePhase(t.root, runId, 'compliance', ORCH)).rejects.toMatchObject({
+      code: 'barrier',
+      message: expect.stringMatching(/task T-compliance-1: attempt 1 of qa-compliance-gdpr has no passing review/),
+    });
+  });
+
+  it('a passing qa-compliance-spv review completes Compliance', async () => {
+    await workTask(t.root, runId, 'T-compliance-1', 'qa-compliance-gdpr', 'qa-compliance-spv');
+    await expect(completePhase(t.root, runId, 'compliance', ORCH)).resolves.toMatchObject({ phases: { compliance: { status: 'completed' } } });
+  });
+});
+
 describe('tasks belong to their phase', () => {
   it('a late task blocks the barrier; a task of a finished phase cannot be claimed', async () => {
     await startPhase(t.root, runId, 'intake', ORCH);

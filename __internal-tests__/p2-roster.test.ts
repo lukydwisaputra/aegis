@@ -100,10 +100,7 @@ describe('retired agents (spec §4.1)', () => {
 
 describe('review coverage (spec §4.6.4)', () => {
   it('SPV_NONE holds only agents with a task and a stated reason', () => {
-    expect([...SPV_NONE].sort()).toEqual([
-      'qa-compliance-cmmi', 'qa-compliance-gdpr', 'qa-compliance-iso25010', 'qa-compliance-iso5055', 'qa-compliance-istqb', 'qa-compliance-pdpa',
-      'qa-context-scanner', 'qa-curator',
-    ]);
+    expect([...SPV_NONE].sort()).toEqual(['qa-context-scanner', 'qa-curator']);
   });
 });
 

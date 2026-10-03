@@ -101,19 +101,10 @@ export function isSpecialist(agent: string): boolean {
   return /^qa-[a-z0-9-]+-specialist$/.test(agent);
 }
 
-// Workers whose SPV is shared across a family rather than named `<agent>-spv`.
-const SHARED_SPV: Readonly<Record<string, string>> = {
-  "qa-cicd-planner": "qa-cicd-spv",
-  "qa-cicd-implementer": "qa-cicd-spv",
-  "qa-cicd-evaluator": "qa-cicd-spv",
-  "qa-github-planner": "qa-github-spv",
-  "qa-github-implementer": "qa-github-spv",
-};
-
 /**
- * The one SPV allowed to review `agent`'s work: its role-table SPV (CO-08). The shared DevOps pairs stay as a
- * fallback until P2 retires those agents; any other agent pairs with `<agent>-spv`.
+ * The one SPV allowed to review `agent`'s work: its role-table SPV (CO-08, P2 T11), e.g. qa-compliance-spv for the six
+ * compliance agents; an agent whose row names no SPV pairs with `<agent>-spv`.
  */
 export function pairedSpv(agent: string): string {
-  return roleOf(agent)?.spv ?? SHARED_SPV[agent] ?? `${agent}-spv`;
+  return roleOf(agent)?.spv ?? `${agent}-spv`;
 }

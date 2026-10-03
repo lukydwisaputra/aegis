@@ -69,7 +69,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-cmmi
 2. **Record events through the CLI.** Append every event under "Events You Emit" with `aegis event append --type <type> --json '<fields>'`; the CLI adds `ts`, `runId` and your name. You never write the run's event log yourself, and you never append `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` or `escalation.*` events, nor `artifact.created`, `env.specialist-blocked` or `preflight.failed`: the commands that own them record those.
 3. **Submit your work report.** Pipe one `WorkReportSchema` object into `aegis work-report submit --file /dev/stdin`: `id` (`WR-<taskId>`), `taskId`, `agent` (`qa-compliance-cmmi`), `startedAt` and `completedAt` (UTC ISO strings ending in `Z`), `summary` (20–300 characters), `approach` (10–500 characters), `decisions[]` (each `{choice, reason, alternativesConsidered[]}`), `uncertainties[]` (each `{topic, impact, wouldUnblockBy?}`, impact `low`, `medium` or `high`), `lessonsApplied[]` (lesson ids from your lessons file; empty when none applied, with the reason in `approach`), `evidence[]` and `artifactsProduced[]`. The CLI stores it as the next attempt; you never write report files yourself.
 4. **Release:** `aegis task release --task <taskId> --result done`. Use `--result failed` only when you could not complete the task (a missing input, an unreachable environment, a refused tool): it opens an owner escalation. Failing tests are results, not a failed task — record them and release `done`. The release is refused until this claim has a work report.
-5. **No review yet.** No SPV reviews your task yet; the phase barrier accepts your released work report without one.
+5. **Review.** `qa-compliance-spv` reviews your work report. On `requested-changes` the orchestrator re-dispatches you for the same task id with the corrective instruction.
 
 ## Events You Emit
 
@@ -82,8 +82,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-cmmi
 contract: 1
 phase: crosscutting
 dispatchedBy: [qa-orchestrator]
-reviewedBy:
-  none: "not stated in prose"
+reviewedBy: qa-compliance-spv
 reads:
   - "{run}/plan.{md,json}"
   - "{run}/reports/work/*.json"

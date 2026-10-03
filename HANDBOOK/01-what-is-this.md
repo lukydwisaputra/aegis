@@ -65,7 +65,7 @@ The system uses a tiered agent hierarchy:
 - **Orchestrator** (`qa-orchestrator`) — a single director agent that receives commands, plans work, and dispatches to lower tiers
 - **Tier-1 phase agents** — nine agents that own each STLC phase: `qa-dev-test-reviewer`, `qa-requirements-analyst`, `qa-test-planner`, `qa-test-designer`, `qa-environment-engineer`, `qa-test-executor`, `qa-defect-manager`, `qa-closure-reporter`, `qa-executive-reporter`
 - **Tier-2 specialists** — thirteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-email-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
-- **SPVs (Supervisors)** — twenty-two reviewer agents that audit work produced by workers and return scored feedback
+- **SPVs (Supervisors)** — reviewer agents that audit work produced by workers and return scored feedback: one per reviewed worker, except `qa-compliance-spv`, which reviews all six compliance agents
 - **Compliance agents** — six agents, one per regulation, running in parallel during every cycle
 - **Cross-cutting agents** — three agents: the context scanner, the curator (self-improvement) and the metrics collector
 

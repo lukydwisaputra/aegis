@@ -116,16 +116,19 @@ it('DISPATCH: unloaded dispatcher does not cause undispatched', () => {
   t.cleanup();
 });
 
-it('SPV: shared SPV via spvPairs is consistent', () => {
-  const ws = ['qa-cicd-planner', 'qa-cicd-implementer', 'qa-cicd-evaluator'];
+it('SPV: a shared SPV paired through the role table is consistent (qa-compliance-spv); a stale pair is reported', () => {
+  const ws = ['qa-compliance-iso25010', 'qa-compliance-gdpr', 'qa-compliance-pdpa'];
   const agents: Record<string, any> = {
-    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-cicd-spv'] }),
-    'qa-cicd-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
+    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-compliance-spv'] }),
+    'qa-compliance-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
   };
-  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-cicd-spv' } };
-  const t = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-cicd-spv'])) } });
-  expect(keys(spvRule(loadModel(t.root)))).toEqual([]);
-  t.cleanup();
+  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-compliance-spv' } };
+  const consistent = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-compliance-spv'])) } });
+  expect(keys(spvRule(loadModel(consistent.root)))).toEqual([]);
+  consistent.cleanup();
+  const stale = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: { 'qa-cicd-planner': 'qa-cicd-spv' } } });
+  expect(keys(spvRule(loadModel(stale.root)))).toEqual(['SPV:pipeline:qa-cicd-planner:pair-mismatch']);
+  stale.cleanup();
 });
 
 it('AH-17: qa-x does not resolve to the skill _qa-x (no x → _x fallback, no frontmatter alias)', () => {

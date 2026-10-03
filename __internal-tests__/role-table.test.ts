@@ -96,6 +96,14 @@ describe('role table, further invariants', () => {
   it('rows without an SPV are exactly SPV_NONE plus the task-less qa-metrics-collector (P2 §4.6.4)', () => {
     const none = ROLES.filter((r) => r.kind !== 'spv' && r.spv === null).map((r) => r.agent).sort();
     expect(none).toEqual([...SPV_NONE, 'qa-metrics-collector'].sort());
+    expect(none).toEqual(['qa-context-scanner', 'qa-curator', 'qa-metrics-collector']);
+  });
+
+  it('the six compliance rows are reviewed by the shared qa-compliance-spv row (P2 T11, AUD-052)', () => {
+    const compliance = ROLES.filter((r) => r.kind === 'compliance');
+    expect(compliance).toHaveLength(6);
+    for (const r of compliance) expect(r.spv).toBe('qa-compliance-spv');
+    expect(roleOf('qa-compliance-spv')).toMatchObject({ kind: 'spv', writes: [], spv: null });
   });
 
   it('contractWrites fails loudly when a contract block is missing', () => {

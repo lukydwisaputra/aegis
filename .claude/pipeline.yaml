@@ -58,7 +58,13 @@ routing:
     testType: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]
     testTechnique: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
   techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
-spvPairs: {}
+spvPairs:
+  qa-compliance-iso25010: qa-compliance-spv
+  qa-compliance-iso5055: qa-compliance-spv
+  qa-compliance-istqb: qa-compliance-spv
+  qa-compliance-cmmi: qa-compliance-spv
+  qa-compliance-gdpr: qa-compliance-spv
+  qa-compliance-pdpa: qa-compliance-spv
 envSpecialists:
   ui: qa-ui-specialist
   api: qa-api-specialist
@@ -122,12 +128,7 @@ escapes:
   - {unit: qa-closure-reporter, field: optional, value: "{run}/reports/compliance/*.json", reason: "qa-closure-reporter.md:34 per-regulation findings (if compliance phase ran)"}
   - {unit: qa-closure-reporter, field: terminal, value: "{run}/reports/closure/closure.md", reason: "qa-closure-reporter.md:40 ISTQB closure narrative for human readers"}
   - {unit: qa-closure-reporter-spv, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-compliance-cmmi, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-compliance-gdpr, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-compliance-iso25010, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-compliance-iso5055, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-compliance-istqb, field: reviewedBy.none, reason: "not stated in prose"}
-  - {unit: qa-compliance-pdpa, field: reviewedBy.none, reason: "not stated in prose"}
+  - {unit: qa-compliance-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
   - {unit: qa-context-scanner, field: reviewedBy.none, reason: "the Scan barrier validates the profile against the strict TargetProfileSchema"}
   - {unit: qa-context-scanner, field: optional, value: "{run}/target-profile.json", reason: "qa-context-scanner.md:94 compares with the previous run's target-profile.json only if one is referenced"}
   - {unit: qa-curator, field: reviewedBy.none, reason: "the owner reviews its proposals through /qa-promote"}

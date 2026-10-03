@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
+import { pairedSpv } from '@qa/run-state';
 import { DEV_TEST_REVIEW, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 import { PROFILE } from './helpers/pipeline';
 
@@ -18,7 +19,7 @@ const e2e = stale ? it.skip : it;
 
 const O = 'qa-orchestrator';
 const TS = '2026-09-30T08:00:00.000Z';
-const SPV_NONE = /^(qa-context-scanner|qa-compliance-.*|qa-curator)$/;
+const SPV_NONE = /^(qa-context-scanner|qa-curator)$/;
 
 interface Result { status: number | null; out: unknown; err: { error?: string; message?: string } | null; stderr: string }
 
@@ -85,7 +86,7 @@ class Sim {
   }
 
   /** Claim, submit a work report, release; then the paired SPV reviews (agents without an SPV are not reviewed). */
-  attempt(task: string, agent: string, verdict: 'passed' | 'requested-changes' = 'passed', spv = `${agent}-spv`): void {
+  attempt(task: string, agent: string, verdict: 'passed' | 'requested-changes' = 'passed', spv = pairedSpv(agent)): void {
     this.ok(agent, 'task', 'claim', '--task', task);
     this.report(task, agent);
     this.ok(agent, 'task', 'release', '--task', task, '--result', 'done');
@@ -97,7 +98,7 @@ class Sim {
     this.ok(agent, 'work-report', 'submit', '--file', this.tmp(wr));
   }
 
-  review(task: string, agent: string, verdict: 'passed' | 'requested-changes', spv = `${agent}-spv`): void {
+  review(task: string, agent: string, verdict: 'passed' | 'requested-changes', spv = pairedSpv(agent)): void {
     const rejected = verdict === 'requested-changes';
     this.ok(spv, 'review', 'submit', '--file', this.tmp({
       id: 'RV-pipeline-spv-T-1', reviewer: spv, target: { agent, taskId: task }, verdict, summary: `Review verdict ${verdict}.`,

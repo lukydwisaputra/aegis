@@ -69,6 +69,8 @@ assignments:
     # Developer-test review (Tier-1 validation work, P0 spec §3.4)
     - qa-dev-test-reviewer
     - qa-dev-test-reviewer-spv
+    # Shared compliance SPV (reviews all six compliance agents)
+    - qa-compliance-spv
     # Tier-2 specialist SPVs
     - qa-ui-specialist-spv
     - qa-api-specialist-spv
