@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { noteParseRefusal } from "./commands/_io.js";
 import { alignCommand } from "./commands/align.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { escalationCommand } from "./commands/escalation.js";
@@ -64,5 +65,6 @@ export async function runCli(argv: readonly string[]): Promise<void> {
     const env = envelopeFor(e);
     if (env.stderr !== "") process.stderr.write(env.stderr);
     process.exitCode = env.exitCode;
+    if (env.exitCode === 2) await noteParseRefusal(argv, e.message.replace(/^error:\s*/, ""));
   }
 }
