@@ -61,19 +61,36 @@ describe('recordCliRefusal', () => {
 describe('scrubRefusalMessage', () => {
   it.each([
     ['--jwt-secret=abc123', '--jwt-secret=<redacted>'],
-    ["error: option '--result <r>' argument 'SECRETCHOICE' is invalid. Allowed choices are done, failed.", "error: option '--result <r>' argument '<value>' is invalid. Allowed choices are done, failed."],
-    ['Unexpected token \'s\', "sk_live_AB"... is not valid JSON', 'Unexpected token <redacted>, <redacted> is not valid JSON'],
+    ["error: option '--result <r>' argument 'SECRETCHOICE' is invalid. Allowed choices are done, failed.", "error: option '--result' argument '<value>' is invalid. Allowed choices are done, failed."],
+    ['Unexpected token \'s\', "sk_live_AB"... is not valid JSON', 'Unexpected token \'<value>\', "<value>" is not valid JSON'],
+    ["unknown command 'hunter2'", "unknown command '<value>'"],
+    ["unknown option '--bogus=hunter2'", "unknown option '--bogus'"],
+    ["unknown option '-phunter2'", "unknown option '-p'"],
+    ['task id "hunter2!" must match x', 'task id "<value>" must match x'],
     ['bad eyJhbGciOiJIUzI1NiJ9.payload.sig here', 'bad <redacted> here'],
     ['key sk_live_ABCDEFG here', 'key <redacted> here'],
     ['value 0123456789abcdef0123456789abcdef end', 'value <redacted> end'],
+    ['call https://user:hunter2@example.invalid/x failed', 'call https://<redacted>@example.invalid/x failed'],
+    ['sent Bearer abc.def-ghi now', 'sent Bearer <redacted> now'],
+    ['--db-password=hunter two three', '--db-password=<redacted>'],
+    ['Expected object, received hunter2', 'Expected object, received <redacted>'],
+    ['blob aGVsbG8vd29ybGQrZm9vL2Jhcj0xMjM0NTY3ODkw end', 'blob <redacted> end'],
   ])('%s', (input, expected) => {
     expect(scrubRefusalMessage(input)).toBe(expected);
   });
 
   it('leaves a benign message unchanged', () => {
-    const m = '--json is not valid JSON';
-    expect(scrubRefusalMessage(m)).toBe(m);
-    expect(scrubRefusalMessage('task T-1 is not claimed by qa-ui-specialist')).toBe('task T-1 is not claimed by qa-ui-specialist');
+    for (const m of ['--json is not valid JSON', 'task T-1 is not claimed by qa-ui-specialist', 'agent qa-accessibility-specialist-spv refused', 'code invalid_union_discriminator at /private/tmp/claude/wt']) {
+      expect(scrubRefusalMessage(m)).toBe(m);
+    }
+  });
+
+  it('scrubs a 4096-character adversarial input in under 100 ms', () => {
+    for (const bad of ['"'.repeat(4096), 'a'.repeat(4096), "'-".repeat(2048), '--x='.repeat(800)]) {
+      const t0 = Date.now();
+      scrubRefusalMessage(bad);
+      expect(Date.now() - t0).toBeLessThan(100);
+    }
   });
 });
 
@@ -151,11 +168,42 @@ describe('the built CLI records refusals without changing them', () => {
   }, 60_000);
 
   ctest('the crash path keeps exit 1 and the envelope, and records one internal line', () => {
-    fs.writeFileSync(path.join(t.root, 'runs', runId, 'run.json'), 'not json {');
+    const runJson = path.join(t.root, 'runs', runId, 'run.json');
+    fs.rmSync(runJson);
+    fs.mkdirSync(runJson);
     const r = aegis('qa-ui-specialist', 'run', 'status');
-    expect(r.status).toBeGreaterThan(0);
-    expect(JSON.parse(r.stderr)).toHaveProperty('error');
-    if (r.status === 1) expect(refused()).toEqual([expect.objectContaining({ code: 'internal', command: 'run.status' })]);
+    expect(r.status).toBe(1);
+    expect(JSON.parse(r.stderr)).toHaveProperty('error', 'internal');
+    expect(refused()).toEqual([expect.objectContaining({ code: 'internal', command: 'run.status' })]);
+  }, 60_000);
+
+  // Each shape: the record has none of the secret substrings, and a benign diagnostic survives.
+  const shapes: Array<{ name: string; args: string[]; secrets: string[]; keeps: string }> = [
+    { name: 'an unknown top-level word', args: ['hunter2'], secrets: ['hunter2'], keeps: 'unknown-command' },
+    { name: 'a URL with userinfo', args: ['task', 'claim', '--task', 'T-1', '--note=https://user:hunter2@example.invalid/x'], secrets: ['hunter2'], keeps: '--note' },
+    { name: 'a Bearer string', args: ['task', 'claim', '--task', 'T-1', '--auth=Bearer hunter2'], secrets: ['hunter2'], keeps: '--auth' },
+    { name: 'a --db-password value with spaces', args: ['task', 'claim', '--task', 'T-1', '--db-password=hunter2 and more'], secrets: ['hunter2', 'and more'], keeps: '--db-password' },
+    { name: 'a glued short option', args: ['task', 'claim', '--task', 'T-1', '-phunter2'], secrets: ['hunter2'], keeps: '-p' },
+    { name: 'a task id value', args: ['task', 'claim', '--task', 'hunter2!'], secrets: ['hunter2'], keeps: 'task' },
+    { name: 'a base64 value with slashes', args: ['task', 'claim', '--task', 'T-1', '--blob=aGVsbG8vd29ybGQrZm9vL2Jhcj0xMjM0NTY3ODkw'], secrets: ['aGVsbG8', 'Jhcj0x'], keeps: '--blob' },
+  ];
+  for (const s of shapes) {
+    ctest(`${s.name} is not recorded; the diagnostic survives`, () => {
+      expect(aegis('qa-accessibility-specialist-spv', ...s.args).status).toBe(2);
+      const all = refused().map((e) => JSON.stringify(e)).join('\n');
+      expect(all).not.toBe('');
+      for (const secret of s.secrets) expect(bytesOf()).not.toContain(secret);
+      expect(all).toContain(s.keeps);
+      expect(all).toContain('qa-accessibility-specialist-spv');
+    }, 60_000);
+  }
+
+  ctest('a zod received echo is not recorded', () => {
+    const file = path.join(t.root, 'shape.json');
+    fs.writeFileSync(file, JSON.stringify({ taskId: 'hunter2', status: 'hunter2' }));
+    expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', file).status).toBe(2);
+    expect(bytesOf()).not.toContain('hunter2');
+    expect(refused()).toHaveLength(1);
   }, 60_000);
 
   ctest('without AEGIS_AGENT nothing is recorded', () => {
