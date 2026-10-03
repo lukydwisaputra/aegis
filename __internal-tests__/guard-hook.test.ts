@@ -21,6 +21,8 @@ beforeEach(async () => {
 afterEach(() => t.cleanup());
 
 const guard = (input: object) => runHook('guard-writes', { cwd: t.root, ...input }, t.root);
+/** m2: warnings arrive on stdout as {"systemMessage": …} with exit 0. */
+const systemMessage = (stdout: string): string => (stdout.trim() === '' ? '' : (JSON.parse(stdout) as { systemMessage: string }).systemMessage);
 
 test('denies a direct events.jsonl write from the main thread (AUD-020, AUD-022)', () => {
   const r = guard({ tool_name: 'Write', tool_input: { file_path: path.join(runDir(t.root, runId), 'events.jsonl'), content: '{}' } });
@@ -54,11 +56,12 @@ test('uses the real caller tables: the owner may not run an agent-only command',
   expect(r.stderr).toMatch(/agent-only/);
 });
 
-test('a legacy skill main-thread run write is allowed with a stderr warning and a ledger entry (decision 24)', () => {
+test('a legacy skill main-thread run write is allowed with a warning and a ledger entry (decision 24)', () => {
   const file = path.join(runDir(t.root, runId), 'reports', 'gate-check', 'staging.json');
   const r = guard({ tool_name: 'Write', tool_input: { file_path: file, content: '{}' } });
   expect(r.status).toBe(0);
-  expect(r.stderr).toMatch(/aegis guard: warning — legacy direct run write by qa-gate-check/);
+  expect(systemMessage(r.stdout)).toMatch(/^aegis guard: warning — legacy direct run write by qa-gate-check/);
+  expect(r.stdout).not.toMatch(/permissionDecision/);
   // m10: the ledger records the canonical (realpath) form of the path.
   const canonical = path.join(fs.realpathSync(t.root), path.relative(t.root, file));
   expect(readLedger(t.root, runId, 'main')).toEqual([expect.objectContaining({ kind: 'legacy-write', skills: ['qa-gate-check'], path: canonical })]);
@@ -77,7 +80,8 @@ test('fails closed for subagents when the packages are not built, and stays open
     const script = path.join(bare, 'scripts', 'hooks', 'guard-writes.mjs');
     fs.copyFileSync(path.join(REPO, 'scripts', 'hooks', 'guard-writes.mjs'), script);
     const env = { AEGIS_ROOT: undefined };
-    const sub = runHook('guard-writes', { tool_name: 'Bash', tool_input: { command: 'ls' }, agent_type: 'qa-ui-specialist', cwd: bare }, bare, { script, env });
+    // B4: agent_id is the subagent signal (the brief's payload had only agent_type).
+    const sub = runHook('guard-writes', { tool_name: 'Bash', tool_input: { command: 'ls' }, agent_type: 'qa-ui-specialist', agent_id: 'q1', cwd: bare }, bare, { script, env });
     expect(sub.status).toBe(2);
     expect(sub.stderr).toMatch(/enforcement unavailable.*pnpm install/);
     const mainRun = runHook('guard-writes', { tool_name: 'Write', tool_input: { file_path: path.join(bare, 'runs', 'x', 'a.json') }, cwd: bare }, bare, { script, env });
@@ -113,18 +117,22 @@ describe('R4: without a build, fail closed only for qa-* agents and for calls th
     fs.rmSync(bare, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });
   });
-  const nobuild = (input: object) => runHook('guard-writes', input, bare, { script, env });
+  const nobuild = (input: object | string) => runHook('guard-writes', input, bare, { script, env });
 
   test('a non-qa subagent outside the root is allowed with a warning', () => {
     const r = nobuild({ tool_name: 'Write', tool_input: { file_path: path.join(outside, 'a.ts'), content: 'x' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: outside });
     expect(r.status).toBe(0);
-    expect(r.stderr).toMatch(/aegis guard: warning — enforcement unavailable/);
+    expect(systemMessage(r.stdout)).toMatch(/aegis guard: warning — enforcement unavailable/);
   });
 
-  test('a non-qa subagent whose cwd is inside the root is denied', () => {
-    const r = nobuild({ tool_name: 'Bash', tool_input: { command: 'ls' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: bare });
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/enforcement unavailable.*pnpm install/);
+  test('B3: a non-qa subagent is judged by the paths it names, not by the payload cwd (the session cwd)', () => {
+    const named = nobuild({ tool_name: 'Bash', tool_input: { command: `cd ${bare} && ls` }, agent_type: 'general-purpose', agent_id: 'g1', cwd: outside });
+    expect(named.status).toBe(2);
+    expect(named.stderr).toMatch(/enforcement unavailable.*pnpm install/);
+    const sessionCwd = nobuild({ tool_name: 'Bash', tool_input: { command: `cd ${outside} && echo x > a.txt` }, agent_type: 'general-purpose', agent_id: 'g1', cwd: bare });
+    expect(sessionCwd.status).toBe(0);
+    const nativeWorktree = nobuild({ tool_name: 'Write', tool_input: { file_path: path.join(bare, '.claude', 'worktrees', 'w1', 'a.ts'), content: 'x' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: bare });
+    expect(nativeWorktree.status).toBe(0);
   });
 
   test('a non-qa subagent outside the root whose payload names the root is denied', () => {
@@ -132,9 +140,18 @@ describe('R4: without a build, fail closed only for qa-* agents and for calls th
     expect(r.status).toBe(2);
   });
 
-  test('a non-qa subagent with no cwd is denied (where it runs is unknown)', () => {
-    const r = nobuild({ tool_name: 'Bash', tool_input: { command: 'ls' }, agent_type: 'general-purpose', agent_id: 'g1' });
-    expect(r.status).toBe(2);
+  test('m4: the main thread is judged by path fields and unquoted command text, not by content or messages', () => {
+    expect(nobuild({ tool_name: 'Write', tool_input: { file_path: path.join(bare, 'HANDBOOK', 'x.md'), content: 'see runs/RUN-1/plan.json' }, cwd: bare }).status).toBe(0);
+    expect(nobuild({ tool_name: 'Bash', tool_input: { command: 'git commit -m "clean up runs/ notes"' }, cwd: bare }).status).toBe(0);
+    expect(nobuild({ tool_name: 'Bash', tool_input: { command: 'cat > notes.md <<EOF\nruns/x\nEOF' }, cwd: bare }).status).toBe(0);
+    expect(nobuild({ tool_name: 'Bash', tool_input: { command: 'echo x > "runs/a.json"' }, cwd: bare }).status).toBe(2);
+    expect(nobuild({ tool_name: 'Write', tool_input: { file_path: 'runs/x/a.json', content: 'x' }, cwd: bare }).status).toBe(2);
+  });
+
+  test('m1: a payload that cannot be read but names agent_id is denied', () => {
+    expect(nobuild('{"agent_id": "a1", oops').status).toBe(2);
+    expect(nobuild('["agent_id"]').status).toBe(2);
+    expect(nobuild('{ oops').status).toBe(0);
   });
 
   test('a qa-* subagent outside the root is still denied', () => {
@@ -158,17 +175,18 @@ describe('R4 + R8: a guard error (corrupt aegis.config.json)', () => {
   });
   afterEach(() => fs.rmSync(outside, { recursive: true, force: true }));
 
-  test('R4: a qa-* subagent is denied', () => {
+  test('R4: a qa-* subagent is denied, and m3: the message names the actual fix', () => {
     const r = guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'x.txt'), content: 'x' }, agent_type: 'qa-ui-specialist', agent_id: 'a1' });
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/^aegis guard: guard error \(cannot read aegis\.config\.json/);
+    expect(r.stderr).toMatch(/^aegis guard: guard error \(cannot read aegis\.config\.json.*: repair aegis\.config\.json$/m);
+    expect(r.stderr).not.toMatch(/pnpm install/);
   });
 
   test('R4: a non-qa subagent outside the root is allowed with a warning; inside it, or naming it, is denied', () => {
     const out = guard({ tool_name: 'Write', tool_input: { file_path: path.join(outside, 'a.ts'), content: 'x' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: outside });
     expect(out.status).toBe(0);
-    expect(out.stderr).toMatch(/aegis guard: warning — guard error/);
-    expect(guard({ tool_name: 'Bash', tool_input: { command: 'ls' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: t.root }).status).toBe(2);
+    expect(systemMessage(out.stdout)).toMatch(/aegis guard: warning — guard error/);
+    expect(guard({ tool_name: 'Bash', tool_input: { command: `ls ${t.root}` }, agent_type: 'general-purpose', agent_id: 'g1', cwd: outside }).status).toBe(2);
     expect(guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'HANDBOOK', 'x.md'), content: 'x' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: outside }).status).toBe(2);
   });
 
@@ -180,7 +198,7 @@ describe('R4 + R8: a guard error (corrupt aegis.config.json)', () => {
     expect(rel.status).toBe(2);
     const fw = guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'HANDBOOK', 'x.md'), content: 'x' } });
     expect(fw.status).toBe(0);
-    expect(fw.stderr).toMatch(/aegis guard: warning — guard error .*main-thread call allowed/);
+    expect(systemMessage(fw.stdout)).toMatch(/aegis guard: warning — guard error .*main-thread call allowed/);
   });
 });
 
@@ -259,9 +277,9 @@ describe('ruling: the main thread never writes target source', () => {
     expect(guard({ tool_name: 'Bash', tool_input: { command: 'echo x > ../src-of-target/app.ts' } }).status).toBe(2);
   });
 
-  test('the named exceptions and the aegis root stay writable', () => {
+  test('the qa-*.yml exception and the aegis root stay writable; the Playwright config is not the main thread\'s (m6)', () => {
     expect(guard({ tool_name: 'Write', tool_input: { file_path: path.join(targetRoot(), '.github', 'workflows', 'qa-smoke.yml'), content: 'x' } }).status).toBe(0);
-    expect(guard({ tool_name: 'Write', tool_input: { file_path: path.join(targetRoot(), 'playwright.config.ts'), content: 'x' } }).status).toBe(0);
+    expect(guard({ tool_name: 'Write', tool_input: { file_path: path.join(targetRoot(), 'playwright.config.ts'), content: 'x' } }).status).toBe(2);
     expect(guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'HANDBOOK', 'x.md'), content: 'x' } }).status).toBe(0);
   });
 });
@@ -281,11 +299,94 @@ describe('payload fields are read defensively (harness fields unverified)', () =
     expect(typed.stderr).toMatch(/territory rule/);
   });
 
+  test('B4: agent_type without agent_id (a --agent session) is the main thread', () => {
+    const owner = guard({ tool_name: 'Bash', tool_input: { command: 'AEGIS_AGENT=owner pnpm aegis run status' }, agent_type: 'qa-test-planner' });
+    expect(owner.status).toBe(0);
+    const run = guard({ tool_name: 'Write', tool_input: { file_path: path.join(runDir(t.root, runId), 'plan.json'), content: '{}' }, agent_type: 'qa-test-planner' });
+    expect(run.status).toBe(2);
+    expect(run.stderr).toMatch(/main thread never writes QA artefacts/);
+  });
+
   test('both dispatch tool names are checked (AUD-022)', () => {
     for (const tool_name of ['Agent', 'Task']) {
       const r = guard({ tool_name, tool_input: { subagent_type: 'qa-orchestrator', prompt: 'x' }, agent_type: 'qa-test-executor', agent_id: 'a1' });
       expect(r.status).toBe(2);
       expect(r.stderr).toMatch(/nested orchestrator/);
     }
+  });
+});
+
+describe('I1: symlinks and .. are resolved physically', () => {
+  const agent = { agent_type: 'qa-ui-specialist', agent_id: 'a1' };
+  beforeEach(() => {
+    fs.mkdirSync(path.join(runDir(t.root, runId), 'reports'), { recursive: true });
+    fs.mkdirSync(path.join(t.root, 'sandbox'), { recursive: true });
+    fs.symlinkSync(path.join(runDir(t.root, runId), 'reports'), path.join(t.root, 'sandbox', 'esc'));
+  });
+
+  test('probe 1: Write sandbox/esc/../events.jsonl lands on the run log', () => {
+    const r = guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'esc') + '/../events.jsonl', content: '{}' }, ...agent });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/written only by the aegis CLI/);
+  });
+
+  test('probe 2: a Bash redirect to sandbox/esc/../events.jsonl lands on the run log', () => {
+    const r = guard({ tool_name: 'Bash', tool_input: { command: "echo '{}' > sandbox/esc/../events.jsonl" }, ...agent });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/written only by the aegis CLI/);
+  });
+
+  test('probe 3: ln -s into the run, then a write through the new link with ..', () => {
+    const r = guard({ tool_name: 'Bash', tool_input: { command: `ln -s ${runDir(t.root, runId)}/reports sandbox/esc2 && echo x > sandbox/esc2/../run.json` }, ...agent });
+    expect(r.status).toBe(2);
+    // the .. after a component that does not exist yet is refused on its own, before the link source is checked
+    const dotdot = guard({ tool_name: 'Bash', tool_input: { command: 'mkdir -p sandbox/new && echo x > sandbox/new/../x.txt' }, ...agent });
+    expect(dotdot.status).toBe(2);
+    expect(dotdot.stderr).toMatch(/does not exist yet/);
+  });
+
+  test('ln sources: no link into runs/ or the framework, hard or symbolic; a link inside the sandbox is fine', () => {
+    const ln = (command: string) => guard({ tool_name: 'Bash', tool_input: { command }, ...agent });
+    expect(ln(`ln -s ${runDir(t.root, runId)} sandbox/r`).stderr).toMatch(/links into runs\/ are refused/);
+    expect(ln(`ln ${runDir(t.root, runId)}/events.jsonl sandbox/ev`).status).toBe(2);
+    expect(ln('ln -s ../runs sandbox/all').status).toBe(2); // relative to the link's directory: sandbox/../runs
+    expect(ln(`ln -s ${t.root}/packages sandbox/p`).stderr).toMatch(/links into the framework are refused/);
+    expect(ln('ln -s plain.txt sandbox/alias').status).toBe(0);
+  });
+
+  test('the main thread may still climb out of a directory it is creating', () => {
+    expect(guard({ tool_name: 'Bash', tool_input: { command: 'mkdir -p HANDBOOK/new && echo x > HANDBOOK/new/../x.md' } }).status).toBe(0);
+  });
+});
+
+describe('m1: an uncaught crash denies subagents and applies the main-thread rule otherwise', () => {
+  let bare: string;
+  let script: string;
+  beforeEach(() => {
+    bare = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-crash-'));
+    fs.mkdirSync(path.join(bare, 'scripts', 'hooks'), { recursive: true });
+    script = path.join(bare, 'scripts', 'hooks', 'guard-writes.mjs');
+    fs.copyFileSync(path.join(REPO, 'scripts', 'hooks', 'guard-writes.mjs'), script);
+    // Stub builds whose guard error cannot even be printed: its message getter throws inside the hook's catch.
+    const pg = path.join(bare, 'packages', '@qa', 'path-guard', 'dist');
+    const rs = path.join(bare, 'packages', '@qa', 'run-state', 'dist');
+    fs.mkdirSync(pg, { recursive: true });
+    fs.mkdirSync(rs, { recursive: true });
+    fs.copyFileSync(path.join(__dirname, 'fixtures', 'guard-crash-stub.mjs'), path.join(pg, 'index.js'));
+    fs.writeFileSync(path.join(pg, 'package.json'), '{"type":"module"}');
+    fs.writeFileSync(path.join(rs, 'caller.js'), 'export const CLI_COMMANDS = []; export function assertCallerAllowed() {}');
+    fs.writeFileSync(path.join(rs, 'package.json'), '{"type":"module"}');
+  });
+  afterEach(() => fs.rmSync(bare, { recursive: true, force: true }));
+  const crash = (input: object) => runHook('guard-writes', input, bare, { script, env: { AEGIS_ROOT: undefined } });
+
+  test('subagent denied, main-thread runs/ denied, other main-thread work allowed with a warning', () => {
+    const sub = crash({ tool_name: 'Bash', tool_input: { command: 'ls' }, agent_type: 'general-purpose', agent_id: 'g1', cwd: '/' });
+    expect(sub.status).toBe(2);
+    expect(sub.stderr).toMatch(/guard crashed \(boom\)/);
+    expect(crash({ tool_name: 'Bash', tool_input: { command: 'rm -rf runs/x' }, cwd: bare }).status).toBe(2);
+    const fw = crash({ tool_name: 'Bash', tool_input: { command: 'ls' }, cwd: bare });
+    expect(fw.status).toBe(0);
+    expect(systemMessage(fw.stdout)).toMatch(/guard crashed \(boom\); main-thread call allowed/);
   });
 });

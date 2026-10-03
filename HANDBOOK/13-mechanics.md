@@ -40,7 +40,8 @@ Writes are enforced by the PreToolUse hook `scripts/hooks/guard-writes.mjs` (H1)
 `packages/@qa/path-guard/src/roles.ts` to every `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` call and checks
 every `Agent` dispatch. Exit 2 denies the call with the reason.
 
-- The caller is the subagent's `agent_type`; a call without one is the main thread.
+- A call that carries `agent_id` is a subagent's, and its `agent_type` names the caller; a call without `agent_id` is
+  the main thread (a `--agent` session included).
 - Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`,
   `intake/`, `hooks/`, `integrity/`, lock files and the active-run pointer — are refused for every caller.
 - Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
@@ -50,17 +51,20 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
   onto the CLI (`LEGACY_MAIN_THREAD_RUN_WRITES` in `packages/@qa/path-guard/src/guard.ts`) are allowed from the main
   thread with a warning and a `legacy-write` hook-ledger entry; P0c/P3 remove each skill's entry when they rewrite it.
 - The main thread never writes target source either: anything inside the target outside this repo, the tests
-  directories and the two named exceptions (the target's Playwright config and its QA-owned workflow files).
+  directories, the QA-owned `qa-*.yml` workflow files and the `/qa-push-reports` collector repo. The target's
+  Playwright config is the environment engineer's alone.
 - A `qa-*` agent writes only its role row's globs — {run} is the active run, {testsDir} is
   `aegis.config.json#testsDir`, {target} is `targetProjectRoot` — or the OS temp directory; never `packages/`, `apps/`,
   `.claude/`, a `package.json` or a lockfile, and nothing at all while the run's environment forbids it.
 - A `pnpm aegis` call carries `AEGIS_AGENT=<caller>` (`owner` for the main thread) and must be a command that caller
   may run; `aegis align`, `init`, `update`, `doctor` and `reconfigure` are the owner's.
 - A `qa-*` agent dispatches only `qa-*` agents, never `qa-orchestrator`.
-- Paths are compared by realpath (the nearest existing parent for a path not created yet), so a symlink cannot carry a
-  write past a rule.
-- Without a build, or on a guard error, the hook fails closed for `qa-*` agents, for other subagents inside this repo
-  and for main-thread calls that name the runs directory; anything else is allowed with a warning.
+- Paths are compared physically: each existing component is realpathed before a `..` climbs, and only the part not
+  created yet is normalized as text, so a symlink cannot carry a write past a rule. A subagent may not climb with
+  `..` out of a directory that does not exist yet, nor link (`ln`, symbolic or hard) into `runs/` or the framework.
+- Without a build, or on a guard error, the hook fails closed for `qa-*` agents, for other subagents whose call names
+  a path inside this repo, and for main-thread calls whose path fields or unquoted command text name the runs
+  directory; anything else is allowed with a warning (a `systemMessage`).
 
 Bash targets are parsed best-effort (redirections, `tee`, `cp`, `mv`, `rm`, `sed -i`, `rsync`, heredocs, `cd`,
 `bash -c`); writes inside interpreters are not seen. The hash chain and `aegis integrity verify` make such writes

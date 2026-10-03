@@ -40,9 +40,10 @@ describe('fix round 2 addendum', () => {
     expect(run('cd a && touch x').commands.map((c) => c.cwdDynamic)).toEqual([undefined, undefined]);
   });
 
-  it('c: git clean and git reset --hard are removals; unlink is a removal command', () => {
-    expect(run('git clean -fd').targets[0]).toMatchObject({ via: 'git-rm', dynamic: true });
-    expect(run('git reset --hard').targets[0]).toMatchObject({ via: 'git-rm', dynamic: true });
+  it('c: git clean and git reset --hard are tree writes (Task 9 B1: only -x/-X removes ignored files); unlink is a removal command', () => {
+    expect(run('git clean -fd').targets[0]).toMatchObject({ via: 'git-clean', dynamic: true });
+    expect(run('git clean -fdx').targets[0]).toMatchObject({ via: 'git-clean-x', dynamic: true });
+    expect(run('git reset --hard').targets[0]).toMatchObject({ via: 'git-reset', dynamic: true });
     expect(run('git stash').targets[0]).toMatchObject({ via: 'git' });
     expect(run('unlink a').targets).toMatchObject([{ path: `${R}/a`, via: 'unlink' }]);
   });
@@ -55,5 +56,26 @@ describe('fix round 2 addendum', () => {
     expect(run('ls').commands[0]!.assigned).toEqual({});
     const inner = run("bash -c 'AEGIS_AGENT=qa-y pnpm aegis task list'").commands;
     expect(inner.some((c) => c.assigned.AEGIS_AGENT === 'qa-y')).toBe(true);
+  });
+});
+
+describe('Task 9 I1: raw operand forms and ln sources', () => {
+  it('keeps the unnormalized form only when normalizing changes it', () => {
+    expect(run('echo x > sandbox/esc/../ev').targets).toEqual([{ path: `${R}/sandbox/ev`, raw: `${R}/sandbox/esc/../ev`, dynamic: false, content: 'x', via: '>' }]);
+    expect(run('touch a/b').targets[0]!.raw).toBeUndefined();
+    expect(run('rm /x/./y').targets[0]).toMatchObject({ path: '/x/y', raw: '/x/./y' });
+  });
+
+  it('lists what ln links point at, apart from the writes', () => {
+    expect(run('ln -s ../runs sandbox/all').linkSources).toEqual([{ path: `${R}/runs`, raw: `${R}/sandbox/../runs`, dynamic: false, content: null, via: 'ln-source' }]);
+    expect(run('ln /a/ev sandbox/ev').linkSources).toMatchObject([{ path: '/a/ev', via: 'ln-source' }]);
+    expect(run('ln -s -t d /a/x /a/y').linkSources.map((s) => s.path)).toEqual(['/a/x', '/a/y']);
+    expect(run('ln -s ../x').linkSources.map((s) => s.path)).toEqual([`${R.slice(0, R.lastIndexOf('/'))}/x`]);
+    expect(run('ln -s a b').targets.map((t) => t.via)).toEqual(['ln']);
+  });
+
+  it('an existing last operand is read both as a directory and as a file -f replaces', () => {
+    const r = bashWriteTargets('ln -sf ../t sandbox/x', R, '/home/u', () => true);
+    expect(r.linkSources.map((s) => s.path)).toEqual([`${R}/sandbox/t`, `${R}/t`]);
   });
 });

@@ -175,7 +175,7 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 
 Enforced by the PreToolUse hook (`scripts/hooks/guard-writes.mjs`): a subagent whose name does not start with `qa-`
 cannot write inside `aegis/` or any QA artefact; `qa-*` agents write only the paths of their role-table row; the
-main thread writes framework files only — never `runs/**` or the target's `tests/**`, except the direct run writes
+main thread may write anywhere except `runs/**` (CLI-only), the target's `tests/**` and target source, except the direct run writes
 of the not-yet-rewritten skills in `LEGACY_MAIN_THREAD_RUN_WRITES`, which are allowed with a warning and logged in the
 run's hook ledger until P0c/P3 move them onto the CLI. Framework work by subagents happens in a git worktree outside
 this directory.
@@ -198,7 +198,7 @@ this directory.
 | `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |
 
-Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report. The PreToolUse hook denies the main thread every write to target source outside the named exceptions.
+Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report. The PreToolUse hook denies the main thread every write to target source outside the QA-owned `qa-*.yml` workflow files.
 
 ---
 
@@ -207,7 +207,7 @@ Never modify source files in the target app. If a fix is needed in target source
 Never write the word "Aegis", internal agent names (e.g. `qa-director`,
 `qa-planner`, `qa-specialist-*`), or any framework-internal identifiers in:
 
-- `runs/*/reports/closure.*`
+- `runs/*/reports/closure/**`
 - `runs/*/cases/**`
 - `runs/*/defects/**`
 - `runs/*/plan.*`

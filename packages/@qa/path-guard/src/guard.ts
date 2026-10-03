@@ -1,6 +1,6 @@
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { PHASE_IDS, checkBrandExposure } from "@qa/contracts";
-import { bashWriteTargets, expandBraces, unwrap, type LocatedCommand, type ShellWord } from "./bash.js";
+import { bashWriteTargets, expandBraces, unwrap, type LocatedCommand, type ShellWord, type WriteTarget } from "./bash.js";
 import type { GuardContext } from "./context.js";
 import { envVerdict, isCliOnlyRunPath, matchGlob, roleOf, roleWritable } from "./roles.js";
 
@@ -17,10 +17,13 @@ export interface GuardDeps {
   /** null when `caller` may run CLI command `command` (e.g. "task.claim"), else the refusal; run-state's caller tables. */
   cliAllowed(caller: string, command: string): string | null;
   /**
-   * m10: the canonical form of an absolute, normalized path (realpath of its nearest existing parent, plus the rest).
-   * The hook passes fs.realpathSync-based canonicalization; without it paths are compared as written.
+   * m10 / I1: the physical canonical form of an absolute path that may still hold `..`, `.` or `//`: each existing
+   * component is realpathed in turn (so `link/..` climbs from where the link points), and only the part that does not
+   * exist yet is normalized as text. The hook passes an fs-based one; without it paths are normalized as text.
    */
   realpath?(abs: string): string;
+  /** I1: does the absolute path hold a `..` after a component that does not exist yet (a link the same call may create)? */
+  danglingDotDot?(abs: string): boolean;
 }
 
 /** A main-thread write into runs/ that a legacy skill still makes directly: allowed with a warning (decision 24). */
@@ -77,9 +80,9 @@ const DEPENDENCY_FILES: ReadonlySet<string> = new Set(["package.json", "pnpm-loc
 /** The CLI-only names of CLI_ONLY_RUN_GLOBS (and runs/.active), as text, for targets the parser cannot resolve. */
 const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|\.active\b|\.lock\b/;
 /** Commands that remove (or, for mv, move away) the paths they name. git-rm is git rm, git clean and git reset --hard. */
-const REMOVE_OPS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "git-rm", "git-mv"]);
+const REMOVE_OPS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "git-rm", "git-mv", "git-clean-x"]);
 /** Git write targets: a directory among them stands for its whole subtree. */
-const GIT_OPS: ReadonlySet<string> = new Set(["git", "git-rm", "git-mv"]);
+const GIT_OPS: ReadonlySet<string> = new Set(["git", "git-rm", "git-mv", "git-clean", "git-clean-x", "git-reset"]);
 /** The only ways a legacy skill may touch runs/ or a run directory itself (_qa-init-project). */
 const CREATE_OPS: ReadonlySet<string> = new Set(["mkdir", "touch"]);
 const LOCK_REMOVERS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink"]);
@@ -109,11 +112,27 @@ const allow = (claims: string[] = [], warnings: LegacyWrite[] = []): GuardResult
 const deny = (reason: string): GuardResult => ({ allow: false, reason, claims: [], warnings: [] });
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
+/**
+ * B4: `agent_id` is the subagent signal. A payload with agent_type but no agent_id (a `--agent` session) is the main
+ * thread; one with agent_id but no usable agent_type is a subagent of unknown type (a non-qa one).
+ */
 function callerOf(input: HookToolInput): Caller {
-  const t = input.agent_type;
-  if (typeof t !== "string" || t === "") return { kind: "main" };
+  if (typeof input.agent_id !== "string" || input.agent_id === "") return { kind: "main" };
+  const t = typeof input.agent_type === "string" && input.agent_type !== "" ? input.agent_type : "unknown-subagent";
   return QA_AGENT.test(t) ? { kind: "qa", agent: t } : { kind: "other", agent: t };
 }
+
+/** `v` against `base` without normalizing: `..` must be applied physically, after symlinks (I1). */
+const rawJoin = (base: string, v: string): string => (isAbsolute(v) ? v : `${base}/${v}`);
+
+/** B4: {aegisRoot}/.claude/worktrees/<name>/… is a separate checkout (native isolation: "worktree"), not this one. */
+function inNativeWorktree(ctx: GuardContext, abs: string): boolean {
+  const rel = relative(join(ctx.aegisRoot, ".claude", "worktrees"), abs);
+  return rel !== "" && rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel);
+}
+
+/** This checkout, as a non-qa subagent sees it: the aegis root minus the native worktrees inside it. */
+const inCheckout = (ctx: GuardContext, abs: string): boolean => inside(ctx.aegisRoot, abs) && !inNativeWorktree(ctx, abs);
 
 /** `abs` is `dir` or inside it. */
 function inside(dir: string, abs: string): boolean {
@@ -144,8 +163,11 @@ function holdsRuns(ctx: GuardContext, abs: string): boolean {
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel) && !rel.includes("/");
 }
 
-/** QA-owned files inside the target (decision 12, named exceptions); relative to the target root. Not target source. */
-const TARGET_QA_FILES: readonly string[] = ["playwright.config.ts", ".github/workflows/qa-*.yml"];
+/**
+ * QA-owned files inside the target that callers other than qa-* agents may write (decision 12): the /qa-ci-bootstrap
+ * workflows. The Playwright config exception belongs to qa-environment-engineer's role row only (m6).
+ */
+const TARGET_QA_FILES: readonly string[] = [".github/workflows/qa-*.yml"];
 
 /**
  * Target source (Task 9 ruling): inside the target root but outside the aegis root, the tests dirs and the named
@@ -283,7 +305,7 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
     if (isTargetSource(ctx, abs, via)) {
       return { deny: `${caller.agent} is not a qa-* agent and may not modify target source (${abs}); file the fix as a defect (CLAUDE.md read/write policy)` };
     }
-    if (inside(ctx.aegisRoot, abs)) {
+    if (inCheckout(ctx, abs)) {
       return { deny: `${caller.agent} is not a qa-* agent and may not write inside the aegis repo (territory rule); do framework work from the main thread, or in a worktree outside it` };
     }
     return null;
@@ -326,7 +348,8 @@ function checkTree(caller: Caller, dir: string, via: string, ctx: GuardContext):
     return { deny: `git ${via === "git" ? "writes" : "removes"} ${dir} and everything under it, which holds target source; never modify the target app (file a defect instead)` };
   }
   const sandbox = join(ctx.aegisRoot, "sandbox");
-  const framework = inside(ctx.aegisRoot, dir) && !inside(sandbox, dir) && !inside(join(ctx.aegisRoot, "runs"), dir);
+  const framework =
+    inside(ctx.aegisRoot, dir) && !inside(sandbox, dir) && !inside(join(ctx.aegisRoot, "runs"), dir) && !(caller.kind === "other" && inNativeWorktree(ctx, dir));
   if (framework) {
     if (caller.kind === "main") return null;
     return { deny: `git changes ${dir} and everything under it, which holds aegis framework files; ${caller.kind === "qa" ? "agents never modify the framework (spec D2)" : `${caller.agent} is not a qa-* agent (territory rule)`}` };
@@ -339,14 +362,16 @@ const notAbsolute = (what: string): GuardResult =>
 
 type Canon = (abs: string) => string;
 
-function single(caller: Caller, tool: string, rawPath: string | null, content: string | null, cwd: string, ctx: GuardContext, canon: Canon): GuardResult {
+const danglingDenial = (path: string): GuardResult =>
+  deny(`${path} climbs with .. out of a directory that does not exist yet (it may become a link in the same call); write the path without ..`);
+
+function single(caller: Caller, tool: string, rawPath: string | null, content: string | null, cwd: string, ctx: GuardContext, deps: GuardDeps, canon: Canon): GuardResult {
   if (rawPath === null || rawPath === "") return allow();
-  // Normalize before any rule runs: `..`, `.` and doubled slashes must not walk a path out of the glob it seems to match.
-  let abs: string;
-  if (isAbsolute(rawPath)) abs = resolve(rawPath);
-  else if (isAbsolute(cwd)) abs = resolve(cwd, rawPath);
-  else return notAbsolute(`${rawPath} (cwd ${cwd})`);
-  const v = checkPath(caller, canon(abs), content, tool, ctx);
+  // Canonicalize before any rule runs: `..`, `.`, doubled slashes and symlinks must not walk a path out of its glob.
+  if (!isAbsolute(rawPath) && !isAbsolute(cwd)) return notAbsolute(`${rawPath} (cwd ${cwd})`);
+  const unnormalized = rawJoin(cwd, rawPath);
+  if (caller.kind !== "main" && deps.danglingDotDot?.(unnormalized) === true) return danglingDenial(rawPath);
+  const v = checkPath(caller, canon(unnormalized), content, tool, ctx);
   if (v === null) return allow();
   return "deny" in v ? deny(v.deny) : allow([], [v.warn]);
 }
@@ -401,7 +426,7 @@ function scriptCli(argv: readonly string[], cwd: string): Found | null {
   const script = argv[k];
   if (script === undefined) return null;
   const at = resolve(cwd, script);
-  return CLI_SCRIPT.test(at) || basename(at) === "aegis" ? { rest: argv.slice(k + 1), location: at, preload } : null;
+  return CLI_SCRIPT.test(at) || basename(at) === "aegis" ? { rest: argv.slice(k + 1), location: rawJoin(cwd, script), preload } : null;
 }
 
 /** The arguments after the CLI name, for any recognised way of starting the aegis CLI; null for any other command. */
@@ -421,9 +446,9 @@ function cliArgs(argv: readonly string[], cwd: string, depth = 0): Found | null 
     return cliArgs(argv.slice(k), cwd, depth + 1);
   }
   if (SCRIPT_RUNNERS.has(program)) return scriptCli(argv, cwd);
-  if (program === "aegis") return { rest: argv.slice(1), location: head.includes("/") ? resolve(cwd, head) : null, preload: false };
+  if (program === "aegis") return { rest: argv.slice(1), location: head.includes("/") ? rawJoin(cwd, head) : null, preload: false };
   // The CLI script run directly (./apps/cli/dist/index.js has a shebang).
-  if (head.includes("/") && CLI_SCRIPT.test(resolve(cwd, head))) return { rest: argv.slice(1), location: resolve(cwd, head), preload: false };
+  if (head.includes("/") && CLI_SCRIPT.test(resolve(cwd, head))) return { rest: argv.slice(1), location: rawJoin(cwd, head), preload: false };
   const valued = Object.hasOwn(RUNNERS, program) ? RUNNERS[program]! : undefined;
   if (valued === undefined) return null;
   let location: string | null = null;
@@ -436,7 +461,7 @@ function cliArgs(argv: readonly string[], cwd: string, depth = 0): Found | null 
       const name = attachedC ? "-C" : eq > 0 ? flag.slice(0, eq) : flag;
       const separate = !attachedC && eq < 0 && valued.includes(flag);
       const value = attachedC ? flag.slice(2) : eq > 0 ? flag.slice(eq + 1) : separate ? argv[i + 1] : undefined;
-      if (LOCATION_FLAGS.has(name) && value !== undefined) location = resolve(cwd, value);
+      if (LOCATION_FLAGS.has(name) && value !== undefined) location = rawJoin(cwd, value);
       i += separate ? 2 : 1;
     }
   };
@@ -474,7 +499,7 @@ function checkCli(caller: Caller, cli: CliCall, c: LocatedCommand, ctx: GuardCon
   if (caller.kind === "other") {
     // Decision 4: only this checkout is territory. A non-qa subagent in an outside worktree runs its own CLI freely;
     // after a dynamic cd the location is unknown and counts as this checkout (m8).
-    const here = c.cwdDynamic === true || inside(ctx.aegisRoot, c.cwd) || (cli.location !== null && inside(ctx.aegisRoot, cli.location));
+    const here = c.cwdDynamic === true || inCheckout(ctx, c.cwd) || (cli.location !== null && inCheckout(ctx, cli.location));
     return here ? `${caller.agent} is not a qa-* agent: the aegis CLI in ${ctx.aegisRoot} is for qa-* agents and the owner` : null;
   }
   if (caller.kind === "qa" && cli.preload) return "a node preload (-r/--require/--import/--loader) on an aegis CLI call is refused for subagents (R4)";
@@ -621,7 +646,7 @@ function findProblem(c: LocatedCommand, ctx: GuardContext, canon: Canon): string
   }
   for (const s of starts.length > 0 ? starts : [{ value: ".", dynamic: false }]) {
     if (s.dynamic) return `find from ${s.value} with -delete/-exec: the guard cannot tell where it starts`;
-    const at = canon(resolve(c.cwd, s.value));
+    const at = canon(rawJoin(c.cwd, s.value));
     if (holdsRuns(ctx, at) || inside(join(ctx.aegisRoot, "runs"), at)) {
       return `find ${s.value} with -delete/-exec can remove files written only by the aegis CLI; name the paths literally`;
     }
@@ -648,8 +673,8 @@ function touchesCheckout(commands: readonly LocatedCommand[], ctx: GuardContext,
     const { argv } = unwrap(c);
     const name = basename(argv[0]?.value ?? "");
     if (argv.length === 0 || name === "cd" || name === "pushd" || name === "popd") return false;
-    if (c.cwdDynamic === true || inside(ctx.aegisRoot, c.cwd)) return true;
-    return [...c.argv, ...c.redirects].some((w) => !w.dynamic && pathTokens(w.value).some((t) => inside(ctx.aegisRoot, canon(resolve(t)))));
+    if (c.cwdDynamic === true || inCheckout(ctx, c.cwd)) return true;
+    return [...c.argv, ...c.redirects].some((w) => !w.dynamic && pathTokens(w.value).some((t) => inCheckout(ctx, canon(t))));
   });
 }
 
@@ -710,7 +735,7 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
     if (t.dynamic) {
       // git checkout ., clean, reset --hard, stash: a literal directory, flagged dynamic because it stands for all of it.
       if (git && isAbsolute(t.path) && !/[$`]/.test(t.path)) {
-        const out = verdict(checkTree(caller, canon(resolve(t.path)), t.via, ctx));
+        const out = verdict(checkTree(caller, canon(t.path), t.via, ctx));
         if (out !== null) return out;
         continue;
       }
@@ -723,7 +748,8 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
       continue; // best-effort: the chain and integrity verify are the backstop (spec §4.4)
     }
     if (!isAbsolute(t.path)) return notAbsolute(`write target ${t.path}`);
-    let paths = [t.path];
+    // I1: the unnormalized form, so `link/..` is applied after the link is followed.
+    let paths = [t.raw ?? t.path];
     if (t.pattern === true) {
       const expanded = expandBraces(t.path);
       if (expanded === null) {
@@ -732,7 +758,8 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
       } else paths = expanded;
     }
     for (const raw of paths) {
-      const p = canon(resolve(raw));
+      if (caller.kind !== "main" && deps.danglingDotDot?.(raw) === true) return danglingDenial(raw);
+      const p = canon(raw);
       if (GLOB_CHARS.test(p)) {
         const g = globProblem(ctx, p, t.via);
         if (g !== null) return deny(g);
@@ -741,7 +768,33 @@ function decideBash(caller: Caller, command: string, cwd: string, ctx: GuardCont
       if (out !== null) return out;
     }
   }
+  // I1: what an `ln` link points at. A subagent never links into runs/ or the framework: a link (or a hard link, which
+  // no realpath can see through) would let a later write reach a file its own path does not name.
+  if (caller.kind !== "main") {
+    for (const s of parsed.linkSources) {
+      const problem = linkProblem(caller, s, ctx, deps, canon);
+      if (problem !== null) return deny(problem);
+    }
+  }
   return allow(claims, warnings);
+}
+
+function linkProblem(caller: Exclude<Caller, { kind: "main" }>, s: WriteTarget, ctx: GuardContext, deps: GuardDeps, canon: Canon): string | null {
+  if (s.dynamic) {
+    return /(^|\/)(runs|packages|apps|\.claude)(\/|$)/.test(s.path) || s.path.includes(ctx.aegisRoot)
+      ? `ln ${s.path} is not a literal path and may point into runs/ or the framework`
+      : null;
+  }
+  if (!isAbsolute(s.path)) return `ln source ${s.path} is not an absolute path, so the guard cannot tell where the link points`;
+  const raw = s.raw ?? s.path;
+  if (deps.danglingDotDot?.(raw) === true) return `ln source ${raw} climbs with .. out of a directory that does not exist yet`;
+  const at = canon(raw);
+  const runs = join(ctx.aegisRoot, "runs");
+  if (holdsRuns(ctx, at) || inside(runs, at)) return `${caller.agent} may not link to ${at}: links into runs/ are refused (the CLI-only files would be reachable through them)`;
+  if (FRAMEWORK_DIRS.some((d) => inside(join(ctx.aegisRoot, d), at)) || FRAMEWORK_SEGMENTS.test(at)) {
+    return `${caller.agent} may not link to ${at}: links into the framework are refused`;
+  }
+  return null;
 }
 
 function decideAgent(caller: Caller, target: string): GuardResult {
@@ -758,23 +811,23 @@ function decideAgent(caller: Caller, target: string): GuardResult {
 /** H1 (spec §4.2): allow, warn-and-allow (legacy skills, decision 24) or deny one tool call. Pure; the hook loads `ctx`. */
 export function decide(input: HookToolInput, ctx: GuardContext, deps: GuardDeps): GuardResult {
   const caller = callerOf(input);
-  const canon: Canon = deps.realpath ?? ((abs) => abs);
+  const canon: Canon = deps.realpath ?? ((abs) => resolve(abs));
   const rawCwd = typeof input.cwd === "string" && input.cwd !== "" ? input.cwd : ctx.aegisRoot;
-  const cwd = isAbsolute(rawCwd) ? canon(resolve(rawCwd)) : rawCwd;
+  const cwd = isAbsolute(rawCwd) ? canon(rawCwd) : rawCwd;
   const ti = input.tool_input ?? {};
   const tool = input.tool_name ?? "";
   switch (tool) {
     case "Write":
-      return single(caller, tool, str(ti["file_path"]), str(ti["content"]), cwd, ctx, canon);
+      return single(caller, tool, str(ti["file_path"]), str(ti["content"]), cwd, ctx, deps, canon);
     case "Edit":
-      return single(caller, tool, str(ti["file_path"]), str(ti["new_string"]), cwd, ctx, canon);
+      return single(caller, tool, str(ti["file_path"]), str(ti["new_string"]), cwd, ctx, deps, canon);
     case "MultiEdit": {
       const edits = Array.isArray(ti["edits"]) ? (ti["edits"] as unknown[]) : [];
       const text = edits.map((e) => (e !== null && typeof e === "object" ? str((e as Record<string, unknown>)["new_string"]) ?? "" : "")).join("\n");
-      return single(caller, tool, str(ti["file_path"]), text, cwd, ctx, canon);
+      return single(caller, tool, str(ti["file_path"]), text, cwd, ctx, deps, canon);
     }
     case "NotebookEdit":
-      return single(caller, tool, str(ti["notebook_path"]), str(ti["new_source"]), cwd, ctx, canon);
+      return single(caller, tool, str(ti["notebook_path"]), str(ti["new_source"]), cwd, ctx, deps, canon);
     case "Bash":
       return decideBash(caller, str(ti["command"]) ?? "", cwd, ctx, deps, canon);
     case "Agent":

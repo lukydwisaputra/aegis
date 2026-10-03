@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 /**
  * Best-effort Bash write-target parser for the PreToolUse hook (P0 spec §4.2 H1, §10 risk). It sees redirections, the
@@ -40,6 +40,11 @@ export interface WriteTarget {
   readonly via: string;
   /** The path text holds an unquoted brace or glob pattern (see expandBraces). */
   readonly pattern?: true;
+  /**
+   * The operand joined to its directory but NOT normalized, set only when it differs from `path` (a `..`, `.` or `//`).
+   * The guard canonicalizes this form physically, so `link/..` follows the link before it climbs (Task 9 I1).
+   */
+  readonly raw?: string;
 }
 
 /** A simple command with the directory it runs in (after any earlier `cd`). */
@@ -673,25 +678,33 @@ interface Loc {
 /** Git global options that take a separate value (besides -C, handled apart). */
 const GIT_VALUE_OPTS: ReadonlySet<string> = new Set(["-c", "--namespace", "--exec-path", "--super-prefix", "--config-env"]);
 
+/** A located path, with its unnormalized form only when normalizing changed it. */
+function withRaw(path: string, raw: string, dynamic: boolean): { path: string; dynamic: boolean; raw?: string } {
+  return raw === path || dynamic ? { path, dynamic } : { path, dynamic, raw };
+}
+
 /** Every path a Bash command may write, resolved against `cwd` (and `cd` inside the command). */
-export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? "", exists: (path: string) => boolean = existsSync): { targets: WriteTarget[]; commands: LocatedCommand[] } {
+export function bashWriteTargets(src: string, cwd: string, home: string = process.env["HOME"] ?? "", exists: (path: string) => boolean = existsSync): { targets: WriteTarget[]; commands: LocatedCommand[]; linkSources: WriteTarget[] } {
   const targets: WriteTarget[] = [];
   const commands: LocatedCommand[] = [];
+  /** What `ln` links point at (via "ln-source"): checked apart from the writes, so no link leads into runs/ (Task 9 I1). */
+  const linkSources: WriteTarget[] = [];
   const homeLoc: Loc = home === "" ? { dir: "~", dyn: true, stat: cwd } : { dir: home, dyn: false, stat: home };
 
-  const locate = (base: Loc, w: ShellWord): { path: string; dynamic: boolean } => {
+  const locate = (base: Loc, w: ShellWord): { path: string; dynamic: boolean; raw?: string } => {
     if (w.dynamic) return { path: w.value, dynamic: true };
     const v = w.value;
     if (v === "~") return { path: homeLoc.dir, dynamic: homeLoc.dyn };
-    if (v.startsWith("~/")) return { path: join(homeLoc.dir, v.slice(2)), dynamic: homeLoc.dyn };
+    if (v.startsWith("~/")) return withRaw(join(homeLoc.dir, v.slice(2)), `${homeLoc.dir}/${v.slice(2)}`, homeLoc.dyn);
     // A pattern is joined, not normalized: `..` inside a brace group ({a/../..,b}) only means something per expansion.
     if (w.pattern === true && isAbsolute(v)) return { path: v, dynamic: false };
-    if (isAbsolute(v)) return { path: resolve(v), dynamic: false };
+    if (isAbsolute(v)) return withRaw(resolve(v), v, false);
     if (base.dyn) return { path: `${base.dir}/${v}`, dynamic: true };
     if (w.pattern === true) return { path: `${base.dir}/${v}`, dynamic: false };
-    return { path: resolve(base.dir, v), dynamic: false };
+    return withRaw(resolve(base.dir, v), `${base.dir}/${v}`, false);
   };
   const pat = (w: ShellWord): { pattern?: true } => (w.pattern === true ? { pattern: true } : {});
+  const rawOf = (r: { raw?: string }): { raw?: string } => (r.raw !== undefined ? { raw: r.raw } : {});
   const moveTo = (base: Loc, w: ShellWord): Loc => {
     const r = locate(base, w);
     return { dir: r.path, dyn: r.dynamic, stat: r.dynamic ? base.stat : r.path };
@@ -723,7 +736,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     const paths = (ws: readonly ShellWord[], via = "git"): WriteTarget[] =>
       ws.map((w) => {
         const r = locate(at, w);
-        return { path: r.path, dynamic: r.dynamic, content: null, via, ...pat(w) };
+        return { path: r.path, dynamic: r.dynamic, content: null, via, ...pat(w), ...rawOf(r) };
       });
     const everything = (via = "git"): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via }];
     switch (sub) {
@@ -755,13 +768,18 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       }
       case "apply":
         return has("--check", "--stat", "--numstat", "--summary") ? [] : everything();
-      case "clean":
-        return flagText.some((f) => f === "--dry-run" || (/^-[a-zA-Z]+$/.test(f) && f.includes("n"))) ? [] : everything("git-rm");
+      // Task 9 B1: only -x/-X (and stash --all) reach ignored files such as runs/; plain clean and reset --hard do not.
+      case "clean": {
+        if (flagText.some((f) => f === "--dry-run" || (/^-[a-zA-Z]+$/.test(f) && f.includes("n")))) return [];
+        const ignored = flagText.some((f) => /^-[a-zA-Z]+$/.test(f) && /[xX]/.test(f));
+        return everything(ignored ? "git-clean-x" : "git-clean");
+      }
       case "reset":
-        return has("--hard") ? everything("git-rm") : [];
+        return has("--hard") ? everything("git-reset") : [];
       case "stash": {
         const sub2 = rest.find((a) => a.dynamic || !a.value.startsWith("-"))?.value;
-        return sub2 === "list" || sub2 === "show" ? [] : everything();
+        if (sub2 === "list" || sub2 === "show") return [];
+        return everything(flagText.some((f) => f === "--all" || (/^-[a-zA-Z]+$/.test(f) && f.includes("a"))) ? "git-clean-x" : "git");
       }
       default:
         return [];
@@ -789,7 +807,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       prevContent = content;
       for (const r of c.redirects) {
         const t = locate(loc, r);
-        targets.push({ path: t.path, dynamic: t.dynamic, content, via: ">", ...pat(r) });
+        targets.push({ path: t.path, dynamic: t.dynamic, content, via: ">", ...pat(r), ...rawOf(t) });
       }
       if (name === "cd" || (name === "pushd" && args.some((a) => a.dynamic || !a.value.startsWith("-")))) {
         if (name === "pushd") dirStack.push(loc);
@@ -811,12 +829,40 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
         targets.push(...gitWrites(loc, args));
         continue;
       }
-      for (const w of writtenBy(name, args)) {
+      const written = writtenBy(name, args);
+      for (const w of written) {
         const t = locate(loc, w);
-        targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name, ...pat(w) });
+        targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name, ...pat(w), ...rawOf(t) });
       }
+      if (name === "ln") linkSources.push(...lnSources(loc, args, written));
     }
   };
+  /**
+   * The sources of `ln`: a symbolic one is relative to the directory the link lands in, a hard one to the cwd. When the
+   * last operand exists it may be a directory (the link goes inside) or a file `-f` replaces: both readings are checked.
+   */
+  const lnSources = (loc: Loc, args: readonly ShellWord[], written: readonly ShellWord[]): WriteTarget[] => {
+    const { ops, valued, flags } = split("ln", args);
+    const dirFlag = valued.find(([f]) => f === "-t" || f === "--target-directory")?.[1];
+    const sources = dirFlag !== undefined ? ops : ops.length === 1 ? ops : ops.slice(0, -1);
+    let bases: Loc[] = [loc];
+    if (flags.has("-s") || flags.has("--symbolic")) {
+      const link = dirFlag ?? (ops.length > 1 ? written[0] : undefined);
+      if (link !== undefined) {
+        const at = locate(loc, link);
+        const asDir = (d: string): Loc => ({ dir: d, dyn: false, stat: d });
+        if (at.dynamic) bases = [{ dir: at.path, dyn: true, stat: loc.stat }];
+        else if (dirFlag !== undefined || ops.length > 2) bases = [asDir(at.path)];
+        else bases = exists(at.path) ? [asDir(at.path), asDir(dirname(at.path))] : [asDir(dirname(at.path))];
+      }
+    }
+    return bases.flatMap((base) =>
+      sources.map((w) => {
+        const t = locate(base, w);
+        return { path: t.path, dynamic: t.dynamic, content: null, via: "ln-source", ...rawOf(t) };
+      }),
+    );
+  };
   walk(src, { dir: cwd, dyn: false, stat: cwd }, 0);
-  return { targets, commands };
+  return { targets, commands, linkSources };
 }

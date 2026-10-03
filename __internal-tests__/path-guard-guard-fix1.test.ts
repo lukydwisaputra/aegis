@@ -210,7 +210,8 @@ describe('addendum: git targets', () => {
     ['qa git stash in the aegis root (framework)', 'git stash', AGENT, ROOT, false],
     ['main git checkout -- . in the aegis root (framework dev; no removal)', 'git checkout -- .', null, ROOT, true],
     ['main git restore . inside runs', 'git restore .', null, RUN_DIR, false],
-    ['main git reset --hard in the aegis root (R2: holds runs)', 'git reset --hard', null, ROOT, false],
+    // Task 9 B1: reset --hard never touches the ignored runs/, so the owner's framework work is not blocked.
+    ['main git reset --hard in the aegis root (B1: runs/ is ignored)', 'git reset --hard', null, ROOT, true],
     ['qa git checkout -- . in its sandbox', 'git checkout -- .', AGENT, `${ROOT}/sandbox/x`, true],
     ['other git checkout . in aegis', 'git checkout .', 'general-purpose', `${ROOT}/HANDBOOK`, false],
     ['other git checkout -- . at the target root', 'git checkout -- .', 'general-purpose', '/repo', false],
