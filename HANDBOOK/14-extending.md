@@ -43,7 +43,7 @@ Example: adding a Billing module:
 
 1. Create a knowledge file at `knowledge/synthesis/compliance-{reg}.md` with the clause catalog
 2. Create the reviewer agent at `.claude/agents/compliance/qa-compliance-{reg}.md`
-3. Create the SPV at `.claude/agents/spv/qa-compliance-{reg}-spv.md`
+3. Add the agent to `qa-compliance-spv` (its `reviews` list and its Inputs lessons file), set the agent's `reviewedBy: qa-compliance-spv`, add the pair to `pipeline.yaml#spvPairs`, and give its row `spv: "qa-compliance-spv"` in `packages/@qa/path-guard/src/roles.ts`
 4. Add the tag format regex to `@qa/contracts/tags.ts`
 5. Update `aegis.config.json.compliance[]` with the new regulation key
 6. Add the regulation to `thresholds.yaml` under relevant stages
@@ -185,7 +185,7 @@ entry counts as baseline growth: the PR needs the `baseline-growth` label and th
 | `routing` → `byType` / `byTechnique` | Adding a specialist, or a test type / technique it serves |
 | `routing` → `designerEmits` / `techniqueWithoutSpecialist` | The test designer produces a new type or technique |
 | `envSpecialists` | Environments refer to a specialist by a short name |
-| `spvPairs` | An SPV is not named `<agent>-spv` — also update `SHARED_SPV` in `packages/@qa/run-state/src/caller.ts`, or SPV reports `pair-mismatch` |
+| `spvPairs` | An SPV is not named `<agent>-spv` — also set the worker's `spv` in `packages/@qa/path-guard/src/roles.ts`, or SPV reports `pair-mismatch` |
 | `sources` | A path is produced outside any agent (`cli`, `owner`, `target`, `repo`); a concrete `repo` read must exist on disk |
 | `nonAgentNames` | A `qa-*` token in the docs is not an agent or skill (labels, project names) |
 | `externalScripts` | A `pnpm <script>` named in the docs runs in the target repo, not in Aegis (e.g. `husky`) |

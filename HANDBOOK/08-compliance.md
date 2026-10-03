@@ -31,9 +31,9 @@ Examples: `[ISO25010-SEC]`, `[GDPR-CONSENT]`, `[PDPA-SENSITIVE]`, `[ISTQB-EP]`.
 Tags are added by:
 1. **Workers** — when authoring test cases, workers tag based on content
 2. **Compliance agents** — when reviewing artefacts, they add missing tags
-3. **SPV compliance reviewers** — when scoring compliance agent output
+3. **The compliance reviewer** (`qa-compliance-spv`) — when reviewing compliance agent output
 
-A test case without any compliance tags will be flagged by `qa-compliance-iso25010` (reviewed by its SPV) as lacking traceability.
+A test case without any compliance tags will be flagged by `qa-compliance-iso25010` (reviewed by `qa-compliance-spv`) as lacking traceability.
 
 ---
 
@@ -140,7 +140,7 @@ The sequence during a full run:
 1. Phase 3 completes (test cases authored)
 2. The `qa-orchestrator` dispatches all six compliance agents simultaneously
 3. Each agent reads the test cases and RTM, annotates missing tags, and writes a compliance annotation file to `runs/<RUN-ID>/compliance/<framework>.json`
-4. Each annotation file is reviewed by its paired SPV (e.g., `qa-compliance-gdpr-spv`)
+4. Each annotation file is reviewed by the one shared compliance reviewer, `qa-compliance-spv`, one task at a time
 5. Phase 6 report writer merges all six annotation files into the compliance section of the run report
 
 Total wall-clock time for compliance review: typically 3–8 minutes (depending on case count). This runs concurrently with defect analysis.

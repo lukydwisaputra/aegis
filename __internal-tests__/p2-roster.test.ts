@@ -119,3 +119,17 @@ describe('roster counts (spec §4.7)', () => {
     expect(fs.existsSync(devops) ? fs.readdirSync(devops) : []).toEqual([]);
   });
 });
+
+describe('compliance review docs (AUD-052)', () => {
+  it('docs name the one shared compliance reviewer and no per-regulation compliance SPV', () => {
+    const hits = tracked().filter(inDocScope).filter((f) => /qa-compliance-(iso25010|iso5055|istqb|cmmi|gdpr|pdpa)-spv/.test(read(f)));
+    expect(hits).toEqual([]);
+    expect(read('HANDBOOK/08-compliance.md')).toContain('`qa-compliance-spv`');
+  });
+
+  it('no file outside plans and specs names SHARED_SPV except the test that asserts its absence', () => {
+    const hits = tracked().filter((f) => !f.startsWith('docs/superpowers/') && !f.startsWith('.superpowers/') && /\.(md|ts|yaml|json)$/.test(f) && f !== '__internal-tests__/p2-roster.test.ts' && f !== '__internal-tests__/run-state-core.test.ts')
+      .filter((f) => /SHARED_SPV/.test(read(f)));
+    expect(hits).toEqual([]);
+  });
+});

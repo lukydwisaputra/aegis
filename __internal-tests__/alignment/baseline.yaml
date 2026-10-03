@@ -136,9 +136,6 @@ entries:
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-rtm-builder:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/08-compliance.md:qa-compliance-gdpr-spv:unknown"
-    ids: [AUD-052]
-    note: "qa-compliance-gdpr-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"

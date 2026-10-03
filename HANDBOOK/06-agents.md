@@ -70,7 +70,7 @@ There is no DevOps tier. No agent writes to the target's GitHub repository or CI
 
 SPVs score worker output on a 0–100 scale. Output below threshold triggers revision requests. SPVs are Tier-A model by default (quality matters more than cost here).
 
-SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the worker it reviews.
+SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the worker it reviews. The exception is `qa-compliance-spv`, the one reviewer of all six compliance agents.
 
 | SPV | Reviews | Threshold |
 |---|---|---|
@@ -96,6 +96,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-closure-reporter-spv` | Closure artefact | 85 |
 | `qa-executive-reporter-spv` | Executive PDFs | 85 |
 | `qa-test-executor-spv` | Test result fidelity | 88 |
+| `qa-compliance-spv` | All six compliance reports (shared reviewer) | 85 |
 
 SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict.
 
