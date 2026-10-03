@@ -49,7 +49,12 @@ export interface Envelope {
 /** CO-04: a commander parse error becomes the CLI's JSON refusal envelope (exit 2), like a RunStateError. */
 export function envelopeFor(err: { code: string; exitCode: number; message: string }): Envelope {
   if (PASS_THROUGH.has(err.code)) return { exitCode: err.exitCode, stderr: "" };
-  return { exitCode: 2, stderr: JSON.stringify({ error: "invalid-input", message: err.message.replace(/^error:\s*/, "") }) + "\n" };
+  return { exitCode: 2, stderr: JSON.stringify({ error: "invalid-input", message: parseMessage(err) }) + "\n" };
+}
+
+/** The refusal message of a commander parse error, computed once for the envelope and the cli.refused record. */
+function parseMessage(err: { message: string }): string {
+  return err.message.replace(/^error:\s*/, "");
 }
 
 function isCommanderError(e: unknown): e is { code: string; exitCode: number; message: string } {
@@ -65,6 +70,6 @@ export async function runCli(argv: readonly string[]): Promise<void> {
     const env = envelopeFor(e);
     if (env.stderr !== "") process.stderr.write(env.stderr);
     process.exitCode = env.exitCode;
-    if (env.exitCode === 2) await noteParseRefusal(argv, e.message.replace(/^error:\s*/, ""));
+    if (env.exitCode === 2) await noteParseRefusal(argv, parseMessage(e));
   }
 }

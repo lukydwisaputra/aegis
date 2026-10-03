@@ -72,7 +72,8 @@ function lastChainedSeq(lines: string[]): number {
 export async function appendChained(
   event: Record<string, unknown>,
   busPath: string,
-  ctx: ChainContext
+  ctx: ChainContext,
+  opts: { lockRetries?: number } = {}
 ): Promise<Record<string, unknown>> {
   const kept = validateChained(event, ctx);
   const dir = dirname(busPath);
@@ -81,7 +82,7 @@ export async function appendChained(
 
   const release = await lockfile.lock(busPath, {
     stale: 5_000,
-    retries: { retries: 50, minTimeout: 20, maxTimeout: 250 },
+    retries: { retries: opts.lockRetries ?? 50, minTimeout: 20, maxTimeout: 250 },
   });
   try {
     return appendChainedLocked(kept, busPath, ctx);

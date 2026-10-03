@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findAegisRoot, recordCliRefusal, resolveCaller, resolveRunId, RunStateError } from "@qa/run-state";
+import { CLI_COMMANDS, findAegisRoot, recordCliRefusal, resolveCaller, resolveRunId, RunStateError } from "@qa/run-state";
 
 export interface Ctx {
   root: string;
@@ -52,7 +52,19 @@ export async function noteParseRefusal(argv: readonly string[], message: string)
   const at = argv.findIndex((a) => a === "--run" || a.startsWith("--run="));
   const flag = at < 0 ? undefined : argv[at];
   const run = flag === undefined ? undefined : flag.includes("=") ? flag.slice("--run=".length) : argv[at + 1];
-  await noteRefusal(words.length === 0 ? null : words.slice(0, 2).join("."), run, "invalid-input", message);
+  await noteRefusal(words.length === 0 ? null : knownCommand(words), run, "invalid-input", message);
+}
+
+/** Top-level commands that are not a group of CLI_COMMANDS. */
+const TOP_LEVEL = new Set(["align", "doctor", "init", "update", "reconfigure", "id"]);
+const GROUPS: ReadonlySet<string> = new Set(CLI_COMMANDS.map((c) => c.split(".")[0]!));
+
+/** Only a command the CLI knows is recorded: the leading words are what the caller typed, never a secret. */
+function knownCommand(words: readonly string[]): string {
+  const two = words.slice(0, 2).join(".");
+  if ((CLI_COMMANDS as readonly string[]).includes(two)) return two;
+  const first = words[0]!;
+  return GROUPS.has(first) || TOP_LEVEL.has(first) ? first : "unknown-command";
 }
 
 /** Wrap a commander action: print the result as JSON; map refusals to exit 2, crashes to exit 1. */

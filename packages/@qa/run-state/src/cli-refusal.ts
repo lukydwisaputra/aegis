@@ -21,6 +21,23 @@ export interface CliRefusal {
   message: string;
 }
 
+const REDACTED = "<redacted>";
+
+/**
+ * The log is append-only, hash-chained and exported, so a refusal text can never carry what the caller typed: option
+ * values, commander's invalid-choice values, V8's JSON.parse snippets and anything shaped like a token become <redacted>.
+ */
+export function scrubRefusalMessage(s: string): string {
+  return s
+    .replace(/--[\w-]+=\S+/g, (m) => `${m.slice(0, m.indexOf("=") + 1)}${REDACTED}`)
+    .replace(/argument '[^']*' is invalid/g, `argument '<value>' is invalid`)
+    .replace(/Unexpected token '[^']*', /g, `Unexpected token ${REDACTED}, `)
+    .replace(/(?:\.\.\.)?"[\s\S]*?"(?:\.\.\.)? is not valid JSON/g, `${REDACTED} is not valid JSON`)
+    .replace(/eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?/g, REDACTED)
+    .replace(/\b(?:sk|pk|rk)_[A-Za-z0-9_]{6,}/g, REDACTED)
+    .replace(/[A-Za-z0-9+_-]{24,}/g, REDACTED);
+}
+
 /**
  * NEW-06 (P2 spec §4.12): record a qa-* agent's `invalid-input` or `internal` refusal as `cli.refused` on the run's chain,
  * for the curator's framework-defect proposals. The owner's refusals, every other code, and a refusal with no resolvable
@@ -35,13 +52,14 @@ export async function recordCliRefusal(root: string, ctx: CliRefusalContext, ref
         type: "cli.refused",
         ts: iso(),
         runId,
-        command: refusal.command.slice(0, 200),
+        command: scrubRefusalMessage(refusal.command).slice(0, 200),
         code: refusal.code,
         caller: ctx.caller,
-        message: refusal.message.slice(0, CLI_REFUSAL_MESSAGE_MAX),
+        message: scrubRefusalMessage(refusal.message).slice(0, CLI_REFUSAL_MESSAGE_MAX),
       },
       busPath(root, runId),
-      { emittedBy: ctx.caller, runId }
+      { emittedBy: ctx.caller, runId },
+      { lockRetries: 3 }
     );
     return true;
   } catch {
