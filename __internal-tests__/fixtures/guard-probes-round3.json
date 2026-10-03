@@ -1,0 +1,1296 @@
+[
+ {
+  "source": "t8r2-probes.json",
+  "id": "S01 FD2 unquoted CLI heredoc with $( ) spoof",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis review submit --file /dev/stdin <<EOF\n{\"x\":\"$(AEGIS_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved)\"}\nEOF",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S02 FD2 cat-piped heredoc with backtick spoof",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "cat <<EOF | AEGIS_AGENT=qa-ui-specialist pnpm aegis work-report submit --file /dev/stdin\n{\"x\":\"`AEGIS_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved`\"}\nEOF",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S02b FD2 quoted heredoc (control, data only)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis review submit --file /dev/stdin <<'EOF'\n{\"x\":\"$(AEGIS_AGENT=owner pnpm aegis gate decide)\"}\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S03 pnpm --config.node-options preload",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm --config.node-options=--require=/repo/tests/qa/x.cjs aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S04 pnpm_config_node_options env",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "pnpm_config_node_options=--require=/repo/tests/qa/x.cjs AEGIS_AGENT=qa-ui-specialist pnpm aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S05 pnpm --config.script-shell",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm --config.script-shell=/repo/tests/qa/sh aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S05b PNPM_CONFIG_SCRIPT_SHELL env",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "PNPM_CONFIG_SCRIPT_SHELL=/repo/tests/qa/sh AEGIS_AGENT=qa-ui-specialist pnpm aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S06 npm_config_node_options + npm run aegis",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "npm_config_node_options=--require=/repo/tests/qa/x.cjs AEGIS_AGENT=qa-ui-specialist npm run aegis -- gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S07 node --env-file (NODE_OPTIONS inside)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist node --env-file=/repo/tests/qa/x.env apps/cli/dist/index.js gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S08 script -c with $'=' and ae$'g'is (static)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "script -q /dev/null -c \"env AEGIS_AGENT$'='owner pnpm ae$'g'is gate decide --gate 1 --decision approved\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S08b watch with $'='",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "watch -n 1 \"env AEGIS_AGENT$'='owner pnpm ae$'g'is gate decide --gate 1\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S09 bash -c with $'='",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "bash -c \"env AEGIS_AGENT$'='owner pnpm ae$'g'is gate decide --gate 1 --decision approved\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S09b sh -c double-quoted with $'=' and literal aegis",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "sh -c \"env AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S10 empty-var split name + word (runtime-built)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "env AEGIS_AGEN${x}T=owner pnpm ae${x}gis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S10b env -S ${X} split (R2 launcher)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "env -S 'AEGIS_AGEN${X}T=owner pnpm ae${X}gis gate decide --gate 1'",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S11 builtin export dynamic + dynamic head",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "a=AEGIS_; builtin export \"${a}AGENT=owner\"; p=pnpm; $p aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S11b builtin export dynamic + recognised CLI w/o prefix",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "a=AEGIS_; builtin export \"${a}AGENT=owner\"; pnpm aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S11c dynamic head alone, no identity",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "p=pnpm; $p aegis init",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S12 python3 -c literal env + execvp",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "python3 -c \"import os; os.environ['AEGIS_AGENT']='owner'; os.execvp('pnpm',['pnpm','aegis','gate','decide','--gate','1','--decision','approved'])\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S13 perl -e literal",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "perl -e '$ENV{AEGIS_AGENT}=\"owner\"; exec \"pnpm\",\"aegis\",\"gate\",\"decide\",\"--gate\",\"1\"'",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S14 set -a; . file; dynamic-head CLI",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "set -a; . /repo/tests/qa/id.env; p=pnpm; $p aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S15 pnpm -C sandbox with planted aegis script",
+  "ctx": "test",
+  "agent": "qa-dev-test-reviewer",
+  "arg": "AEGIS_AGENT=qa-dev-test-reviewer pnpm -C /repo/aegis/sandbox/RUN-20261002-001/web aegis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S16 npx --node-options preload",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist npx --node-options=--require=/repo/tests/qa/x.cjs aegis gate decide --gate 1",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S17 xargs sh -c with $'=' from echo",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "echo x | xargs -I{} sh -c \"env AEGIS_AGENT$'='owner pnpm ae$'g'is gate decide --gate 1\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "S18 eval without aegis text + dynamic word",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "a=AEGIS_; eval \"export ${a}AGENT=owner\"; x=; pnpm a${x}egis gate decide --gate 1 --decision approved",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V1 R2 env -S literal $'=' + literal aegis",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "env -S \"AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1\"",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V2 R2 find -exec env with $'='",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find . -maxdepth 0 -exec env AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1 \\;",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V3 R2 parallel with split var",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "parallel env {} pnpm aegis gate decide --gate 1 ::: AEGIS_AGEN${x}T=owner",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V4 R2 xargs env split",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "echo AEGIS_AGEN${x}T=owner | xargs -I{} env {} pnpm aegis gate decide --gate 1",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V5 R2 setsid env $'='",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "setsid env AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V6 R2 npx cross-env $'='",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "npx cross-env AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V7 R2 script -c split var, literal aegis",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "script -q /dev/null -c 'env AEGIS_AGEN${x}T=owner pnpm aegis gate decide --gate 1'",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V8 R2 stdbuf env $'='",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "stdbuf -oL env AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V9 direct env $'=' recognised CLI",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "env AEGIS_AGENT$'='owner pnpm aegis gate decide --gate 1",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "V10 R3 find -name aegis (bare word)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find . -name aegis -type d",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q01 qa playwright in tests",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "cd $T/tests/qa && pnpm playwright test specs/auth.spec.ts --project=chromium",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q02 qa npx playwright grep",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "cd $T/tests/qa && npx playwright test --grep @smoke --reporter=list,json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q03 qa pnpm --dir exec playwright",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "pnpm --dir $T/tests/qa exec playwright test",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q04 qa playwright tee evidence",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "cd $T/tests/qa && BASE_URL=http://localhost:3000 CI=1 npx playwright test 2>&1 | tee $R/runs/RUN-20261002-001/evidence/TC-AUTH-001/run.log",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q05 env-eng install",
+  "ctx": "real",
+  "agent": "qa-environment-engineer",
+  "arg": "cd $T/tests/qa && pnpm install && npx playwright install --with-deps chromium",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q06 qa claim then playwright",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task T-execution-1 && cd $T/tests/qa && npx playwright test specs/a.spec.ts",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q07 SPV unquoted heredoc naming AEGIS_AGENT",
+  "ctx": "real",
+  "agent": "qa-ui-specialist-spv",
+  "arg": "AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin <<EOF\n{\"reviewer\":\"qa-ui-specialist-spv\",\"verdict\":\"rejected\",\"corrective\":{\"instruction\":\"Prefix every CLI call with AEGIS_AGENT=qa-ui-specialist; do not export AEGIS_AGENT=owner\"}}\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q08 SPV quoted heredoc naming wrong identity",
+  "ctx": "real",
+  "agent": "qa-ui-specialist-spv",
+  "arg": "AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin <<'EOF'\n{\"reviewer\":\"qa-ui-specialist-spv\",\"verdict\":\"rejected\",\"corrective\":{\"instruction\":\"you ran export AEGIS_AGENT=owner; use the prefix\"}}\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q09 SPV printf JSON piped (not heredoc)",
+  "ctx": "real",
+  "agent": "qa-ui-specialist-spv",
+  "arg": "printf '%s' '{\"note\":\"use AEGIS_AGENT=qa-ui-specialist\"}' | AEGIS_AGENT=qa-ui-specialist-spv pnpm aegis review submit --file /dev/stdin",
+  "expect": "allow",
+  "override": {
+   "expect": "deny",
+   "reason": "not covered by items 1-13 (a printf literal piped into the CLI is still scanned); awaiting a ruling"
+  }
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q10 SPV find -exec grep in run (read-only)",
+  "ctx": "real",
+  "agent": "qa-test-designer-spv",
+  "arg": "find runs/RUN-20261002-001/cases -name '*.md' -exec grep -l Given {} +",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q10b SPV find -exec grep from aegis root",
+  "ctx": "real",
+  "agent": "qa-test-designer-spv",
+  "arg": "find . -name 'TC-*.md' -exec grep -c Scenario {} +",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q11 SPV find -exec in tests",
+  "ctx": "real",
+  "agent": "qa-ui-specialist-spv",
+  "arg": "cd $T/tests/qa && find . -name '*.spec.ts' -exec grep -c test {} +",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q12 brand grep -ril aegis",
+  "ctx": "real",
+  "agent": "qa-closure-reporter-spv",
+  "arg": "grep -ril aegis runs/RUN-20261002-001/reports/closure",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q12b brand find -exec grep aegis",
+  "ctx": "real",
+  "agent": "qa-closure-reporter-spv",
+  "arg": "find runs/RUN-20261002-001/reports -type f -exec grep -il aegis {} +",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q12c brand xargs grep aegis",
+  "ctx": "real",
+  "agent": "qa-closure-reporter-spv",
+  "arg": "ls runs/RUN-20261002-001/reports/closure/* | xargs grep -il aegis",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q13 SPV grep for AEGIS_AGENT=",
+  "ctx": "real",
+  "agent": "qa-orchestrator-spv",
+  "arg": "grep -n 'AEGIS_AGENT=' runs/RUN-20261002-001/reports/work/WR-1.json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q14 qa git status in tests",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "git -C $T/tests/qa status && git -C $T/tests/qa diff --stat",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q15 qa event append quoted heredoc",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis event append --file /dev/stdin <<'EOF'\n{\"type\":\"specialist.started\"}\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q16 qa NODE_OPTIONS on playwright + CLI later",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "cd $T/tests/qa && NODE_OPTIONS=--max-old-space-size=4096 npx playwright test; cd $R && AEGIS_AGENT=qa-ui-specialist pnpm aegis task release --task T-1 --status done",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q17 qa PATH extension without CLI",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "PATH=$PATH:$T/tests/qa/node_modules/.bin playwright test",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q18 qa playwright --grep aegis word",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "cd $T/tests/qa && npx playwright test --grep aegis",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q19 qa work-report from file",
+  "ctx": "real",
+  "agent": "qa-api-specialist",
+  "arg": "AEGIS_AGENT=qa-api-specialist pnpm aegis work-report submit --file $R/runs/RUN-20261002-001/evidence/TC-API-001/wr.json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q20 qa function helper with CLI",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis work-report submit --file /dev/stdin <<'EOF'\n{\"summary\":\"helper login() () added\"}\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "Q21 qa commit-message-like text with name() next to CLI",
+  "ctx": "real",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis task release --task T-1 --status done --note 'fixed login() flake'",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D01 sdd align in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && pnpm aegis align",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D02 sdd commit with heredoc message",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && git add -A && git commit -m \"$(cat <<'EOF'\nfix(path-guard): deny AEGIS_AGENT=owner spoofs\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nEOF\n)\"",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D03 sdd grep AEGIS_AGENT in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && grep -rn AEGIS_AGENT packages/@qa/path-guard/src",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D04 sdd grep 'AEGIS_AGENT=' in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && grep -rn 'AEGIS_AGENT=' packages",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D05 sdd git -C show | grep (cwd root)",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "git -C $WT show 92563a9:packages/@qa/path-guard/src/guard.ts | grep -n AEGIS_AGENT",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D06 sdd git -C show | grep '=' (cwd root)",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "git -C $WT show 92563a9:packages/@qa/path-guard/src/guard.ts | grep -n 'AEGIS_AGENT='",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D07 sdd pnpm test",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && pnpm test 2>&1 | tail -20",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D08 sdd jest filter",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && pnpm -F @aegis/internal-tests exec jest path-guard",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D09 sdd build+typecheck",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && pnpm build && pnpm typecheck",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D10 sdd worktree add (cwd root)",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "git -C $WT worktree add $SP/t9r-wt 92563a9",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D11 sdd worktree remove",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && git worktree remove --force $SP/t9r-wt",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D12 sdd owner-id CLI in wt (decision 4)",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && AEGIS_AGENT=owner pnpm aegis run status",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D13 sdd /tmp spelling of wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WTTMP && pnpm aegis align",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D14 sdd node -e in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && node -e \"require('./apps/cli/dist/index.js')\"",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D15 sdd rm dist + build",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && rm -rf packages/@qa/path-guard/dist && pnpm -F @qa/path-guard build",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D16 sdd cat main CLAUDE.md",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "head -50 $R/CLAUDE.md",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D17 sdd diff | grep '=' in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && git diff 4afc17c 92563a9 -- packages | grep -n 'AEGIS_AGENT='",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D18 sdd find -delete in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && find . -name '*.lock' -path '*/runs/*' -delete",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D19 sdd node heredoc in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && node --input-type=module <<'EOF'\nimport fs from 'node:fs'; console.log(process.env.AEGIS_AGENT)\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D20 sdd commit msg mentions export in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && git commit -am 'test: export AEGIS_AGENT=owner then pnpm aegis is denied; f() { x; }'",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D21 sdd grep aegis root w/o cd",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "grep -rn AEGIS_AGENT .claude/agents | head",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D22 sdd grep 'AEGIS_AGENT=' aegis root w/o cd",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "grep -rn 'AEGIS_AGENT=' .claude/skills | head",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D23 sdd write in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "tool": "Write",
+  "arg": "$WT/packages/@qa/path-guard/src/guard.ts",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D24 sdd write scratch",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "tool": "Write",
+  "arg": "$SP/probes.json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D25 sdd npx tsx in wt",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $WT && npx tsx apps/cli/src/index.ts align",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "D26 sdd pnpm -C wt aegis align (cwd root)",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "pnpm -C $WT aegis align",
+  "expect": "allow",
+  "override": {
+   "expect": "deny",
+   "reason": "not covered by items 1-13 (a non-qa caller in the aegis root is 'here' by its cwd, decision 4 / FD1); awaiting a ruling"
+  }
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M01 main commit heredoc",
+  "ctx": "real",
+  "agent": null,
+  "arg": "git add -A && git commit -m \"$(cat <<'EOF'\nfeat: x AEGIS_AGENT=owner\nEOF\n)\"",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M02 main build test",
+  "ctx": "real",
+  "agent": null,
+  "arg": "pnpm build && pnpm test",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M03 main align",
+  "ctx": "real",
+  "agent": null,
+  "arg": "pnpm aegis align",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M04 main edit guard.ts",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Edit",
+  "arg": "$R/packages/@qa/path-guard/src/guard.ts",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M05 main write agent def",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Write",
+  "arg": "$R/.claude/agents/tier1/qa-x.md",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M06 main rm dist",
+  "ctx": "real",
+  "agent": null,
+  "arg": "rm -rf packages/@qa/path-guard/dist",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M07 main branch + push",
+  "ctx": "real",
+  "agent": null,
+  "arg": "git checkout -b feat/p0b-3 && git push -u origin feat/p0b-3",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M08 main worktree add",
+  "ctx": "real",
+  "agent": null,
+  "arg": "git worktree add /private/tmp/wt/x -b feat/x",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M09 main gate decide",
+  "ctx": "real",
+  "agent": null,
+  "arg": "AEGIS_AGENT=owner pnpm aegis gate decide --gate 1 --decision approved --note \"ok\"",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M10 main NODE_OPTIONS on CLI",
+  "ctx": "real",
+  "agent": null,
+  "arg": "NODE_OPTIONS=--max-old-space-size=8192 AEGIS_AGENT=owner pnpm aegis run status",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M11 main collector git",
+  "ctx": "real",
+  "agent": null,
+  "arg": "cd $T/testing-reports && git add -A && git commit -m x && git push",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M12 main collector write",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Write",
+  "arg": "$T/testing-reports/manifest.json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M13 main stash pull pop",
+  "ctx": "real",
+  "agent": null,
+  "arg": "git stash && git pull --rebase && git stash pop",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M14 main git clean -fd (B1, Task 9)",
+  "ctx": "real",
+  "agent": null,
+  "arg": "git clean -fd",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M15 main find -delete locks",
+  "ctx": "real",
+  "agent": null,
+  "arg": "find runs -name '*.lock' -delete",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M16 main rm sandbox run",
+  "ctx": "real",
+  "agent": null,
+  "arg": "rm -rf sandbox/RUN-20261002-001",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M17 main gh pr body heredoc",
+  "ctx": "real",
+  "agent": null,
+  "arg": "gh pr create --title x --body \"$(cat <<'EOF'\nDenies AEGIS_AGENT=owner spoofs; pnpm() { } forms\nEOF\n)\"",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M18 main edit CLAUDE.md",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Edit",
+  "arg": "$R/CLAUDE.md",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M19 main export then CLI",
+  "ctx": "real",
+  "agent": null,
+  "arg": "export AEGIS_AGENT=owner; pnpm aegis run status",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M20 main cd wt align",
+  "ctx": "real",
+  "agent": null,
+  "arg": "cd /private/tmp/wt/x && pnpm aegis align",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M21 main write internal fixture",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Write",
+  "arg": "$R/__internal-tests__/fixtures/x.json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M22 main brace overflow mkdir",
+  "ctx": "real",
+  "agent": null,
+  "arg": "mkdir -p sandbox/{1..300}",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes.json",
+  "id": "M23 main git reset --hard (B1, Task 9)",
+  "ctx": "real",
+  "agent": null,
+  "arg": "git reset --hard origin/main",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T1 non-qa Write target src",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "tool": "Write",
+  "arg": "$T/werkdone-app/src/a.ts",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T2 non-qa Bash redirect target src",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "echo x > $T/werkdone-app/src/a.ts",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T3 non-qa sed -i target src via cd",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $T/werkdone-app && sed -i '' 's/a/b/' src/a.ts",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T4 non-qa qa-*.yml named exception (target is not aegis)",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "tool": "Write",
+  "arg": "$T/.github/workflows/qa-smoke.yml",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T5 non-qa outside target",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "tool": "Write",
+  "arg": "/private/tmp/x/a.ts",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T6 non-qa git checkout in target repo",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "arg": "cd $T/werkdone-app && git checkout -- src/a.ts",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "T7 main Write target src",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Write",
+  "arg": "$T/werkdone-app/src/a.ts",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "C1 main collector Write",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Write",
+  "arg": "$T/testing-reports/projects/x/index.md",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "C2 main collector git checkout",
+  "ctx": "real",
+  "agent": null,
+  "arg": "cd $T/testing-reports && git checkout -- manifest.json",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "C3 main sibling repo Write",
+  "ctx": "real",
+  "agent": null,
+  "tool": "Write",
+  "arg": "$T/testing-reports-old/manifest.json",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "C4 non-qa collector Write",
+  "ctx": "real",
+  "agent": "general-purpose",
+  "tool": "Write",
+  "arg": "$T/testing-reports/manifest.json",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "C5 qa collector Write",
+  "ctx": "real",
+  "agent": "qa-closure-reporter",
+  "tool": "Write",
+  "arg": "$T/testing-reports/manifest.json",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "C6 main collector git clean -x",
+  "ctx": "real",
+  "agent": null,
+  "arg": "cd $T/testing-reports && git clean -xfd",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "B1 bash --version",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "bash --version",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "B2 bash --help | head",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "bash --help | head -5",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "B3 bash --version with stdin redirect smuggle",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "bash --version < /repo/tests/qa/x.sh",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "B4 bash --rcfile then stdin",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "bash --rcfile /repo/tests/qa/rc -i < /dev/null",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "B5 bash -- --version (operand)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "echo 'AEGIS_AGENT=owner pnpm aegis gate decide' | bash --version",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "B6 bash --help -s hides stdin shell",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "bash --noprofile --norc < /repo/tests/qa/x.sh",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F1 qa find -delete runs",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/aegis/runs -name events.jsonl -delete",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F2 qa find from evidence dir -delete",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/aegis/runs/RUN-20261002-001/evidence/TC-x1 -name '*.png' -delete",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F3 qa find tests -delete",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/tests/qa/test-results -name '*.zip' -delete",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F4 qa find with -L symlink start",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find -L /repo/aegis/runs -name events.jsonl -delete",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F5 qa find -H options then start",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find -H /repo/aegis -name '*.lock' -delete",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F6 non-qa find -delete in checkout runs",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "find /repo/aegis/runs -name '*.lock' -delete",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F7 qa find -fprint into runs",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/tests -fprint /repo/aegis/runs/RUN-20261002-001/events.jsonl",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F8 qa find via cd to runs",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "cd /repo/aegis/runs/RUN-20261002-001 && find . -name events.jsonl -delete",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F9 qa find in evidence -exec rm (allowed)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/aegis/runs/RUN-20261002-001/evidence -name '*.tmp' -exec rm {} +",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F10 qa find evidence -exec mv to events",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/tests/qa -name x.jsonl -exec mv {} /repo/aegis/runs/RUN-20261002-001/events.jsonl \\;",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "F11 qa find -execdir from tests to run via ..",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find /repo/tests/qa -maxdepth 0 -exec rm -f /repo/aegis/runs/RUN-20261002-001/events.jsonl \\;",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "R5a main overflow rm runs",
+  "ctx": "test",
+  "agent": null,
+  "arg": "rm -rf /repo/aegis/runs{,{1..300}}",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "R5b main overflow rm sandbox",
+  "ctx": "test",
+  "agent": null,
+  "arg": "rm -rf /repo/aegis/sandbox/{1..300}",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1a sibling aegis-wt path token",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "grep -rn 'AEGIS_AGENT=' /repo/aegis-wt/packages",
+  "cwd": "/tmp/wt",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1b path in redirect into checkout",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "cd /tmp/wt && echo 'AEGIS_AGENT=owner' > /tmp/wt/x.txt",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1c relative path into checkout from outside cwd",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "cd /tmp/wt && AEGIS_AGENT=owner pnpm aegis --dir ../../repo/aegis run status",
+  "expect": "deny",
+  "override": {
+   "expect": "allow",
+   "reason": "physical paths (Task 9 I1): /tmp is a link to /private/tmp, so /tmp/wt/../../repo/aegis is /private/repo/aegis, outside the checkout; and --dir after the script name is an argument of the aegis script, not a pnpm option"
+  }
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1d relative pnpm -C into checkout",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "cd /repo && pnpm -C aegis aegis init",
+  "cwd": "/tmp/wt",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1e cd into checkout via variable",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "d=/repo/aegis; cd $d && pnpm aegis init",
+  "cwd": "/tmp/wt",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1f node script path relative into checkout",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "cd /repo && node aegis/apps/cli/dist/index.js init",
+  "cwd": "/tmp/wt",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes2.json",
+  "id": "FD1g git -C relative into checkout (write)",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "cd /repo && git -C aegis checkout -- .claude",
+  "cwd": "/tmp/wt",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G1 find -L runs -delete from tests cwd",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find -L /repo/aegis/runs -name events.jsonl -delete",
+  "cwd": "/repo/tests/qa",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G2 find -H runs -exec rm from tests cwd",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "find -H /repo/aegis/runs -name '*.jsonl' -exec rm {} +",
+  "cwd": "/repo/tests/qa",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G3 xargs rm events (plan-mandated)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "echo /repo/aegis/runs/RUN-20261002-001/events.jsonl | xargs rm -f",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G4 pnpm -C relative into checkout from outside",
+  "ctx": "test",
+  "agent": "general-purpose",
+  "arg": "cd /tmp/wt && pnpm -C ../../repo/aegis aegis init",
+  "expect": "deny",
+  "override": {
+   "expect": "allow",
+   "reason": "physical paths (Task 9 I1): /tmp is a link to /private/tmp, so /tmp/wt/../../repo/aegis is /private/repo/aegis, outside the checkout (a test row pins the textual case as denied)"
+  }
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G5 export PATH earlier + CLI (R4)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "export PATH=/repo/tests/qa/bin:$PATH; AEGIS_AGENT=qa-ui-specialist pnpm aegis task list",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G6 env -u + NODE_OPTIONS via env wrapper (R4)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "env NODE_OPTIONS=--require=/repo/tests/qa/x.cjs AEGIS_AGENT=qa-ui-specialist pnpm aegis task list",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G7 DYLD via declare (R4)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "declare -x DYLD_INSERT_LIBRARIES=/repo/tests/qa/x.dylib; AEGIS_AGENT=qa-ui-specialist pnpm aegis task list",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G8 heredoc unquoted body with ${} only (no cmdsub)",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis work-report submit --file /dev/stdin <<EOF\n{\"home\":\"${HOME}\"}\nEOF",
+  "expect": "allow"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G9 FD2 heredoc spoof via <<- tab-stripped",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "AEGIS_AGENT=qa-ui-specialist pnpm aegis review submit --file /dev/stdin <<-EOF\n\t$(env AEGIS_AGENT=owner pnpm aegis phase complete --phase execution)\n\tEOF",
+  "expect": "deny"
+ },
+ {
+  "source": "t8r2-probes3.json",
+  "id": "G10 tee heredoc body (not CLI) still scanned",
+  "ctx": "test",
+  "agent": "qa-ui-specialist",
+  "arg": "cat <<EOF > /repo/tests/qa/x.txt\n$(AEGIS_AGENT=owner pnpm aegis gate decide --gate 1)\nEOF",
+  "expect": "deny"
+ }
+]

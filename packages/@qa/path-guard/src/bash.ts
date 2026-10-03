@@ -22,6 +22,8 @@ export interface SimpleCommand {
   redirects: ShellWord[];
   /** Body of a here-document fed to this command. */
   heredoc: string | null;
+  /** The here-document delimiter was quoted ('EOF', "EOF" or \\EOF): the shell expands nothing in its body. */
+  heredocQuoted?: true;
   /** Subshell nesting depth, set only when above 0, so a `cd` inside `( … )` does not leak out. */
   depth?: number;
   /** Ids of the ( … ) groups this command sits in, outermost first: sibling subshells do not share a `cd`. */
@@ -45,6 +47,8 @@ export interface WriteTarget {
    * The guard canonicalizes this form physically, so `link/..` follows the link before it climbs (Task 9 I1).
    */
   readonly raw?: string;
+  /** The operands come from stdin (`… | xargs rm`): `path` is the text of the stage that feeds it, not a path. */
+  readonly stdin?: true;
 }
 
 /** A simple command with the directory it runs in (after any earlier `cd`). */
@@ -64,9 +68,10 @@ const SEPARATORS: ReadonlySet<string> = new Set(["&&", "||", ";;", ";", "|&", "|
 const FILE_REDIRECTS: ReadonlySet<string> = new Set([">", ">>", ">|", "&>", "&>>"]);
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 /** Read a here-document delimiter word after `<<` (quotes and backslashes removed); null when there is none. */
-function readDelimiter(line: string, from: number): { strip: boolean; delimiter: string; end: number } | null {
+function readDelimiter(line: string, from: number): { strip: boolean; delimiter: string; end: number; quoted: boolean } | null {
   let i = from;
   let strip = false;
+  let quoted = false;
   if (line[i] === "-") {
     strip = true;
     i++;
@@ -78,14 +83,17 @@ function readDelimiter(line: string, from: number): { strip: boolean; delimiter:
     const c = line[i]!;
     if (c === "\\") {
       if (i + 1 >= line.length) break;
+      quoted = true;
       d += line[i + 1];
       i += 2;
     } else if (c === "'") {
+      quoted = true;
       const e = line.indexOf("'", i + 1);
       const stop = e === -1 ? line.length : e;
       d += line.slice(i + 1, stop);
       i = stop + 1;
     } else if (c === '"') {
+      quoted = true;
       i++;
       while (i < line.length && line[i] !== '"') {
         if (line[i] === "\\" && i + 1 < line.length) i++;
@@ -100,12 +108,13 @@ function readDelimiter(line: string, from: number): { strip: boolean; delimiter:
     }
     any = true;
   }
-  return any ? { strip, delimiter: d, end: Math.min(i, line.length) } : null;
+  return any ? { strip, delimiter: d, end: Math.min(i, line.length), quoted } : null;
 }
 
 interface Marker {
   strip: boolean;
   delimiter: string;
+  quoted: boolean;
   /** Inside an unquoted $( … ): the tokenizer folds it into an expansion, so no command takes its body. */
   nested: boolean;
 }
@@ -144,7 +153,7 @@ function heredocMarkers(line: string): Marker[] {
     } else if (c === "<" && line[i + 1] === "<" && line[i + 2] !== "<" && line[i - 1] !== "<") {
       const m = readDelimiter(line, i + 2);
       if (m !== null) {
-        out.push({ strip: m.strip, delimiter: m.delimiter, nested: sub > 0 });
+        out.push({ strip: m.strip, delimiter: m.delimiter, quoted: m.quoted, nested: sub > 0 });
         i = m.end;
       } else i += 2;
       wordStart = false;
@@ -157,20 +166,20 @@ function heredocMarkers(line: string): Marker[] {
 }
 
 /** Remove here-document bodies from the text (they are data, not commands) and return the ones commands receive, in order. */
-function extractHeredocs(src: string): { text: string; bodies: string[] } {
+function extractHeredocs(src: string): { text: string; bodies: Array<{ body: string; quoted: boolean }> } {
   const lines = src.split("\n");
   const kept: string[] = [];
-  const bodies: string[] = [];
+  const bodies: Array<{ body: string; quoted: boolean }> = [];
   for (let k = 0; k < lines.length; k++) {
     const line = lines[k]!;
     kept.push(line);
-    for (const { strip, delimiter, nested } of heredocMarkers(line)) {
+    for (const { strip, delimiter, quoted, nested } of heredocMarkers(line)) {
       let end = k + 1;
       while (end < lines.length && (strip ? lines[end]!.replace(/^\t+/, "") : lines[end]) !== delimiter) end++;
       // No closing line: the rest is not a body; parse it as commands.
       const body = end < lines.length ? lines.slice(k + 1, end).join("\n") : "";
       if (end < lines.length) k = end;
-      if (!nested) bodies.push(body);
+      if (!nested) bodies.push({ body, quoted });
     }
   }
   return { text: kept.join("\n"), bodies };
@@ -388,7 +397,12 @@ export function parseBash(src: string): SimpleCommand[] {
       const word = next !== undefined && next.t === "w" ? next.w : null;
       if (word !== null) k++;
       if (FILE_REDIRECTS.has(tk.op) && word !== null) cur.redirects.push(word);
-      else if (tk.op === "<<" || tk.op === "<<-") cur.heredoc = bodies[body++] ?? "";
+      else if (tk.op === "<<" || tk.op === "<<-") {
+        const h = bodies[body++];
+        cur.heredoc = h?.body ?? "";
+        if (h?.quoted === true) cur.heredocQuoted = true;
+        else delete cur.heredocQuoted;
+      }
       continue; // "<" and "<<<" read input
     }
     if (cur.argv.length === 0 && ASSIGNMENT.test(tk.w.value)) {
@@ -411,6 +425,7 @@ const WRAPPERS: Readonly<Record<string, readonly string[]>> = {
   env: ["-u", "-C", "-S"],
   sudo: ["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"],
   command: [],
+  builtin: [],
   exec: ["-a"],
   time: ["-f", "-o"],
   nohup: [],
@@ -462,6 +477,70 @@ export function unwrap(c: SimpleCommand): { env: Record<string, string>; argv: S
 }
 
 const DECLARERS: ReadonlySet<string> = new Set(["export", "declare", "typeset", "readonly", "local"]);
+const SHELL_NAMES: ReadonlySet<string> = new Set(["bash", "sh", "zsh"]);
+/** Commands that remove the operands xargs feeds them from stdin. */
+const STDIN_REMOVERS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv"]);
+
+/** xargs options that take a separate value. */
+export const XARGS_VALUE_FLAGS: ReadonlySet<string> = new Set(["-I", "-i", "-n", "-P", "-L", "-l", "-d", "-s", "-E", "-e", "-a", "-R", "-S"]);
+
+/** The command `xargs [options] cmd args…` starts: its words, options peeled. */
+export function xargsCommand(args: readonly ShellWord[]): ShellWord[] {
+  let k = 0;
+  while (k < args.length && !args[k]!.dynamic && args[k]!.value.startsWith("-") && args[k]!.value !== "--") k += XARGS_VALUE_FLAGS.has(args[k]!.value) ? 2 : 1;
+  if (args[k]?.value === "--") k++;
+  return args.slice(k);
+}
+
+export interface FindParts {
+  /** The start points (none: `.`). */
+  starts: ShellWord[];
+  /** -delete is present. */
+  deletes: boolean;
+  /** Each -exec/-execdir/-ok/-okdir command, up to its `;` or `+`; `dir` for the *dir forms. */
+  execs: Array<{ dir: boolean; words: ShellWord[] }>;
+  /** Files named by -fprint, -fprint0, -fprintf and -fls. */
+  writes: ShellWord[];
+}
+
+const FIND_EXECS: ReadonlySet<string> = new Set(["-exec", "-execdir", "-ok", "-okdir"]);
+const FIND_FILE_ACTIONS: ReadonlySet<string> = new Set(["-fprint", "-fprint0", "-fprintf", "-fls"]);
+
+/** Item 5: `find` split into its start points and actions; the leading -H, -L, -P, -O<n> and -D <x> are skipped. */
+export function findParts(args: readonly ShellWord[]): FindParts {
+  let k = 0;
+  while (k < args.length && !args[k]!.dynamic) {
+    const v = args[k]!.value;
+    if (v === "-H" || v === "-L" || v === "-P" || /^-O\d*$/.test(v)) k++;
+    else if (v === "-D") k += 2;
+    else break;
+  }
+  const starts: ShellWord[] = [];
+  while (k < args.length) {
+    const a = args[k]!;
+    if (!a.dynamic && (a.value.startsWith("-") || a.value === "(" || a.value === "!")) break;
+    starts.push(a);
+    k++;
+  }
+  const out: FindParts = { starts, deletes: false, execs: [], writes: [] };
+  while (k < args.length) {
+    const v = args[k]!.dynamic ? "" : args[k]!.value;
+    if (v === "-delete") {
+      out.deletes = true;
+      k++;
+    } else if (FIND_EXECS.has(v)) {
+      const words: ShellWord[] = [];
+      k++;
+      while (k < args.length && !(!args[k]!.dynamic && (args[k]!.value === ";" || args[k]!.value === "+"))) words.push(args[k++]!);
+      k++;
+      out.execs.push({ dir: v.endsWith("dir"), words });
+    } else if (FIND_FILE_ACTIONS.has(v)) {
+      if (args[k + 1] !== undefined) out.writes.push(args[k + 1]!);
+      k += v === "-fprintf" ? 3 : 2;
+    } else k++;
+  }
+  return out;
+}
 
 /** Every NAME=value the command sets for itself or its children: prefix, after wrappers, and export/declare arguments. */
 export function assignmentsOf(c: SimpleCommand): Record<string, string> {
@@ -549,7 +628,7 @@ const VALUE_FLAGS: Readonly<Record<string, readonly string[]>> = {
   mkdir: ["-m", "--mode"],
   touch: ["-d", "-r", "-t", "--date", "--reference"],
   truncate: ["-s", "--size", "-r", "--reference"],
-  rsync: ["--exclude", "--include", "--filter", "-f", "--exclude-from", "--include-from", "-e", "--rsh", "--chmod", "--chown", "--rsync-path", "--log-file", "--backup-dir", "--temp-dir", "-T", "--files-from"],
+  rsync: ["--exclude", "--include", "--filter", "-f", "--exclude-from", "--include-from", "-e", "--rsh", "--chmod", "--chown", "--rsync-path", "--log-file", "--backup-dir", "--temp-dir", "-T", "--files-from", "--link-dest"],
   perl: ["-e", "-E", "-I", "-M", "-m"],
   sed: ["-e", "--expression", "-f", "--file", "-l", "--line-length"],
   curl: ["-o", "--output", "-H", "--header", "-d", "--data", "-X", "--request", "-u", "--user", "-A", "--user-agent", "-b", "--cookie", "-c", "--cookie-jar"],
@@ -622,7 +701,7 @@ function dropBsdSuffix(args: readonly ShellWord[]): readonly ShellWord[] {
 }
 
 /** The operands a file command writes (or removes). */
-function writtenBy(name: string, rawArgs: readonly ShellWord[]): ShellWord[] {
+export function writtenBy(name: string, rawArgs: readonly ShellWord[]): ShellWord[] {
   const args = name === "sed" ? dropBsdSuffix(rawArgs) : rawArgs;
   const { ops, valued, flags } = split(name, args);
   const flag = (...names: string[]): ShellWord[] => valued.filter(([f]) => names.includes(f)).map(([, w]) => w);
@@ -673,6 +752,11 @@ interface Loc {
   readonly dir: string;
   readonly dyn: boolean;
   readonly stat: string;
+  /**
+   * Item 12: the unnormalized directory text after a physical change of directory (git -C, cd -P, pushd -P), so a path
+   * such as `link/..` is resolved through the link by the guard, not as text.
+   */
+  readonly raw?: string;
 }
 
 /** Git global options that take a separate value (besides -C, handled apart). */
@@ -701,20 +785,25 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
     if (isAbsolute(v)) return withRaw(resolve(v), v, false);
     if (base.dyn) return { path: `${base.dir}/${v}`, dynamic: true };
     if (w.pattern === true) return { path: `${base.dir}/${v}`, dynamic: false };
-    return withRaw(resolve(base.dir, v), `${base.dir}/${v}`, false);
+    return withRaw(resolve(base.dir, v), `${base.raw ?? base.dir}/${v}`, false);
   };
   const pat = (w: ShellWord): { pattern?: true } => (w.pattern === true ? { pattern: true } : {});
   const rawOf = (r: { raw?: string }): { raw?: string } => (r.raw !== undefined ? { raw: r.raw } : {});
-  const moveTo = (base: Loc, w: ShellWord): Loc => {
+  /** `physical`: the change of directory follows links before `..` (item 12), so the raw text is kept for the guard. */
+  const moveTo = (base: Loc, w: ShellWord, physical = false): Loc => {
     const r = locate(base, w);
-    return { dir: r.path, dyn: r.dynamic, stat: r.dynamic ? base.stat : r.path };
+    if (r.dynamic) return { dir: r.path, dyn: true, stat: base.stat };
+    const raw = (physical || base.raw !== undefined) && r.raw !== undefined ? r.raw : undefined;
+    return raw === undefined ? { dir: r.path, dyn: false, stat: r.path } : { dir: r.path, dyn: false, stat: raw, raw };
   };
   const cd = (base: Loc, args: readonly ShellWord[]): Loc => {
     const dd = args.findIndex((a) => !a.dynamic && a.value === "--");
+    const opts = args.slice(0, dd >= 0 ? dd : args.length).filter((a) => !a.dynamic && /^-[LPe@]+$/.test(a.value));
     const d = dd >= 0 ? args[dd + 1] : args.find((a) => a.dynamic || !/^-[LPe@]+$/.test(a.value));
     if (d === undefined) return homeLoc;
     if (!d.dynamic && d.value === "-") return { dir: "-", dyn: true, stat: base.stat };
-    return moveTo(base, d);
+    // cd -P (and pushd -P) resolve links before `..`; plain cd is logical.
+    return moveTo(base, d, opts.some((o) => o.value.includes("P")));
   };
 
   /** Writes of `git` subcommands that change the working tree. */
@@ -725,7 +814,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
       const a = args[k]!;
       if (a.dynamic || !a.value.startsWith("-")) break;
       if (a.value === "-C" && args[k + 1] !== undefined) {
-        at = moveTo(at, args[k + 1]!);
+        at = moveTo(at, args[k + 1]!, true); // git -C is a chdir(): physical (item 12)
         k += 2;
       } else k += GIT_VALUE_OPTS.has(a.value) ? 2 : 1;
     }
@@ -738,7 +827,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
         const r = locate(at, w);
         return { path: r.path, dynamic: r.dynamic, content: null, via, ...pat(w), ...rawOf(r) };
       });
-    const everything = (via = "git"): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via }];
+    const everything = (via = "git"): WriteTarget[] => [{ path: at.dir, dynamic: true, content: null, via, ...(at.raw !== undefined ? { raw: at.raw } : {}) }];
     switch (sub) {
       case "checkout": {
         const i = rest.findIndex((a) => !a.dynamic && a.value === "--");
@@ -789,6 +878,7 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
   const walk = (text: string, start: Loc, depth: number): void => {
     let loc = start;
     let prevContent: string | null = null;
+    let prevText: string | null = null;
     const dirStack: Loc[] = [];
     const open: Array<{ id: number; saved: Loc }> = [];
     for (const c of parseBash(text)) {
@@ -818,24 +908,81 @@ export function bashWriteTargets(src: string, cwd: string, home: string = proces
         loc = dirStack.pop() ?? loc;
         continue;
       }
-      if ((name === "bash" || name === "sh" || name === "zsh") && depth < 2) {
-        const k = args.findIndex((a) => /^-[a-z]*c$/.test(a.value));
-        // `bash -c -- 'script'`: the script follows the end-of-options marker.
-        const inner = k < 0 ? undefined : args[k + 1]?.value === "--" ? args[k + 2] : args[k + 1];
-        if (inner !== undefined) walk(inner.value, loc, depth + 1);
-        continue;
-      }
-      if (name === "git") {
-        targets.push(...gitWrites(loc, args));
-        continue;
-      }
-      const written = writtenBy(name, args);
-      for (const w of written) {
-        const t = locate(loc, w);
-        targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name, ...pat(w), ...rawOf(t) });
-      }
-      if (name === "ln") linkSources.push(...lnSources(loc, args, written));
+      const fed = c.pipe === true ? prevText : null;
+      prevText = c.argv.map((w) => w.value).join(" ");
+      apply(name, args, loc, content, depth, fed, 0);
     }
+  };
+  /** The writes of one command, and of the command an `xargs` or a `find -exec` starts (fix round 3, items 4 and 5). */
+  const apply = (name: string, args: readonly ShellWord[], loc: Loc, content: string | null, depth: number, fed: string | null, nest: number): void => {
+    if (nest > 3) return;
+    if (SHELL_NAMES.has(name) && depth < 2) {
+      const k = args.findIndex((a) => /^-[a-z]*c$/.test(a.value));
+      // `bash -c -- 'script'`: the script follows the end-of-options marker.
+      const inner = k < 0 ? undefined : args[k + 1]?.value === "--" ? args[k + 2] : args[k + 1];
+      if (inner !== undefined) walk(inner.value, loc, depth + 1);
+      return;
+    }
+    if (name === "git") {
+      targets.push(...gitWrites(loc, args));
+      return;
+    }
+    if (name === "xargs") {
+      const launched = xargsCommand(args);
+      const head = launched[0];
+      if (head === undefined || head.dynamic) return;
+      const inner = basename(head.value);
+      // Operands read from stdin: the guard sees only the text of the stage that feeds xargs.
+      if (STDIN_REMOVERS.has(inner)) targets.push({ path: fed ?? "<stdin>", dynamic: true, content: null, via: inner, stdin: true });
+      apply(inner, launched.slice(1), loc, null, depth, null, nest + 1);
+      return;
+    }
+    if (name === "find") {
+      const parts = findParts(args);
+      for (const w of parts.writes) {
+        const t = locate(loc, w);
+        targets.push({ path: t.path, dynamic: t.dynamic, content: null, via: "find", ...pat(w), ...rawOf(t) });
+      }
+      for (const e of parts.execs) {
+        // `{}` stands for each found path: the start-point rule (guard findProblem) covers those. With -execdir the
+        // command runs in each found file's directory, so a relative operand there is not a literal path.
+        const words = e.words
+          .filter((w) => !w.value.includes("{}"))
+          .map((w) => (e.dir && !w.dynamic && !isAbsolute(w.value) ? { value: w.value, dynamic: true } : w));
+        const head = e.words[0];
+        if (head === undefined || head.dynamic || head.value.includes("{}")) continue;
+        apply(basename(head.value), words.slice(1), loc, null, depth, null, nest + 1);
+      }
+      return;
+    }
+    const written = writtenBy(name, args);
+    for (const w of written) {
+      const t = locate(loc, w);
+      targets.push({ path: t.path, dynamic: t.dynamic, content: name === "tee" ? content : null, via: name, ...pat(w), ...rawOf(t) });
+    }
+    if (name === "ln") linkSources.push(...lnSources(loc, args, written));
+    if (name === "cp" || name === "rsync") linkSources.push(...copyLinkSources(name, loc, args));
+  };
+  /** Item 11: cp -l/-s/--link/--symbolic-link sources and rsync --link-dest, checked as ln sources are. */
+  const copyLinkSources = (name: "cp" | "rsync", loc: Loc, args: readonly ShellWord[]): WriteTarget[] => {
+    const { ops, valued, flags } = split(name, args);
+    const via = `${name}-link-source`;
+    const out = (base: Loc, w: ShellWord): WriteTarget => {
+      const t = locate(base, w);
+      return { path: t.path, dynamic: t.dynamic, content: null, via, ...rawOf(t) };
+    };
+    if (name === "cp") {
+      if (![...flags].some((f) => f === "-l" || f === "-s" || f === "--link" || f === "--symbolic-link")) return [];
+      const dirFlag = valued.some(([f]) => f === "-t" || f === "--target-directory");
+      return (dirFlag ? ops : ops.slice(0, -1)).map((w) => out(loc, w));
+    }
+    const dirs = valued.filter(([f]) => f === "--link-dest").map(([, w]) => w);
+    if (dirs.length === 0) return [];
+    // A relative --link-dest is relative to the destination directory; the cwd reading is checked too.
+    const dest = ops.length > 1 ? locate(loc, ops[ops.length - 1]!) : null;
+    const bases: Loc[] = [loc];
+    if (dest !== null) bases.push(dest.dynamic ? { dir: dest.path, dyn: true, stat: loc.stat } : { dir: dest.path, dyn: false, stat: dest.path });
+    return dirs.flatMap((w) => (isAbsolute(w.value) || w.dynamic ? [out(loc, w)] : bases.map((b) => out(b, w))));
   };
   /**
    * The sources of `ln`: a symbolic one is relative to the directory the link lands in, a hard one to the cwd. When the

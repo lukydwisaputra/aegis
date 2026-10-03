@@ -39,7 +39,8 @@ const SPOOFS: Array<[string, string, string | null]> = [
   // Fix round 2 R4: a preload on a CLI call is refused, so --require has no legitimate subagent form.
   ['node --require', 'AEGIS_AGENT=owner node --require ./x.js apps/cli/dist/index.js gate decide --gate 1', null],
   ['node doubled slash', 'AEGIS_AGENT=owner node apps/cli/dist//index.js gate decide --gate 1', `AEGIS_AGENT=${AGENT} node apps/cli/dist//index.js task claim --task T-1`],
-  ['npx -p', 'AEGIS_AGENT=owner npx -p @aegis-qa/cli aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} npx -p @aegis-qa/cli aegis task claim --task T-1`],
+  // Fix round 3 item 2: only -C/--dir/--filter/-F/-s/--silent are allowed runner options, so -p and -w have no legitimate form.
+  ['npx -p', 'AEGIS_AGENT=owner npx -p @aegis-qa/cli aegis gate decide --gate 1', null],
   ['pnpm exec node', 'AEGIS_AGENT=owner pnpm exec node apps/cli/dist/index.js gate decide --gate 1', `AEGIS_AGENT=${AGENT} pnpm exec node apps/cli/dist/index.js task claim --task T-1`],
   ['brace group', '{ AEGIS_AGENT=owner pnpm aegis gate decide --gate 1; }', `{ AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1; }`],
   ['bang', '! AEGIS_AGENT=owner pnpm aegis gate decide --gate 1', `! AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1`],
@@ -51,7 +52,7 @@ const SPOOFS: Array<[string, string, string | null]> = [
   ['help value --help (C1)', 'AEGIS_AGENT=owner pnpm aegis escalation decide --task T-1 --decision retry --reason --help', `AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1 --reason --help`],
   ['sudo -E', 'AEGIS_AGENT=owner sudo -E pnpm aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} sudo -E pnpm aegis task claim --task T-1`],
   ['nice -n', 'AEGIS_AGENT=owner nice -n 5 pnpm aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} nice -n 5 pnpm aegis task claim --task T-1`],
-  ['pnpm -w', 'AEGIS_AGENT=owner pnpm -w aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} pnpm -w aegis task claim --task T-1`],
+  ['pnpm -w', 'AEGIS_AGENT=owner pnpm -w aegis gate decide --gate 1', null],
   ['pnpm run', 'AEGIS_AGENT=owner pnpm run aegis gate decide --gate 1', `AEGIS_AGENT=${AGENT} pnpm run aegis task claim --task T-1`],
   ['bash -c', "bash -c 'AEGIS_AGENT=owner pnpm aegis gate decide --gate 1'", `bash -c 'AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1'`],
   ['double assign', `AEGIS_AGENT=${AGENT} AEGIS_AGENT=owner pnpm aegis gate decide --gate 1`, `AEGIS_AGENT=${AGENT} AEGIS_AGENT=${AGENT} pnpm aegis task claim --task T-1`],
@@ -68,8 +69,8 @@ describe('C2: identity spoofing by a subagent, whatever the CLI form (the review
     expect(decide(bash(legit), ctx, deps)).toMatchObject({ allow: true });
   });
 
-  it('the export, preload, shell-stdin and quote-split forms have no legitimate subagent form', () => {
-    expect(SPOOFS.filter((s) => s[2] === null).map((s) => s[0])).toEqual(['export then pnpm', 'export then timeout pnpm', 'quoted export split', 'node --require', 'herestring bash', 'pipe into sh']);
+  it('the export, preload, runner-option, shell-stdin and quote-split forms have no legitimate subagent form', () => {
+    expect(SPOOFS.filter((s) => s[2] === null).map((s) => s[0])).toEqual(['export then pnpm', 'export then timeout pnpm', 'quoted export split', 'node --require', 'npx -p', 'herestring bash', 'pipe into sh', 'pnpm -w']);
   });
 
   it.each<[string, string, RegExp]>([

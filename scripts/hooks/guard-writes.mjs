@@ -2,7 +2,7 @@
 // H1 guard-writes (P0 spec §4.2): PreToolUse on Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task.
 // The hook payload arrives as JSON on stdin. Exit 2 with the reason on stderr denies the call; a warning goes to stdout
 // as {"systemMessage": …} with exit 0 (never a permissionDecision: the normal permission flow still applies).
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -25,7 +25,7 @@ function allowAndExit() {
  * in turn, so `link/..` climbs from where the link points; only the part that does not exist yet is normalized as text.
  * `dangling` reports a `..` after such a missing component (it may become a link in the same call).
  */
-function physical(abs) {
+function physical(abs, hops = 0) {
   const segs = abs.split("/");
   if (!segs.includes("..")) {
     try {
@@ -42,9 +42,21 @@ function physical(abs) {
       cur = dirname(cur);
       continue;
     }
+    const next = cur === "/" ? `/${s}` : `${cur}/${s}`;
     try {
-      cur = realpathSync.native(cur === "/" ? `/${s}` : `${cur}/${s}`);
+      cur = realpathSync.native(next);
     } catch {
+      // Item 13: a dangling link. Its destination does not exist yet, but a write through it lands there: follow it.
+      let target = null;
+      try {
+        if (lstatSync(next).isSymbolicLink()) target = readlinkSync(next);
+      } catch {
+        // not there at all
+      }
+      if (target !== null && hops < 40) {
+        const dest = isAbsolute(target) ? target : `${cur}/${target}`;
+        return physical([dest, ...segs.slice(i + 1)].join("/"), hops + 1);
+      }
       const tail = segs.slice(i).filter((x) => x !== "" && x !== ".");
       return { path: resolve(cur, ...tail), dangling: tail.slice(1).includes("..") };
     }
