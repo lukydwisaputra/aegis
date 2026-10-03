@@ -36,7 +36,7 @@ interface RawConfig {
 const RUN_ID = /^RUN-\d{8}-\d{3}$/;
 
 /** `inner` is `dir` or inside it. */
-function within(dir: string, inner: string): boolean {
+export function within(dir: string, inner: string): boolean {
   const rel = relative(dir, inner);
   return rel === "" || (rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel));
 }

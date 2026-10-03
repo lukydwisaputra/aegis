@@ -155,6 +155,62 @@ describe('vendorHelpers (spec §4.11.3)', () => {
     }
   });
 
+  it('refuses a relative symlink inside the target that redirects tests into the aegis root', () => {
+    fs.symlinkSync('aegis', path.join(t.base, 'tests'));
+    expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers', 'supabase']))).toBe('invalid-input');
+    expect(fs.existsSync(path.join(t.root, 'qa'))).toBe(false);
+    expect(fs.readdirSync(t.root).sort()).toEqual(['aegis.config.json', 'packages']);
+  });
+
+  it('refuses a destination that is a directory, without writing the other helper', () => {
+    fs.mkdirSync(file('supabase'), { recursive: true });
+    expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers', 'supabase']))).toBe('invalid-input');
+    expect(fs.existsSync(file('test-helpers'))).toBe(false);
+  });
+
+  it('refuses a support path that is a regular file', () => {
+    fs.mkdirSync(path.join(t.base, 'tests', 'qa'), { recursive: true });
+    fs.writeFileSync(t.support, 'not a dir');
+    expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
+    expect(fs.readFileSync(t.support, 'utf-8')).toBe('not a dir');
+  });
+
+  it('reports a read-only destination as invalid-input, not an internal error', () => {
+    if (process.getuid?.() === 0) return;
+    vendorHelpers(t.root, ['test-helpers']);
+    fs.appendFileSync(file('test-helpers'), '\n// edit\n');
+    fs.chmodSync(file('test-helpers'), 0o444);
+    expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
+  });
+
+  it('refuses a hard-linked destination and leaves the outside file untouched', () => {
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-vendor-elsewhere-'));
+    try {
+      const victim = path.join(elsewhere, 'victim.ts');
+      fs.writeFileSync(victim, 'untouched');
+      fs.mkdirSync(t.support, { recursive: true });
+      fs.linkSync(victim, file('test-helpers'));
+      expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
+      expect(fs.readFileSync(victim, 'utf-8')).toBe('untouched');
+    } finally {
+      fs.rmSync(elsewhere, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a target root that does not exist and creates nothing', () => {
+    const cfg = path.join(t.root, 'aegis.config.json');
+    fs.writeFileSync(cfg, JSON.stringify({ targetProjectRoot: '../no-such-target', testsDir: '../no-such-target/tests/qa' }));
+    expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
+    expect(fs.existsSync(path.join(t.base, 'no-such-target'))).toBe(false);
+  });
+
+  it('accepts a support dir whose parent is named like ..foo', () => {
+    fs.rmSync(t.base, { recursive: true, force: true });
+    t = makeTarget('../..foo/qa');
+    const dir = path.join(t.base, '..foo', 'qa', 'support');
+    expect(vendorHelpers(t.root, ['test-helpers']).written).toEqual([path.join(dir, 'test-helpers.ts')]);
+  });
+
   (stale ? it.skip : it)('the built CLI vendors for the environment engineer and refuses anyone else', () => {
     const aegis = (agent: string, ...args: string[]) => {
       const r = spawnSync(process.execPath, [CLI, ...args], { cwd: t.root, encoding: 'utf-8', env: { ...process.env, AEGIS_AGENT: agent } });

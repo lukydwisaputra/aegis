@@ -1,6 +1,6 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { basename, isAbsolute, join, relative } from "node:path";
-import { loadGuardContext } from "@qa/path-guard";
+import { closeSync, constants, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeSync, type Stats } from "node:fs";
+import { basename, join, relative } from "node:path";
+import { loadGuardContext, within } from "@qa/path-guard";
 import { RunStateError } from "./errors.js";
 
 /** The packages `aegis helpers vendor` copies into the target's QA tests (P2 spec §4.11.3, AUD-054). */
@@ -33,11 +33,22 @@ export function vendoredHeader(name: VendoredHelper, version: string): string {
   return `// Vendored QA helper ${name} ${version}. Regenerated each cycle; do not edit.`;
 }
 
-function isLink(p: string): boolean {
+const refuse = (why: string): never => {
+  throw new RunStateError("invalid-input", `refusing to write helpers: ${why}`);
+};
+
+const isMissing = (e: unknown): boolean => {
+  const code = (e as NodeJS.ErrnoException).code;
+  return code === "ENOENT" || code === "ENOTDIR";
+};
+
+/** lstat that treats only a missing path as absent; any other error refuses (fail closed). */
+function lstatOrNull(p: string): Stats | null {
   try {
-    return lstatSync(p).isSymbolicLink();
-  } catch {
-    return false;
+    return lstatSync(p);
+  } catch (e) {
+    if (isMissing(e)) return null;
+    return refuse(`cannot inspect ${p}: ${(e as Error).message}`);
   }
 }
 
@@ -47,8 +58,9 @@ function realNearest(p: string): string {
   let tail = "";
   for (;;) {
     try {
-      return join(realpathSync(cur), tail);
-    } catch {
+      return join(realpathSync.native(cur), tail);
+    } catch (e) {
+      if (!isMissing(e)) return refuse(`cannot resolve ${cur}: ${(e as Error).message}`);
       const up = join(cur, "..");
       if (up === cur) return p;
       tail = join(basename(cur), tail);
@@ -57,12 +69,36 @@ function realNearest(p: string): string {
   }
 }
 
+/** Open without following a symlink or blocking on a FIFO, check the handle, then replace the content. */
+function writeCopy(file: string, content: string): void {
+  let fd: number;
+  try {
+    fd = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o644);
+  } catch (e) {
+    return refuse(`cannot write ${file}: ${(e as Error).message}`);
+  }
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile() || st.nlink !== 1) refuse(`${file} is not a plain single-link file`);
+    ftruncateSync(fd, 0);
+    const buf = Buffer.from(content, "utf-8");
+    let off = 0;
+    while (off < buf.length) off += writeSync(fd, buf, off, buf.length - off, off);
+  } catch (e) {
+    if (e instanceof RunStateError) throw e;
+    refuse(`cannot write ${file}: ${(e as Error).message}`);
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /**
  * Copy packages/@qa/<name>/src/index.ts to <testsDir>/support/<name>.ts for each helper, with the header line prepended.
  * Idempotent: an identical file is left alone; a different one is overwritten and reported as drift. The tests dir is the
  * one the write guard uses (path-guard loadGuardContext), so a misconfigured testsDir is refused before anything is written.
- * Nothing is written through a symlink: the tests dir, the support dir and each copy must be real, and the support dir's
- * real path must stay inside the target's real path.
+ * Everything is validated before the first write. No symlink may sit between the target root and a copy (the support dir's
+ * real path must equal its lexical path under the target's real path), the support dir must be a directory, and each copy
+ * must be absent or a plain single-link file, opened with O_NOFOLLOW.
  */
 export function vendorHelpers(root: string, helpers: readonly VendoredHelper[]): VendorResult {
   let ctx: ReturnType<typeof loadGuardContext>;
@@ -71,35 +107,39 @@ export function vendorHelpers(root: string, helpers: readonly VendoredHelper[]):
   } catch (e) {
     throw new RunStateError("invalid-input", (e as Error).message);
   }
-  const testsDir = ctx.testsDir;
-  const supportDir = join(testsDir, "support");
-  const refuse = (why: string): never => {
-    throw new RunStateError("invalid-input", `refusing to write helpers: ${why}`);
-  };
-  if (isLink(testsDir)) refuse(`${testsDir} is a symlink`);
-  if (isLink(supportDir)) refuse(`${supportDir} is a symlink`);
-  const realTarget = realNearest(ctx.targetRoot);
-  const realSupport = realNearest(supportDir);
-  const rel = relative(realTarget, realSupport);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) refuse(`${supportDir} resolves outside the target`);
+  const supportDir = join(ctx.testsDir, "support");
+
+  const targetStat = lstatOrNull(ctx.targetRoot);
+  if (targetStat === null || !statSync(ctx.targetRoot).isDirectory()) refuse(`the target root ${ctx.targetRoot} is not a directory`);
+  if (!within(ctx.targetRoot, supportDir)) refuse(`${supportDir} is outside the target`);
+  const expected = join(realpathSync.native(ctx.targetRoot), relative(ctx.targetRoot, supportDir));
+  if (realNearest(supportDir) !== expected) refuse(`a symlink lies between the target root and ${supportDir}`);
+  const supportStat = lstatOrNull(supportDir);
+  if (supportStat !== null && !supportStat.isDirectory()) refuse(`${supportDir} is not a directory`);
 
   const plan = helpers.map((name) => {
     const pkg = join(root, "packages", "@qa", name);
     const { version } = JSON.parse(readFileSync(join(pkg, "package.json"), "utf-8")) as { version: string };
+    const content = `${vendoredHeader(name, version)}\n${readFileSync(join(pkg, "src", "index.ts"), "utf-8")}`;
     const file = join(supportDir, `${name}.ts`);
-    if (isLink(file)) refuse(`${file} is a symlink`);
-    return { file, content: `${vendoredHeader(name, version)}\n${readFileSync(join(pkg, "src", "index.ts"), "utf-8")}` };
+    const st = lstatOrNull(file);
+    if (st !== null && (!st.isFile() || st.nlink !== 1)) refuse(`${file} is not a plain single-link file`);
+    const same = st !== null && readFileSync(file, "utf-8") === content;
+    return { file, content, existed: st !== null, same };
   });
 
   const out: VendorResult = { written: [], unchanged: [], drift: [] };
-  for (const { file, content } of plan) {
-    const existed = existsSync(file);
-    if (existed && readFileSync(file, "utf-8") === content) {
+  for (const { file, content, existed, same } of plan) {
+    if (same) {
       out.unchanged.push(file);
       continue;
     }
-    mkdirSync(supportDir, { recursive: true });
-    writeFileSync(file, content, "utf-8");
+    try {
+      mkdirSync(supportDir, { recursive: true });
+    } catch (e) {
+      refuse(`cannot create ${supportDir}: ${(e as Error).message}`);
+    }
+    writeCopy(file, content);
     out.written.push(file);
     if (existed) out.drift.push(file);
   }
