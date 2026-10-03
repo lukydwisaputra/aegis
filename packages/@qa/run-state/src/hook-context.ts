@@ -6,7 +6,7 @@ import { readActiveRun } from "./paths.js";
 import { readRun } from "./run.js";
 import { iso } from "./util.js";
 
-/** Claude Code caps hook additionalContext at 10,000 characters; the injected text stays far below it. */
+/** At most this many open gates, escalations or blocks are named one by one; the rest are counted. */
 const MAX_LISTED = 10;
 
 /** The CLI cheat-sheet (spec §4.2 H4, CO-11): every command with its flags, as `aegis <usage>`. */
@@ -61,20 +61,32 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
   } else {
     // First, so a context that cannot be built (a corrupt config) never loses the start H2 times an SPV from.
     if (agentId !== undefined && agentId !== "") appendLedger(root, runId, { ts: iso(now), agentId, agentType, kind: "start" });
-    const ctx = loadGuardContext(root);
+    // A16: a context that cannot be loaded (a corrupt aegis.config.json) is reported with its own cause, not as a build problem.
+    let ctx: ReturnType<typeof loadGuardContext> | null = null;
+    try {
+      ctx = loadGuardContext(root);
+    } catch (e) {
+      lines.push(`- Configuration unreadable (${(e as Error).message}): every write you attempt is denied until the owner repairs aegis.config.json; report this to your dispatcher and stop.`);
+    }
     try {
       const state = readRun(root, runId);
-      const verdict = envVerdict(agentType, state.currentPhase, state.environment, ctx.envPolicy);
       lines.push(`- Active run: ${runId} (status ${state.status}, phase ${state.currentPhase ?? "none"}, environment ${state.environment}).`);
-      lines.push(
-        verdict.allowed
-          ? `- Environment verdict: ${agentType} is allowed in ${state.environment}.`
-          : `- Environment verdict: BLOCKED — ${verdict.reason} every write you attempt is denied and aegis task claim refuses you: report this to your dispatcher and stop.`
-      );
+      if (ctx !== null) {
+        const verdict = envVerdict(agentType, state.currentPhase, state.environment, ctx.envPolicy);
+        lines.push(
+          verdict.allowed
+            ? `- Environment verdict: ${agentType} is allowed in ${state.environment}.`
+            : `- Environment verdict: BLOCKED — ${verdict.reason} every write you attempt is denied and aegis task claim refuses you: report this to your dispatcher and stop.`
+        );
+      }
     } catch (e) {
       lines.push(`- Active run: ${runId}, but its run.json is unreadable (${(e as Error).message}); report this to your dispatcher and stop.`);
     }
-    lines.push(`- Paths: run ${ctx.runDir ?? join(root, "runs", runId)}; QA tests ${ctx.testsDir}; target ${ctx.targetRoot}; sandbox ${join(root, "sandbox")}.`);
+    lines.push(
+      ctx === null
+        ? `- Paths: run ${join(root, "runs", runId)}; sandbox ${join(root, "sandbox")}.`
+        : `- Paths: run ${ctx.runDir ?? join(root, "runs", runId)}; QA tests ${ctx.testsDir}; target ${ctx.targetRoot}; sandbox ${join(root, "sandbox")}.`
+    );
   }
   const role = roleOf(agentType);
   const writes = role === undefined ? "nothing (no row in the path-guard role table)" : role.writes.length === 0 ? "nothing directly — you work through the CLI" : role.writes.join(", ");
@@ -92,7 +104,7 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
 export function routingContext(root: string): string {
   const lines = [
     "## Aegis router (UserPromptSubmit hook)",
-    "- Router rule: QA work runs only through a /qa-* command, which dispatches qa-orchestrator. The main thread never does the QA work itself and never writes runs/** or the target's tests/** (the PreToolUse hook denies it). If no command fits, say so and propose one.",
+    "- Router rule: QA work runs only through a /qa-* command, which dispatches qa-orchestrator. The main thread never does the QA work itself and never hand-writes QA artefacts (runs/**, tests/qa/**) outside a /qa-* command (the PreToolUse hook denies it). For a QA request, if no command fits, say so and propose one.",
     "- Framework development (Aegis agents, skills, packages or HANDBOOK, on a branch) is not QA work: do it directly, do not route it.",
     existsSync(join(root, ".claude", "routing.yaml"))
       ? "- Routing table: .claude/routing.yaml — pick the ready command whose intent matches; ask when two fit."

@@ -44,7 +44,7 @@ let rs;
 try {
   rs = await import(pathToFileURL(join(REPO, "packages/@qa/run-state/dist/index.js")).href);
 } catch (e) {
-  warnings.push(`aegis stop check unavailable (${oneLine(e)}); stop allowed: run pnpm install, whose prepare script builds the hook packages`);
+  warnings.push(`aegis stop check unavailable (${oneLine(e)}); stop allowed: run pnpm build (or pnpm install without --ignore-scripts, whose prepare script builds the hook packages)`);
   allowAndExit();
 }
 
