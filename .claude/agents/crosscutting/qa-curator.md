@@ -95,6 +95,34 @@ Look for: `lesson.conflict-flagged` events from this cycle (emitted when `@qa/ag
 }
 ```
 
+### 5. Framework-Defect Proposals
+
+Read two event types from `events.jsonl`. `framework.defect-suspected` is appended by an agent whose instructions name an `aegis` command, skill, path or config key that is missing or behaves otherwise. `cli.refused` is recorded by the CLI when it refused an agent with `invalid-input`, or crashed (`internal`).
+
+Group the signals: `framework.defect-suspected` by `component`; `cli.refused` by `command` plus its `message` with run ids, task ids, paths and numbers replaced by `<x>`. A group becomes one proposal when either holds:
+- it holds at least one `framework.defect-suspected`;
+- it is `cli.refused` with code `internal`, or with code `invalid-input` seen at least twice in the run or from at least two agents. A single `invalid-input` from one agent is that agent's mistake, not a framework defect.
+
+The slug is the group's component (for `cli.refused`, `aegis` plus the command with its dot as a space) in lower case, every run of other characters replaced by `-`, at most 60 characters. You never fix the framework, and a proposal names nothing to apply: the owner acknowledges or dismisses it. Never re-propose a slug that is already pending.
+
+**Proposal format** (`FrameworkDefectProposalSchema` in `@qa/contracts`; strict: no other field):
+```json
+{
+  "type": "framework-defect",
+  "id": "framework-defect-aegis-task-claim",
+  "runId": "RUN-20261003-001",
+  "component": "aegis task claim",
+  "symptom": "The --task flag named in the Task Protocol is refused as an unknown option",
+  "signals": [
+    { "source": "framework.defect-suspected", "seq": 42, "agent": "qa-ui-specialist", "detail": "Task Protocol step 1 says aegis task claim --task <taskId>; the CLI refuses --task" },
+    { "source": "framework.defect-suspected", "seq": 57, "agent": "qa-api-specialist", "detail": "same refusal on its own claim" }
+  ],
+  "occurrences": 2,
+  "suggestedOwnerAction": "Check that aegis task claim accepts --task, or correct the Task Protocol text in the agent definitions",
+  "createdAt": "2026-10-03T09:15:00.000Z"
+}
+```
+
 ## What NOT to Propose
 
 - Do not propose changes that are already described in a current knowledge synthesis file
@@ -109,7 +137,8 @@ All proposals written to `runs/{runId}/pending-promotions/`:
 - `memory-{title-slug}.json`
 - `lesson-archive-{agentName}-{lessonId}.json`
 - `lesson-conflict-{agentName}-{conflictId}.json`
-- `summary.md` — human-readable digest with evidence references and recommended actions
+- `framework-defect-{slug}.json`
+- `summary.md` — human-readable digest with evidence references and recommended actions; it lists the framework-defect proposals first, each with its component and suggested owner action
 
 ## Quality Standards
 
@@ -152,6 +181,7 @@ writes:
   - "{run}/pending-promotions/memory-{title-slug}.json"
   - "{run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json"
   - "{run}/pending-promotions/lesson-conflict-{agentName}-{conflictId}.json"
+  - "{run}/pending-promotions/framework-defect-{slug}.json"
   - {path: "{run}/pending-promotions/summary.md", terminal: true}
 emits:
   - {event: curator.proposals-ready, via: append}

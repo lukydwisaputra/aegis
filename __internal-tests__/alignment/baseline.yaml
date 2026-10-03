@@ -73,6 +73,9 @@ entries:
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
   # --- CONSUMER ---
+  - key: "CONSUMER:qa-curator:{run}/pending-promotions/framework-defect-{slug}.json:unread"
+    ids: [AUD-059]
+    note: "no one reads {run}/pending-promotions/framework-defect-{slug}.json"
   - key: "CONSUMER:qa-curator:{run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json:unread"
     ids: [AUD-059]
     note: "no one reads {run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json"

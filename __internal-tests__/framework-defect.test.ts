@@ -1,6 +1,11 @@
 import { AegisEventSchema, FrameworkDefectProposalSchema } from '@qa/contracts';
-import { assertAppendableByAgent } from '@qa/run-state';
-import { thrownCode } from './helpers/aegis-root';
+import fs from 'node:fs';
+import path from 'node:path';
+import { assertAppendableByAgent, FRAMEWORK_DEFECT_LINE, runContextFor } from '@qa/run-state';
+import { makeAegisRoot, startedRun, thrownCode, type TmpAegis } from './helpers/aegis-root';
+
+const REPO_ROOT = path.join(__dirname, '..');
+const read = (rel: string): string => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
 // P2c — NEW-06 framework-defect channel (docs/superpowers/specs/2026-10-02-p2-roster-design.md §4.12).
 const ts = '2026-10-03T09:15:00.000Z';
@@ -55,5 +60,44 @@ describe('FrameworkDefectProposalSchema', () => {
     expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, signals: [{ ...PROPOSAL.signals[0], source: 'review.passed' }] }).success).toBe(false);
     expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, occurrences: 0 }).success).toBe(false);
     expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, suggestedOwnerAction: 'x'.repeat(301) }).success).toBe(false);
+  });
+});
+
+describe('the curator proposes framework defects (spec §4.12)', () => {
+  const curator = () => read('.claude/agents/crosscutting/qa-curator.md');
+  const example = (): Record<string, unknown> =>
+    JSON.parse(/```json\n([\s\S]*?)\n```/.exec(curator().split('### 5. Framework-Defect Proposals')[1]!)![1]!) as Record<string, unknown>;
+
+  it('the example in qa-curator.md is a valid proposal, and a destination field makes it invalid', () => {
+    const parsed = FrameworkDefectProposalSchema.parse(example());
+    expect(parsed).toMatchObject({ type: 'framework-defect', occurrences: 2 });
+    expect(parsed.occurrences).toBeGreaterThanOrEqual(parsed.signals.length);
+    expect(FrameworkDefectProposalSchema.safeParse({ ...example(), destination: '.claude/agents/' }).success).toBe(false);
+  });
+
+  it('states the grouping threshold, never applies anything, and writes framework-defect-{slug}.json', () => {
+    const text = curator();
+    expect(text).toMatch(/`invalid-input` seen at least twice in the run or from at least two agents/);
+    expect(text).toMatch(/You never fix the framework, and a proposal names nothing to apply/);
+    expect(text).toContain('  - "{run}/pending-promotions/framework-defect-{slug}.json"');
+    expect(text).toContain('- `framework-defect-{slug}.json`');
+  });
+});
+
+describe('every qa-* agent is told how to report a framework defect (T10)', () => {
+  let t: TmpAegis;
+  beforeEach(() => { t = makeAegisRoot(); });
+  afterEach(() => t.cleanup());
+
+  it('runContextFor carries the line, with or without an active run', async () => {
+    expect(FRAMEWORK_DEFECT_LINE).toMatch(/append `framework\.defect-suspected` with the component, the symptom and the evidence.*Never edit the framework to work around it\.$/);
+    expect(runContextFor(t.root, 'qa-ui-specialist', 'a1')).toContain(FRAMEWORK_DEFECT_LINE);
+    await startedRun(t.root);
+    for (const agent of ['qa-orchestrator', 'qa-test-designer', 'qa-ui-specialist-spv']) expect(runContextFor(t.root, agent, 'x')).toContain(FRAMEWORK_DEFECT_LINE);
+  });
+
+  it('the orchestrator and HANDBOOK/10 send framework defects to the owner queue', () => {
+    expect(read('.claude/agents/orchestrator/qa-orchestrator.md')).toContain("framework defects go to the owner's `/qa-promote` queue (`framework.defect-suspected` and `cli.refused`, grouped by the curator)");
+    expect(read('HANDBOOK/10-self-improvement.md')).toMatch(/Until `\/qa-promote` loads this type, read the proposals in `summary\.md`\./);
   });
 });
