@@ -63,13 +63,14 @@ function isCommanderError(e: unknown): e is { code: string; exitCode: number; me
 }
 
 export async function runCli(argv: readonly string[]): Promise<void> {
+  const program = buildProgram();
   try {
-    await buildProgram().parseAsync([...argv], { from: "user" });
+    await program.parseAsync([...argv], { from: "user" });
   } catch (e) {
     if (!isCommanderError(e)) throw e;
     const env = envelopeFor(e);
     if (env.stderr !== "") process.stderr.write(env.stderr);
     process.exitCode = env.exitCode;
-    if (env.exitCode === 2) await noteParseRefusal(argv, parseMessage(e));
+    if (env.exitCode === 2) await noteParseRefusal(argv, parseMessage(e), program);
   }
 }

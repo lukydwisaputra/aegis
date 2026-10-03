@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { busPath, recordCliRefusal, scrubRefusalMessage } from '@qa/run-state';
+import { busPath, recordCliRefusal, scrubRefusalMessage, typedFragments } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 // P2c — NEW-06: the CLI records an agent's invalid-input or internal refusal as cli.refused (spec §4.12).
@@ -61,7 +61,7 @@ describe('recordCliRefusal', () => {
 describe('scrubRefusalMessage', () => {
   it.each([
     ['--jwt-secret=abc123', '--jwt-secret=<redacted>'],
-    ["error: option '--result <r>' argument 'SECRETCHOICE' is invalid. Allowed choices are done, failed.", "error: option '--result' argument '<value>' is invalid. Allowed choices are done, failed."],
+    ["error: option '--result <r>' argument 'SECRETCHOICE' is invalid. Allowed choices are done, failed.", "error: option '--result <r>' argument '<value>' is invalid. Allowed choices are done, failed."],
     ['Unexpected token \'s\', "sk_live_AB"... is not valid JSON', 'Unexpected token \'<value>\', "<value>" is not valid JSON'],
     ["unknown command 'hunter2'", "unknown command '<value>'"],
     ["unknown option '--bogus=hunter2'", "unknown option '--bogus'"],
@@ -83,6 +83,16 @@ describe('scrubRefusalMessage', () => {
     for (const m of ['--json is not valid JSON', 'task T-1 is not claimed by qa-ui-specialist', 'agent qa-accessibility-specialist-spv refused', 'code invalid_union_discriminator at /private/tmp/claude/wt']) {
       expect(scrubRefusalMessage(m)).toBe(m);
     }
+  });
+
+  it('subtracts what the caller typed but keeps vocabulary and option names', () => {
+    const argv = ['task', 'release', '--task', 'hunter2xyz', '--result=--hunter3xyz', 'a\nhunter4xyz', 'ab'];
+    const typed = typedFragments(argv, new Set(['--task', '--result']));
+    expect(typed).toEqual(expect.arrayContaining(['hunter2xyz', '--hunter3xyz', 'hunter4xyz']));
+    expect(typed).not.toContain('task');
+    expect(typed).not.toContain('--result');
+    expect(typed).not.toContain('ab');
+    expect(scrubRefusalMessage("option '--result' got --hunter3xyz for hunter2xyz\nhunter4xyz", typed)).toBe("option '--result' got <value> for <value>\n<value>");
   });
 
   it('scrubs a 4096-character adversarial input in under 100 ms', () => {
@@ -183,7 +193,7 @@ describe('the built CLI records refusals without changing them', () => {
     { name: 'a URL with userinfo', args: ['task', 'claim', '--task', 'T-1', '--note=https://user:hunter2@example.invalid/x'], secrets: ['hunter2'], keeps: '--note' },
     { name: 'a Bearer string', args: ['task', 'claim', '--task', 'T-1', '--auth=Bearer hunter2'], secrets: ['hunter2'], keeps: '--auth' },
     { name: 'a --db-password value with spaces', args: ['task', 'claim', '--task', 'T-1', '--db-password=hunter2 and more'], secrets: ['hunter2', 'and more'], keeps: '--db-password' },
-    { name: 'a glued short option', args: ['task', 'claim', '--task', 'T-1', '-phunter2'], secrets: ['hunter2'], keeps: '-p' },
+    { name: 'a glued short option', args: ['task', 'claim', '--task', 'T-1', '-phunter2'], secrets: ['hunter2'], keeps: 'unknown option' },
     { name: 'a task id value', args: ['task', 'claim', '--task', 'hunter2!'], secrets: ['hunter2'], keeps: 'task' },
     { name: 'a base64 value with slashes', args: ['task', 'claim', '--task', 'T-1', '--blob=aGVsbG8vd29ybGQrZm9vL2Jhcj0xMjM0NTY3ODkw'], secrets: ['aGVsbG8', 'Jhcj0x'], keeps: '--blob' },
   ];
@@ -198,12 +208,64 @@ describe('the built CLI records refusals without changing them', () => {
     }, 60_000);
   }
 
-  ctest('a zod received echo is not recorded', () => {
-    const file = path.join(t.root, 'shape.json');
-    fs.writeFileSync(file, JSON.stringify({ taskId: 'hunter2', status: 'hunter2' }));
+  const report = (body: unknown): string => {
+    const file = path.join(t.root, 'report.json');
+    fs.writeFileSync(file, JSON.stringify(body));
+    return file;
+  };
+
+  ctest('a zod enum echo from a file body is not recorded', () => {
+    const file = report({ uncertainties: [{ topic: 't', impact: 'hunter2xyz' }] });
     expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', file).status).toBe(2);
-    expect(bytesOf()).not.toContain('hunter2');
     expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('hunter2xyz');
+  }, 60_000);
+
+  ctest('an event schema refusal keeps its zod code and drops the received value', () => {
+    const r = aegis('qa-ui-specialist', 'event', 'append', '--type', 'discovery.step-complete', '--json', JSON.stringify({ step: 'hunter2xyz', extra: 7 }));
+    expect(r.status).toBe(2);
+    expect(bytesOf()).not.toContain('hunter2xyz');
+    expect(refused()).toHaveLength(1);
+    const message = refused()[0]!['message'] as string;
+    expect(message).toContain('"code": "invalid_enum_value"');
+    expect(message).toContain('"expected": "string"');
+    expect(message).toContain('"received": "<value>"');
+  }, 60_000);
+
+  ctest('credential URL and base64 values in a file body are not recorded', () => {
+    const file = report({ id: 'https://user:hunter2xyz@example.invalid/x', taskId: 'aGVsbG8vd29ybGQrZm9vL2Jhcj0xMjM0NTY3ODkwhunter2xyz', agent: 'Bearer hunter2xyz' });
+    expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', file).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('hunter2xyz');
+    expect(bytesOf()).not.toContain('aGVsbG8');
+  }, 60_000);
+
+  ctest('an invalid choice value starting with -- or spanning lines is not recorded', () => {
+    expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'T-1', '--result=--hunter2xyz').status).toBe(2);
+    expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'T-1', '--result', 'ok\nhunter2xyz').status).toBe(2);
+    expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'T-1', '--result', '--hunter2xyz').status).toBe(2);
+    expect(refused().length).toBeGreaterThanOrEqual(2);
+    expect(bytesOf()).not.toContain('hunter2xyz');
+  }, 60_000);
+
+  ctest('embedded quotes and backslashes in a value or an unknown command do not split the operand', () => {
+    expect(aegis('qa-ui-specialist', 'task', 'claim', '--task', 'a"b\'hunter2xyz\\"c').status).toBe(2);
+    expect(aegis('qa-ui-specialist', 'x"y\'hunter2xyz\\\'z').status).toBe(2);
+    expect(refused()).toHaveLength(2);
+    expect(bytesOf()).not.toContain('hunter2xyz');
+  }, 60_000);
+
+  ctest('a valid-shape unknown task id and a typed agent name are not echoed', () => {
+    expect(aegis('qa-ui-specialist', 'task', 'claim', '--task', 'hunter2xyz').status).toBe(2);
+    expect(aegis('qa-ui-specialist', 'task', 'add', '--id', 'T-9', '--title', 'tt', '--agent', 'qa-hunter2xyz').status).toBe(2);
+    expect(refused().length).toBeGreaterThanOrEqual(1);
+    expect(bytesOf()).not.toContain('hunter2xyz');
+  }, 60_000);
+
+  ctest('a missing --file path is not echoed', () => {
+    expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', '/nonexistent/dir/hunterpathxyz.json').status).toBeGreaterThan(0);
+    expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('hunterpathxyz');
   }, 60_000);
 
   ctest('without AEGIS_AGENT nothing is recorded', () => {

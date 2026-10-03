@@ -1,5 +1,5 @@
 import { appendChained } from "@qa/event-bus";
-import { AGENT_ID } from "./caller.js";
+import { AGENT_ID, CLI_COMMANDS } from "./caller.js";
 import { busPath, resolveRunId } from "./paths.js";
 import { iso } from "./util.js";
 
@@ -11,6 +11,10 @@ export interface CliRefusalContext {
   caller: string;
   /** The command's --run option, when it has one; else the active run. */
   run?: string | undefined;
+  /** The raw argv (without node and the script): what the caller typed is subtracted from the recorded text. */
+  argv?: readonly string[] | undefined;
+  /** Command words and option names the program defines; these are not caller-typed values. */
+  vocabulary?: ReadonlySet<string> | undefined;
 }
 
 export interface CliRefusal {
@@ -33,20 +37,54 @@ function optionNameOf(inner: string): string | null {
 /** Cap on what is scrubbed, so a hostile message cannot cost more than a bounded scan. */
 const SCRUB_INPUT_MAX = 4096;
 
+const MAX_FRAGMENTS = 200;
+
 /**
- * The log is append-only, hash-chained and exported, so a refusal text can never carry what the caller typed. Every
- * quoted operand is replaced (an option keeps only its name); credential-bearing shapes and long token-like runs that
- * contain a digit become <redacted>. Generic first, shapes after.
+ * What the caller typed on the command line, as literal fragments to subtract: each argv element, its part after the
+ * first `=` (the option name before it stays, it is vocabulary) and its newline-separated lines, trimmed. Fragments
+ * shorter than 3 characters and exact CLI vocabulary (command words, the option names the program defines) are not
+ * fragments.
  */
-export function scrubRefusalMessage(s: string): string {
-  return s
-    .slice(0, SCRUB_INPUT_MAX)
+export function typedFragments(argv: readonly string[], vocabulary: ReadonlySet<string> = new Set()): string[] {
+  const known = new Set<string>([...vocabulary, ...CLI_COMMANDS.flatMap((c) => c.split("."))]);
+  const out = new Set<string>();
+  const add = (piece: string): void => {
+    const f = piece.trim();
+    if (f.length >= 3 && !known.has(f)) out.add(f);
+  };
+  for (const el of argv.slice(0, MAX_FRAGMENTS)) {
+    const eq = el.indexOf("=");
+    const pieces = eq > 0 && el.startsWith("-") ? [el.slice(eq + 1)] : [el, ...(eq > 0 ? [el.slice(eq + 1)] : [])];
+    for (const piece of pieces) {
+      add(piece);
+      for (const line of piece.split(/\r?\n/)) add(line);
+    }
+  }
+  return [...out].sort((a, b) => b.length - a.length);
+}
+
+const OPTION_SPEC = /^--?[A-Za-z][\w-]*(?: [<[][\w.|-]*[>\]])?$/;
+
+/**
+ * The log is append-only, hash-chained and exported. For argv the promise "a refusal text carries nothing the caller
+ * typed" holds by construction: every typed fragment (`typed`, see typedFragments) is subtracted first, quoted or not.
+ * Values that came from a file (--file) are not in argv and are covered by pattern rules only (best effort): quoted
+ * operands, credential-bearing shapes, token shapes and long digit-bearing runs become <redacted> or <value>.
+ */
+export function scrubRefusalMessage(s: string, typed: readonly string[] = []): string {
+  let text = s.slice(0, SCRUB_INPUT_MAX);
+  for (const f of typed) text = text.split(f).join("<value>");
+  return text
+    .replace(/argument '[\s\S]*?' is invalid/g, `argument '<value>' is invalid`)
+    .replace(/unknown command '[\s\S]*/g, `unknown command '<value>'`)
+    .replace(/unknown option '([\s\S]*?)'(?=\n|$)/g, (_m, inner: string) => `unknown option '${optionNameOf(inner) ?? "<value>"}'`)
     .replace(/(?:\.\.\.)?"[\s\S]*?"(?:\.\.\.)? is not valid JSON/g, `"<value>" is not valid JSON`)
-    .replace(/'([^'\n]*)'|"([^"\n]*)"|`([^`\n]*)`/g, (_m, a: string | undefined, b: string | undefined, c: string | undefined) => {
-      const quote = a !== undefined ? "'" : b !== undefined ? '"' : "`";
-      const inner = a ?? b ?? c ?? "";
-      const name = quote === "'" ? optionNameOf(inner) : null;
-      return `${quote}${name ?? "<value>"}${quote}`;
+    .replace(/(['"`])([\s\S]*?)\1(?=[\s;:,.)]|$)/g, (m, quote: string, inner: string, offset: number, whole: string) => {
+      const before = whole.slice(Math.max(0, offset - 24), offset);
+      if (quote === "'" && /\boption $/.test(before) && OPTION_SPEC.test(inner)) return m;
+      if (quote === '"' && /^(?:code|expected|received|path|message|options)$/.test(inner) && whole[offset + m.length] === ":") return m;
+      if (quote === '"' && /"(?:code|expected)":\s*$/.test(before) && /^[a-z_]+$/.test(inner)) return m;
+      return `${quote}<value>${quote}`;
     })
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]*@/gi, (m) => `${m.slice(0, m.indexOf("://") + 3)}${REDACTED}@`)
     .replace(/\b(Bearer|Basic)\s+\S+/gi, `$1 ${REDACTED}`)
@@ -66,15 +104,16 @@ export async function recordCliRefusal(root: string, ctx: CliRefusalContext, ref
   try {
     if (!AGENT_ID.test(ctx.caller) || !RECORDED_REFUSAL_CODES.includes(refusal.code)) return false;
     const runId = resolveRunId(root, ctx.run);
+    const typed = typedFragments(ctx.argv ?? [], ctx.vocabulary);
     await appendChained(
       {
         type: "cli.refused",
         ts: iso(),
         runId,
-        command: scrubRefusalMessage(refusal.command.slice(0, SCRUB_INPUT_MAX)).slice(0, 200),
+        command: scrubRefusalMessage(refusal.command.slice(0, SCRUB_INPUT_MAX), typed).slice(0, 200),
         code: refusal.code,
         caller: ctx.caller,
-        message: scrubRefusalMessage(refusal.message.slice(0, SCRUB_INPUT_MAX)).slice(0, CLI_REFUSAL_MESSAGE_MAX),
+        message: scrubRefusalMessage(refusal.message.slice(0, SCRUB_INPUT_MAX), typed).slice(0, CLI_REFUSAL_MESSAGE_MAX),
       },
       busPath(root, runId),
       { emittedBy: ctx.caller, runId },
