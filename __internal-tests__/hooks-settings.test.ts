@@ -26,3 +26,14 @@ it('H1 guards every write tool, Bash and dispatches (spec §4.2)', () => {
   const matcher = settings.hooks['PreToolUse']![0]!.matcher!.split('|').sort();
   expect(matcher).toEqual(['Agent', 'Bash', 'Edit', 'MultiEdit', 'NotebookEdit', 'Task', 'Write']);
 });
+
+it('H2 runs on SubagentStop', () => {
+  expect(script('SubagentStop')).toBe('scripts/hooks/require-work-report.mjs');
+});
+
+it('every pipeline.yaml#hookEmits hook is a script in scripts/hooks/', () => {
+  const { parse } = require('yaml') as typeof import('yaml');
+  const pipeline = parse(fs.readFileSync(path.join(REPO, '.claude', 'pipeline.yaml'), 'utf-8')) as { hookEmits?: Array<{ hook: string; event: string }> };
+  expect(pipeline.hookEmits).toEqual([{ hook: 'require-work-report', event: 'token.used' }]);
+  for (const h of pipeline.hookEmits!) expect(fs.existsSync(path.join(REPO, 'scripts', 'hooks', `${h.hook}.mjs`))).toBe(true);
+});

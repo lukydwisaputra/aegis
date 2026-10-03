@@ -424,9 +424,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:devops.flake-detected:unreachable-emitter"
     ids: [AUD-011]
     note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
-  - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
-    ids: [AUD-042b]
-    note: "nobody emits token.used"
   - key: "EVENT:qa-promote-stage:run.gate.check.triggered:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"

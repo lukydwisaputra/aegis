@@ -237,7 +237,11 @@ export function eventRule(m: Model): Violation[] {
   const emitted = new Set([
     ...[...m.units.values()].flatMap((u) => (u.contract?.emits ?? []).map((e) => e.event)),
     ...[...m.units.values()].flatMap((u) => (u.contract?.cli ?? []).flatMap((cmd) => CLI_RECORDS[cmd] ?? [])),
+    ...(m.pipeline?.hookEmits ?? []).map((h) => h.event),
   ]);
+  for (const h of m.pipeline?.hookEmits ?? []) {
+    if (!m.declaredEvents.has(h.event)) out.push(violation("EVENT", "pipeline", h.event, "undeclared", ".claude/pipeline.yaml", 1, `${h.event} is not a declared event`));
+  }
   for (const u of m.units.values()) {
     const c = u.contract;
     if (c === null) continue;
@@ -300,6 +304,7 @@ export function writePolicyRule(m: Model): Violation[] {
 export function emitterRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const reachable = reachableUnits(m);
+  const hooked = new Set((m.pipeline?.hookEmits ?? []).map((h) => h.event));
   const emitters = new Map<string, Set<string>>();
   for (const u of m.units.values()) {
     const c = u.contract;
@@ -312,6 +317,7 @@ export function emitterRule(m: Model): Violation[] {
   for (const u of m.units.values()) {
     if (u.contract === null || !reachable.has(u.name)) continue;
     for (const ev of new Set(u.contract.awaits)) {
+      if (hooked.has(ev)) continue; // hooks always run
       const es = emitters.get(ev);
       if (es === undefined || es.size === 0 || [...es].some((n) => reachable.has(n))) continue;
       out.push(violation("EVENT", u.name, ev, "unreachable-emitter", u.file, u.contractLine, `${ev} is emitted only by ${[...es].join(", ")}, which nothing reachable dispatches`));

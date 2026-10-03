@@ -7,6 +7,13 @@
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/guard-writes.mjs\"", "timeout": 10 }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/require-work-report.mjs\"", "timeout": 30 }
+        ]
+      }
     ]
   },
   "permissions": {

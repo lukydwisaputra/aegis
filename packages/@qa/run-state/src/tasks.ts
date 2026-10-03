@@ -272,15 +272,24 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
 }
 
 /**
- * A release needs a work report from this claim: the caller's latest attempt exists, is newer than any a gate
- * rejection superseded, and is not reviewed yet. Otherwise the released task could never be reviewed or reopened.
- * Called under the submit lock, which also serialises submitWorkReport and submitReview for this agent/task.
+ * The release freshness rule (R6): the attempt of `agent`'s work report from its current claim of `taskId`, or null.
+ * Fresh means the latest attempt exists, is newer than any a gate rejection superseded, and is not reviewed yet.
+ * `aegis task release` and the SubagentStop hook (H2) both judge by this one rule.
+ */
+export function freshAttempt(root: string, runId: string, agent: string, taskId: string): number | null {
+  const attempts = attemptsIn(workDir(root, runId), agent, taskId);
+  if (attempts.length === 0) return null;
+  const latest = Math.max(...attempts);
+  if (latest <= supersededAttempt(readRun(root, runId), agent, taskId)) return null;
+  return existsSync(join(reviewDir(root, runId), `${agent}.${taskId}.${latest}.json`)) ? null : latest;
+}
+
+/**
+ * A release needs a work report from this claim (freshAttempt). Otherwise the released task could never be reviewed
+ * or reopened. Called under the submit lock, which also serialises submitWorkReport and submitReview for this agent/task.
  */
 function assertWorkSubmittedThisClaim(root: string, runId: string, agent: string, taskId: string): void {
-  const attempts = attemptsIn(workDir(root, runId), agent, taskId);
-  const latest = attempts.length === 0 ? 0 : Math.max(...attempts);
-  const fresh = latest > supersededAttempt(readRun(root, runId), agent, taskId) && !existsSync(join(reviewDir(root, runId), `${agent}.${taskId}.${latest}.json`));
-  if (!fresh) {
+  if (freshAttempt(root, runId, agent, taskId) === null) {
     throw new RunStateError("no-work-report", `task ${taskId}: ${agent} has submitted no work report in this claim; run aegis work-report submit before releasing`);
   }
 }

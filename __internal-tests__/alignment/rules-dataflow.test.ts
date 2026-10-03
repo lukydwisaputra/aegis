@@ -1,4 +1,4 @@
-import { consumerRule, eventRule, loadModel, namedConsumerRule, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
+import { consumerRule, emitterRule, eventRule, loadModel, namedConsumerRule, producerRule, skillRule, writePolicyRule } from '@qa/alignment';
 import { makeRepo, MIN_PIPELINE } from './helpers';
 
 const keys = (vs: { key: string }[]) => vs.map((v) => v.key).sort();
@@ -305,4 +305,18 @@ it('AUD-112: a writePolicy.units exception admits a {target}/ write for that uni
     'WRITE-POLICY:qa-b:{target}/playwright.config.ts:target-source',
   ]);
   t.cleanup();
+});
+
+it('AUD-042b: an event a Claude Code hook records has an emitter (pipeline.yaml#hookEmits)', () => {
+  const agents = { 'qa-m': { contract: ag('crosscutting', { awaits: ['token.used'] }) } };
+  const a = makeRepo({ agents, pipeline: ppl({}) });
+  expect(keys(eventRule(loadModel(a.root)))).toEqual(['EVENT:qa-m:token.used:no-emitter']);
+  a.cleanup();
+  const b = makeRepo({ agents, pipeline: { ...ppl({}), hookEmits: [{ hook: 'require-work-report', event: 'token.used' }] } });
+  expect(keys(eventRule(loadModel(b.root)))).toEqual([]);
+  expect(keys(emitterRule(loadModel(b.root)))).toEqual([]);
+  b.cleanup();
+  const c = makeRepo({ agents: {}, pipeline: { ...ppl({}), hookEmits: [{ hook: 'require-work-report', event: 'made.up' }] } });
+  expect(keys(eventRule(loadModel(c.root)))).toEqual(['EVENT:pipeline:made.up:undeclared']);
+  c.cleanup();
 });

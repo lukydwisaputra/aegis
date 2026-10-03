@@ -79,6 +79,30 @@ detectable (spec §4.4).
 - On a refused claim the CLI records `env.specialist-blocked` and the claim fails with `env-blocked`; H1 denies every
   write of a refused agent
 
+**Stop check — H2 (`scripts/hooks/require-work-report.mjs`, SubagentStop):**
+- Only a call that carries `agent_id` and a `qa-*` `agent_type` is checked; the main thread and other subagents stop
+  freely. Exit 2 keeps the subagent working, with the reason on stderr. Every other outcome exits 0, and a warning
+  goes to stdout as a `systemMessage`. A missing build or an internal error lets the stop through, because the phase
+  barrier still refuses unreported or unreviewed work.
+- A worker is judged only on the tasks its own instance claimed, from the hook ledger (the `hooks/agents.jsonl` file of
+  the active run). H1 logs a claim before the CLI runs, so H2 acts on a claim only when the task file confirms it: the
+  task is in progress under that agent type, and this instance's ledger claim is the latest one at or before the
+  task's `claimedAt`. A refused claim, or `task claim --help`, neither blocks nor releases.
+- A claimed task without a work report from this claim blocks the stop. A fresh report that was never released is
+  released `done` for the worker. "Fresh" is the same rule `aegis task release` applies (`freshAttempt` in
+  `packages/@qa/run-state/src/tasks.ts`).
+- An SPV may stop once it has submitted a review since its `start` ledger entry, or when no released report of a
+  paired worker awaits review.
+- One instance is blocked at most 3 times. After that the stop is allowed with a warning, and the ledger records
+  `stop-unresolved`.
+- **`token.used` limitation (AUD-042b).** SubagentStop passes the session transcript (`transcript_path`), not a
+  per-agent one. H2 counts only transcript lines whose `agentId` equals the stopping `agent_id`. It also reads the
+  per-agent file Claude Code keeps beside the session transcript (`subagents/agent-<agent_id>.jsonl` in the session's
+  folder), under the same per-line rule. That file layout is observed, not documented. When no line can be
+  attributed, H2 records no `token.used`, and appends a `token-unattributed` ledger note instead. Token totals are
+  therefore a lower bound: an agent missing from them has no attributable usage, not zero usage. A continued agent is
+  charged only for entries after its last `tokens-recorded` ledger entry.
+
 ## 13.4 Agent-memory dedup algorithm
 
 When `proposeLesson(candidate)` is called:

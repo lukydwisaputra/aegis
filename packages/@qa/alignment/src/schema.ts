@@ -57,6 +57,8 @@ export const PipelineSchema = z
       .strict(),
     nonAgentNames: z.array(z.string()).default([]),
     externalScripts: z.array(z.string()).default([]),
+    // Events recorded by a Claude Code hook in scripts/hooks/ rather than by an agent or skill (AUD-042b).
+    hookEmits: z.array(z.object({ hook: z.string().min(1), event: z.string().min(1) }).strict()).default([]),
     escapes: z
       .array(
         z
