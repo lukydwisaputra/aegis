@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy } from "@qa/path-guard";
+import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy, roleOf } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
 import { readSettings } from "./config.js";
@@ -107,6 +107,13 @@ export async function addTask(root: string, runId: string, input: AddTaskInput, 
   assertCallerAllowed(caller, "task.add");
   assertTaskId(input.id);
   if (!AGENT_ID.test(input.agent)) throw new RunStateError("invalid-input", `--agent "${input.agent}" must be a qa-* agent (${AGENT_ID.source})`);
+  // A retired or unknown agent could never be dispatched, so its task would block the phase barrier (P2a final review).
+  if (roleOf(input.agent) === undefined) {
+    throw new RunStateError(
+      "invalid-input",
+      `--agent ${input.agent} has no row in the path-guard role table (packages/@qa/path-guard/src/roles.ts): it is retired or unknown`
+    );
+  }
   if (GATE_TASK_ID.test(input.id) && input.agent !== ORCHESTRATOR) {
     throw new RunStateError("invalid-input", `${input.id} is a gate task: its agent is ${ORCHESTRATOR}`);
   }

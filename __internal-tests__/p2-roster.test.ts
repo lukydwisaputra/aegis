@@ -71,6 +71,8 @@ describe('retired agents (spec §4.1)', () => {
     expect(agentNames()).not.toContain(name);
     const fm = /^---\n([\s\S]*?)\n---\n/.exec(read(`agent-graveyard/${name}.md`))![1]!;
     expect(fm).toMatch(new RegExp(`^name: ${name}$`, 'm'));
+    expect(fm.match(/^retiredAt: /gm)).toEqual(['retiredAt: ']);
+    expect(fm.match(/^reason: /gm)).toEqual(['reason: ']);
     expect(fm).toMatch(/^retiredAt: 2026-10-02$/m);
     expect(fm).toMatch(new RegExp(`^reason: "${aud}, owner decision 2026-10-02: .+"$`, 'm'));
   });
@@ -128,8 +130,96 @@ describe('compliance review docs (AUD-052)', () => {
   });
 
   it('no file outside plans and specs names SHARED_SPV except the test that asserts its absence', () => {
-    const hits = tracked().filter((f) => !f.startsWith('docs/superpowers/') && !f.startsWith('.superpowers/') && /\.(md|ts|yaml|json)$/.test(f) && f !== '__internal-tests__/p2-roster.test.ts' && f !== '__internal-tests__/run-state-core.test.ts')
+    const hits = tracked().filter((f) => !/^docs\/superpowers\/(plans|specs)\//.test(f) && /\.(md|ts|yaml|json)$/.test(f) && f !== '__internal-tests__/p2-roster.test.ts' && f !== '__internal-tests__/run-state-core.test.ts')
       .filter((f) => /SHARED_SPV/.test(read(f)));
     expect(hits).toEqual([]);
+  });
+
+  it('the Compliance phase closes per reviewed task, and the shared reviewer has no score threshold (parked T12)', () => {
+    const ch8 = read('HANDBOOK/08-compliance.md');
+    expect(ch8).toMatch(/Dispatch is parallel, review is per task: the Compliance phase closes only after `qa-compliance-spv` has reviewed each compliance task/);
+    expect(ch8).not.toMatch(/run \*\*in parallel\*\* with other phases/);
+    expect(read('HANDBOOK/06-agents.md')).toMatch(/\| `qa-compliance-spv` \| [^|]+\| n\/a \(categorical verdict\) \|/);
+    expect(read('HANDBOOK.md')).toMatch(/\| 6 \| [^\n]*the six compliance agents share `qa-compliance-spv`/);
+    expect(read('HANDBOOK/14-extending.md')).toMatch(/3\. Add the agent to `qa-compliance-spv`[^\n]*`reads`[^\n]*`knowledge_refs`/);
+  });
+
+  it('compliance runs only in a full cycle\'s Compliance phase, for the configured regulations (final-review Minor 3)', () => {
+    const CADENCE = 'during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`';
+    for (const f of ['HANDBOOK/01-what-is-this.md', 'HANDBOOK/06-agents.md', 'HANDBOOK.md']) expect(read(f)).toContain(CADENCE);
+    const unconditional = tracked().filter(inDocScope).flatMap((f) =>
+      read(f).split('\n').filter((l) => /compliance/i.test(l) && /\b(every|each) (full )?cycle\b/i.test(l) && /parallel/i.test(l)).map((l) => `${f}: ${l}`));
+    expect(unconditional).toEqual([]);
+  });
+
+  it('PDPA is Singapore\'s law everywhere in the docs (parked T12, final-review Minor 1)', () => {
+    expect(tracked().filter((f) => inDocScope(f) || f.startsWith('.claude/')).filter((f) => /thai/i.test(read(f)))).toEqual([]);
+    expect(read('HANDBOOK/16-glossary.md')).toContain('**PDPA (Personal Data Protection Act 2012 — Singapore)**');
+  });
+
+  const COMPLIANCE = ['iso25010', 'iso5055', 'istqb', 'cmmi', 'gdpr', 'pdpa'];
+  const spv = (): string => read('.claude/agents/spv/qa-compliance-spv.md');
+  const section = (md: string, heading: string): string => new RegExp(`\\n## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`).exec(md)![1]!;
+
+  it('every compliance gap cites the artefacts that show it, and the reviewer accepts an absence pointer (T11 I1)', () => {
+    for (const id of COMPLIANCE) {
+      expect(read(`.claude/agents/compliance/qa-compliance-${id}.md`)).toContain(
+        '- Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)',
+      );
+    }
+    expect(section(spv(), 'Review Checklist')).toMatch(/4\. \*\*Evidence-backed gaps\.\*\*[^\n]*a pointer to the run artefact that shows the absence/);
+  });
+
+  it('the data-check item matches each worker\'s Process steps (T11 I2)', () => {
+    expect(section(spv(), 'Review Checklist')).toContain(
+      '7. **Data checks (GDPR, PDPA).** GDPR: synthetic-data and HAR-sanitisation checks (Process steps 4–5); PDPA: synthetic-data check (Process step 4).',
+    );
+  });
+
+  it('the reviewer reads the six worker files and passes a real clause outside the catalogue with notes (T11 m1)', () => {
+    const md = spv();
+    const contract = parse(/```yaml\n([\s\S]*?)\n```/.exec(section(md, 'Contract \\(machine-checked\\)'))![1]!) as { reads: string[] };
+    for (const id of COMPLIANCE) {
+      const file = `.claude/agents/compliance/qa-compliance-${id}.md`;
+      expect(section(md, 'Inputs')).toContain(`- \`${file}\``);
+      expect(contract.reads).toContain(file);
+    }
+    expect(section(md, 'Review Checklist')).toMatch(/3\. \*\*Clause exists\.\*\*[^\n]*A real clause outside the catalogue = passed-with-notes[^\n]*A clause that does not exist = requested-changes/);
+  });
+
+  it('the shared reviewer\'s "Submitting Your Verdict" section is the common SPV text', () => {
+    const other = read('.claude/agents/spv/qa-ui-specialist-spv.md');
+    expect(section(spv(), 'Submitting Your Verdict')).toBe(section(other, 'Submitting Your Verdict').split('qa-ui-specialist-spv').join('qa-compliance-spv'));
+  });
+});
+
+describe('final wave doc fixes (parked A)', () => {
+  it('HANDBOOK/06 model column follows model-policy.yaml (T1 #4)', () => {
+    const FAMILY: Record<string, string> = { planning: 'Opus', implementation: 'Sonnet', validation: 'Opus', 'read-only': 'Haiku' };
+    const policy = parse(read('.claude/model-policy.yaml')) as { assignments: Record<string, string[]> };
+    const tierOf = new Map(Object.entries(policy.assignments).flatMap(([tier, agents]) => agents.map((a) => [a, tier] as const)));
+    const wrong = read('HANDBOOK/06-agents.md').split('\n').flatMap((l) => {
+      const m = /^\| `(qa-[a-z0-9-]+)` \|(?: [^|]+ \|)? (Opus|Sonnet|Haiku) \|/.exec(l);
+      const tier = m ? tierOf.get(m[1]!) : undefined;
+      return m && tier && FAMILY[tier] !== m[2] ? [`${m[1]}: ${m[2]}, policy ${FAMILY[tier]}`] : [];
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it('HANDBOOK/06 links no missing doc (T1 #4)', () => {
+    const missing = [...read('HANDBOOK/06-agents.md').matchAll(/docs\/[A-Za-z0-9-]+\.md/g)].map((m) => m[0]).filter((p) => !fs.existsSync(path.join(ROOT, p)));
+    expect(missing).toEqual([]);
+  });
+
+  it('D13 marks the devops.* events retired, and D12 claims no lint step the skill does not run (T2 #3, T2 #4)', () => {
+    expect(read('docs/D13-event-bus-spec.md')).toMatch(/### DevOps \(retired\)\n[^\n]*no agent emits these types/);
+    const bootstrap = /## Bootstrapping via `\/qa-ci-bootstrap`\n([\s\S]*?)\n---/.exec(read('docs/D12-cicd-workflow.md'))![1]!;
+    expect(bootstrap).not.toMatch(/actionlint|yamllint/);
+    expect(read('.claude/skills/qa-ci-bootstrap/SKILL.md')).not.toMatch(/actionlint|yamllint/);
+  });
+
+  it('/qa-promote states it is the owner\'s review of the curator (T7 #1)', () => {
+    const purpose = /## Purpose\n([^\n]+)/.exec(read('.claude/skills/qa-promote/SKILL.md'))![1]!;
+    expect(purpose).toContain('This is the owner\'s review of the curator: no SPV reviews `qa-curator`.');
   });
 });

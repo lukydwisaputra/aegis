@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { pairedSpv } from '@qa/run-state';
+import { pairedSpv, SPV_NONE } from '@qa/run-state';
 import { DEV_TEST_REVIEW, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
 import { PROFILE } from './helpers/pipeline';
 
@@ -19,7 +19,6 @@ const e2e = stale ? it.skip : it;
 
 const O = 'qa-orchestrator';
 const TS = '2026-09-30T08:00:00.000Z';
-const SPV_NONE = /^(qa-context-scanner|qa-curator)$/;
 
 interface Result { status: number | null; out: unknown; err: { error?: string; message?: string } | null; stderr: string }
 
@@ -90,7 +89,7 @@ class Sim {
     this.ok(agent, 'task', 'claim', '--task', task);
     this.report(task, agent);
     this.ok(agent, 'task', 'release', '--task', task, '--result', 'done');
-    if (!SPV_NONE.test(agent)) this.review(task, agent, verdict, spv);
+    if (!SPV_NONE.has(agent)) this.review(task, agent, verdict, spv);
   }
 
   report(task: string, agent: string): void {

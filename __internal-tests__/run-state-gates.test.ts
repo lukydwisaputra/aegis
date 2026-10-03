@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { EscalationDecisionSchema, GateDecisionSchema } from '@qa/contracts';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
-import { autoDecideGate, busPath, claimTask, completePhase, createRun, decideEscalation, decideGate, gateDecisionPath, nextStep, openGate, readRun, releaseTask, runDir, startPhase, submitReview, submitWorkReport, taskmasterDir } from '@qa/run-state';
+import { addTask, autoDecideGate, busPath, claimTask, completePhase, createRun, decideEscalation, decideGate, gateDecisionPath, nextStep, openGate, readRun, releaseTask, runDir, startPhase, submitReview, submitWorkReport, taskmasterDir } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, review, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
@@ -90,6 +90,12 @@ describe('human gates (spec §3.2)', () => {
     await completePhase(t.root, runId, 'closure-final', ORCH);
     expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'open-gate', gate: 'G3' });
     expect(await openGate(t.root, runId, 'G3', ORCH)).toMatchObject({ status: 'awaiting-gate', gates: { G3: { status: 'open' } } });
+  });
+
+  it('the orchestrator still adds its gate task: qa-orchestrator has a role row (final-review Minor 4)', async () => {
+    fastForward(t.root, runId, 'planning');
+    await startPhase(t.root, runId, 'planning', ORCH);
+    await expect(addTask(t.root, runId, { id: 'T-GATE-G1', title: 'Gate 1 plan approval', agent: ORCH }, ORCH)).resolves.toMatchObject({ assignee: ORCH });
   });
 
   it('opening needs a passing qa-orchestrator-spv review of T-GATE-G1, which is part of the planning barrier', async () => {

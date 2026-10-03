@@ -238,7 +238,7 @@ const ALLOWED_TOOLS = new Set<string>([
 
 const WORKER_REQUIRED_SECTIONS = ["## Your Role", "## Inputs", "## Outputs", "## Process"];
 const SPV_REQUIRED_SECTIONS = ["## Your Role", "## Inputs", "## Review Checklist", "## Verdict"];
-// Cross-cutting agents (event-bus, librarian, scanners, curator, metrics) are
+// Cross-cutting agents (scanner, curator, metrics collector) are
 // utilities, not STLC workers. They legitimately diverge from the worker
 // template — each is shaped to its purpose. Enforce only the universal minimum.
 const CROSSCUTTING_REQUIRED_SECTIONS = ["## Your Role", "## Inputs"];

@@ -175,8 +175,11 @@ it('AUD-049: a worker that dispatches its own SPV is dispatched together with it
       'qa-w': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-boss'], reviewedBy: 'qa-w-spv' } },
       'qa-other': cc({ dispatches: ['qa-w-spv'] }),
       'qa-w-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-other'], reviewedBy: none, reviews: ['qa-w'] } },
+      // never dispatched: two empty dispatcher lists are not "together"
+      'qa-idle': cc({ reviewedBy: 'qa-idle-spv' }),
+      'qa-idle-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: [], dispatch: none, reviewedBy: none, reviews: ['qa-idle'] } },
     },
   });
-  expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-w:qa-w-spv:not-dispatched-together']);
+  expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-idle:qa-idle-spv:not-dispatched-together', 'SPV:qa-w:qa-w-spv:not-dispatched-together']);
   t.cleanup();
 });

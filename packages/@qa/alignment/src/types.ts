@@ -1,6 +1,6 @@
 import type { AgentContract, PathEntry, Pipeline, SkillContract } from "./schema.js";
 
-// Non-pipeline phases a contract may name (T9, P2): the DevOps tier and qa-ui-designer, the last `devops` and `tooling` units, are retired.
+// Non-pipeline phases a contract may name. P2 (T9) dropped `devops` and `tooling` when their last units retired.
 export const SPECIAL_PHASES: ReadonlySet<string> = new Set(["crosscutting", "spv"]);
 
 export const RULE_IDS = [

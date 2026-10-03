@@ -46,6 +46,15 @@ it('AH-11: "N agents" claims and tier-table counts match the agent files', () =>
   t.cleanup();
 });
 
+it('AH-11: a tier-table row with no agent directory (the retired DevOps tier) produces no key (T10)', () => {
+  const t = makeRepo({
+    agents: { 'qa-o': { dir: 'orchestrator', contract: null } },
+    docs: { 'CLAUDE.md': ['| Tier | Count | Role |', '|---|---|---|', '| 0 — Orchestrator | 1 | x |', '| 2.5 — DevOps | 6 | GitHub, CI/CD |'].join('\n') + '\n' },
+  });
+  expect(keys(countRule(loadModel(t.root)))).toEqual([]);
+  t.cleanup();
+});
+
 it('AH-11: a lite-profile agent count is a subset claim, not the total', () => {
   const t = makeRepo({
     agents: { 'qa-o': { dir: 'orchestrator', contract: null } },

@@ -165,6 +165,19 @@ describe('addTask', () => {
     expect(rej.reason).toMatchObject({ code: 'invalid-input' });
     await expect(addTask(t.root, runId, { id: '../x', title: 'bad', agent: 'qa-ui-specialist' }, 'qa-test-executor')).rejects.toMatchObject({ code: 'invalid-input' });
   });
+
+  // P2a final-review Minor 4: a task for an agent with no role row could never be dispatched and would block the barrier.
+  it.each([['retired', 'qa-cicd-planner'], ['unknown', 'qa-nobody']])('refuses a %s agent (no row in the role table)', async (_kind, agent) => {
+    await expect(addTask(t.root, runId, { id: 'T-X', title: 'x', agent }, 'qa-test-executor')).rejects.toMatchObject({
+      code: 'invalid-input',
+      message: expect.stringMatching(/no row in the path-guard role table \(packages\/@qa\/path-guard\/src\/roles\.ts\)/),
+    });
+    await expect(createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-X')).resolves.toBeNull();
+  });
+
+  it('accepts a live agent', async () => {
+    await expect(addTask(t.root, runId, { id: 'T-X', title: 'x', agent: 'qa-security-specialist' }, 'qa-test-executor')).resolves.toMatchObject({ assignee: 'qa-security-specialist' });
+  });
 });
 
 describe('reopen', () => {
