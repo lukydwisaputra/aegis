@@ -8,6 +8,8 @@ isolation: worktree
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md
   - agent-memory/qa-cicd-implementer/lessons.md
+retiredAt: 2026-10-02
+reason: "AUD-046, owner decision 2026-10-02: Aegis never writes to the target's GitHub or CI; never dispatched"
 ---
 
 # QA CI/CD Implementer

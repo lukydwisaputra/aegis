@@ -73,15 +73,6 @@ entries:
     ids: [AUD-057]
     note: "config/environments.yaml does not exist"
   # --- CONSUMER ---
-  - key: "CONSUMER:qa-cicd-evaluator:{run}/devops/ci-summary.json:unread"
-    ids: [AUD-046]
-    note: "no one reads {run}/devops/ci-summary.json"
-  - key: "CONSUMER:qa-cicd-implementer:{run}/devops/cicd-results.json:unread"
-    ids: [AUD-046]
-    note: "no one reads {run}/devops/cicd-results.json"
-  - key: "CONSUMER:qa-cicd-implementer:{target}/.husky/**:unread"
-    ids: [AUD-046]
-    note: "no one reads {target}/.husky/**"
   - key: "CONSUMER:qa-curator:{run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json:unread"
     ids: [AUD-059]
     note: "no one reads {run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json"
@@ -97,59 +88,8 @@ entries:
   - key: "CONSUMER:qa-environment-engineer:{run}/playwright-output/**:unread"
     ids: [AUD-108]
     note: "no one reads {run}/playwright-output/**"
-  - key: "CONSUMER:qa-event-bus:{run}/events.jsonl.lock:unread"
-    ids: [AUD-048]
-    note: "no one reads {run}/events.jsonl.lock"
   # --- CONTRACT ---
   # --- DISPATCH ---
-  - key: "DISPATCH:qa-cicd-evaluator:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-cicd-evaluator:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-cicd-evaluator in dispatches"
-  - key: "DISPATCH:qa-cicd-implementer:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-cicd-planner:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-cicd-planner:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-cicd-planner in dispatches"
-  - key: "DISPATCH:qa-cicd-spv:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-event-bus:-:undispatched"
-    ids: [AUD-048]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-github-implementer:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-github-implementer:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-github-implementer in dispatches"
-  - key: "DISPATCH:qa-github-planner:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-github-planner:qa-orchestrator:not-reciprocal"
-    ids: [AUD-046]
-    note: "qa-orchestrator does not list qa-github-planner in dispatches"
-  - key: "DISPATCH:qa-github-spv:-:undispatched"
-    ids: [AUD-046]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-knowledge-librarian:-:undispatched"
-    ids: [AUD-047]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-knowledge-librarian:qa-orchestrator:not-reciprocal"
-    ids: [AUD-047]
-    note: "qa-orchestrator does not list qa-knowledge-librarian in dispatches"
-  - key: "DISPATCH:qa-ui-designer-spv:-:undispatched"
-    ids: [AUD-050]
-    note: "nothing dispatches this agent"
-  - key: "DISPATCH:qa-ui-designer:-:undispatched"
-    ids: [AUD-050]
-    note: "nothing dispatches this agent"
   # --- DOC-REF ---
   - key: "DOC-REF:.claude/agents/spv/qa-closure-reporter-spv.md:qa-executor:unknown"
     ids: [AUD-076]
@@ -163,9 +103,6 @@ entries:
   - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
     ids: [AUD-060]
     note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
-  - key: "DOC-REF:CLAUDE.md:crosscutting=4:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"Cross-cutting\" claims 4; .claude/agents/crosscutting has 5"
   - key: "DOC-REF:CLAUDE.md:qa-director:unknown"
     ids: [AUD-076]
     note: "qa-director is not an agent, skill, package or allowlisted name"
@@ -178,75 +115,27 @@ entries:
   - key: "DOC-REF:CLAUDE.md:qa-specialist:unknown"
     ids: [AUD-076]
     note: "qa-specialist is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:CLAUDE.md:tier2-5-devops=6:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"2.5 \u2014 DevOps\" claims 6; .claude/agents/tier2-5-devops has 7"
-  - key: "DOC-REF:CLAUDE.md:tier2-specialist=16:count-mismatch"
-    ids: [AUD-075]
-    note: "CLAUDE.md tier row \"2 \u2014 Specialists\" claims 16; .claude/agents/tier2-specialist has 14"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:@qa/taskmaster:unknown-package"
     ids: [AUD-066]
     note: "@qa/taskmaster is not a package in packages/@qa/"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-defect-reporter:unknown"
     ids: [AUD-076]
     note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-deployment-monitor:unknown"
-    ids: [AUD-076]
-    note: "qa-deployment-monitor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-env-provisioner:unknown"
-    ids: [AUD-076]
-    note: "qa-env-provisioner is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-rtm-builder:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-sandbox-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-secrets-auditor:unknown"
-    ids: [AUD-076]
-    note: "qa-secrets-auditor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/03-architecture.md:qa-worktree-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/05-commands.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:63 agents:count-mismatch"
-    ids: [AUD-075]
-    note: "HANDBOOK/06-agents.md claims 63 agents; .claude/agents has 64 agent files"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-cicd-planner-spv:unknown"
-    ids: [AUD-076]
-    note: "qa-cicd-planner-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-defect-reporter:unknown"
     ids: [AUD-076]
     note: "qa-defect-reporter is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-deployment-monitor:unknown"
-    ids: [AUD-076]
-    note: "qa-deployment-monitor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-env-provisioner:unknown"
-    ids: [AUD-076]
-    note: "qa-env-provisioner is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-github-planner-spv:unknown"
-    ids: [AUD-076]
-    note: "qa-github-planner-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-rtm-builder-spv:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/06-agents.md:qa-rtm-builder:unknown"
     ids: [AUD-076]
     note: "qa-rtm-builder is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-sandbox-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-sandbox-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-secrets-auditor:unknown"
-    ids: [AUD-076]
-    note: "qa-secrets-auditor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/06-agents.md:qa-worktree-manager:unknown"
-    ids: [AUD-076]
-    note: "qa-worktree-manager is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:HANDBOOK/08-compliance.md:qa-compliance-gdpr-spv:unknown"
-    ids: [AUD-052]
-    note: "qa-compliance-gdpr-spv is not an agent, skill, package or allowlisted name"
   - key: "DOC-REF:HANDBOOK/09-reports-and-dashboards.md:@qa/cli:unknown-package"
     ids: [AUD-066]
     note: "@qa/cli is not a package in packages/@qa/"
@@ -373,9 +262,6 @@ entries:
   - key: "EVENT:qa-deps-update:deps.update.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-event-bus:-:appends-without-cli"
-    ids: [AUD-048]
-    note: "emits events without `aegis event append`"
   - key: "EVENT:qa-export:export.completed:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -421,9 +307,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:defect.reopened:no-emitter"
     ids: [AUD-102]
     note: "nobody emits defect.reopened"
-  - key: "EVENT:qa-metrics-collector:devops.flake-detected:unreachable-emitter"
-    ids: [AUD-011]
-    note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
   - key: "EVENT:qa-promote-stage:run.gate.check.triggered:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -536,30 +419,6 @@ entries:
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
   # --- PRODUCER ---
-  - key: "PRODUCER:qa-cicd-evaluator:{run}/devops/github-results.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-cicd-implementer:templates/github-workflows/**:unreachable-producer"
-    ids: [AUD-046]
-    note: "templates/github-workflows/** is produced only by _qa-init-project, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-cicd-implementer:{run}/devops/cicd-plan.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/cicd-plan.json is produced only by qa-cicd-planner, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-cicd-spv:agent-memory/qa-cicd-spv/lessons.md:missing-source"
-    ids: [AUD-074]
-    note: "agent-memory/qa-cicd-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
-  - key: "PRODUCER:qa-github-implementer:{run}/devops/github-plan.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-github-spv:agent-memory/qa-github-spv/lessons.md:missing-source"
-    ids: [AUD-074]
-    note: "agent-memory/qa-github-spv/lessons.md is a repo source but does not exist (agents read lessons.md; the CLAUDE.md stub creates lessons.json — AUD-074)"
-  - key: "PRODUCER:qa-github-spv:{run}/devops/github-plan.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-plan.json is produced only by qa-github-planner, which nothing reachable dispatches"
-  - key: "PRODUCER:qa-github-spv:{run}/devops/github-results.json:unreachable-producer"
-    ids: [AUD-046]
-    note: "{run}/devops/github-results.json is produced only by qa-github-implementer, which nothing reachable dispatches"
   # --- ROUTE ---
   # --- SKILL ---
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
@@ -725,24 +584,6 @@ entries:
     ids: [AUD-012]
     note: "execution skill dispatches qa-unit-specialist directly"
   # --- SPV ---
-  - key: "SPV:qa-cicd-implementer:qa-cicd-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-cicd-spv is not dispatched by qa-cicd-implementer's dispatcher"
-  - key: "SPV:qa-cicd-planner:qa-cicd-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-cicd-spv is not dispatched by qa-cicd-planner's dispatcher"
-  - key: "SPV:qa-github-implementer:qa-github-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-github-spv is not dispatched by qa-github-implementer's dispatcher"
-  - key: "SPV:qa-github-planner:qa-github-spv:not-dispatched-together"
-    ids: [AUD-046]
-    note: "qa-github-spv is not dispatched by qa-github-planner's dispatcher"
-  - key: "SPV:qa-orchestrator:qa-orchestrator-spv:not-dispatched-together"
-    ids: [AUD-049]
-    note: "qa-orchestrator-spv is not dispatched by qa-orchestrator's dispatcher"
-  - key: "SPV:qa-ui-designer:qa-ui-designer-spv:not-dispatched-together"
-    ids: [AUD-050]
-    note: "qa-ui-designer-spv is not dispatched by qa-ui-designer's dispatcher"
   # --- WRITE-POLICY ---
   - key: "WRITE-POLICY:_qa-build-agents:agents/**:not-writable"
     ids: [AUD-061]
@@ -774,12 +615,6 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.github/workflows/qa-*.yml:target-source"
-    ids: [AUD-112, AUD-046]
-    note: "write to {target}/.github/workflows/qa-*.yml violates the write policy (target-source)"
-  - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.husky/**:target-source"
-    ids: [AUD-112, AUD-046]
-    note: "write to {target}/.husky/** violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-compare:comparisons/{runA}-vs-{runB}/comparison.md:not-writable"
     ids: [AUD-068]
     note: "write to comparisons/{runA}-vs-{runB}/comparison.md violates the write policy (not-writable)"
@@ -795,9 +630,6 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-event-bus:{run}/events.jsonl:cli-only"
-    ids: [AUD-048, CO-01]
-    note: "write to {run}/events.jsonl violates the write policy (cli-only)"
   - key: "WRITE-POLICY:qa-export:exports/{tracker}/id-map.json:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to exports/{tracker}/id-map.json violates the write policy (not-writable)"
@@ -840,15 +672,3 @@ entries:
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/components/domain/**:not-writable"
-    ids: [AUD-050]
-    note: "write to apps/dashboard/src/components/domain/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/components/layout/**:not-writable"
-    ids: [AUD-050]
-    note: "write to apps/dashboard/src/components/layout/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/components/ui/**:not-writable"
-    ids: [AUD-050]
-    note: "write to apps/dashboard/src/components/ui/** violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/styles/globals.css:not-writable"
-    ids: [AUD-050]
-    note: "write to apps/dashboard/src/styles/globals.css violates the write policy (not-writable)"

@@ -51,7 +51,7 @@ For production deployments, secrets typically come from a vault (1Password / AWS
 
 `@qa/secrets` resolves values at use-time without ever pulling them into agent context.
 
-## What lives here (full list — see docs/D11-secrets-handling.md)
+## What lives here (full list)
 
 - `APP_BASE_URL`, `APP_API_URL`
 - `DATABASE_URL`, `DATABASE_PASSWORD`, etc.

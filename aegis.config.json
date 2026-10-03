@@ -18,7 +18,6 @@
     "apps": [],
     "supabase": { "rolesToTest": [] }
   },
-  "github": { "defaultReviewers": [], "labels": ["qa-automated", "ready-for-review"] },
   "collector": {
     "path": "/Users/lukydwisaputra/Desktop/QA/testing-reports",
     "remote": "https://github.com/WerkDone-Pte-Ltd/testing-reports.git"
@@ -33,7 +32,6 @@
     },
     "testing": {
       "url": "${TESTING_PREVIEW_URL}",
-      "secretsRef": { "type": "github-actions-secrets", "prefix": "TESTING_" },
       "mode": "automated",
       "mutating": true,
       "ephemeral": true,
@@ -47,7 +45,6 @@
     },
     "staging": {
       "url": "https://stg.example.com",
-      "secretsRef": { "type": "github-actions-secrets", "prefix": "STAGING_" },
       "mode": "automated",
       "mutating": true,
       "allowedSpecialists": ["*"],
@@ -55,7 +52,6 @@
     },
     "production": {
       "url": "https://example.com",
-      "secretsRef": { "type": "github-actions-secrets", "prefix": "PROD_" },
       "mode": "smoke-only",
       "mutating": false,
       "readOnly": true,

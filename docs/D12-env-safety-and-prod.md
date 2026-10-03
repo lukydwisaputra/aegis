@@ -2,7 +2,7 @@
 
 Spec for environment-scoped safety enforcement, read-only mode, and forbidden specialist rules.
 See [D12-environments-overview.md](D12-environments-overview.md) for the 4-env model.
-See [D11-secrets-handling.md](D11-secrets-handling.md) for secrets management.
+See [secrets/README.md](../secrets/README.md) for secrets management.
 
 ---
 
@@ -98,7 +98,7 @@ Each environment has its own:
 - Mailpit instance (`testing` only — staging uses real SMTP to a test inbox)
 - Ephemeral database snapshot (testing: restored from staging snapshot per PR)
 
-Secrets for each environment are prefixed by environment (see [D11-secrets-handling.md](D11-secrets-handling.md)).
+Secrets for each environment are prefixed by environment (see [secrets/README.md](../secrets/README.md)).
 
 Never point a lower environment's specialist at a higher environment's database URL. The `qa-context-scanner` validates URL–environment alignment in `target-profile.json`.
 
@@ -107,6 +107,6 @@ Never point a lower environment's specialist at a higher environment's database 
 ## Related docs
 
 - [D12-environments-overview.md](D12-environments-overview.md)
-- [D11-secrets-handling.md](D11-secrets-handling.md)
+- [secrets/README.md](../secrets/README.md)
 - [D12-cicd-stage-map.md](D12-cicd-stage-map.md)
 - [HANDBOOK/12-cicd-operations.md](../HANDBOOK/12-cicd-operations.md)

@@ -1,6 +1,6 @@
 # CI/CD Workflow — GitHub Actions Templates and Safety
 
-Spec for the 6 workflow files, their structure, and the safety rules enforced by `qa-cicd-spv`.
+Spec for the 6 workflow files, their structure, and the safety rules every workflow must pass.
 See [D12-cicd-stage-map.md](D12-cicd-stage-map.md) for stage triggers and gate thresholds.
 See [HANDBOOK chapter 12](../HANDBOOK/12-cicd-operations.md) for the narrative walkthrough.
 
@@ -76,7 +76,7 @@ jobs:
 
 ## Secrets convention
 
-All secrets follow the pattern `{ENV_PREFIX}_{SECRET_NAME}` where `ENV_PREFIX` is configured in `aegis.config.json.environments.{env}.secretsRef.prefix`.
+All secrets follow the pattern `{ENV_PREFIX}_{SECRET_NAME}` where `ENV_PREFIX` is the environment prefix (`TESTING_`, `STAGING_`, `PROD_`).
 
 | Environment | Prefix | Example secret |
 |-------------|--------|----------------|
@@ -84,13 +84,13 @@ All secrets follow the pattern `{ENV_PREFIX}_{SECRET_NAME}` where `ENV_PREFIX` i
 | staging | `STAGING_` | `STAGING_SUPABASE_URL` |
 | production | `PROD_` | `PROD_SUPABASE_URL` |
 
-Secret names are never interpolated from variables — they must appear as literal strings in the YAML. `qa-cicd-spv` rejects any workflow where a secret reference is dynamically constructed.
+Secret names are never interpolated from variables — they must appear as literal strings in the YAML. A workflow where a secret reference is dynamically constructed is rejected.
 
 ---
 
 ## Node version detection
 
-`qa-cicd-implementer` reads `target-profile.json` (written by `qa-context-scanner`) to determine the Node version. It writes the version to `.nvmrc` and references it via `node-version-file` — never hardcoded.
+The Node version comes from `target-profile.json` (written by `qa-context-scanner`). It is written to `.nvmrc` and references it via `node-version-file` — never hardcoded.
 
 ---
 
@@ -99,7 +99,7 @@ Secret names are never interpolated from variables — they must appear as liter
 All workflows use `retention-days: 30`. The 30-day window covers:
 - Sprint retrospectives
 - Defect evidence review
-- Flake pattern detection by `qa-cicd-evaluator`
+- Flake pattern detection from retry history
 
 Extending beyond 30 days requires a change to `thresholds.yaml#artifacts.retentionDays`.
 
@@ -111,9 +111,9 @@ Every specialist emits test results to `runs/{runId}/reports/junit.xml`. This fi
 
 ---
 
-## `qa-cicd-spv` validation rules
+## Workflow validation rules
 
-Before any workflow file is committed, `qa-cicd-spv` verifies:
+Before any workflow file is committed, it must pass:
 
 - [ ] `yamllint` passes (no trailing spaces, correct indentation)
 - [ ] `actionlint` passes (correct action versions, expression syntax)
@@ -164,11 +164,8 @@ When adding a new feature, the flow repeats:
 ```
 
 1. `qa-context-scanner` writes `target-profile.json` (stack, Node version, env vars)
-2. `qa-cicd-planner` produces a workflow plan from `target-profile.json` + test plan
-3. `qa-cicd-implementer` writes all 6 workflow files using the plan
-4. `qa-cicd-implementer` runs `gh secret set` for each secret in `secretsRef`
-5. `qa-cicd-spv` validates all files
-6. Husky pre-commit hook is installed (`pnpm husky install`)
+2. `/qa-ci-bootstrap` writes the QA workflow files (`qa-*.yml`); it does not lint them, so apply the workflow validation rules above before you commit them
+3. It prints the repository secrets to set and the Husky pre-commit hook for the developers to add
 
 Options:
 - `--provider=github-actions` (only supported provider currently)
@@ -179,8 +176,6 @@ Options:
 
 ## Related docs
 
-- [D11-devops-tier-overview.md](D11-devops-tier-overview.md)
-- [D11-worktree-isolation.md](D11-worktree-isolation.md)
 - [D12-cicd-stage-map.md](D12-cicd-stage-map.md)
-- [D11-secrets-handling.md](D11-secrets-handling.md)
+- [secrets/README.md](../secrets/README.md)
 - [HANDBOOK/12-cicd-operations.md](../HANDBOOK/12-cicd-operations.md)

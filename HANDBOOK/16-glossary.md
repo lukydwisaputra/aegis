@@ -92,8 +92,8 @@ International standard measuring structural software quality across four charact
 **ISTQB (International Software Testing Qualifications Board)**
 The body that defines testing terminology, techniques, and process standards. The framework uses ISTQB test design technique tags (EP, BVA, DT, ST, UC).
 
-**PDPA (Personal Data Protection Act — Thailand)**
-Thailand's data protection law, analogous to GDPR. Covers collection, use, disclosure, and deletion of personal data. The compliance agent checks test coverage of consent, data subject rights, and sensitive data categories.
+**PDPA (Personal Data Protection Act 2012 — Singapore)**
+Singapore's data protection law, analogous to GDPR. Covers collection, use, disclosure, and deletion of personal data. The compliance agent checks test coverage of consent, data subject rights, and sensitive data categories.
 
 **RTM (Requirements Traceability Matrix)**
 A matrix linking requirements to test cases and test results. Columns: requirement ID, story ID, test case IDs, status, test result, defect IDs, compliance tags, risk level. Used to verify that all requirements have been tested.
@@ -127,7 +127,7 @@ A single execution of the STLC, from Phase 0 through Phase 6. Runs are stored in
 The gitignored scratch directory `sandbox/{date}-{slug}/` where a specialist prototypes selectors, timing and flows before committing a spec (sandbox-first rule, Chapter 17). The agent that creates a directory removes it at task end (`rm -rf`) and records `sandbox.experiment-completed` with `aegis event append`; nothing else manages or prunes it.
 
 **SPV (Supervisor)**
-A reviewer agent that scores worker output on a 0–100 rubric. SPVs do not rewrite work — they annotate and return for revision. If a score is below threshold, the worker must revise. All SPVs are disabled in Lite mode.
+A reviewer agent that scores worker output on a 0–100 rubric. SPVs do not rewrite work — they annotate and return for revision. If a score is below threshold, the worker must revise.
 
 **Taskmaster**
 The in-process priority queue that manages task claim and release between agents. Prevents duplicate work and provides backpressure.

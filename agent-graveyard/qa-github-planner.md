@@ -7,6 +7,8 @@ tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md
   - agent-memory/qa-github-planner/lessons.md
+retiredAt: 2026-10-02
+reason: "AUD-046, owner decision 2026-10-02: Aegis never writes to the target's GitHub or CI; never dispatched"
 ---
 
 # QA GitHub Planner

@@ -10,7 +10,7 @@ import {
 
 /**
  * The path-guard role table (P0 spec §4.2): one declarative row per qa-* agent, read by the PreToolUse hook (H1), the
- * CLI (environment check at claim, SPV pairing) and the internal tests. The agents P2 retires have no row.
+ * CLI (environment check at claim, SPV pairing) and the internal tests. Retired agents (agent-graveyard/) have no row.
  */
 export type RoleKind = "orchestrator" | "phase" | "specialist" | "spv" | "crosscutting" | "compliance";
 
@@ -25,7 +25,7 @@ export interface Role {
   readonly writes: readonly string[];
   /** Globs that deny a path even when a `writes` glob covers it. */
   readonly excludes?: readonly string[];
-  /** The SPV that reviews this agent; null for an SPV, or for an agent with no SPV yet (spec §4.5, `spv: none (P2)`). */
+  /** The SPV that reviews this agent; null for an SPV, for an agent in SPV_NONE (@qa/run-state), or for an agent with no task (qa-metrics-collector). */
   readonly spv: string | null;
   /** Phases in which the agent changes the environment under test ("any": every phase). */
   readonly mutatesEnvIn: readonly PhaseId[] | "any";
@@ -53,7 +53,7 @@ const SPVS = [
   "qa-closure-reporter-spv", "qa-executive-reporter-spv", "qa-accessibility-specialist-spv", "qa-api-specialist-spv",
   "qa-database-specialist-spv", "qa-email-specialist-spv", "qa-exploratory-specialist-spv", "qa-feature-flag-specialist-spv",
   "qa-performance-specialist-spv", "qa-realtime-specialist-spv", "qa-responsive-specialist-spv", "qa-security-specialist-spv",
-  "qa-ui-specialist-spv", "qa-unit-specialist-spv",
+  "qa-ui-specialist-spv", "qa-unit-specialist-spv", "qa-compliance-spv",
 ] as const;
 
 export const ROLES: readonly Role[] = [
@@ -84,7 +84,7 @@ export const ROLES: readonly Role[] = [
   reviewed("qa-defect-manager", "phase", ["{run}/defects/**", "{run}/rtm.json", "{run}/evidence/DEF-*/**"]),
   reviewed("qa-closure-reporter", "phase", ["{run}/reports/closure/closure.*"]),
   reviewed("qa-executive-reporter", "phase", ["{run}/reports/executive/**"]),
-  ...COMPLIANCE.map((c) => row(`qa-compliance-${c}`, "compliance", [`{run}/reports/compliance/${c}.*`], null)),
+  ...COMPLIANCE.map((c) => row(`qa-compliance-${c}`, "compliance", [`{run}/reports/compliance/${c}.*`], "qa-compliance-spv")),
   row("qa-curator", "crosscutting", ["{run}/pending-promotions/**"], null),
   row("qa-metrics-collector", "crosscutting", ["{run}/reports/metrics/**"], null),
   specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),

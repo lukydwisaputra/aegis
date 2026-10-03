@@ -164,7 +164,7 @@ In Claude Code chat:
 /qa-smoke --env=development
 ```
 
-This runs a short cycle (phases 0–3 only, no compliance, no SPV review in Lite mode). It validates that path-guard, environment config, and the test runner are all wired correctly.
+This runs a short cycle (no compliance phase and no human gates). It validates that path-guard, environment config, and the test runner are all wired correctly.
 
 Verify (in terminal):
 ```bash
@@ -315,7 +315,7 @@ Visit `http://localhost:3030`.
 
 ### 2.C — CI/CD Wiring
 
-This track wires the framework into GitHub Actions. The DevOps agents can do this automatically via `/qa-ci-bootstrap`; these manual steps are the reference.
+This track wires the framework into GitHub Actions. `/qa-ci-bootstrap` does this for you; these manual steps are the reference.
 
 #### Step 1: Bootstrap with the CI skill
 

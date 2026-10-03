@@ -161,7 +161,7 @@ ERROR: Error budget exhausted (43.2 min / month limit reached at 39.7 min).
 - **Don't disable a gate without recording why** — use `thresholds.yaml.overrides[].reason`; SPV flags any relaxation below industry default.
 - **Don't use `--force` on `/qa-promote-stage` without an incident filed first.**
 - **Don't let CI wall-clock exceed 20min** — split into parallel jobs; specialist concurrency is set only in `aegis.config.json#parallelism.maxSpecialists`.
-- **Don't put secrets in YAML workflows** — always `${{ secrets.NAME }}`; `qa-cicd-spv` will reject inline values.
+- **Don't put secrets in YAML workflows** — always `${{ secrets.NAME }}`, never an inline value.
 - **Don't run mutating tests against prod** — path-guard will block, but don't try.
 - **Don't relax `flakeQuarantineAt` above 10%** — that's how flake bankruptcy starts.
 
@@ -170,4 +170,4 @@ ERROR: Error budget exhausted (43.2 min / month limit reached at 39.7 min).
 - [docs/D12-environments-overview.md](../docs/D12-environments-overview.md)
 - [docs/D12-cicd-stage-map.md](../docs/D12-cicd-stage-map.md)
 - [docs/D12-env-safety-and-prod.md](../docs/D12-env-safety-and-prod.md)
-- [docs/D11-secrets-handling.md](../docs/D11-secrets-handling.md)
+- [secrets/README.md](../secrets/README.md)

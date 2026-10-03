@@ -59,8 +59,8 @@ Output: `runs/{runId}/reports/metrics/effectiveness.json`.
 Per agent: `{ reviewPassRate, requestedChangesCount, meanTaskDurationMs, lessonAppendCount }`
 Output: `runs/{runId}/reports/metrics/agent-reliability.json`.
 
-### Flaky Tests (from `devops.flake-detected` events)
-- Per test: `{ testRef, flakeRate, retryCount }`
+### Flaky Tests (from retry and attempt data)
+- Per test: `{ testRef, flakeRate, retryCount }`, from the retry and attempt data in `runs/{runId}/cases/*-result.json` (a test that failed and then passed on a retry counts as a flake)
 Output: `runs/{runId}/reports/metrics/flaky.json`.
 
 ## Process
@@ -93,7 +93,7 @@ You run without a task of your own: you never claim or release one and submit no
 contract: 1
 phase: crosscutting
 dispatchedBy: [qa-orchestrator]
-reviewedBy: {none: "not stated in prose"}
+reviewedBy: {none: "runs without a task; no work report to review"}
 reads:
   - "{run}/events.jsonl"
   - "{run}/cases/*.json"
@@ -120,7 +120,6 @@ awaits:
   - run.completed
   - token.used
   - run.phase.started
-  - devops.flake-detected
   - defect.opened
   - defect.closed
   - defect.reopened

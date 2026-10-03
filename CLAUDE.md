@@ -74,7 +74,6 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 
 - `targetProjectRoot` — relative path to the app under test (default `..`)
 - `testsDir` — where tests are written (default `../tests/qa`)
-- `profile` — `"full"` (66 agents) or `"lite"`
 - `compliance` — which standards are audited per run
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
@@ -94,11 +93,10 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 |------|-------|-------|------|
 | 0 — Orchestrator | 1 | Opus | Reads Taskmaster tree, dispatches phases, enforces gates |
 | 1 — Phase managers | 9 | Sonnet/Opus | One per STLC phase (requirements → closure), plus the developer-test reviewer |
-| 2 — Specialists | 16 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
-| 2.5 — DevOps | 6 | Sonnet/Opus | GitHub, CI/CD planning & implementation |
-| 3 — SPVs | 24 | Opus | Mirror of Tier 1/2; validate work reports (the 2 DevOps SPVs, `qa-cicd-spv` and `qa-github-spv`, sit in tier 2.5: 26 SPV files in all) |
+| 2 — Specialists | 13 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
+| 3 — SPVs | 24 | Opus | One per reviewed worker; `qa-compliance-spv` reviews the six compliance agents |
 | Compliance | 6 | Opus | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
-| Cross-cutting | 4 | Haiku | context-scanner, librarian, event-bus, metrics-collector |
+| Cross-cutting | 3 | Haiku / Opus | context-scanner, metrics-collector (Haiku); curator (Opus) |
 
 Model assignments are centralized in `.claude/model-policy.yaml` — **never hardcode a model in an agent definition**. Use the `_qa-build-agents` skill to stamp model policy changes into all agent frontmatter.
 
@@ -147,7 +145,7 @@ runs/{runId}/
 
 ### Knowledge pipeline
 
-Books (PDFs in `books/raw/`, gitignored) are ingested via `/qa-ingest-book`, chunked into `knowledge/`, and cross-synthesized into `knowledge/synthesis/`. The `qa-knowledge-librarian` agent resolves worker queries against this corpus — workers query the librarian rather than grepping raw markdown.
+Books (PDFs in `books/raw/`, gitignored) are ingested via `/qa-ingest-book`, chunked into `knowledge/`, and cross-synthesized into `knowledge/synthesis/`. Agents read `knowledge/synthesis/*.md` directly through their `knowledge_refs` frontmatter.
 
 ### ID format
 

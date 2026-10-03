@@ -21,8 +21,6 @@ User Command
 Tier-1 Mgrs   SPVs   Compliance
   |
 Tier-2 Workers
-  |
-Tier-2.5 DevOps
 ```
 
 Every command flows through the Orchestrator. The Orchestrator breaks work into tasks, publishes them to the Taskmaster queue, and the appropriate workers claim them. When a worker completes a task, its output is routed to an SPV for review. The event bus broadcasts state changes to the dashboard and to CI/CD listeners.
@@ -61,7 +59,7 @@ Model assignment is in `.claude/model-policy.yaml` (stamped into agent frontmatt
 
 ### 3.4 Tier-1: Domain Managers
 
-Eight managers coordinate domain work:
+Managers coordinate domain work:
 
 | Manager | Domain |
 |---|---|
@@ -71,12 +69,11 @@ Eight managers coordinate domain work:
 | `qa-test-executor` | Execution coordination, Tier-2 fan-out, SPV dispatch |
 | `qa-defect-manager` | Defect lifecycle, triage coordination |
 | `qa-environment-engineer` | playwright.config.ts, fixtures, factories, test data seeding |
-| `qa-knowledge-librarian` | Book ingestion, knowledge base maintenance, query resolution |
 | `qa-curator` | Lesson capture, system-wide promotion proposals |
 
 Managers do not write test artefacts directly. They decompose work and dispatch to Tier-2 workers.
 
-> Compliance, DevOps, and reporting are not single Tier-1 managers. Compliance is six separate `qa-compliance-*` agents (see §6.7); DevOps is the `qa-cicd-*` / `qa-github-*` agents (§3.6); reporting is split between `qa-closure-reporter` and `qa-executive-reporter`.
+> Compliance and reporting are not single Tier-1 managers. Compliance is six separate `qa-compliance-*` agents (see §6.7); reporting is split between `qa-closure-reporter` and `qa-executive-reporter`. There is no DevOps tier (§3.6).
 
 ---
 
@@ -110,20 +107,9 @@ Supporting workers:
 
 ---
 
-### 3.6 Tier-2.5: DevOps Agents
+### 3.6 CI and GitHub
 
-DevOps agents handle infrastructure and CI/CD concerns (GitHub planning, CI/CD planning and implementation, plus environment/secrets/sandbox utilities):
-
-| Agent | Responsibility |
-|---|---|
-| `qa-github-planner` | Branch strategy, PR descriptions, merge gates |
-| `qa-cicd-planner` | Workflow file planning and evaluation |
-| `qa-cicd-implementer` | Workflow file generation |
-| `qa-env-provisioner` | Ephemeral environment creation and teardown |
-| `qa-worktree-manager` | Git worktree isolation for parallel runs |
-| `qa-secrets-auditor` | Secrets leak detection in artefacts |
-| `qa-sandbox-manager` | Sandbox environment lifecycle |
-| `qa-deployment-monitor` | Deployment health polling |
+There is no DevOps tier. No agent writes to the target's GitHub repository or CI: Chapter 11 states the boundary, and Chapter 12 describes the owner-run `/qa-ci-bootstrap`.
 
 ---
 

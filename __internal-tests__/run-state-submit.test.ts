@@ -223,15 +223,19 @@ describe('paired SPV only (R5)', () => {
     expect(events().filter((e) => String(e.type).startsWith('review.'))).toHaveLength(0);
   });
 
-  it('lets qa-cicd-spv review qa-cicd-planner', async () => {
-    const planner = 'qa-cicd-planner';
-    await addTask(t.root, runId, { id: 'T-2', title: 'ci plan', agent: planner }, 'qa-test-executor');
-    await claimTask(t.root, runId, 'T-2', planner);
-    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport({ taskId: 'T-2', agent: planner })), planner);
-    await releaseTask(t.root, runId, 'T-2', 'done', planner);
-    const file = writeJson('r.json', review('passed', { reviewer: 'qa-cicd-spv', target: { agent: planner, taskId: 'T-2' } }));
-    await expect(submitReview(t.root, runId, file, 'qa-cicd-spv')).resolves.toMatchObject({ verdict: 'passed', attempt: 1 });
-    expect(last(events())).toMatchObject({ type: 'review.passed', target: { agent: planner, taskId: 'T-2' }, emittedBy: 'qa-cicd-spv' });
+  it('lets qa-compliance-spv review qa-compliance-gdpr, and refuses any other SPV', async () => {
+    const worker = 'qa-compliance-gdpr';
+    await addTask(t.root, runId, { id: 'T-2', title: 'gdpr coverage', agent: worker }, 'qa-orchestrator');
+    await claimTask(t.root, runId, 'T-2', worker);
+    await submitWorkReport(t.root, runId, writeJson('wr.json', workReport({ taskId: 'T-2', agent: worker })), worker);
+    await releaseTask(t.root, runId, 'T-2', 'done', worker);
+    for (const other of ['qa-compliance-gdpr-spv', 'qa-ui-specialist-spv']) {
+      const wrong = writeJson('w.json', review('passed', { reviewer: other, target: { agent: worker, taskId: 'T-2' } }));
+      await expect(submitReview(t.root, runId, wrong, other)).rejects.toMatchObject({ code: 'caller-forbidden' });
+    }
+    const file = writeJson('r.json', review('passed', { reviewer: 'qa-compliance-spv', target: { agent: worker, taskId: 'T-2' } }));
+    await expect(submitReview(t.root, runId, file, 'qa-compliance-spv')).resolves.toMatchObject({ verdict: 'passed', attempt: 1 });
+    expect(last(events())).toMatchObject({ type: 'review.passed', target: { agent: worker, taskId: 'T-2' }, emittedBy: 'qa-compliance-spv' });
   });
 });
 

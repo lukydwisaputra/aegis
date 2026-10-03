@@ -4,7 +4,7 @@ import {
   EnvAuthReportSchema,
   ExecutionSummaryCoreSchema,
   PHASE_IDS,
-  TargetProfileCoreSchema,
+  TargetProfileSchema,
   UserStorySchema,
   type CycleType,
   type PhaseId,
@@ -16,9 +16,9 @@ export const CYCLE_PHASES: Readonly<Record<CycleType, readonly PhaseId[]>> = {
   smoke: ["intake", "scan", "env-auth", "env-data", "execution", "triage"],
 };
 
-// The one schema the Scan barrier, preflight and not-applicable use for target-profile.json.
-// The barrier checks only the core fields they read; strict validation of the full profile belongs to the scanner's SPV.
-export const ScanProfileSchema = TargetProfileCoreSchema;
+// The one schema the Scan barrier, preflight and not-applicable use for target-profile.json: the full, top-level
+// strict TargetProfileSchema. The strict schema is the scanner's review (AUD-052); a refusal names the field to fix.
+export const ScanProfileSchema = TargetProfileSchema;
 
 // Every phase except Intake needs at least one released task before it can complete.
 export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake"]);
@@ -75,16 +75,8 @@ export const PHASE_OUTPUT_SETS: Readonly<Partial<Record<PhaseId, readonly Output
   explore: [{ dir: "defect-candidates", file: /^[a-z0-9][a-z0-9-]*\.json$/, schema: DefectCandidateSchema, min: 0, idIsFileName: false }],
 };
 
-// Agents with no SPV yet (spec §4.5: `spv: none (P2)`); the barrier accepts their work report without a review.
-export const SPV_NONE: ReadonlySet<string> = new Set([
-  "qa-context-scanner",
-  "qa-compliance-iso25010",
-  "qa-compliance-iso5055",
-  "qa-compliance-istqb",
-  "qa-compliance-cmmi",
-  "qa-compliance-gdpr",
-  "qa-compliance-pdpa",
-  "qa-curator",
-  "qa-cicd-evaluator",
-  "qa-metrics-collector",
-]);
+// Agents the barrier accepts without an SPV review, each for a stated reason (P2):
+// qa-context-scanner — the Scan barrier validates target-profile.json against the strict TargetProfileSchema;
+// qa-curator — the owner reviews its proposals through /qa-promote.
+// qa-metrics-collector runs without a task, so the barrier never looks it up.
+export const SPV_NONE: ReadonlySet<string> = new Set(["qa-context-scanner", "qa-curator"]);

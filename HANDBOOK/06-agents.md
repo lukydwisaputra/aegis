@@ -1,80 +1,68 @@
 ## Chapter 6 — Agent Roster
 
-> _All agents in full mode: Orchestrator (1), Tier-1 phase managers (9), Tier-2 specialists (16), Tier-2.5 DevOps (6), SPVs (25), compliance (6), cross-cutting (4 Haiku + Discovery/curation), with Lite mode notes._
+> _Every agent by tier: the orchestrator, Tier-1 phase managers, Tier-2 specialists, SPVs, compliance agents and cross-cutting agents._
 
 ---
 
 ### 6.1 How to Read This Roster
 
-Each entry shows: agent name, tier, model tier (A/B/C/D), primary output, and whether the agent is active in Lite mode.
-
-**Lite mode** activates when `profile: "lite"` is set in `aegis.config.json`. Lite mode disables SPV review, compliance agents, lesson capture, and most Tier-2.5 agents. It is designed for fast, low-cost local smoke runs.
+Each entry shows the agent name, its model and its primary output. Every full cycle runs the whole roster; `/qa-smoke` is the fast, cheap cycle for local iteration and PR gates.
 
 ---
 
 ### 6.2 The Orchestrator
 
-| Agent | Tier | Model | Output | Lite? |
-|---|---|---|---|---|
-| `qa-orchestrator` | Orchestrator | Opus | Run plan, phase dispatch, gate management, SPV dispatch (Tier-1), run summary | Yes |
+| Agent | Tier | Model | Output |
+|---|---|---|---|
+| `qa-orchestrator` | Orchestrator | Opus | Run plan, phase dispatch, gate management, SPV dispatch (Tier-1), run summary |
 
-The Orchestrator is always active. In Lite mode, it uses a simplified planning algorithm that skips the SPV review loop.
+The Orchestrator is always active.
 
 ---
 
 ### 6.3 Tier-1 — Domain Managers
 
-| Agent | Model | Primary Output | Lite? |
-|---|---|---|---|
-| `qa-dev-test-reviewer` | Opus | Developer-test review (`dev-test-review.json`), Stryker mutation scores | No |
-| `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton | Yes |
-| `qa-test-planner` | Sonnet | Test strategy doc, risk matrix, test case plan | Yes (reduced) |
-| `qa-test-designer` | Sonnet | Test design coordination | Yes |
-| `qa-test-executor` | Sonnet | Execution coordination, Tier-2 fan-out, SPV dispatch (Tier-2) | Yes |
-| `qa-defect-manager` | Sonnet | Defect lifecycle coordination | Yes |
-| `qa-environment-engineer` | Sonnet | `playwright.config.ts`, fixtures, data factories | Yes |
-| `qa-knowledge-librarian` | Sonnet | Book processing, knowledge base updates, query resolution | No |
-| `qa-curator` | Sonnet | Lesson queue management, promotion proposals | No |
+| Agent | Model | Primary Output |
+|---|---|---|
+| `qa-dev-test-reviewer` | Opus | Developer-test review (`dev-test-review.json`), Stryker mutation scores |
+| `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton |
+| `qa-test-planner` | Opus | Test strategy doc, risk matrix, test case plan |
+| `qa-test-designer` | Sonnet | Test design coordination |
+| `qa-test-executor` | Sonnet | Execution coordination, Tier-2 fan-out, SPV dispatch (Tier-2) |
+| `qa-defect-manager` | Sonnet | Defect lifecycle coordination |
+| `qa-environment-engineer` | Sonnet | `playwright.config.ts`, fixtures, data factories |
+| `qa-curator` | Opus | Lesson queue management, promotion proposals |
 
-> Compliance, DevOps, and reporting are **not** single Tier-1 managers: compliance is six `qa-compliance-*` agents (§6.7), DevOps is the `qa-cicd-*` / `qa-github-*` agents (§6.5), and reporting is split between `qa-closure-reporter` and `qa-executive-reporter` (§6.4).
+> Compliance and reporting are **not** single Tier-1 managers: compliance is six `qa-compliance-*` agents (§6.7), and reporting is split between `qa-closure-reporter` and `qa-executive-reporter` (§6.4). There is no DevOps tier (§6.5).
 
 ---
 
 ### 6.4 Tier-2 — Specialist Workers
 
-| Agent | Model | Primary Output | Lite? |
-|---|---|---|---|
-| `qa-unit-specialist` | Sonnet | Unit test cases, Vitest scripts | Yes |
-| `qa-api-specialist` | Sonnet | API test cases, HTTP client scripts | Yes |
-| `qa-ui-specialist` | Sonnet | UI/E2E Playwright scripts | Yes |
-| `qa-security-specialist` | Sonnet | OWASP-aligned security test cases | No |
-| `qa-accessibility-specialist` | Sonnet | WCAG 2.2 accessibility test cases | No |
-| `qa-performance-specialist` | Sonnet | k6 performance scripts | No |
-| `qa-email-specialist` | Sonnet | Email flow test cases (Mailpit) | No |
-| `qa-exploratory-specialist` | Sonnet | Exploratory charters (Playwright MCP, runs first) | No |
-| `qa-database-specialist` | Sonnet | Database / data-integrity test cases | No |
-| `qa-responsive-specialist` | Sonnet | Responsive / viewport test cases | No |
-| `qa-feature-flag-specialist` | Sonnet | Feature-flag matrix test cases | No |
-| `qa-realtime-specialist` | Sonnet | Realtime / websocket test cases | No |
-| `qa-defect-reporter` | Sonnet | Structured defect reports | Yes |
-| `qa-rtm-builder` | Haiku | RTM JSON/CSV updates | Yes |
-| `qa-closure-reporter` | Sonnet | `closure.md` + `closure.json` | Yes (summary only) |
-| `qa-executive-reporter` | Opus | Three executive PDFs | No |
+| Agent | Model | Primary Output |
+|---|---|---|
+| `qa-unit-specialist` | Sonnet | Unit test cases, Vitest scripts |
+| `qa-api-specialist` | Sonnet | API test cases, HTTP client scripts |
+| `qa-ui-specialist` | Sonnet | UI/E2E Playwright scripts |
+| `qa-security-specialist` | Sonnet | OWASP-aligned security test cases |
+| `qa-accessibility-specialist` | Sonnet | WCAG 2.2 accessibility test cases |
+| `qa-performance-specialist` | Sonnet | k6 performance scripts |
+| `qa-email-specialist` | Sonnet | Email flow test cases (Mailpit) |
+| `qa-exploratory-specialist` | Sonnet | Exploratory charters (Playwright MCP, runs first) |
+| `qa-database-specialist` | Sonnet | Database / data-integrity test cases |
+| `qa-responsive-specialist` | Sonnet | Responsive / viewport test cases |
+| `qa-feature-flag-specialist` | Sonnet | Feature-flag matrix test cases |
+| `qa-realtime-specialist` | Sonnet | Realtime / websocket test cases |
+| `qa-defect-reporter` | Sonnet | Structured defect reports |
+| `qa-rtm-builder` | Haiku | RTM JSON/CSV updates |
+| `qa-closure-reporter` | Sonnet | `closure.md` + `closure.json` |
+| `qa-executive-reporter` | Opus | Three executive PDFs |
 
 ---
 
-### 6.5 Tier-2.5 — DevOps Agents
+### 6.5 CI and GitHub
 
-| Agent | Model | Primary Output | Lite? |
-|---|---|---|---|
-| `qa-github-planner` | Sonnet | Branch strategy, PR templates, merge gate config | No |
-| `qa-cicd-planner` | Sonnet | CI/CD workflow planning and evaluation | No |
-| `qa-cicd-implementer` | Sonnet | GitHub Actions workflow YAML files | No |
-| `qa-env-provisioner` | C | Ephemeral environment URLs and teardown scripts | No |
-| `qa-worktree-manager` | C | Git worktree creation/cleanup | No |
-| `qa-secrets-auditor` | A | Secrets scan report | No |
-| `qa-sandbox-manager` | C | Sandbox lifecycle events | No |
-| `qa-deployment-monitor` | C | Deployment health events | No |
+There is no DevOps tier. No agent writes to the target's GitHub repository or CI: Chapter 11 states the boundary, and Chapter 12 describes the owner-run `/qa-ci-bootstrap`.
 
 ---
 
@@ -82,7 +70,7 @@ The Orchestrator is always active. In Lite mode, it uses a simplified planning a
 
 SPVs score worker output on a 0–100 scale. Output below threshold triggers revision requests. SPVs are Tier-A model by default (quality matters more than cost here).
 
-SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the worker it reviews.
+SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the worker it reviews. The exception is `qa-compliance-spv`, the one reviewer of all six compliance agents.
 
 | SPV | Reviews | Threshold |
 |---|---|---|
@@ -108,16 +96,15 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-closure-reporter-spv` | Closure artefact | 85 |
 | `qa-executive-reporter-spv` | Executive PDFs | 85 |
 | `qa-test-executor-spv` | Test result fidelity | 88 |
-| `qa-cicd-planner-spv` | CI/CD workflow files | 85 |
-| `qa-github-planner-spv` | Branch / PR strategy | 85 |
+| `qa-compliance-spv` | All six compliance reports (shared reviewer) | n/a (categorical verdict) |
 
-SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict. All SPVs are **disabled in Lite mode**.
+SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict.
 
 ---
 
 ### 6.7 Compliance Agents
 
-Six compliance agents run in parallel during every full-profile cycle. Each produces a compliance annotation file.
+The compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`. Each produces a compliance annotation file, and `qa-compliance-spv` reviews each one.
 
 | Agent | Regulation | Output |
 |---|---|---|
@@ -126,30 +113,28 @@ Six compliance agents run in parallel during every full-profile cycle. Each prod
 | `qa-compliance-istqb` | ISTQB testing standards | Testing process conformance notes |
 | `qa-compliance-cmmi` | CMMI Level 3 | Process maturity checklist |
 | `qa-compliance-gdpr` | GDPR | Data handling test coverage |
-| `qa-compliance-pdpa` | PDPA (Thailand) | Personal data processing test coverage |
-
-Compliance agents are **disabled in Lite mode**.
+| `qa-compliance-pdpa` | PDPA 2012 (Singapore) | Personal data processing test coverage |
 
 ---
 
 ### 6.8 Cross-Cutting Agents
 
-Cross-cutting agents operate across the entire framework lifecycle. The four Haiku-tier utilities run constantly; the Discovery and curation agents run at specific phases:
+Cross-cutting agents operate across the whole run. `qa-context-scanner` and `qa-metrics-collector` are Haiku-tier utilities; the Discovery and curation agents run at specific phases:
 
-| Agent | Role | Lite? |
-|---|---|---|
-| `qa-context-scanner` | Static source analysis → `target-profile.json#sourceInventory` | Yes |
-| `qa-web-explorer` | Observation-driven crawl, route/auth matrix (Discovery) | Yes |
-| `qa-event-bus` | Routes/serializes JSONL events between agents and dashboard | Yes |
-| `qa-metrics-collector` | Sole owner of `reports/metrics/*` (coverage, trend, cost) | Yes |
-| `qa-knowledge-librarian` | Resolves worker queries against the knowledge corpus | No |
-| `qa-curator` | Reviews accumulated lessons for promotion | No |
+| Agent | Role |
+|---|---|
+| `qa-context-scanner` | Static source analysis → `target-profile.json#sourceInventory` |
+| `qa-web-explorer` | Observation-driven crawl, route/auth matrix (Discovery) |
+| `qa-metrics-collector` | Sole owner of `reports/metrics/*` (coverage, trend, cost) |
+| `qa-curator` | Reviews accumulated lessons for promotion |
+
+Agents read the knowledge corpus directly: each agent's `knowledge_refs` frontmatter lists the `knowledge/synthesis/*.md` topics it reads.
 
 ---
 
 ### 6.9 Worked Example — Login Feature Agent Activation
 
-For `RUN-20260523-001` (full profile, Login/SSO feature), the following agents were active:
+For `RUN-20260523-001` (full cycle, Login/SSO feature), the following agents were active:
 
 1. `qa-orchestrator` — created run, dispatched phase tasks
 2. `qa-context-scanner` + `qa-web-explorer` — Discovery: source inventory + route/auth matrix
@@ -167,48 +152,17 @@ For `RUN-20260523-001` (full profile, Login/SSO feature), the following agents w
 
 ---
 
-### 6.10 Lite Mode Summary
-
-In Lite mode, the active agent set is:
-
-```
-qa-orchestrator
-qa-requirements-analyst
-qa-test-planner (reduced)
-qa-test-designer
-qa-test-executor
-qa-defect-manager
-qa-environment-engineer
-qa-unit-specialist, qa-api-specialist, qa-ui-specialist
-qa-defect-reporter
-qa-rtm-builder
-qa-closure-reporter (summary only)
-qa-context-scanner
-qa-web-explorer
-qa-event-bus
-qa-metrics-collector
-```
-
-In Lite mode the SPV review loop, compliance agents, DevOps tier, and curator are disabled. Cost is substantially lower; coverage is significantly reduced.
-
----
-
 ### ⚠ Pitfalls
 
-1. **Using Lite mode for compliance-sensitive releases** — compliance agents do not run in Lite mode. If your team needs GDPR or PDPA evidence for a release, run full mode.
+1. **Confusing SPV scores with business priority** — a low SPV score means the artefact needs improvement, not that the underlying risk is low. A badly written defect report for a Critical issue is still a Critical issue.
 
-2. **Expecting SPV feedback in Lite mode** — Lite mode workers do not get reviewed. Their output is accepted as-is. Quality control reverts to human review at gates.
+2. **Running every agent on every PR** — scope runs with `--feature`, and use `/qa-smoke` as the PR gate. Running all agents on all code on every PR is expensive and slow.
 
-3. **Confusing SPV scores with business priority** — a low SPV score means the artefact needs improvement, not that the underlying risk is low. A badly written defect report for a Critical issue is still a Critical issue.
-
-4. **Running all 63 agents on every PR** — even in full mode, use `--feature` to scope runs. Running all agents on all code on every PR is expensive and slow.
-
-5. **Manually editing agent instruction files without going through `/qa-promote`** — direct edits to agent instructions bypass the lesson tracking system. The curator will not know about your changes, and they may be overwritten in the next promotion cycle.
+3. **Manually editing agent instruction files without going through `/qa-promote`** — direct edits to agent instructions bypass the lesson tracking system. The curator will not know about your changes, and they may be overwritten in the next promotion cycle.
 
 ---
 
 ### Further Reading
 
-- `docs/D06-agent-roster.md` — full agent specification with input/output schemas
-- `docs/D06-spv-rubrics.md` — scoring rubric dimensions per SPV
-- `docs/D06-lite-mode.md` — Lite mode trade-offs and when to use each profile
+- `.claude/model-policy.yaml` and `docs/D13-model-policy.md` — the model assigned to each agent
+- `docs/D13-spv-review-pattern.md` — how an SPV reviews a worker's output

@@ -6,6 +6,8 @@ model: claude-haiku-4-5-20251001
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/INDEX.md
+retiredAt: 2026-10-02
+reason: "AUD-047, owner decision 2026-10-02: agents read knowledge/synthesis directly through knowledge_refs"
 ---
 
 # QA Knowledge Librarian

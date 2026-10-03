@@ -39,7 +39,7 @@ knowledge_refs:
 ---
 ```
 
-Tiers: `orchestrator/`, `tier1/`, `tier2/`, `tier2.5-devops/`, `spv/`, `compliance/`, `cross-cutting/`
+Tiers: `orchestrator/`, `tier1-phase/`, `tier2-specialist/`, `spv/`, `compliance/`, `crosscutting/`
 
 ### Step 2 — Create the SPV
 

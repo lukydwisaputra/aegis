@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { addTask, busPath, claimTask, completePhase, completeRun, createRun, decideEscalation, nextStep, readRun, runDir, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { escalationDecision, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { escalationDecision, fastForward, ORCH, PROFILE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 import { STORY } from './helpers/p0a2-fixtures';
 
 let t: TmpAegis;
@@ -124,6 +124,54 @@ describe('phase barrier (spec §6.1)', () => {
     await expect(completePhase(t.root, runId, 'scan', ORCH)).rejects.toMatchObject({ code: 'integrity-failed', message: expect.stringMatching(/^event log does not verify: /) });
     expect(readRun(t.root, runId)).toMatchObject({ status: 'blocked', blockedBy: [expect.objectContaining({ kind: 'integrity' })] });
     expect(types()).toContain('integrity.violation');
+  });
+});
+
+describe('the strict profile schema is the scanner\'s review (AUD-052)', () => {
+  beforeEach(passIntake);
+
+  it('refuses an extra top-level field and names it', async () => {
+    await expect(passScan({ ...PROFILE, tsxFileCount: 3 })).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/target-profile.json is invalid: .*tsxFileCount/) });
+  });
+
+  it('refuses a missing field and names it', async () => {
+    const { scannedAt: _s, ...rest } = PROFILE;
+    await expect(passScan(rest)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/target-profile.json is invalid: scannedAt: Required/) });
+  });
+
+  it('completes Scan on a full profile without an SPV review', async () => {
+    await expect(passScan()).resolves.toMatchObject({ phases: { scan: { status: 'completed' } } });
+  });
+});
+
+describe('the owner reviews the curator through /qa-promote (AUD-052)', () => {
+  it('Curator completes on a released work report with no SPV review', async () => {
+    const approved = { status: 'approved', decisions: 1 };
+    fastForward(t.root, runId, 'curator', { G1: approved, G2: approved, G3: approved });
+    await startPhase(t.root, runId, 'curator', ORCH);
+    await workTask(t.root, runId, 'T-curator-1', 'qa-curator', null);
+    await expect(completePhase(t.root, runId, 'curator', ORCH)).resolves.toMatchObject({ phases: { curator: { status: 'completed' } } });
+  });
+});
+
+describe('qa-compliance-spv reviews every compliance task (AUD-052)', () => {
+  const approved = { status: 'approved', decisions: 1 };
+  beforeEach(async () => {
+    fastForward(t.root, runId, 'compliance', { G1: approved, G2: approved });
+    await startPhase(t.root, runId, 'compliance', ORCH);
+  });
+
+  it('an unreviewed compliance task blocks Compliance and the refusal names it', async () => {
+    await workTask(t.root, runId, 'T-compliance-1', 'qa-compliance-gdpr', null);
+    await expect(completePhase(t.root, runId, 'compliance', ORCH)).rejects.toMatchObject({
+      code: 'barrier',
+      message: expect.stringMatching(/task T-compliance-1: attempt 1 of qa-compliance-gdpr has no passing review/),
+    });
+  });
+
+  it('a passing qa-compliance-spv review completes Compliance', async () => {
+    await workTask(t.root, runId, 'T-compliance-1', 'qa-compliance-gdpr', 'qa-compliance-spv');
+    await expect(completePhase(t.root, runId, 'compliance', ORCH)).resolves.toMatchObject({ phases: { compliance: { status: 'completed' } } });
   });
 });
 

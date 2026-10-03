@@ -48,6 +48,8 @@ const NON_EVENT_PREFIXES = [
   // JSON field paths inside artefacts
   'defectMetrics.', 'resultsSummary.', 'rootCause.', 'work-report.',
   'SignoffSpec.', 'response.usage.',
+  // target-profile.json field paths named by the scanner checklist
+  'monorepo.', 'ci.provider', 'framework.', 'existingTests.', 'language.', 'supabase.',
   // library and framework APIs
   'Promise.', 'console.', 'page.', 'test.afterEach', 'test.beforeEach',
   'socket.io', 'use.', 'path-guard.',

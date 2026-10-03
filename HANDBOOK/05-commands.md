@@ -154,7 +154,7 @@ Traces a requirement ID to its test cases, defects and RTM rows.
 
 #### `/qa-ingest-book`
 
-Chunks a QA reference book or document into `knowledge/` for the librarian to serve.
+Chunks a QA reference book or document into `knowledge/`, for agents to read through `knowledge_refs`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -181,7 +181,7 @@ Generates the QA GitHub Actions workflows for the target repo and prints the Hus
 | `--provider` | string | `github-actions` | CI provider (only value supported) |
 | `--dry-run` | boolean | `false` | Preview without writing files |
 
-CI planning, implementation and evaluation are agents, not commands: `qa-cicd-planner`, `qa-cicd-implementer` and `qa-cicd-evaluator` (Chapter 11). For recent CI runs use `gh run list`.
+No agent plans, writes or watches the target's CI (Chapter 11). For recent CI runs use `gh run list`.
 
 ---
 

@@ -51,7 +51,7 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | AUD-008 | Gate 2 / Gate 3 position contradictory across orchestrator, closure-reporter, HANDBOOK/03, HANDBOOK/04 | qa-orchestrator.md:19,59,60,65; HANDBOOK/04:23 | HIGH | P0a-1 | fixed — P0a-1 |
 | AUD-009 | Gate decision file: two paths (`gates/` vs run root), no writer, no schema, verdict vocab mismatch (approved vs GO/NO-GO) | qa-orchestrator.md:30; CLAUDE.md:101,125; signoff run.mjs:62 | HIGH | P0a-1 | fixed — P0a-1 |
 | AUD-010 | Phases progressed while gates were `deferred` (onecare-crc waves 6–11, 18 events, no gate-1 decision) | onecare-crc-v1 events.jsonl; batch-review-waves6-11.md | CRIT | P0a-1 | fixed — P0a-1 |
-| AUD-011 | Closure hard-requires `flaky.json`; only producer (cicd-evaluator) never dispatched; `blocking.dependency` has no listener | qa-closure-reporter.md:33; qa-metrics-collector.md:61; qa-cicd-evaluator.md:28 | HIGH | P0c | in-spec |
+| AUD-011 | Closure hard-requires `flaky.json`; only producer (cicd-evaluator) never dispatched; `blocking.dependency` has no listener | qa-closure-reporter.md:33; qa-metrics-collector.md:61; qa-cicd-evaluator.md:28 | HIGH | P0c | in-spec — the devops.flake-detected await left with the DevOps retirement (P2a); flaky.json from aegis rollup → P0c |
 | AUD-012 | SPV dispatch is prompt-only; skills dispatch specialists directly, bypassing executor and SPVs | qa-smoke:28; qa-rerun-failed:29; qa-regression:27; qa-watch:28; qa-run-specialist:27; qa-run-phase:27 | HIGH | P0c | in-spec |
 | AUD-013 | SPV fast-path `escalateOnFinding` claimed implemented in orchestrator; it is not | model-policy.yaml:117-135 | MED | P0a-1 | fixed — P0a-1 |
 | AUD-014 | SPV output location undefined (`reviews/` vs `reports/work/`); SPVs have only `[Read, Bash]`; curator/CMMI read `reviews/*.json` nobody writes; `review.passed-with-notes` never emitted | qa-curator.md:23; qa-compliance-cmmi.md:22 | MED | P0a-2 | fixed |
@@ -106,15 +106,15 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 
 | ID | Finding | Evidence | Sev | Status |
 |----|---------|----------|-----|--------|
-| AUD-046 | DevOps tier (5 workers + 2 SPVs) never dispatched; only HANDBOOK prose maps them | qa-orchestrator.md (0 refs); HANDBOOK/11:27-31 | HIGH | open |
-| AUD-047 | `qa-knowledge-librarian` orphan; workers lack Agent tool | qa-knowledge-librarian.md:26 | HIGH | open |
-| AUD-048 | `qa-event-bus` agent orphan and contradicts CLAUDE.md (library-only writer) | qa-event-bus.md:16,22-26 | MED | open |
-| AUD-049 | `qa-orchestrator-spv` never dispatched → gate enforcement never validated | 0 references | HIGH | open |
-| AUD-050 | `qa-ui-designer` + SPV misfiled in tier2-specialist and orphaned | qa-ui-designer.md:3 | LOW | open |
+| AUD-046 | DevOps tier (5 workers + 2 SPVs) never dispatched; only HANDBOOK prose maps them | qa-orchestrator.md (0 refs); HANDBOOK/11:27-31 | HIGH | fixed — P2a (7 DevOps agents retired to agent-graveyard/; github and secretsRef config removed; HANDBOOK/11 states the CI and GitHub boundary) |
+| AUD-047 | `qa-knowledge-librarian` orphan; workers lack Agent tool | qa-knowledge-librarian.md:26 | HIGH | fixed — P2a (retired; agents read knowledge/synthesis through knowledge_refs) |
+| AUD-048 | `qa-event-bus` agent orphan and contradicts CLAUDE.md (library-only writer) | qa-event-bus.md:16,22-26 | MED | fixed — P2a (agent retired; the @qa/event-bus library stays) |
+| AUD-049 | `qa-orchestrator-spv` never dispatched → gate enforcement never validated | 0 references | HIGH | fixed — P0a-1 dispatches qa-orchestrator-spv for every gate task; P2a fixes the checker for a self-dispatched SPV |
+| AUD-050 | `qa-ui-designer` + SPV misfiled in tier2-specialist and orphaned | qa-ui-designer.md:3 | LOW | fixed — P2a (pair retired; dashboard work is framework development) |
 | AUD-051 | email and realtime specialists never ran in any real run (verify after AUD-033) | real-run matrix | MED | open |
-| AUD-052 | No SPV for compliance ×6, curator, cicd-evaluator, cross-cutting; HANDBOOK/08 claims compliance SPV exists | HANDBOOK/08:36,143 | MED | open |
-| AUD-053 | `lite` profile unimplemented; HANDBOOK lite list names nonexistent agents | qa-orchestrator.md:26,41; HANDBOOK/06:170-188 | MED | open |
-| AUD-054 | Packages with zero code consumers (no app, package, script or test imports them; recount 2026-10-01): artifact-policy, auth-fixtures, dashboard-ui, deps-updater, email-adapters, eslint-plugin, metrics, multi-app, pdf-renderer, reporters, sandbox-manager, secrets, supabase, target-scanner, web-explorer, test-helpers (empty, no source) — several are named in agent prose, so decide per package: wire or delete | package grep | MED | open |
+| AUD-052 | No SPV for compliance ×6, curator, cicd-evaluator, cross-cutting; HANDBOOK/08 claims compliance SPV exists | HANDBOOK/08:36,143 | MED | fixed — P2a (qa-compliance-spv reviews the six compliance agents; the Scan barrier strict-validates the scanner profile; the owner reviews the curator through /qa-promote; the other cross-cutting agent, the metrics collector, runs without a task and has no SPV by design) |
+| AUD-053 | `lite` profile unimplemented; HANDBOOK lite list names nonexistent agents | qa-orchestrator.md:26,41; HANDBOOK/06:170-188 | MED | partial — docs purged of Lite (P2a); config, contracts, CLI and orchestrator → P2b |
+| AUD-054 | Packages with zero code consumers (no app, package, script or test imports them; recount 2026-10-01): artifact-policy, auth-fixtures, dashboard-ui, deps-updater, email-adapters, eslint-plugin, metrics, multi-app, pdf-renderer, reporters, sandbox-manager, secrets, supabase, target-scanner, web-explorer, test-helpers (empty, no source) — several are named in agent prose, so decide per package: wire or delete | package grep | MED | open → P2c — recount after P0b-2: sandbox-manager deleted; reporters now has a consumer (legacy-writers.test.ts imports it; wired in P0c); P2c owns the remaining package fates |
 | AUD-055 | Compliance described as "every full cycle" vs "optional"; 6 in parallel exceed any cap | HANDBOOK/06:118; qa-orchestrator.md:62 | LOW | open |
 
 ## P3 — Skills & path drift
@@ -157,9 +157,9 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-071 | No internal tests for: every agent dispatched, every worker has SPV, skill paths/config keys exist, `run.mjs` imports resolve, target-profile schema conformance | __internal-tests__ | HIGH | open |
 | AUD-072 | `pnpm typecheck` covers only apps; `pnpm lint` has no script; `@qa/eslint-plugin` rules unwired | pnpm output | MED | open |
 | AUD-073 | CLAUDE.md commands wrong: `pnpm -F aegis-internal-tests`, `pnpm qa-health`; `qa-check-onboarding-sync` points to missing script | CLAUDE.md; package.json | MED | open — P5; the stale `pnpm -F aegis-internal-tests` in CLAUDE.md Commands was seen again in the P0b-2 final review and left for this row |
-| AUD-074 | 5 SPVs reference missing lessons files; no SPV has a lessons stub; agents read `lessons.md` while the CLAUDE.md stub creates `lessons.json` — decide one name | agent-memory/ | LOW | open |
-| AUD-075 | Agent counts drift (63 / 64 files / tier table sums 66) | CLAUDE.md:67; README.md:5; HANDBOOK/06:3,202; HANDBOOK/01:67 | LOW | open |
-| AUD-076 | HANDBOOK drift: nonexistent agent names, wrong model column, PDPA "Thailand", discovery paths, 04:41/83 errors, CLAUDE.md `qa-planner`/`qa-director`, closure-spv brand grep uses `qa-executor`, HANDBOOK/17 4-phase taxonomy vs 9-phase | HANDBOOK/03,04,06,08,17; qa-closure-reporter-spv.md:37 | LOW | open |
+| AUD-074 | 5 SPVs reference missing lessons files; no SPV has a lessons stub; agents read `lessons.md` while the CLAUDE.md stub creates `lessons.json` — decide one name | agent-memory/ | LOW | partial — the qa-cicd-spv and qa-github-spv lessons lines left with the agents (P2a); the rest → P5 |
+| AUD-075 | Agent counts drift (63 / 64 files / tier table sums 66) | CLAUDE.md:67; README.md:5; HANDBOOK/06:3,202; HANDBOOK/01:67 | LOW | partial — CLAUDE.md tier table and HANDBOOK/06 counts match the P2a roster (P2a); the rest → P5 |
+| AUD-076 | HANDBOOK drift: nonexistent agent names, wrong model column, PDPA "Thailand", discovery paths, 04:41/83 errors, CLAUDE.md `qa-planner`/`qa-director`, closure-spv brand grep uses `qa-executor`, HANDBOOK/17 4-phase taxonomy vs 9-phase | HANDBOOK/03,04,06,08,17; qa-closure-reporter-spv.md:37 | LOW | partial — DevOps phantom names in HANDBOOK/03 §3.6 and HANDBOOK/06 §6.5 removed, PDPA is Singapore in HANDBOOK/06, 08 and 16, and the HANDBOOK/06 model column follows model-policy.yaml (P2a); the rest → P5 |
 | AUD-077 | Budget warning threshold 90% (orchestrator) vs 80% (SPV) | qa-orchestrator.md:97; qa-orchestrator-spv.md:34 | LOW | open |
 | AUD-078 | model-policy comment cites outdated model generation | model-policy.yaml:118-119 | LOW | open |
 | AUD-115 | `plan-validation/canonical-example/` (the only end-to-end worked example: STORY → REQ → RISK → TC → DEF) predates the current schemas (stories JSON with happy/rejection/edge AC, defect candidates, CLI work reports) and nothing links to it; refresh it, link it from HANDBOOK, and mark `plan-validation/` historical in its README. Keep `plan-validation/` and `agent-graveyard/` (owner, 2026-10-01) | plan-validation/canonical-example/*.md (2026-05-24); git grep: 0 refs | LOW | open |
@@ -186,14 +186,14 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 
 | ID | Item | Slice |
 |----|------|-------|
-| CO-01 | Legacy writers break the chain: event-bus `_forceAppend` (unlocked), sandbox-manager direct append, `reporters` legacy `append()` (no torn-tail guard) → move to `appendChained` | P0b-2 — partial: legacy append removed, reporters chained, sandbox-manager deleted; the qa-event-bus agent events.jsonl write stays baselined (AUD-048) → P2 |
+| CO-01 | Legacy writers break the chain: event-bus `_forceAppend` (unlocked), sandbox-manager direct append, `reporters` legacy `append()` (no torn-tail guard) → move to `appendChained` | P0b-2 / P2a — fixed: legacy append removed, reporters chained, sandbox-manager deleted; the qa-event-bus agent retired (P2a) |
 | CO-02 | Sanctioned `aegis integrity repair-tail` (a torn tail bricks every append; ack itself appends) | P0b-2 — fixed (Task 4) |
 | CO-03 | Integrity: re-anchor checkpoint at ack (acked checkpoint error names only seq); seed checkpoint at `createRun`; close createRun/verify race (append `run.created` first or wrap in integrity.lock) | P0b-2 — fixed (Task 3) |
 | CO-04 | taskmaster per-task `LOCK_OPTIONS` (5 retries) leaks raw ELOCKED; commander validation errors → JSON envelope via `exitOverride` | P0b-2 — fixed (Task 2) |
 | CO-05 | Direct `event append` now refuses every `run.*`, `task.*`, `gate.*`, `review.*`, `integrity.*` type and `artifact.created`; agents that emit `run.phase.*`, `gate.evaluated`, `task.blocked` today need CLI commands for them (`aegis phase …`, `aegis gate …`, `aegis task block`) before they are wired to the CLI. Outcome (P0a-2): no `task block` command is needed (decision 9) | P0a-1 (`aegis phase`/`gate` commands) / P0a-2 (`task block`, agent wiring) — fixed |
 | CO-06 | `currentPhase` enum + `RunStateSchema.strict()`; replace `blockedReason` string stacking with a list of causes | P0a-1 — fixed |
 | CO-07 | `/qa-escalation` must clear the escalation marker; escalation on a completed run loses lessons; escalation block currently resumable with no decision | P0a-1 — fixed |
-| CO-08 | Claims accepted on `created`/`awaiting-gate` runs; agents may call `run create/stop/resume`; SPV↔worker pairing needs the role table (qa-cicd-spv/qa-github-spv) | P0a-1 / P0b-2 — fixed (Task 6; the shared DevOps SPV pairs leave with P2) |
+| CO-08 | Claims accepted on `created`/`awaiting-gate` runs; agents may call `run create/stop/resume`; SPV↔worker pairing needs the role table (qa-cicd-spv/qa-github-spv) | P0a-1 / P0b-2 / P2a — fixed (SHARED_SPV deleted; SPV pairing is the path-guard role table; DevOps SPVs retired) |
 | CO-09 | Full-log read per append (tail read); reopen emits no event; review events lack attempt/path; state written before event; uncapped violation `errors` array | P0c |
 | CO-11 | Finish AUD-017/018/040: remove hardcoded "4" (qa-test-executor.md:3,19,80; CLAUDE.md:69,98), tell agents to use `pnpm aegis` (H4 cheat-sheet + agent edits), build `apps/cli/dist` automatically (prepare script) so `pnpm aegis` works on a fresh clone. Outcome (P0a-2): the hardcoded 4 is removed; the prepare script moves to P0b-2 | P0a-2 / P0b-2 — fixed (Tasks 11, 12) |
 | CO-12 | `submitReview`: a reopen that fails after the review is recorded surfaces as an error with no retry path; `releaseTask` rollback is skipped if the task changed meanwhile | P0a-1 — fixed |
@@ -204,7 +204,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | ID | Finding | Evidence | Sev | Owner | Status |
 |----|---------|----------|-----|-------|--------|
 | AUD-081 | Claim ownership: the **worker** claims its own task (`aegis task claim`), the dispatcher only creates tasks (`task add`) — code enforces the cap and work-report binding on the claimer; no tier2-specialist file has a claim step yet (resolved in P0a-2) | tasks.ts:72-80; submit.ts:83-86; qa-test-executor.md:145 | HIGH | P0a-2 (agent edits) | fixed |
-| AUD-082 | 8 agents lack Bash (6 compliance, qa-curator, qa-cicd-planner) so they cannot call `pnpm aegis`; phases 12/15 can never complete | qa-compliance-istqb.md:6; qa-curator.md:6 | HIGH | P0a-2 / P2 | partial — Bash and the CLI task protocol added (P0a-2); SPV coverage P2 |
+| AUD-082 | 8 agents lack Bash (6 compliance, qa-curator, qa-cicd-planner) so they cannot call `pnpm aegis`; phases 12/15 can never complete | qa-compliance-istqb.md:6; qa-curator.md:6 | HIGH | P0a-2 / P2 | fixed — Bash and the CLI task protocol (P0a-2); SPV coverage (P2a) |
 | AUD-083 | Specialists never write a work report; all specialist SPVs and the executor expect one | tier2-specialist/*.md Outputs; qa-api-specialist-spv.md:20; qa-test-executor.md:107 | HIGH | P0a-2 | fixed |
 | AUD-084 | Defects filed directly by web-explorer, responsive and exploratory specialists without origin confirmation; defect-manager only ingests EXP defects | qa-web-explorer.md:65,105; qa-responsive-specialist.md:45; qa-exploratory-specialist.md:75,96; qa-defect-manager.md:25; HANDBOOK/17:84 | MED | P0a-2 | fixed |
 | AUD-085 | `TestCaseSchema` lacks `gherkin`, `order`, `scenarioId` (non-strict → silently stripped) though designer and HANDBOOK/17 require them | artefacts.ts:53-85; qa-test-designer.md:89,119 | MED | P1 | fixed |
@@ -243,7 +243,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 | AUD-109 | Agent inputs name paths no producer writes or too vague to trace | qa-accessibility-specialist-spv.md:21 `tests/qa/a11y/` (specialist writes `tests/qa/specs/{url-path}/a11y.spec.ts`); qa-database-specialist-spv.md:21 and qa-realtime-specialist-spv.md:21 `tests/` | LOW | QW | fixed |
 | AUD-110 | Execution skills invoke other skills directly instead of routing through the orchestrator/CLI | qa-start SKILL:28 `/qa-health`; qa-promote-stage SKILL:25 `/qa-gate-check`; qa-regression SKILL:29 `qa-compare` | MED | P0c | open |
 | AUD-111 | Agents write their work report directly into CLI-only `reports/work/**` instead of via `aegis work-report submit` (13 agents) | qa-test-planner.md:43 | MED | P0a-2 | fixed |
-| AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | partial — fixed for the qa-environment-engineer and qa-ci-bootstrap writes: playwright.config.ts and qa-*.yml are named exceptions, the Husky hook and secrets guide are printed (P0b-2); the qa-cicd-implementer writes leave with the DevOps retirement (P2) |
+| AUD-112 | Agents/skills write target-repo files that the read/write policy forbids (workflows, husky, `playwright.config.ts`) — decide policy exception or move the write | qa-cicd-implementer.md:29; qa-environment-engineer.md:37; qa-ci-bootstrap SKILL:24 | MED | P0b-2 | fixed — playwright.config.ts and the qa-ci-bootstrap workflows are named exceptions, the Husky hook and secrets guide are printed (P0b-2); qa-cicd-implementer retired (P2a) |
 | AUD-113 | Specialists and the web explorer write `sandbox/**` (HANDBOOK/17 sandbox-first) but CLAUDE.md's read/write table has no `sandbox/**` row — add the row or move the writes | qa-ui-specialist.md contract `sandbox/{date}-{slug}/**`; CLAUDE.md "Read / write policy" | LOW | QW | fixed |
 | AUD-114 | Prose names a config key without its file, so the contract `config` entry has no anchor | qa-database-specialist.md:40 `environments[env].readOnly`; qa-email-specialist-spv.md:30 `forbiddenSpecialists` | LOW | QW | fixed |
 | CI-01 | Lint floor missing: no package defines a `lint` script, so `pnpm lint` fails and CI omits it; adding ESLint is its own change (see AUD-072) | pnpm output | MED | P5 | open |
@@ -252,8 +252,9 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 Known detection gaps (open items the checker cannot see; their slices close them by review, not by
 deleting baseline lines):
 
-- AUD-052 — `reviewedBy: {none: …}` is accepted by design, so agents without an SPV are not flagged;
-  only the HANDBOOK/08 `qa-compliance-gdpr-spv` reference is tracked (DOC-REF).
+- AUD-052 — closed in P2a: `reviewedBy: {none: …}` is still accepted by design, but the run-state
+  barrier now requires an SPV review for every task except the `SPV_NONE` agents (scanner, curator),
+  each with a stated reason.
 - AUD-056a — the SKILL rule ignores reads of paths the skill itself writes (spec §4 narrowing), so an
   execution skill reading its own stale `execution/results.json` is not flagged.
 

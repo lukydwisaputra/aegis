@@ -118,7 +118,9 @@ export function spvRule(m: Model): Violation[] {
     }
     if (!isAgentContract(spv)) continue;
     const wBy = new Set(w.contract.dispatchedBy);
-    if (!spv.contract.dispatchedBy.some((d) => wBy.has(d))) {
+    // AUD-049: a worker that dispatches its own SPV (qa-orchestrator → qa-orchestrator-spv) is dispatched together with it.
+    const together = spv.contract.dispatchedBy.includes(w.name) || spv.contract.dispatchedBy.some((d) => wBy.has(d));
+    if (!together) {
       out.push(violation("SPV", w.name, expected, "not-dispatched-together", w.file, w.contractLine, `${expected} is not dispatched by ${w.name}'s dispatcher`));
     }
   }

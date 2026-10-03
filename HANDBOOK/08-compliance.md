@@ -6,7 +6,7 @@
 
 ### 8.1 Overview
 
-The framework supports six compliance frameworks simultaneously. Compliance agents run **in parallel** with other phases — they do not block execution. Their findings are collected and merged into the run report at Phase 6.
+The framework supports six compliance frameworks simultaneously. Compliance agents run in parallel with each other during the Compliance phase of a full cycle (after Closure-draft, before Closure-final); they do not block test execution, and `/qa-smoke` has no Compliance phase. Dispatch is parallel, review is per task: the Compliance phase closes only after `qa-compliance-spv` has reviewed each compliance task. Their findings are merged into the closure report.
 
 Compliance is configured in `aegis.config.json#compliance`. To disable a framework, remove it from the array:
 
@@ -31,9 +31,9 @@ Examples: `[ISO25010-SEC]`, `[GDPR-CONSENT]`, `[PDPA-SENSITIVE]`, `[ISTQB-EP]`.
 Tags are added by:
 1. **Workers** — when authoring test cases, workers tag based on content
 2. **Compliance agents** — when reviewing artefacts, they add missing tags
-3. **SPV compliance reviewers** — when scoring compliance agent output
+3. **The compliance reviewer** (`qa-compliance-spv`) — when reviewing compliance agent output
 
-A test case without any compliance tags will be flagged by `qa-compliance-iso25010` (reviewed by its SPV) as lacking traceability.
+A test case without any compliance tags will be flagged by `qa-compliance-iso25010` (reviewed by `qa-compliance-spv`) as lacking traceability.
 
 ---
 
@@ -120,16 +120,16 @@ For `DEF-AUTH-0017`, `qa-compliance-gdpr` tagged `[GDPR-SESSION]` because the re
 
 ---
 
-### 8.8 PDPA — Personal Data Protection (Thailand)
+### 8.8 PDPA — Personal Data Protection Act 2012 (Singapore)
 
-The PDPA agent mirrors the GDPR agent with Thailand-specific categories:
+The PDPA agent covers Singapore's Personal Data Protection Act 2012 (amended 2020). It mirrors the GDPR agent with Singapore-specific categories:
 
 | Category | Tag | Meaning |
 |---|---|---|
 | Consent record | `PDPA-CONSENT` | Test covers consent collection UI |
 | Data subject rights | `PDPA-DSR` | Test covers access/correction/deletion flows |
-| Sensitive personal data | `PDPA-SENSITIVE` | Data classified under Section 26 PDPA |
-| Data breach notification | `PDPA-BREACH` | Test covers breach detection flows |
+| Sensitive personal data | `PDPA-SENSITIVE` | NRIC numbers, health or financial data |
+| Data breach notification | `PDPA-BREACH` | Test covers breach detection flows (the 2020 mandatory notification) |
 
 ---
 
@@ -137,13 +137,13 @@ The PDPA agent mirrors the GDPR agent with Thailand-specific categories:
 
 The sequence during a full run:
 
-1. Phase 3 completes (test cases authored)
-2. The `qa-orchestrator` dispatches all six compliance agents simultaneously
+1. Closure-draft completes (the draft closure report exists)
+2. The `qa-orchestrator` dispatches every compliance agent listed in `aegis.config.json#compliance` simultaneously
 3. Each agent reads the test cases and RTM, annotates missing tags, and writes a compliance annotation file to `runs/<RUN-ID>/compliance/<framework>.json`
-4. Each annotation file is reviewed by its paired SPV (e.g., `qa-compliance-gdpr-spv`)
-5. Phase 6 report writer merges all six annotation files into the compliance section of the run report
+4. The one shared compliance reviewer, `qa-compliance-spv`, reviews each compliance task on its own; the Compliance phase closes only after every compliance task has its review
+5. Closure-final merges the annotation files into the compliance section of the closure report
 
-Total wall-clock time for compliance review: typically 3–8 minutes (depending on case count). This runs concurrently with defect analysis.
+Total wall-clock time for compliance review: typically 3–8 minutes (depending on case count). The compliance agents run concurrently with each other.
 
 ---
 
@@ -172,7 +172,7 @@ The ISO 5055 warning was documented as a non-blocking finding. The team added a 
 
 3. **Using real email addresses in test fixtures** — the GDPR and PDPA agents flag real-looking personal data in test fixtures. Use `test-user-001@example.com` style identifiers, not real user emails.
 
-4. **Treating GDPR and PDPA as interchangeable** — they share concepts but differ in scope and penalties. If your application operates in Thailand, both apply. Do not disable PDPA because GDPR is enabled.
+4. **Treating GDPR and PDPA as interchangeable** — they share concepts but differ in scope and penalties. If your application serves users in both the EU and Singapore, both apply. Do not disable PDPA because GDPR is enabled.
 
 5. **Ignoring ISO 5055 coverage gaps** — these are not test failures; they are coverage recommendations. Teams often skip them. ISO 5055 gaps in security categories (SQL injection, CSRF) are high-risk to ignore.
 

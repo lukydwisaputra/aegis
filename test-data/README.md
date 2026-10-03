@@ -43,4 +43,4 @@ Static binary/JSON/CSV files that tests upload or compare against. Sample images
 
 ## See also
 
-- `docs/D11-secrets-handling.md`
+- `secrets/README.md`

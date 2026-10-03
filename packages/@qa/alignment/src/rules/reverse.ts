@@ -141,7 +141,6 @@ export function docNameRule(m: Model): Violation[] {
 
 const TIER_DIRS: Array<[RegExp, string]> = [
   [/orchestrator/i, "orchestrator"],
-  [/devops/i, "tier2-5-devops"],
   [/phase/i, "tier1-phase"],
   [/specialist/i, "tier2-specialist"],
   [/spv/i, "spv"],

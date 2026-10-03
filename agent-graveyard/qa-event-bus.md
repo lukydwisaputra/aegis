@@ -5,6 +5,8 @@ modelTier: read-only
 model: claude-haiku-4-5-20251001
 tools: [Read, Write, Bash]
 knowledge_refs: []
+retiredAt: 2026-10-02
+reason: "AUD-048, owner decision 2026-10-02: events are appended only through the aegis CLI and @qa/event-bus"
 ---
 
 # QA Event Bus

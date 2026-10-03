@@ -49,7 +49,7 @@ it('SPV: pairing, missing, dispatched together, reciprocity, orphan, pipeline mi
       'qa-w1-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ['qa-w1'] } },
       'qa-w2': { contract: { contract: 1, phase: 'design', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-other-spv' } },
       'qa-other-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: [], dispatch: none, reviewedBy: none } },
-      'qa-cicd-planner': { contract: { contract: 1, phase: 'devops', dispatchedBy: [], dispatch: none, reviewedBy: { none: 'x y' } } },
+      'qa-cicd-planner': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], dispatch: none, reviewedBy: { none: 'x y' } } },
       'qa-lonely-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: [], dispatch: none, reviewedBy: none } },
     },
     pipeline: { ...pipe(['qa-w1', 'qa-w2']), spvPairs: { 'qa-cicd-planner': 'qa-wrong-spv' } },
@@ -65,6 +65,13 @@ it('SPV: pairing, missing, dispatched together, reciprocity, orphan, pipeline mi
 });
 
 const cc = (extra: object = {}) => ({ contract: { contract: 1, phase: 'crosscutting', dispatchedBy: [], dispatch: none, reviewedBy: none, ...extra } });
+
+it('T9: devops and tooling are no longer special phases', () => {
+  const agent = (phase: string) => ({ contract: { contract: 1, phase, dispatchedBy: [], dispatch: none, reviewedBy: none } });
+  const t = makeRepo({ agents: { 'qa-a': agent('devops'), 'qa-b': agent('tooling'), 'qa-c': agent('crosscutting'), 'qa-d': agent('spv') }, pipeline: pipe([]) });
+  expect(keys(contractRule(loadModel(t.root)))).toEqual(['CONTRACT:qa-a:devops:unknown-phase', 'CONTRACT:qa-b:tooling:unknown-phase']);
+  t.cleanup();
+});
 
 it('CONTRACT: agent listed in two phases', () => {
   const t = makeRepo({
@@ -109,16 +116,19 @@ it('DISPATCH: unloaded dispatcher does not cause undispatched', () => {
   t.cleanup();
 });
 
-it('SPV: shared SPV via spvPairs is consistent', () => {
-  const ws = ['qa-cicd-planner', 'qa-cicd-implementer', 'qa-cicd-evaluator'];
+it('SPV: a shared SPV paired through the role table is consistent (qa-compliance-spv); a stale pair is reported', () => {
+  const ws = ['qa-compliance-iso25010', 'qa-compliance-gdpr', 'qa-compliance-pdpa'];
   const agents: Record<string, any> = {
-    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-cicd-spv'] }),
-    'qa-cicd-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
+    'qa-orchestrator': cc({ dispatches: [...ws, 'qa-compliance-spv'] }),
+    'qa-compliance-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-orchestrator'], reviewedBy: none, reviews: ws } },
   };
-  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'devops', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-cicd-spv' } };
-  const t = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-cicd-spv'])) } });
-  expect(keys(spvRule(loadModel(t.root)))).toEqual([]);
-  t.cleanup();
+  for (const w of ws) agents[w] = { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-orchestrator'], reviewedBy: 'qa-compliance-spv' } };
+  const consistent = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: Object.fromEntries(ws.map((w) => [w, 'qa-compliance-spv'])) } });
+  expect(keys(spvRule(loadModel(consistent.root)))).toEqual([]);
+  consistent.cleanup();
+  const stale = makeRepo({ agents, pipeline: { ...MIN_PIPELINE, spvPairs: { 'qa-cicd-planner': 'qa-cicd-spv' } } });
+  expect(keys(spvRule(loadModel(stale.root)))).toEqual(['SPV:pipeline:qa-cicd-planner:pair-mismatch']);
+  stale.cleanup();
 });
 
 it('AH-17: qa-x does not resolve to the skill _qa-x (no x → _x fallback, no frontmatter alias)', () => {
@@ -154,5 +164,22 @@ it('SPV: not dispatched together', () => {
     },
   });
   expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-w1:qa-w1-spv:not-dispatched-together']);
+  t.cleanup();
+});
+
+it('AUD-049: a worker that dispatches its own SPV is dispatched together with it; disjoint dispatchers still fail', () => {
+  const t = makeRepo({
+    agents: {
+      'qa-boss': cc({ reviewedBy: 'qa-boss-spv', dispatches: ['qa-boss-spv', 'qa-w'] }),
+      'qa-boss-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-boss'], reviewedBy: none, reviews: ['qa-boss'] } },
+      'qa-w': { contract: { contract: 1, phase: 'crosscutting', dispatchedBy: ['qa-boss'], reviewedBy: 'qa-w-spv' } },
+      'qa-other': cc({ dispatches: ['qa-w-spv'] }),
+      'qa-w-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: ['qa-other'], reviewedBy: none, reviews: ['qa-w'] } },
+      // never dispatched: two empty dispatcher lists are not "together"
+      'qa-idle': cc({ reviewedBy: 'qa-idle-spv' }),
+      'qa-idle-spv': { dir: 'spv', contract: { contract: 1, phase: 'spv', dispatchedBy: [], dispatch: none, reviewedBy: none, reviews: ['qa-idle'] } },
+    },
+  });
+  expect(keys(spvRule(loadModel(t.root)))).toEqual(['SPV:qa-idle:qa-idle-spv:not-dispatched-together', 'SPV:qa-w:qa-w-spv:not-dispatched-together']);
   t.cleanup();
 });

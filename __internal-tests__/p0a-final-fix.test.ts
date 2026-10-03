@@ -73,7 +73,7 @@ describe('I2: the orchestrator SPV exempts the SPV-less agents the barrier exemp
     expect(check3).toMatch(/released work report is enough/);
   });
   it("the orchestrator's SPV-less row names only SPV_NONE agents", () => {
-    const row = prose('orchestrator/qa-orchestrator.md').split('\n').find((l) => l.includes('none yet — the barrier'))!;
+    const row = prose('orchestrator/qa-orchestrator.md').split('\n').find((l) => l.includes('| none: `SPV_NONE`'))!;
     expect(row).toContain('`SPV_NONE` in `@qa/run-state`');
     const names = [...row.matchAll(/`(qa-[a-z0-9*-]+)`/g)].map((m) => m[1]!);
     expect(names.length).toBeGreaterThan(0);

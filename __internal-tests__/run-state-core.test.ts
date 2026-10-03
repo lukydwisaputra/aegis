@@ -18,6 +18,7 @@ import {
   writeActiveRun,
 } from '@qa/run-state';
 import { appendChained } from '@qa/event-bus';
+import { ROLES } from '@qa/path-guard';
 import { makeAegisRoot, thrownCode, type TmpAegis } from './helpers/aegis-root';
 
 let t: TmpAegis;
@@ -113,13 +114,15 @@ describe('caller', () => {
   it.each([
     ['qa-ui-specialist', 'qa-ui-specialist-spv'],
     ['qa-test-planner', 'qa-test-planner-spv'],
-    ['qa-cicd-planner', 'qa-cicd-spv'],
-    ['qa-cicd-implementer', 'qa-cicd-spv'],
-    ['qa-cicd-evaluator', 'qa-cicd-spv'],
-    ['qa-github-planner', 'qa-github-spv'],
-    ['qa-github-implementer', 'qa-github-spv'],
+    ...(['iso25010', 'iso5055', 'istqb', 'cmmi', 'gdpr', 'pdpa'] as const).map((c): [string, string] => [`qa-compliance-${c}`, 'qa-compliance-spv']),
   ])('pairs %s with %s', (agent, spv) => {
     expect(pairedSpv(agent)).toBe(spv);
+  });
+
+  it('every other reviewed role pairs with <agent>-spv, and SHARED_SPV is gone (P2 T11)', () => {
+    for (const r of ROLES.filter((x) => x.spv !== null && x.kind !== 'compliance')) expect(pairedSpv(r.agent)).toBe(`${r.agent}-spv`);
+    const src = fs.readFileSync(path.join(__dirname, '..', 'packages', '@qa', 'run-state', 'src', 'caller.ts'), 'utf-8');
+    expect(src).not.toMatch(/SHARED_SPV/);
   });
 
   it('recognises Tier-2 specialists but not their SPVs', () => {

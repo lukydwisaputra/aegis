@@ -186,17 +186,15 @@ Tags are validated in `@qa/contracts/tags.ts`. Each regulation has a named regex
 
 The `@qa/reporters.writeArtifact` pipeline runs tag validation at step 3. Malformed tags reject the entire write and emit `compliance.tag.invalid`.
 
-## 13.8 Knowledge librarian query resolution
+## 13.8 Knowledge references
 
-`qa-knowledge-librarian` exposes a single operation: "what do the books say about X?"
+There is no query service. Each agent's `knowledge_refs` frontmatter lists the `knowledge/synthesis/*.md` topics it reads, plus its own lessons file:
 
-1. Receive query string from worker agent
-2. Load `knowledge/INDEX.md` to find which books/chapters cover the topic
-3. Read the matching `knowledge/{slug}/ch-XX-*.md` files
-4. Return a synthesized summary with source citations
-5. Worker agent cites these sources in its work-report
+1. The agent reads its `knowledge_refs` files at the start of its task
+2. It cites what it used in its work report (`evidence[]`)
+3. `knowledge/INDEX.md` records which books and chapters feed each synthesis topic, for whoever maintains the corpus
 
-This pattern keeps worker context lean — agents don't grep raw knowledge files themselves.
+The synthesis files keep worker context lean: agents read the cross-book summary, not the raw chapters.
 
 ## 13.9 Crash recovery (`/qa-resume`)
 

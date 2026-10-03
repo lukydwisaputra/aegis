@@ -8,7 +8,7 @@
 
 This QA framework is an autonomous, agent-based testing system that sits alongside your product codebase. It does not replace your developers or your judgment. It replaces the mechanical, repetitive labor of test planning, execution, defect triage, and reporting — and does so in a reproducible, auditable way.
 
-The system is opinionated about process. It follows a structured Software Testing Life Cycle (STLC) with explicit gates. It writes artefacts in standardised formats. It learns from its own mistakes between runs. If you need something more freeform, you can disable gates or restrict to Lite mode; but the default profile is designed to produce board-quality evidence.
+The system is opinionated about process. It follows a structured Software Testing Life Cycle (STLC) with explicit gates. It writes artefacts in standardised formats. It learns from its own mistakes between runs. If you need something shorter, `/qa-smoke` runs a fast cycle; the full cycle and its three locked gates are designed to produce board-quality evidence.
 
 ---
 
@@ -63,14 +63,11 @@ The framework explicitly does not:
 The system uses a tiered agent hierarchy:
 
 - **Orchestrator** (`qa-orchestrator`) — a single director agent that receives commands, plans work, and dispatches to lower tiers
-- **Tier-1 phase agents** — eight agents that own each STLC phase: `qa-requirements-analyst`, `qa-test-planner`, `qa-test-designer`, `qa-environment-engineer`, `qa-test-executor`, `qa-defect-manager`, `qa-closure-reporter`, `qa-executive-reporter`
-- **Tier-2 specialists** — fourteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-ui-designer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-email-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
-- **Tier-2.5 DevOps** — seven agents that own CI/CD, branch strategy, environment provisioning, and secrets
-- **SPVs (Supervisors)** — twenty-two reviewer agents that audit work produced by workers and return scored feedback
-- **Compliance agents** — six agents, one per regulation, running in parallel during every cycle
-- **Cross-cutting agents** — five agents handling knowledge ingestion, self-improvement, and metrics
-
-In **Lite mode** (set `profile: "lite"` in `aegis.config.json`), only the Orchestrator plus a reduced set of workers run. SPV review, compliance, and lesson capture are disabled. Lite mode is useful for fast local smoke runs where cost is a concern.
+- **Tier-1 phase agents** — nine agents that own each STLC phase: `qa-dev-test-reviewer`, `qa-requirements-analyst`, `qa-test-planner`, `qa-test-designer`, `qa-environment-engineer`, `qa-test-executor`, `qa-defect-manager`, `qa-closure-reporter`, `qa-executive-reporter`
+- **Tier-2 specialists** — thirteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-email-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
+- **SPVs (Supervisors)** — reviewer agents that audit work produced by workers and return scored feedback: one per reviewed worker, except `qa-compliance-spv`, which reviews all six compliance agents
+- **Compliance agents** — six agents, one per regulation, running in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`
+- **Cross-cutting agents** — three agents: the context scanner, the curator (self-improvement) and the metrics collector
 
 ---
 
@@ -108,11 +105,11 @@ When you see these IDs in later chapters, they always refer to this same scenari
 
 2. **Treating the framework as a black box** — if you never read the plan file before approving the gate, you lose the primary human checkpoint. The gate exists for you to read and override.
 
-3. **Running in full-profile mode against production** — `production` environment is configured `smoke-only` and `mutating: false`. Running a full cycle against production is blocked by path-guard; do not attempt to override this without understanding the consequences.
+3. **Running a full cycle against production** — `production` environment is configured `smoke-only` and `mutating: false`. Running a full cycle against production is blocked by path-guard; do not attempt to override this without understanding the consequences.
 
 4. **Assuming "no defects" means "no bugs"** — the framework tests what it can reach. Unreachable code, untested edge cases, and misspecified requirements are outside its scope.
 
-5. **Skipping Lite mode for local iteration** — a full-profile run costs more tokens and takes longer. Use `profile: "lite"` and `/qa-smoke` for rapid feedback loops during development.
+5. **Skipping `/qa-smoke` for local iteration** — a full cycle costs more tokens and takes longer. Use `/qa-smoke` for rapid feedback loops during development.
 
 6. **Ignoring the self-improvement loop** — if agents keep making the same mistakes and you never promote lessons, the system does not improve. Run `/qa-promote` after stable cycles.
 

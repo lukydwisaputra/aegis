@@ -9,7 +9,7 @@ Modules group all IDs (TC-AUTH-031, DEF-BILL-0017) and are the primary scoping d
 1. Open `aegis/module-codes.md`
 2. Add a row: `| ABBR | Full name | Owner | Description |`
 3. Run `/qa-health` — it validates all module codes used in artifacts against this registry
-4. Open a PR via the standard flow; `qa-github-spv` will verify the registry update
+4. Open a PR via the standard flow; the reviewer checks the registry update
 
 Example: adding a Billing module:
 ```markdown
@@ -18,7 +18,7 @@ Example: adding a Billing module:
 
 ## 14.2 Adding a new agent
 
-1. Choose a tier: Tier-1 (STLC phase), Tier-2 (specialist), Tier-2.5 (DevOps), Tier-3 (cross-cutting)
+1. Choose a tier: Tier-1 (STLC phase), Tier-2 (specialist), compliance, or cross-cutting
 2. Create `aegis/.claude/agents/{tier}/{name}.md` with this frontmatter:
    ```yaml
    ---
@@ -43,7 +43,7 @@ Example: adding a Billing module:
 
 1. Create a knowledge file at `knowledge/synthesis/compliance-{reg}.md` with the clause catalog
 2. Create the reviewer agent at `.claude/agents/compliance/qa-compliance-{reg}.md`
-3. Create the SPV at `.claude/agents/spv/qa-compliance-{reg}-spv.md`
+3. Add the agent to `qa-compliance-spv`: its `reviews` list, the agent's file and lessons file in its Inputs and contract `reads`, and the lessons file in its `knowledge_refs`. Set the agent's `reviewedBy: qa-compliance-spv`, add the pair to `pipeline.yaml#spvPairs`, and give its row `spv: "qa-compliance-spv"` in `packages/@qa/path-guard/src/roles.ts`
 4. Add the tag format regex to `@qa/contracts/tags.ts`
 5. Update `aegis.config.json.compliance[]` with the new regulation key
 6. Add the regulation to `thresholds.yaml` under relevant stages
@@ -58,7 +58,7 @@ A specialist is a Tier-2 agent invoked by the test executor for a specific testi
 2. Add its short name and `mutates` flag to `SPECIALISTS` in `packages/@qa/contracts/src/specialists.ts`, then list the short name in `aegis.config.json.environments.{env}.allowedSpecialists` where it should run (read-only environments refuse mutating specialists)
 3. Add a `/qa-run-specialist --specialist={name}` path to the skill
 4. Wire it into `qa-test-executor.md`'s dispatch table
-5. If the specialist uses worktree isolation (rare for non-DevOps specialists), add the `isolation: "worktree"` annotation
+5. If the specialist uses worktree isolation (rare), add the `isolation: "worktree"` annotation
 6. Update `.claude/pipeline.yaml`: a `routing` route (`byType` / `byTechnique`) for each test type or technique it serves, and an `envSpecialists` short name if environments list it — see §14.11
 
 ## 14.5 Adding a new command/skill
@@ -147,7 +147,7 @@ contracts, with `.claude/pipeline.yaml`, with the config files and with the docs
 | Field | Meaning |
 |-------|---------|
 | `contract` | Schema version, always `1` |
-| `phase` | A phase id from `pipeline.yaml`, or `crosscutting` / `spv` / `devops` / `tooling` |
+| `phase` | A phase id from `pipeline.yaml`, or `crosscutting` / `spv` |
 | `dispatchedBy` | Agents or skills that dispatch this agent |
 | `dispatch` | `{none: "<reason>"}` when nothing dispatches it |
 | `reviewedBy` | Its SPV, or `{none: "<reason>"}` |
@@ -185,7 +185,7 @@ entry counts as baseline growth: the PR needs the `baseline-growth` label and th
 | `routing` → `byType` / `byTechnique` | Adding a specialist, or a test type / technique it serves |
 | `routing` → `designerEmits` / `techniqueWithoutSpecialist` | The test designer produces a new type or technique |
 | `envSpecialists` | Environments refer to a specialist by a short name |
-| `spvPairs` | An SPV is not named `<agent>-spv` — also update `SHARED_SPV` in `packages/@qa/run-state/src/caller.ts`, or SPV reports `pair-mismatch` |
+| `spvPairs` | An SPV is not named `<agent>-spv` — also set the worker's `spv` in `packages/@qa/path-guard/src/roles.ts`, or SPV reports `pair-mismatch` |
 | `sources` | A path is produced outside any agent (`cli`, `owner`, `target`, `repo`); a concrete `repo` read must exist on disk |
 | `nonAgentNames` | A `qa-*` token in the docs is not an agent or skill (labels, project names) |
 | `externalScripts` | A `pnpm <script>` named in the docs runs in the target repo, not in Aegis (e.g. `husky`) |
@@ -212,11 +212,13 @@ saying "during <Phase>"; with no such line the check reports
 `CONTRACT:qa-orchestrator:during-phase:anchor-missing`. An anchor whose heading or line is missing
 reports `…:anchor-missing` instead of passing. Reword an anchor only together with the rule in
 `packages/@qa/alignment/src/rules/pipeline.ts`. Other graph checks: dispatching needs the
-`Agent`/`Skill` tool and writing needs `Write`/`Edit`; a producer counts only when a pipeline phase
-or execution skill reaches it; an agent dispatched in several phases is listed under each in `pipeline.yaml`, its
-contract `phase` names the last of them (`CONTRACT … multi-phase` otherwise) and its writes count as produced from
-the first; same-phase units must not read each other's writes; a worker with an
-SPV lists task.claim and work-report.submit in its `cli` field; a reachable unit that awaits an event
+`Agent`/`Skill` tool and writing needs `Write`/`Edit`; an SPV is dispatched together with its
+worker when they share a dispatcher or when the worker dispatches its SPV itself (`qa-orchestrator`
+→ `qa-orchestrator-spv`); a producer counts only when a pipeline phase or execution skill reaches
+it; an agent dispatched in several phases is listed under each in `pipeline.yaml`, its contract
+`phase` names the last of them (`CONTRACT … multi-phase` otherwise) and its writes count as
+produced from the first; same-phase units must not read each other's writes; a worker with an SPV
+lists task.claim and work-report.submit in its `cli` field; a reachable unit that awaits an event
 whose only emitters nothing reaches is `EVENT:<awaiting unit>:<event>:unreachable-emitter`.
 
 **Named event consumers:** prose that says an event is processed, consumed or handled by a named unit
