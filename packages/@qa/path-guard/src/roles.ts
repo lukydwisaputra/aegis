@@ -89,7 +89,7 @@ export const ROLES: readonly Role[] = [
   specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),
   specialist("api", ["{testsDir}/api/**", "{testsDir}/contract/**"]),
   specialist("database", ["{testsDir}/integration/**"]),
-  specialist("email", ["{testsDir}/email/**"]),
+  specialist("email", ["{testsDir}/email/**", "{testsDir}/support/mailpit.ts"]),
   specialist("exploratory", ["{run}/reports/exploratory/**", "{run}/defect-candidates/**", "{run}/evidence/exploratory/**"]),
   specialist("feature-flag", ["{testsDir}/specs/**/flags.spec.ts"]),
   specialist("performance", ["{testsDir}/perf/**"]),

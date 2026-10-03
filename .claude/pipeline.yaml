@@ -143,7 +143,6 @@ escapes:
   - {unit: qa-defect-manager-spv, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager-spv.md:22 candidates exist only when a session found a suspect"}
   - {unit: qa-defect-manager-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager-spv.md:23 read when the Dev-test-review phase ran"}
   - {unit: qa-dev-test-reviewer-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
-  - {unit: qa-email-specialist, field: optional, value: "secrets/.env.{env}", reason: "qa-email-specialist.md:25 Gmail OAuth credentials if adapter is gmail"}
   - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-environment-engineer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.pdf", reason: "qa-executive-reporter.md:40 Deliverable 1, final human-facing PDF"}
