@@ -158,7 +158,7 @@ export const LOCATOR_HIERARCHY_NOTE =
 // ─── data-testid convention ───────────────────────────────────────────────────
 
 /**
- * Builds a data-testid string following the Aegis convention:
+ * Builds a data-testid string following the QA convention:
  * `{scope}-{component}-{element}-{type}`
  * Example: testId("checkout", "form", "email", "input") → "checkout-form-email-input"
  */
