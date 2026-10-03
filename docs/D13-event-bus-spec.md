@@ -112,7 +112,9 @@ Every event includes `ts: string` (ISO-8601 UTC).
 | `sandbox.pruned` | path, ageDays |
 | `sandbox.experiment-completed` | path, agent |
 
-### DevOps
+### DevOps (retired)
+The DevOps agents are retired (AUD-046) and no agent emits these types; the schemas stay declared so that historical event logs still parse.
+
 | Type | Key fields |
 |------|-----------|
 | `devops.branch-created` | branchName, ticketId |

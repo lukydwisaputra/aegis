@@ -112,7 +112,7 @@ Delivery order (agreed 2026-09-30; each slice = spec → plan → subagents → 
 | AUD-049 | `qa-orchestrator-spv` never dispatched → gate enforcement never validated | 0 references | HIGH | fixed — P0a-1 dispatches qa-orchestrator-spv for every gate task; P2a fixes the checker for a self-dispatched SPV |
 | AUD-050 | `qa-ui-designer` + SPV misfiled in tier2-specialist and orphaned | qa-ui-designer.md:3 | LOW | fixed — P2a (pair retired; dashboard work is framework development) |
 | AUD-051 | email and realtime specialists never ran in any real run (verify after AUD-033) | real-run matrix | MED | open |
-| AUD-052 | No SPV for compliance ×6, curator, cicd-evaluator, cross-cutting; HANDBOOK/08 claims compliance SPV exists | HANDBOOK/08:36,143 | MED | fixed — P2a (qa-compliance-spv reviews the six compliance agents; the Scan barrier strict-validates the scanner profile; the owner reviews the curator through /qa-promote) |
+| AUD-052 | No SPV for compliance ×6, curator, cicd-evaluator, cross-cutting; HANDBOOK/08 claims compliance SPV exists | HANDBOOK/08:36,143 | MED | fixed — P2a (qa-compliance-spv reviews the six compliance agents; the Scan barrier strict-validates the scanner profile; the owner reviews the curator through /qa-promote; the other cross-cutting agent, the metrics collector, runs without a task and has no SPV by design) |
 | AUD-053 | `lite` profile unimplemented; HANDBOOK lite list names nonexistent agents | qa-orchestrator.md:26,41; HANDBOOK/06:170-188 | MED | partial — docs purged of Lite (P2a); config, contracts, CLI and orchestrator → P2b |
 | AUD-054 | Packages with zero code consumers (no app, package, script or test imports them; recount 2026-10-01): artifact-policy, auth-fixtures, dashboard-ui, deps-updater, email-adapters, eslint-plugin, metrics, multi-app, pdf-renderer, reporters, sandbox-manager, secrets, supabase, target-scanner, web-explorer, test-helpers (empty, no source) — several are named in agent prose, so decide per package: wire or delete | package grep | MED | open → P2c — recount after P0b-2: sandbox-manager deleted; reporters now has a consumer (legacy-writers.test.ts imports it; wired in P0c); P2c owns the remaining package fates |
 | AUD-055 | Compliance described as "every full cycle" vs "optional"; 6 in parallel exceed any cap | HANDBOOK/06:118; qa-orchestrator.md:62 | LOW | open |
@@ -159,7 +159,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | AUD-073 | CLAUDE.md commands wrong: `pnpm -F aegis-internal-tests`, `pnpm qa-health`; `qa-check-onboarding-sync` points to missing script | CLAUDE.md; package.json | MED | open — P5; the stale `pnpm -F aegis-internal-tests` in CLAUDE.md Commands was seen again in the P0b-2 final review and left for this row |
 | AUD-074 | 5 SPVs reference missing lessons files; no SPV has a lessons stub; agents read `lessons.md` while the CLAUDE.md stub creates `lessons.json` — decide one name | agent-memory/ | LOW | partial — the qa-cicd-spv and qa-github-spv lessons lines left with the agents (P2a); the rest → P5 |
 | AUD-075 | Agent counts drift (63 / 64 files / tier table sums 66) | CLAUDE.md:67; README.md:5; HANDBOOK/06:3,202; HANDBOOK/01:67 | LOW | partial — CLAUDE.md tier table and HANDBOOK/06 counts match the P2a roster (P2a); the rest → P5 |
-| AUD-076 | HANDBOOK drift: nonexistent agent names, wrong model column, PDPA "Thailand", discovery paths, 04:41/83 errors, CLAUDE.md `qa-planner`/`qa-director`, closure-spv brand grep uses `qa-executor`, HANDBOOK/17 4-phase taxonomy vs 9-phase | HANDBOOK/03,04,06,08,17; qa-closure-reporter-spv.md:37 | LOW | partial — DevOps phantom names in HANDBOOK/03 §3.6 and HANDBOOK/06 §6.5 removed (P2a); the rest → P5 |
+| AUD-076 | HANDBOOK drift: nonexistent agent names, wrong model column, PDPA "Thailand", discovery paths, 04:41/83 errors, CLAUDE.md `qa-planner`/`qa-director`, closure-spv brand grep uses `qa-executor`, HANDBOOK/17 4-phase taxonomy vs 9-phase | HANDBOOK/03,04,06,08,17; qa-closure-reporter-spv.md:37 | LOW | partial — DevOps phantom names in HANDBOOK/03 §3.6 and HANDBOOK/06 §6.5 removed, PDPA is Singapore in HANDBOOK/06, 08 and 16, and the HANDBOOK/06 model column follows model-policy.yaml (P2a); the rest → P5 |
 | AUD-077 | Budget warning threshold 90% (orchestrator) vs 80% (SPV) | qa-orchestrator.md:97; qa-orchestrator-spv.md:34 | LOW | open |
 | AUD-078 | model-policy comment cites outdated model generation | model-policy.yaml:118-119 | LOW | open |
 | AUD-115 | `plan-validation/canonical-example/` (the only end-to-end worked example: STORY → REQ → RISK → TC → DEF) predates the current schemas (stories JSON with happy/rejection/edge AC, defect candidates, CLI work reports) and nothing links to it; refresh it, link it from HANDBOOK, and mark `plan-validation/` historical in its README. Keep `plan-validation/` and `agent-graveyard/` (owner, 2026-10-01) | plan-validation/canonical-example/*.md (2026-05-24); git grep: 0 refs | LOW | open |
@@ -252,8 +252,9 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 Known detection gaps (open items the checker cannot see; their slices close them by review, not by
 deleting baseline lines):
 
-- AUD-052 — `reviewedBy: {none: …}` is accepted by design, so agents without an SPV are not flagged;
-  only the HANDBOOK/08 `qa-compliance-gdpr-spv` reference is tracked (DOC-REF).
+- AUD-052 — closed in P2a: `reviewedBy: {none: …}` is still accepted by design, but the run-state
+  barrier now requires an SPV review for every task except the `SPV_NONE` agents (scanner, curator),
+  each with a stated reason.
 - AUD-056a — the SKILL rule ignores reads of paths the skill itself writes (spec §4 narrowing), so an
   execution skill reading its own stale `execution/results.json` is not flagged.
 

@@ -43,7 +43,7 @@ Example: adding a Billing module:
 
 1. Create a knowledge file at `knowledge/synthesis/compliance-{reg}.md` with the clause catalog
 2. Create the reviewer agent at `.claude/agents/compliance/qa-compliance-{reg}.md`
-3. Add the agent to `qa-compliance-spv` (its `reviews` list and its Inputs lessons file), set the agent's `reviewedBy: qa-compliance-spv`, add the pair to `pipeline.yaml#spvPairs`, and give its row `spv: "qa-compliance-spv"` in `packages/@qa/path-guard/src/roles.ts`
+3. Add the agent to `qa-compliance-spv`: its `reviews` list, the agent's file and lessons file in its Inputs and contract `reads`, and the lessons file in its `knowledge_refs`. Set the agent's `reviewedBy: qa-compliance-spv`, add the pair to `pipeline.yaml#spvPairs`, and give its row `spv: "qa-compliance-spv"` in `packages/@qa/path-guard/src/roles.ts`
 4. Add the tag format regex to `@qa/contracts/tags.ts`
 5. Update `aegis.config.json.compliance[]` with the new regulation key
 6. Add the regulation to `thresholds.yaml` under relevant stages
@@ -212,12 +212,13 @@ saying "during <Phase>"; with no such line the check reports
 `CONTRACT:qa-orchestrator:during-phase:anchor-missing`. An anchor whose heading or line is missing
 reports `…:anchor-missing` instead of passing. Reword an anchor only together with the rule in
 `packages/@qa/alignment/src/rules/pipeline.ts`. Other graph checks: dispatching needs the
-`Agent`/`Skill` tool and writing needs `Write`/`Edit`; an SPV is dispatched together with its worker when they share a
-dispatcher or when the worker dispatches its SPV itself (`qa-orchestrator` → `qa-orchestrator-spv`); a producer counts only when a pipeline phase
-or execution skill reaches it; an agent dispatched in several phases is listed under each in `pipeline.yaml`, its
-contract `phase` names the last of them (`CONTRACT … multi-phase` otherwise) and its writes count as produced from
-the first; same-phase units must not read each other's writes; a worker with an
-SPV lists task.claim and work-report.submit in its `cli` field; a reachable unit that awaits an event
+`Agent`/`Skill` tool and writing needs `Write`/`Edit`; an SPV is dispatched together with its
+worker when they share a dispatcher or when the worker dispatches its SPV itself (`qa-orchestrator`
+→ `qa-orchestrator-spv`); a producer counts only when a pipeline phase or execution skill reaches
+it; an agent dispatched in several phases is listed under each in `pipeline.yaml`, its contract
+`phase` names the last of them (`CONTRACT … multi-phase` otherwise) and its writes count as
+produced from the first; same-phase units must not read each other's writes; a worker with an SPV
+lists task.claim and work-report.submit in its `cli` field; a reachable unit that awaits an event
 whose only emitters nothing reaches is `EVENT:<awaiting unit>:<event>:unreachable-emitter`.
 
 **Named event consumers:** prose that says an event is processed, consumed or handled by a named unit

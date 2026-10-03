@@ -26,12 +26,12 @@ The Orchestrator is always active.
 |---|---|---|
 | `qa-dev-test-reviewer` | Opus | Developer-test review (`dev-test-review.json`), Stryker mutation scores |
 | `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton |
-| `qa-test-planner` | Sonnet | Test strategy doc, risk matrix, test case plan |
+| `qa-test-planner` | Opus | Test strategy doc, risk matrix, test case plan |
 | `qa-test-designer` | Sonnet | Test design coordination |
 | `qa-test-executor` | Sonnet | Execution coordination, Tier-2 fan-out, SPV dispatch (Tier-2) |
 | `qa-defect-manager` | Sonnet | Defect lifecycle coordination |
 | `qa-environment-engineer` | Sonnet | `playwright.config.ts`, fixtures, data factories |
-| `qa-curator` | Sonnet | Lesson queue management, promotion proposals |
+| `qa-curator` | Opus | Lesson queue management, promotion proposals |
 
 > Compliance and reporting are **not** single Tier-1 managers: compliance is six `qa-compliance-*` agents (§6.7), and reporting is split between `qa-closure-reporter` and `qa-executive-reporter` (§6.4). There is no DevOps tier (§6.5).
 
@@ -96,7 +96,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-closure-reporter-spv` | Closure artefact | 85 |
 | `qa-executive-reporter-spv` | Executive PDFs | 85 |
 | `qa-test-executor-spv` | Test result fidelity | 88 |
-| `qa-compliance-spv` | All six compliance reports (shared reviewer) | 85 |
+| `qa-compliance-spv` | All six compliance reports (shared reviewer) | n/a (categorical verdict) |
 
 SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegis review submit` and never edit worker artefacts or lessons. The **CLI** stores the review and pipes any corrective instruction into the worker's lessons; the dispatcher (orchestrator for Tier-1, `qa-test-executor` for Tier-2) dispatches the SPV and acts on the verdict.
 
@@ -104,7 +104,7 @@ SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegi
 
 ### 6.7 Compliance Agents
 
-Six compliance agents run in parallel during every full cycle. Each produces a compliance annotation file.
+The compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`. Each produces a compliance annotation file, and `qa-compliance-spv` reviews each one.
 
 | Agent | Regulation | Output |
 |---|---|---|
@@ -113,7 +113,7 @@ Six compliance agents run in parallel during every full cycle. Each produces a c
 | `qa-compliance-istqb` | ISTQB testing standards | Testing process conformance notes |
 | `qa-compliance-cmmi` | CMMI Level 3 | Process maturity checklist |
 | `qa-compliance-gdpr` | GDPR | Data handling test coverage |
-| `qa-compliance-pdpa` | PDPA (Thailand) | Personal data processing test coverage |
+| `qa-compliance-pdpa` | PDPA 2012 (Singapore) | Personal data processing test coverage |
 
 ---
 
@@ -164,5 +164,5 @@ For `RUN-20260523-001` (full cycle, Login/SSO feature), the following agents wer
 
 ### Further Reading
 
-- `docs/D06-agent-roster.md` — full agent specification with input/output schemas
-- `docs/D06-spv-rubrics.md` — scoring rubric dimensions per SPV
+- `.claude/model-policy.yaml` and `docs/D13-model-policy.md` — the model assigned to each agent
+- `docs/D13-spv-review-pattern.md` — how an SPV reviews a worker's output

@@ -164,7 +164,7 @@ When adding a new feature, the flow repeats:
 ```
 
 1. `qa-context-scanner` writes `target-profile.json` (stack, Node version, env vars)
-2. `/qa-ci-bootstrap` writes the QA workflow files (`qa-*.yml`) and checks them with actionlint and yamllint
+2. `/qa-ci-bootstrap` writes the QA workflow files (`qa-*.yml`); it does not lint them, so apply the workflow validation rules above before you commit them
 3. It prints the repository secrets to set and the Husky pre-commit hook for the developers to add
 
 Options:

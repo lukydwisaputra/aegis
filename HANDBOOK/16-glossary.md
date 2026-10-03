@@ -92,8 +92,8 @@ International standard measuring structural software quality across four charact
 **ISTQB (International Software Testing Qualifications Board)**
 The body that defines testing terminology, techniques, and process standards. The framework uses ISTQB test design technique tags (EP, BVA, DT, ST, UC).
 
-**PDPA (Personal Data Protection Act — Thailand)**
-Thailand's data protection law, analogous to GDPR. Covers collection, use, disclosure, and deletion of personal data. The compliance agent checks test coverage of consent, data subject rights, and sensitive data categories.
+**PDPA (Personal Data Protection Act 2012 — Singapore)**
+Singapore's data protection law, analogous to GDPR. Covers collection, use, disclosure, and deletion of personal data. The compliance agent checks test coverage of consent, data subject rights, and sensitive data categories.
 
 **RTM (Requirements Traceability Matrix)**
 A matrix linking requirements to test cases and test results. Columns: requirement ID, story ID, test case IDs, status, test result, defect IDs, compliance tags, risk level. Used to verify that all requirements have been tested.
