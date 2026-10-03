@@ -200,7 +200,7 @@ if [[ $DRY_RUN -eq 0 ]]; then
     | .testsDir                     = $testsDir
     | .sourceDirs                   = $srcDirs
     | .target.platform              = $platform
-    | .target.apps                  = []
+    | del(.target.apps)
     | .environments.development.url = $devUrl
     | .environments.staging.url     = $stagingUrl
     | .environments.production.url  = $prodUrl
@@ -212,7 +212,7 @@ if [[ $DRY_RUN -eq 0 ]]; then
   echo "  config updated"
 else
   echo "  [dry-run] would update fields: targetProjectRoot, testsDir, sourceDirs,"
-  echo "           target.platform, target.apps, environments.{development,staging,production}.url,"
+  echo "           target.platform (and remove target.apps), environments.{development,staging,production}.url,"
   echo "           discovery.entryPoints, discovery.rolesToExplore, dashboard.projectName"
 fi
 echo

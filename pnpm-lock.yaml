@@ -261,12 +261,6 @@ importers:
         specifier: workspace:*
         version: link:../event-bus
 
-  packages/@qa/multi-app:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
   packages/@qa/path-guard:
     dependencies:
       '@qa/contracts':

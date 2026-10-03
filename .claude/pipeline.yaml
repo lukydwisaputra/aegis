@@ -108,9 +108,6 @@ nonAgentNames:
   - qa-teardown # Playwright teardown project name (qa-environment-engineer.md, HANDBOOK/17:86)
   - qa-build-toc # pnpm script in package.json (CLAUDE.md:36 `pnpm qa-build-toc`), not the _qa-build-toc skill
   - qa-results # CI artifact name prefix (docs/D12-cicd-workflow.md:64 `qa-results-${{ github.run_id }}`)
-  - qa-api # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:167)
-  - qa-web # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:171)
-  - qa-admin # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:176)
 # pnpm scripts/bins run in the target repo by generated setup, not Aegis scripts
 externalScripts: [husky]
 # Events a Claude Code hook in scripts/hooks/ records (not an agent or skill); they count as emitted (AUD-042b).

@@ -1,4 +1,5 @@
 import { execFileSync } from 'child_process';
+import { parse } from 'yaml';
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadBaseline, loadModel, unusedConfigRule } from '@qa/alignment';
@@ -16,8 +17,8 @@ function tracked(): string[] {
 /** Program records, the ingested corpus and retired agents keep history; nothing else may name a deleted package. */
 const HISTORY = /^(docs\/superpowers|knowledge|plan-validation|agent-graveyard)\//;
 
-// Deleted packages (AUD-054). sandbox-manager went in P0b-2; multi-app and email-adapters join in later tasks.
-const DELETED = ['artifact-policy', 'auth-fixtures', 'dashboard-ui', 'deps-updater', 'sandbox-manager', 'secrets', 'target-scanner', 'web-explorer'];
+// Deleted packages (AUD-054). sandbox-manager went in P0b-2; email-adapters joins after the P2b rebase.
+const DELETED = ['artifact-policy', 'auth-fixtures', 'dashboard-ui', 'deps-updater', 'multi-app', 'sandbox-manager', 'secrets', 'target-scanner', 'web-explorer'];
 const named = new RegExp(`@qa/(?:${DELETED.join('|')})(?![\\w-])`);
 
 describe('deleted packages (AUD-054)', () => {
@@ -29,6 +30,15 @@ describe('deleted packages (AUD-054)', () => {
     // Internal tests may name a deleted package to assert that it is gone (legacy-writers.test.ts).
     const scanned = (f: string) => !HISTORY.test(f) && !/^__internal-tests__\/.*\.test\.ts$/.test(f) && /\.(ts|tsx|js|mjs|cjs|json|ya?ml|md)$/.test(f);
     expect(tracked().filter((f) => scanned(f) && named.test(read(f)))).toEqual([]);
+  });
+
+  it('the multi-app doc is gone and nothing links it; its CI job names leave nonAgentNames (single-target rule)', () => {
+    const files = tracked();
+    expect(files).not.toContain('docs/D12-monorepo-multi-app.md');
+    expect(files.filter((f) => /\.(md|ya?ml)$/.test(f) && !HISTORY.test(f) && read(f).includes('D12-monorepo-multi-app'))).toEqual([]);
+    const pipeline = parse(read('.claude/pipeline.yaml')) as { nonAgentNames: string[] };
+    expect(pipeline.nonAgentNames.filter((n) => ['qa-api', 'qa-web', 'qa-admin'].includes(n))).toEqual([]);
+    expect(read('docs/D05-commands-reference.md')).not.toMatch(/Multi-app cycle/);
   });
 
   it('the CLAUDE.md package list names only packages that exist', () => {
@@ -49,6 +59,8 @@ describe('dead config keys (spec §4.11.2)', () => {
     expect(cfg.artifacts).not.toHaveProperty('videoQuality');
     expect(cfg.artifacts).not.toHaveProperty('screenshotOnEveryStep');
     expect(cfg.discovery).not.toHaveProperty('captureScreenshots');
+    expect(cfg.target).not.toHaveProperty('apps');
+    expect(read('scripts/reset-target.sh')).not.toMatch(/\.target\.apps\s*=/);
   });
 
   it('no aegis.config.json key is unused except the baselined ones', () => {

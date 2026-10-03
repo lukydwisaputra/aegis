@@ -19,7 +19,7 @@ Options:
   --scope=<feature>     Scope to a specific feature path or description
   --type=Functional,Regression  Filter test types
   --intake=<glob>       Requirement documents to copy into the run (default: aegis.config.json#intake.sources)
-  --apps=<project-name>  Multi-app cycle (<target-project> style)
+  --apps=<a,b>          Apps of the target's monorepo to include (default: all)
   --budget=<duration>   Token budget (e.g. 30m, 2h)
 ```
 

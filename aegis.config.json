@@ -14,7 +14,6 @@
   "intake": { "sources": [] },
   "target": {
     "platform": "generic",
-    "apps": [],
     "supabase": { "rolesToTest": [] }
   },
   "collector": {
