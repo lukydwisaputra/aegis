@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { appendChained } from "@qa/event-bus";
 import { AGENT_ID, CLI_COMMANDS } from "./caller.js";
 import { busPath, resolveRunId } from "./paths.js";
@@ -37,13 +38,43 @@ function optionNameOf(inner: string): string | null {
 /** Cap on what is scrubbed, so a hostile message cannot cost more than a bounded scan. */
 const SCRUB_INPUT_MAX = 4096;
 
-const MAX_FRAGMENTS = 200;
+/** Bounds on the subtraction set, so a hostile argv cannot cost more than a bounded scan (the longest are kept). */
+export const MAX_TYPED_FRAGMENTS = 2000;
+export const MAX_TYPED_FRAGMENT_BYTES = 256 * 1024;
+
+/** Every string leaf and key of `value` when it is a JSON object or array; [] for anything else. */
+function jsonStrings(value: string): string[] {
+  const head = value.trimStart()[0];
+  if (head !== "{" && head !== "[") return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  const stack: unknown[] = [parsed];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (typeof node === "string") out.push(node);
+    else if (Array.isArray(node)) for (const x of node) stack.push(x);
+    else if (node !== null && typeof node === "object") {
+      for (const [k, x] of Object.entries(node)) {
+        out.push(k);
+        stack.push(x);
+      }
+    }
+  }
+  return out;
+}
 
 /**
- * What the caller typed on the command line, as literal fragments to subtract: each argv element, its part after the
- * first `=` (the option name before it stays, it is vocabulary) and its newline-separated lines, trimmed. Fragments
- * shorter than 3 characters and exact CLI vocabulary (command words, the option names the program defines) are not
- * fragments.
+ * What the caller typed on the command line, as literal fragments to subtract. For each argv element (or, for an
+ * `--opt=value` element, its value; the option name stays, it is vocabulary): the value itself, its newline-separated
+ * lines, its resolved path when it contains `/`, and, when it is a JSON object or array, every string leaf and key both
+ * raw and JSON-escaped. Fragments are trimmed; those shorter than 3 characters and exact CLI vocabulary (command words,
+ * the option names the program defines) are dropped. At most MAX_TYPED_FRAGMENTS fragments and MAX_TYPED_FRAGMENT_BYTES
+ * characters are returned, longest first.
  */
 export function typedFragments(argv: readonly string[], vocabulary: ReadonlySet<string> = new Set()): string[] {
   const known = new Set<string>([...vocabulary, ...CLI_COMMANDS.flatMap((c) => c.split("."))]);
@@ -52,34 +83,72 @@ export function typedFragments(argv: readonly string[], vocabulary: ReadonlySet<
     const f = piece.trim();
     if (f.length >= 3 && !known.has(f)) out.add(f);
   };
-  for (const el of argv.slice(0, MAX_FRAGMENTS)) {
+  const addWithLines = (piece: string): void => {
+    add(piece);
+    if (/[\r\n]/.test(piece)) for (const line of piece.split(/\r?\n/)) add(line);
+  };
+  const addValue = (value: string): void => {
+    addWithLines(value);
+    if (value.includes("/")) add(resolve(value));
+    for (const leaf of jsonStrings(value)) {
+      addWithLines(leaf);
+      add(JSON.stringify(leaf).slice(1, -1));
+    }
+  };
+  for (const el of argv) {
     const eq = el.indexOf("=");
-    const pieces = eq > 0 && el.startsWith("-") ? [el.slice(eq + 1)] : [el, ...(eq > 0 ? [el.slice(eq + 1)] : [])];
-    for (const piece of pieces) {
-      add(piece);
-      for (const line of piece.split(/\r?\n/)) add(line);
+    if (!(eq > 0 && el.startsWith("-"))) addValue(el);
+    if (eq > 0) addValue(el.slice(eq + 1));
+  }
+  // Longest first, by length buckets (linear; a full sort of a hostile argv's lines costs more than the scan it bounds).
+  const byLength = new Map<number, string[]>();
+  for (const f of out) {
+    const bucket = byLength.get(f.length);
+    if (bucket === undefined) byLength.set(f.length, [f]);
+    else bucket.push(f);
+  }
+  const picked: string[] = [];
+  let bytes = 0;
+  for (const len of [...byLength.keys()].sort((a, b) => b - a)) {
+    if (bytes + len > MAX_TYPED_FRAGMENT_BYTES) continue;
+    for (const f of byLength.get(len)!) {
+      if (picked.length >= MAX_TYPED_FRAGMENTS) return picked;
+      if (bytes + len > MAX_TYPED_FRAGMENT_BYTES) break;
+      picked.push(f);
+      bytes += len;
     }
   }
-  return [...out].sort((a, b) => b.length - a.length);
+  return picked;
 }
 
 const OPTION_SPEC = /^--?[A-Za-z][\w-]*(?: [<[][\w.|-]*[>\]])?$/;
 
+/** A quoted operand: it closes before whitespace, `;:,.)` or the end. */
+const QUOTED = /(['"`])([\s\S]*?)\1(?=[\s;:,.)]|$)/g;
+/** The same, for a text that was cut: a quote left open at the cut is closed at the end. */
+const QUOTED_OR_CUT = /(['"`])([\s\S]*?)(?:\1(?=[\s;:,.)]|$)|$)/g;
+
 /**
- * The log is append-only, hash-chained and exported. For argv the promise "a refusal text carries nothing the caller
- * typed" holds by construction: every typed fragment (`typed`, see typedFragments) is subtracted first, quoted or not.
- * Values that came from a file (--file) are not in argv and are covered by pattern rules only (best effort): quoted
- * operands, credential-bearing shapes, token shapes and long digit-bearing runs become <redacted> or <value>.
+ * The log is append-only, hash-chained and exported. Two guarantees, of different strength:
+ * - By construction, for what the caller typed: every typedFragments fragment of argv (each value, its lines, its
+ *   resolved path when it contains `/`, and every string leaf and key of a JSON value, raw and JSON-escaped) is
+ *   subtracted from the whole, uncut message before anything else runs, quoted or not. This holds within the fragment
+ *   bounds of typedFragments (the longest fragments are kept).
+ * - Best effort, for values that came from a file (--file) or anywhere else outside argv: pattern rules on the first
+ *   SCRUB_INPUT_MAX characters turn quoted operands, credential-bearing shapes, token shapes and long digit-bearing runs
+ *   into <value> or <redacted>.
  */
 export function scrubRefusalMessage(s: string, typed: readonly string[] = []): string {
-  let text = s.slice(0, SCRUB_INPUT_MAX);
+  let text = s;
   for (const f of typed) text = text.split(f).join("<value>");
+  const cut = text.length > SCRUB_INPUT_MAX;
+  text = text.slice(0, SCRUB_INPUT_MAX);
   return text
     .replace(/argument '[\s\S]*?' is invalid/g, `argument '<value>' is invalid`)
     .replace(/unknown command '[\s\S]*/g, `unknown command '<value>'`)
     .replace(/unknown option '([\s\S]*?)'(?=\n|$)/g, (_m, inner: string) => `unknown option '${optionNameOf(inner) ?? "<value>"}'`)
     .replace(/(?:\.\.\.)?"[\s\S]*?"(?:\.\.\.)? is not valid JSON/g, `"<value>" is not valid JSON`)
-    .replace(/(['"`])([\s\S]*?)\1(?=[\s;:,.)]|$)/g, (m, quote: string, inner: string, offset: number, whole: string) => {
+    .replace(cut ? QUOTED_OR_CUT : QUOTED, (m, quote: string, inner: string, offset: number, whole: string) => {
       const before = whole.slice(Math.max(0, offset - 24), offset);
       if (quote === "'" && /\boption $/.test(before) && OPTION_SPEC.test(inner)) return m;
       if (quote === '"' && /^(?:code|expected|received|path|message|options)$/.test(inner) && whole[offset + m.length] === ":") return m;
@@ -110,10 +179,12 @@ export async function recordCliRefusal(root: string, ctx: CliRefusalContext, ref
         type: "cli.refused",
         ts: iso(),
         runId,
-        command: scrubRefusalMessage(refusal.command.slice(0, SCRUB_INPUT_MAX), typed).slice(0, 200),
+        // The command id is CLI vocabulary (commandIdOf / knownCommand), never typed text: pattern rules only, no
+        // subtraction, which would cut a typed value out of the id itself (`--note=lai` would give task.c<value>m).
+        command: scrubRefusalMessage(refusal.command.slice(0, SCRUB_INPUT_MAX)).slice(0, 200),
         code: refusal.code,
         caller: ctx.caller,
-        message: scrubRefusalMessage(refusal.message.slice(0, SCRUB_INPUT_MAX), typed).slice(0, CLI_REFUSAL_MESSAGE_MAX),
+        message: scrubRefusalMessage(refusal.message, typed).slice(0, CLI_REFUSAL_MESSAGE_MAX),
       },
       busPath(root, runId),
       { emittedBy: ctx.caller, runId },

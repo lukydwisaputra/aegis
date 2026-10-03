@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { busPath, recordCliRefusal, scrubRefusalMessage, typedFragments } from '@qa/run-state';
+import { busPath, MAX_TYPED_FRAGMENT_BYTES, MAX_TYPED_FRAGMENTS, recordCliRefusal, scrubRefusalMessage, typedFragments } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 // P2c — NEW-06: the CLI records an agent's invalid-input or internal refusal as cli.refused (spec §4.12).
@@ -101,6 +101,32 @@ describe('scrubRefusalMessage', () => {
       scrubRefusalMessage(bad);
       expect(Date.now() - t0).toBeLessThan(100);
     }
+  });
+
+  it('bounds the typed set and scrubs with 200 elements x 1000 lines in under 200 ms', () => {
+    const argv = Array.from({ length: 200 }, (_, e) => Array.from({ length: 1000 }, (_, l) => `line-${e}-${l}-zz`).join('\n'));
+    for (const bad of ['"'.repeat(4096), 'line-1-1-zz '.repeat(400), '--x='.repeat(800)]) {
+      const t0 = Date.now();
+      const typed = typedFragments(argv);
+      scrubRefusalMessage(bad, typed);
+      expect(Date.now() - t0).toBeLessThan(200);
+      expect(typed.length).toBeLessThanOrEqual(MAX_TYPED_FRAGMENTS);
+      expect(typed.reduce((n, f) => n + f.length, 0)).toBeLessThanOrEqual(MAX_TYPED_FRAGMENT_BYTES);
+      expect(typed[0]!.length).toBe(Math.max(...argv.map((a) => a.length)));
+    }
+  });
+
+  it('JSON leaves and keys (raw and escaped) and resolved paths are fragments', () => {
+    const typed = typedFragments(['event', 'append', '--json', JSON.stringify({ hunterkey: ['a" hunterleaf', 'x\\y'] }), '--file=/nonexistent/zz/../hunterpath.json']);
+    expect(typed).toEqual(expect.arrayContaining(['hunterkey', 'a" hunterleaf', 'a\\" hunterleaf', 'x\\y', 'x\\\\y', path.resolve('/nonexistent/hunterpath.json')]));
+    expect(scrubRefusalMessage('got "a\\" hunterleaf" and key hunterkey, open /nonexistent/hunterpath.json', typed)).toBe('got "<value>" and key <value>, open <value>');
+  });
+
+  it('subtracts on the whole message before the cut, and closes a quote left open by the cut', () => {
+    const long = Array(450).fill('hunter word').join(' ');
+    expect(scrubRefusalMessage(`task id "${long}" must match`, typedFragments([long]))).toBe('task id "<value>" must match');
+    const fromFile = `id "${'filebody text '.repeat(400)}" is bad`;
+    expect(scrubRefusalMessage(fromFile)).toBe('id "<value>"');
   });
 });
 
@@ -232,19 +258,63 @@ describe('the built CLI records refusals without changing them', () => {
     expect(message).toContain('"received": "<value>"');
   }, 60_000);
 
-  ctest('credential URL and base64 values in a file body are not recorded', () => {
-    const file = report({ id: 'https://user:hunter2xyz@example.invalid/x', taskId: 'aGVsbG8vd29ybGQrZm9vL2Jhcj0xMjM0NTY3ODkwhunter2xyz', agent: 'Bearer hunter2xyz' });
-    expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', file).status).toBe(2);
-    expect(refused()).toHaveLength(1);
+  // A schema-valid report whose agent slot is echoed ("work report agent ... does not match caller"). The `x" ` prefix
+  // closes the quoted operand early, so only the credential and token rules stand between the value and the log.
+  ctest('credential URL, Bearer and base64 values in an echoed file-body slot are not recorded', () => {
+    const valid = { id: 'WR-T-1', taskId: 'T-1', startedAt: '2026-09-30T08:00:00.000Z', completedAt: '2026-09-30T08:00:00.000Z', summary: 'Completed T-1 for the refusal test.', approach: 'Fixture-driven refusal test.' };
+    for (const agent of ['x" https://user:hunter2xyz@example.invalid/x', 'x" Bearer hunter2xyz', 'x" aGVsbG8vd29ybGQrZm9vL2Jhcj0xMjM0NTY3ODkw']) {
+      expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', report({ ...valid, agent })).status).toBe(2);
+    }
+    expect(refused()).toHaveLength(3);
+    expect(refused().map((e) => e['message'])).toEqual(Array(3).fill(expect.stringMatching(/^work report agent /)));
     expect(bytesOf()).not.toContain('hunter2xyz');
     expect(bytesOf()).not.toContain('aGVsbG8');
+  }, 60_000);
+
+  ctest('a typed value never cuts into the recorded command id', () => {
+    expect(aegis('qa-ui-specialist', 'task', 'claim', '--task', 'T-1', '--note=lai').status).toBe(2);
+    expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'ele').status).toBe(2);
+    expect(refused().map((e) => e['command'])).toEqual(['task.claim', 'task.release']);
+  }, 60_000);
+
+  ctest('a typed value longer than the scrub window is not recorded', () => {
+    expect(aegis('qa-ui-specialist', 'task', 'claim', '--task', Array(470).fill('hunterlong word').join(' ')).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('hunterlong');
+  }, 60_000);
+
+  const appendJson = (json: string) => aegis('qa-ui-specialist', 'event', 'append', '--type', 'discovery.step-complete', '--json', json);
+
+  ctest('a --json value re-encoded in the message (escaped, unicode-escaped) is not recorded', () => {
+    expect(appendJson('{"step":"a\\" \\u0068unter2xyz","artifact":"a"}').status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('unter2xyz');
+  }, 60_000);
+
+  ctest('a --json sub-value longer than the scrub window is not recorded', () => {
+    expect(appendJson(JSON.stringify({ step: Array(470).fill('hunterlong word').join(' '), artifact: 'a' })).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('hunterlong');
+  }, 60_000);
+
+  ctest('an undeclared --json key is not recorded', () => {
+    expect(appendJson(JSON.stringify({ step: 'scan', artifact: 'a', hunterkeyxyz: 1 })).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/undeclared field/);
+    expect(bytesOf()).not.toContain('hunterkeyxyz');
+  }, 60_000);
+
+  ctest('a --file path that resolves to another spelling is not recorded', () => {
+    expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', '/nonexistent/zz/../hunterpathxyz.json').status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(bytesOf()).not.toContain('hunterpathxyz');
   }, 60_000);
 
   ctest('an invalid choice value starting with -- or spanning lines is not recorded', () => {
     expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'T-1', '--result=--hunter2xyz').status).toBe(2);
     expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'T-1', '--result', 'ok\nhunter2xyz').status).toBe(2);
     expect(aegis('qa-ui-specialist', 'task', 'release', '--task', 'T-1', '--result', '--hunter2xyz').status).toBe(2);
-    expect(refused().length).toBeGreaterThanOrEqual(2);
+    expect(refused().map((e) => [e['command'], e['code']])).toEqual(Array(3).fill(['task.release', 'invalid-input']));
     expect(bytesOf()).not.toContain('hunter2xyz');
   }, 60_000);
 
@@ -258,7 +328,7 @@ describe('the built CLI records refusals without changing them', () => {
   ctest('a valid-shape unknown task id and a typed agent name are not echoed', () => {
     expect(aegis('qa-ui-specialist', 'task', 'claim', '--task', 'hunter2xyz').status).toBe(2);
     expect(aegis('qa-ui-specialist', 'task', 'add', '--id', 'T-9', '--title', 'tt', '--agent', 'qa-hunter2xyz').status).toBe(2);
-    expect(refused().length).toBeGreaterThanOrEqual(1);
+    expect(refused().map((e) => [e['command'], e['code']])).toEqual([['task.claim', 'invalid-input'], ['task.add', 'invalid-input']]);
     expect(bytesOf()).not.toContain('hunter2xyz');
   }, 60_000);
 
