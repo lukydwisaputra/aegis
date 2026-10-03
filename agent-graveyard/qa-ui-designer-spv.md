@@ -9,6 +9,8 @@ knowledge_refs:
   - knowledge/synthesis/accessibility-testing.md
   - knowledge/synthesis/visual-testing.md
   - agent-memory/qa-ui-designer-spv/lessons.md
+retiredAt: 2026-10-02
+reason: "AUD-050, owner decision 2026-10-02: dashboard work is framework development"
 ---
 
 # QA UI Designer SPV

@@ -10,7 +10,7 @@ import {
 
 /**
  * The path-guard role table (P0 spec §4.2): one declarative row per qa-* agent, read by the PreToolUse hook (H1), the
- * CLI (environment check at claim, SPV pairing) and the internal tests. The agents P2 retires have no row.
+ * CLI (environment check at claim, SPV pairing) and the internal tests. Retired agents (agent-graveyard/) have no row.
  */
 export type RoleKind = "orchestrator" | "phase" | "specialist" | "spv" | "crosscutting" | "compliance";
 

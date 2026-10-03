@@ -51,6 +51,8 @@ const RETIRED: Array<{ name: string; aud: string }> = [
   ...DEVOPS.map((name) => ({ name, aud: 'AUD-046' })),
   { name: 'qa-knowledge-librarian', aud: 'AUD-047' },
   { name: 'qa-event-bus', aud: 'AUD-048' },
+  { name: 'qa-ui-designer', aud: 'AUD-050' },
+  { name: 'qa-ui-designer-spv', aud: 'AUD-050' },
 ];
 
 /** Frontmatter names of every agent file under .claude/agents/. */
@@ -102,5 +104,21 @@ describe('review coverage (spec §4.6.4)', () => {
       'qa-compliance-cmmi', 'qa-compliance-gdpr', 'qa-compliance-iso25010', 'qa-compliance-iso5055', 'qa-compliance-istqb', 'qa-compliance-pdpa',
       'qa-context-scanner', 'qa-curator',
     ]);
+  });
+});
+
+describe('roster counts (spec §4.7)', () => {
+  it('the CLAUDE.md tier table counts equal the agent directories, and the DevOps tier is gone', () => {
+    const dir = path.join(ROOT, '.claude', 'agents');
+    const count = (tier: string): number => fs.readdirSync(path.join(dir, tier)).filter((f) => f.endsWith('.md') && f !== 'README.md').length;
+    const TIERS: Array<[string, string]> = [
+      ['0 — Orchestrator', 'orchestrator'], ['1 — Phase managers', 'tier1-phase'], ['2 — Specialists', 'tier2-specialist'],
+      ['3 — SPVs', 'spv'], ['Compliance', 'compliance'], ['Cross-cutting', 'crosscutting'],
+    ];
+    const rows = read('CLAUDE.md').split('\n').filter((l) => l.startsWith('| ')).map((l) => l.split('|').map((c) => c.trim()));
+    expect(TIERS.map(([tier]) => `${tier}=${rows.find((c) => c[1] === tier)?.[2]}`)).toEqual(TIERS.map(([tier, d]) => `${tier}=${count(d)}`));
+    expect(rows.filter((c) => /DevOps/.test(c[1] ?? ''))).toEqual([]);
+    const devops = path.join(dir, 'tier2-5-devops');
+    expect(fs.existsSync(devops) ? fs.readdirSync(devops) : []).toEqual([]);
   });
 });

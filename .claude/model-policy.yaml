@@ -50,7 +50,6 @@ assignments:
     - qa-exploratory-specialist
     - qa-email-specialist
     - qa-web-explorer
-    - qa-ui-designer
     - qa-database-specialist
     - qa-realtime-specialist
     - qa-feature-flag-specialist
@@ -80,7 +79,6 @@ assignments:
     - qa-exploratory-specialist-spv
     - qa-email-specialist-spv
     - qa-web-explorer-spv
-    - qa-ui-designer-spv
     - qa-database-specialist-spv
     - qa-realtime-specialist-spv
     - qa-feature-flag-specialist-spv

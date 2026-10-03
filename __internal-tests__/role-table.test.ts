@@ -7,11 +7,6 @@ import { ROLES, envVerdict, isEnvSafe, matchGlob, roleOf, roleWritable } from '@
 import { SPV_NONE, isSpecialist, pairedSpv } from '@qa/run-state';
 
 const REPO = path.join(__dirname, '..');
-// Retired to agent-graveyard/ by P2 (owner decision 2026-10-02): no role row, so H1 denies their writes until P2 deletes them.
-const RETIRING = new Set([
-  'qa-cicd-planner', 'qa-cicd-implementer', 'qa-cicd-evaluator', 'qa-cicd-spv', 'qa-github-planner', 'qa-github-implementer', 'qa-github-spv',
-  'qa-knowledge-librarian', 'qa-event-bus', 'qa-ui-designer', 'qa-ui-designer-spv',
-]);
 
 function agentFiles(): Map<string, string> {
   const out = new Map<string, string>();
@@ -51,13 +46,12 @@ function sample(p: string): string {
 }
 
 describe('role table (spec §4.2: one declarative table)', () => {
-  it('every agent file has exactly one row, except the agents P2 retires; every row has an agent file', () => {
+  it('every agent file has exactly one row; every row has an agent file', () => {
     const files = agentFiles();
     const rows = ROLES.map((r) => r.agent);
     expect(new Set(rows).size).toBe(rows.length);
-    expect([...files.keys()].filter((a) => !RETIRING.has(a) && roleOf(a) === undefined)).toEqual([]);
+    expect([...files.keys()].filter((a) => roleOf(a) === undefined)).toEqual([]);
     expect(rows.filter((a) => !files.has(a))).toEqual([]);
-    expect(rows.filter((a) => RETIRING.has(a))).toEqual([]);
   });
 
   it('specialist rows are exactly the routed specialists, with their mutates flag', () => {
@@ -87,7 +81,6 @@ describe('role table (spec §4.2: one declarative table)', () => {
             : `${paths.aegisRoot}/${s}`;
     const misses: string[] = [];
     for (const [agent, file] of agentFiles()) {
-      if (RETIRING.has(agent)) continue;
       for (const w of contractWrites(file)) {
         for (const s of expandBraces(w).map(sample)) if (!roleWritable(agent, absolute(s), paths)) misses.push(`${agent}: ${w}`);
       }
