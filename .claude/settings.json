@@ -1,13 +1,31 @@
 {
   "hooks": {
-    "PostToolUse": [
+    "PreToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node -e \"const p=process.env.CLAUDE_TOOL_INPUT_FILE_PATH||''; const a=process.env.CLAUDE_AGENT_NAME||''; if(p.includes('/aegis/') && !a.startsWith('qa-') && a!=='') { console.error('TERRITORY VIOLATION: ' + a + ' attempted write to ' + p); process.exit(1); }\""
-          }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/guard-writes.mjs\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/require-work-report.mjs\"", "timeout": 30 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/inject-routing.mjs\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/inject-run-context.mjs\"", "timeout": 10 }
         ]
       }
     ]

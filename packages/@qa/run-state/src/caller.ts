@@ -1,3 +1,4 @@
+import { roleOf } from "@qa/path-guard";
 import { RunStateError } from "./errors.js";
 
 export const OWNER = "owner";
@@ -20,6 +21,7 @@ export const CLI_COMMANDS = [
   "work-report.submit",
   "review.submit",
   "integrity.verify",
+  "integrity.repair-tail",
   "phase.start",
   "phase.complete",
   "gate.open",
@@ -39,6 +41,7 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.resume",
   "task.list",
   "integrity.verify",
+  "integrity.repair-tail",
   "gate.decide",
   "escalation.decide",
 ]);
@@ -58,7 +61,9 @@ export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 // Commands only the main thread may run; agents reach them through the matching /qa-* skill.
-export const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["run.create", "run.stop", "run.resume", "gate.decide", "escalation.decide"]);
+export const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>([
+  "run.create", "run.stop", "run.resume", "gate.decide", "escalation.decide", "integrity.repair-tail",
+]);
 
 export const ORCHESTRATOR = "qa-orchestrator";
 
@@ -105,7 +110,10 @@ const SHARED_SPV: Readonly<Record<string, string>> = {
   "qa-github-implementer": "qa-github-spv",
 };
 
-/** The one SPV allowed to review `agent`'s work. */
+/**
+ * The one SPV allowed to review `agent`'s work: its role-table SPV (CO-08). The shared DevOps pairs stay as a
+ * fallback until P2 retires those agents; any other agent pairs with `<agent>-spv`.
+ */
 export function pairedSpv(agent: string): string {
-  return SHARED_SPV[agent] ?? `${agent}-spv`;
+  return roleOf(agent)?.spv ?? SHARED_SPV[agent] ?? `${agent}-spv`;
 }

@@ -65,7 +65,9 @@ async function nextCounter(kind: IdKind, module: string): Promise<number> {
     writeFileSync(countersPath, "{}\n", "utf-8");
   }
 
-  const release = await lockfile.lock(countersPath, { retries: { retries: 5, minTimeout: 50 } });
+  // A4: the shared run-state budget (50 retries, 20-250 ms, ~11 s), longer than `stale`, so a crashed holder's lock
+  // is reclaimed and a busy one waited out instead of leaking ELOCKED.
+  const release = await lockfile.lock(countersPath, { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } });
   try {
     const counters = readCounters(countersPath);
     if (!counters[kind]) counters[kind] = {};

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { append, appendChained, EventBusRefusal, hashLine, readLines, verifyChain } from '@qa/event-bus';
+import { appendChained, EventBusRefusal, hashLine, readLines, verifyChain } from '@qa/event-bus';
 import { GENESIS_HASH } from '@qa/contracts';
 
 const TS = '2026-09-29T00:00:00.000Z';
@@ -191,10 +191,5 @@ describe('EventBusRefusal (R8)', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(EventBusRefusal);
     expect((err as Error).message).toMatch(/torn tail/);
-  });
-
-  it('the legacy append refuses an invalid event with an EventBusRefusal', async () => {
-    const err = await append({ type: 'made.up', ts: TS } as never, bus).then(() => null, (e: unknown) => e);
-    expect(err).toBeInstanceOf(EventBusRefusal);
   });
 });

@@ -37,6 +37,7 @@ Example: adding a Billing module:
 6. Run `pnpm aegis build-agents` to inject the `model:` field
 7. Add agent to the relevant STLC phase in `qa-orchestrator.md`'s dispatch table
 8. Append the `## Contract (machine-checked)` block to the agent and its SPV, and update `.claude/pipeline.yaml` (phase agents, `spvPairs` if the SPV is not `<agent>-spv`) — see §14.11; then run `pnpm aegis align`
+9. Add a row for the agent and its SPV to the path-guard role table (`packages/@qa/path-guard/src/roles.ts`): writable globs, its SPV and the phases in which it changes the environment (`mutatesEnvIn`). Without a row the PreToolUse hook denies all its writes, and `role-table.test.ts` fails.
 
 ## 14.3 Adding a new compliance regulation
 
@@ -90,7 +91,7 @@ Skills are the implementation of slash commands.
 
 1. Add a Zod schema to `@qa/contracts/reports.ts`
 2. Add an EJS template to `@qa/templates/{report-name}.md.ejs`
-3. Call `@qa/reporters.writeArtifact({ kind: '{report-name}', data })` from the closure reporter or relevant phase agent
+3. Call `@qa/reporters.writeArtifact({ kind: '{report-name}', data, jsonPath, mdPath, aegisRoot, busPath, chain: { emittedBy, runId }, renderMd })` from the closure reporter or relevant phase agent; `chain` is required, because `artifact.created` is appended to the hash-chained log
 4. Add a route to the Fastify API at `apps/dashboard-api/src/routes/reports.ts`
 5. Add a dashboard page at `apps/dashboard/src/routes/`
 6. Update `docs/D09-reports-catalog.md` with the new report's fields

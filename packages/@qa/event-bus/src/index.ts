@@ -1,73 +1,8 @@
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  createReadStream,
-  watchFile,
-  unwatchFile,
-  statSync,
-  readFileSync,
-} from "node:fs";
-import { dirname } from "node:path";
+import { createReadStream, existsSync, readFileSync, statSync, unwatchFile, watchFile } from "node:fs";
 import { createInterface } from "node:readline";
-import lockfile from "proper-lockfile";
 import { AegisEventSchema, type AegisEvent } from "@qa/contracts";
-import { EventBusRefusal, undeclaredFields } from "./chain.js";
 
-// ─── Stale lock threshold ─────────────────────────────────────────────────────
-
-const STALE_LOCK_MS = 5_000;
-
-const LEGACY_ALLOWED: ReadonlySet<string> = new Set(["runId"]);
-
-// ─── append ───────────────────────────────────────────────────────────────────
-
-/**
- * Atomically append a single validated event to events.jsonl.
- * Throws if the event fails Zod validation.
- * Acquires a proper-lockfile write lock; stale locks cleared after 5s.
- */
-export async function append(event: AegisEvent, busPath: string): Promise<void> {
-  const parsed = AegisEventSchema.safeParse(event);
-  if (!parsed.success) {
-    const errEvent: AegisEvent = {
-      type: "bus.error",
-      ts: new Date().toISOString(),
-      rawEvent: JSON.stringify(event),
-      errorMessage: parsed.error.message,
-    };
-    // Best-effort: write error without schema validation (already failed)
-    _forceAppend(JSON.stringify(errEvent), busPath);
-    throw new EventBusRefusal(`EventBus schema validation failed: ${parsed.error.message}`);
-  }
-  const raw = event as unknown as Record<string, unknown>;
-  const kept = parsed.data as Record<string, unknown>;
-  const undeclared = undeclaredFields(raw, kept, LEGACY_ALLOWED);
-  if (undeclared.length > 0) {
-    throw new EventBusRefusal(`EventBus: undeclared field(s) for "${event.type}": ${undeclared.join(", ")}`);
-  }
-  const line = typeof raw["runId"] === "string" ? { ...kept, runId: raw["runId"] } : kept;
-
-  const dir = dirname(busPath);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  if (!existsSync(busPath)) appendFileSync(busPath, "", "utf-8");
-
-  const release = await lockfile.lock(busPath, {
-    stale: STALE_LOCK_MS,
-    retries: { retries: 8, minTimeout: 50, maxTimeout: 500 },
-  });
-  try {
-    appendFileSync(busPath, JSON.stringify(line) + "\n", "utf-8");
-  } finally {
-    await release();
-  }
-}
-
-function _forceAppend(line: string, busPath: string): void {
-  const dir = dirname(busPath);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  appendFileSync(busPath, line + "\n", "utf-8");
-}
+// CO-01: every write goes through appendChained (chain.ts). This module only reads.
 
 // ─── tail ─────────────────────────────────────────────────────────────────────
 

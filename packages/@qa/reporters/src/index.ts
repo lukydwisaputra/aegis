@@ -3,7 +3,7 @@ import { dirname, resolve, relative } from "node:path";
 import { z } from "zod";
 import { CLASS_B_KINDS, checkBrandExposure } from "@qa/contracts";
 import { assertWritable, assertAegisOwnership, PathGuardError } from "@qa/path-guard";
-import { append } from "@qa/event-bus";
+import { appendChained, type ChainContext } from "@qa/event-bus";
 
 // ─── Re-export PathGuardError for convenience ─────────────────────────────────
 export { PathGuardError } from "@qa/path-guard";
@@ -118,6 +118,8 @@ export interface WriteArtifactParams {
   aegisRoot: string;
   /** Absolute path to the events.jsonl bus file */
   busPath: string;
+  /** Who records artifact.created, for which run (CO-01: the event is hash-chained). */
+  chain: ChainContext;
   /** Agent name — used for territory check when provided */
   agentName?: string | undefined;
   /** Caller-supplied Markdown renderer */
@@ -131,7 +133,7 @@ export interface WriteArtifactParams {
  * 3. Path-guard assertions for both output files
  * 4. Optional territory ownership check
  * 5. Atomic dual-write (.json + .md)
- * 6. Emit `artifact.created` event to event bus
+ * 6. Record `artifact.created` on the hash-chained event log
  */
 export async function writeArtifact(params: WriteArtifactParams): Promise<void> {
   const {
@@ -141,6 +143,7 @@ export async function writeArtifact(params: WriteArtifactParams): Promise<void> 
     mdPath,
     aegisRoot,
     busPath,
+    chain,
     agentName,
     renderMd,
   } = params;
@@ -209,8 +212,8 @@ export async function writeArtifact(params: WriteArtifactParams): Promise<void> 
   writeFileSync(jsonPath, JSON.stringify(data, null, 2) + "\n", "utf-8");
   writeFileSync(mdPath, renderMd(data), "utf-8");
 
-  // ── Step 7: Emit artifact.created event ───────────────────────────────────
-  await append(
+  // ── Step 7: Record artifact.created on the hash chain (CO-01) ─────────────
+  await appendChained(
     {
       type: "artifact.created",
       kind,
@@ -218,6 +221,7 @@ export async function writeArtifact(params: WriteArtifactParams): Promise<void> 
       schemaVersion: "1.0",
       ts: new Date().toISOString(),
     },
-    busPath
+    busPath,
+    chain
   );
 }

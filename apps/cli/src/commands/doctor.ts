@@ -3,6 +3,7 @@ import { resolve, join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import pc from "picocolors";
+import { action } from "./_io.js";
 
 interface Check {
   name: string;
@@ -14,7 +15,7 @@ export function doctorCommand(): Command {
   return new Command("doctor")
     .description("Interactive diagnostic — check system health and suggest fixes")
     .argument("[aegis-dir]", "path to aegis/ directory", "aegis")
-    .action((aegisDir: string) => {
+    .action(action((aegisDir: string) => {
       const aegisRoot = resolve(aegisDir);
       const checks: Check[] = [];
 
@@ -91,7 +92,7 @@ export function doctorCommand(): Command {
         console.log(pc.yellow(pc.bold("\nSome checks failed. Apply the fixes above and re-run.")));
         process.exitCode = 1;
       }
-    });
+    }));
 }
 
 function hasLegacyGates(configPath: string): boolean {

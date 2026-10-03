@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import pc from "picocolors";
+import { RunStateError } from "@qa/run-state";
+import { action } from "./_io.js";
 
 export function reconfigureCommand(): Command {
   return new Command("reconfigure")
@@ -10,14 +12,12 @@ export function reconfigureCommand(): Command {
     .option("--email <adapter>", "change email adapter (mailpit|gmail)")
     .option("--project-name <name>", "change dashboard project name")
     .option("--profile <profile>", "change profile (full|lite)")
-    .action((aegisDir: string, opts: ReconfigureOptions) => {
+    .action(action((aegisDir: string, opts: ReconfigureOptions) => {
       const aegisRoot = resolve(aegisDir);
       const configPath = join(aegisRoot, "aegis.config.json");
 
-      if (!existsSync(configPath)) {
-        console.error(pc.red(`aegis.config.json not found at ${configPath}`));
-        process.exit(1);
-      }
+      // A5: refusals are JSON envelopes (exit 2), like every other aegis command.
+      if (!existsSync(configPath)) throw new RunStateError("invalid-input", `aegis.config.json not found at ${configPath}`);
 
       const config = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
 
@@ -31,7 +31,7 @@ export function reconfigureCommand(): Command {
 
       writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
       console.log(pc.green("aegis.config.json updated."));
-    });
+    }));
 }
 
 interface ReconfigureOptions {

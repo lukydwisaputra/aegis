@@ -31,13 +31,15 @@ Aegis uses two coordination primitives for safe concurrent agent operation:
 ## Event bus append protocol
 
 ```
-1. @qa/event-bus.append(event) called
-2. Acquire proper-lockfile on {busPath}.lock (stale 5s, retries 8)
-3. Zod-validate event against AegisEventSchema
-4. appendFileSync(busPath, JSON.stringify(event) + '\n')
-5. Release lock
-6. On validation failure: write bus.error event (best-effort, ignores errors), throw
+1. appendChained(event, busPath, { emittedBy, runId }) called (by the aegis CLI or @qa/reporters.writeArtifact)
+2. Zod-validate the event against AegisEventSchema; refuse undeclared fields (nothing is written on a refusal)
+3. Acquire proper-lockfile on {busPath}.lock (stale 5s, 50 retries, 20-250 ms)
+4. Refuse a torn tail (the owner cuts it with aegis integrity repair-tail)
+5. Compute seq and prevHash (sha256 of the previous line) under the lock; append one line
+6. Release the lock
 ```
+
+There is no unchained append and no best-effort `bus.error` write any more (CO-01).
 
 ## Orphan lock detection
 
@@ -57,7 +59,7 @@ Shared mutable resources have exactly one agent that may write them:
 
 | Resource | Single writer | How others interact |
 |----------|--------------|---------------------|
-| `events.jsonl` | `@qa/event-bus` library (serialized) | All agents read freely; never write directly |
+| `events.jsonl` | `appendChained` in `@qa/event-bus` (hash-chained, serialized), called by the aegis CLI and `@qa/reporters.writeArtifact` | Agents append through `aegis event append`; all read freely; never write directly |
 | `rtm.json` | `qa-test-designer` | `qa-defect-manager` appends links via `rtm.append-link` event |
 | `defects/` | `qa-defect-manager` | Other agents emit events that defect-manager processes |
 | `.counters.json` | `@qa/ids` library (serialized) | All agents get IDs via `nextId()` — never write directly |

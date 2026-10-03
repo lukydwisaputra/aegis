@@ -86,6 +86,8 @@ sources:
     - "{run}/reports/review/**"
     - "{run}/gates/**"
     - "{run}/intake/**"
+    - "{run}/integrity/**"
+    - "{run}/hooks/**"
   owner: []
   target:
     - "{target}/**"
@@ -101,6 +103,8 @@ sources:
     - "apps/dashboard/**"
 nonAgentNames:
   - qa-e2e # Playwright project name (qa-environment-engineer.md:61, HANDBOOK/17:76)
+  - qa-setup # Playwright setup project name (qa-environment-engineer.md, HANDBOOK/17:86)
+  - qa-teardown # Playwright teardown project name (qa-environment-engineer.md, HANDBOOK/17:86)
   - qa-automated # GitHub label (qa-github-planner.md:40)
   - qa-build-toc # pnpm script in package.json (CLAUDE.md:36 `pnpm qa-build-toc`), not the _qa-build-toc skill
   - qa-results # CI artifact name prefix (docs/D12-cicd-workflow.md:64 `qa-results-${{ github.run_id }}`)
@@ -109,6 +113,9 @@ nonAgentNames:
   - qa-admin # CI job name in a workflow example (docs/D12-monorepo-multi-app.md:176)
 # pnpm scripts/bins run in the target repo by generated setup, not Aegis scripts
 externalScripts: [husky]
+# Events a Claude Code hook in scripts/hooks/ records (not an agent or skill); they count as emitted (AUD-042b).
+hookEmits:
+  - {hook: require-work-report, event: token.used}
 # Every escape hatch a contract uses, with its reason (ESCAPE rule). A new entry needs the baseline-growth label.
 escapes:
   - {unit: _qa-report-executive-slides, field: terminal, value: "{run}/reports/executive-deck.pdf", reason: "SKILL.md:12 renders the final stakeholder deck"}
@@ -185,11 +192,16 @@ escapes:
   - {unit: qa-web-explorer-spv, field: reviewedBy.none, reason: "not stated in prose"}
 
 # The write table (AH-13: single copy). writable mirrors CLAUDE.md "Read / write policy": aegis/runs/**,
-# ../tests/** limited to tests/qa/** by HANDBOOK/17, aegis/packages/@qa/**, aegis/apps/**, aegis/agent-memory/**, aegis/sandbox/** (gitignored scratch for sandbox-first exploration).
+# ../tests/** limited to tests/qa/** by HANDBOOK/17, aegis/sandbox/** (gitignored scratch for sandbox-first exploration).
+# Agents never write packages/**, apps/** or agent-memory/** (spec D2, H1 (d); lessons only through aegis review submit).
 writePolicy:
-  writable: ["{run}/**", "runs/**", "{tests}/qa/**", "packages/@qa/**", "apps/**", "agent-memory/**", "sandbox/**"]
+  writable: ["{run}/**", "runs/**", "{tests}/qa/**", "sandbox/**"]
   # Internal (_qa-*) skills maintain the framework itself.
   internalSkills: [".claude/**", "HANDBOOK/**", "docs/**"]
   # Named exceptions: _qa-build-toc regenerates the HANDBOOK.md table of contents.
+  # AUD-112: HANDBOOK/17 rule (b) keeps the qa-e2e project in the target's own Playwright config;
+  # /qa-ci-bootstrap writes only the QA-owned qa-*.yml workflow files of the target.
   units:
     _qa-build-toc: [HANDBOOK.md]
+    qa-environment-engineer: ["{target}/playwright.config.ts"]
+    qa-ci-bootstrap: ["{target}/.github/workflows/qa-*.yml"]

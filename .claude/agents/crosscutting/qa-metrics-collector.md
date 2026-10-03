@@ -26,6 +26,7 @@ You are **read-only** on all source artefacts. You write only to `runs/{runId}/r
 ## Metrics to Collect
 
 ### Token Usage (from `token.used` events)
+The SubagentStop hook (require-work-report) records `token.used` once per subagent run, one event per model, from the transcript entries marked with that subagent's agent id: `input` is the input plus cache-creation tokens, `output` the output tokens, `cached` the cache-read tokens. When the transcript attributes nothing to the subagent, the hook records no event, so a missing agent means no attributable usage, not zero usage.
 Per event (fields `agent`, `model`, `input`, `output`, `cached`): one row `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`, with `usdCost` computed from the model-policy rates.
 Rollup: totals per agent, per model tier, per phase.
 Output: `runs/{runId}/reports/metrics/token-usage.jsonl` (append-mode, one row per event).

@@ -7,7 +7,7 @@ import { assertCallerAllowed, OWNER } from "./caller.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { copyIntake } from "./intake.js";
-import { acknowledgementOf, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
+import { acknowledgementOf, checkpointOfRecord, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
 import { CYCLE_PHASES } from "./phase-map.js";
 import { busPath, runDir, runJsonPath, runsDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { atomicWrite, formatIssues, iso, withFileLock } from "./util.js";
@@ -98,6 +98,7 @@ export async function commitRun(root: string, prior: RunState, next: RunState, r
  * Serialises run.json read-modify-write per run.
  * Lock order (never invert; never take run.lock while holding the bus lock):
  *   integrity.lock -> run.lock -> event-bus lock (verify; resume with an acknowledgement);
+ *   integrity.lock -> event-bus lock (repair-tail; the bus lock is released before the append takes it again).
  *   claims.lock -> run.lock -> (task-file lock) -> event-bus lock.
  *   Nothing may take claims.lock while holding run.lock.
  *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).
@@ -155,6 +156,13 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
   mkdirSync(taskmasterDir(root, runId), { recursive: true });
   copyIntake(root, config.targetProjectRoot, input.intake ?? config.intakeSources, join(runDir(root, runId), "intake"));
 
+  // CO-03: record run.created before run.json exists, so a concurrent verify finds no run (not an empty log),
+  // and seed the integrity checkpoint from that first line.
+  const created = await appendChained(
+    { type: "run.created", ts, runId, profile: settings.profile, environment: input.environment, modules: input.modules },
+    busPath(root, runId),
+    { emittedBy: caller, runId }
+  );
   const state: RunState = {
     runId,
     cycleType: input.cycleType,
@@ -168,16 +176,12 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
     stopRequested: false,
     blockedBy: [],
     preflight: { health: input.health ?? "not-run" },
+    integrityCheckpoint: checkpointOfRecord(created),
     createdAt: ts,
     updatedAt: ts,
   };
   writeRun(root, state);
   writeActiveRun(root, runId);
-  await appendChained(
-    { type: "run.created", ts, runId, profile: settings.profile, environment: input.environment, modules: input.modules },
-    busPath(root, runId),
-    { emittedBy: caller, runId }
-  );
   return state;
 }
 
@@ -270,6 +274,7 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
     const ts = iso(opts.now);
     const bus = busPath(root, runId);
     let acknowledged: IntegrityAcknowledgement | undefined;
+    let anchor: IntegrityCheckpoint | undefined;
     if (opts.acknowledgeIntegrity !== undefined) {
       const reason = opts.acknowledgeIntegrity.reason.trim();
       if (reason === "") throw new RunStateError("invalid-input", "an acknowledgement reason is required");
@@ -279,7 +284,9 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
       // Pin exactly what the owner reviewed: the current log prefix and its unfiltered errors.
       const snap = readCommittedLines(bus);
       acknowledged = acknowledgementOf(snap, logErrors(snap, state.integrityCheckpoint).errors);
-      await appendChained({ type: "integrity.acknowledged", ts, runId, ...acknowledged, reason }, bus, { emittedBy: caller, runId });
+      const ackRecord = await appendChained({ type: "integrity.acknowledged", ts, runId, ...acknowledged, reason }, bus, { emittedBy: caller, runId });
+      // CO-03: re-anchor the checkpoint on the acknowledgement; the stale one would stay in the acknowledged error set forever.
+      anchor = checkpointOfRecord(ackRecord);
     }
 
     // Scan stays in progress after a preflight block: the orchestrator re-dispatches the scanner and completes it again.
@@ -290,6 +297,7 @@ function resumeLocked(root: string, runId: string, caller: string, opts: ResumeO
       blockedBy: [],
       stopRequested: false,
       ...(acknowledged !== undefined ? { integrityAcknowledged: acknowledged } : {}),
+      ...(anchor !== undefined ? { integrityCheckpoint: anchor } : {}),
       updatedAt: ts,
     };
     await commitRun(root, state, next, () => appendChained({ type: "run.resumed", ts, runId, phase: state.currentPhase ?? "intake" }, bus, { emittedBy: caller, runId }));

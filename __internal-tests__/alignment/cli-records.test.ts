@@ -36,6 +36,7 @@ const ENTRY: Record<string, string> = {
   'work-report.submit': 'submitWorkReport',
   'review.submit': 'submitReview',
   'integrity.verify': 'verifyRunIntegrity',
+  'integrity.repair-tail': 'repairTail',
   'phase.start': 'startPhase',
   'phase.complete': 'completePhase',
   'run.complete': 'completeRun',

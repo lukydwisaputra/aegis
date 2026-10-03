@@ -237,7 +237,11 @@ export function eventRule(m: Model): Violation[] {
   const emitted = new Set([
     ...[...m.units.values()].flatMap((u) => (u.contract?.emits ?? []).map((e) => e.event)),
     ...[...m.units.values()].flatMap((u) => (u.contract?.cli ?? []).flatMap((cmd) => CLI_RECORDS[cmd] ?? [])),
+    ...(m.pipeline?.hookEmits ?? []).map((h) => h.event),
   ]);
+  for (const h of m.pipeline?.hookEmits ?? []) {
+    if (!m.declaredEvents.has(h.event)) out.push(violation("EVENT", "pipeline", h.event, "undeclared", ".claude/pipeline.yaml", 1, `${h.event} is not a declared event`));
+  }
   for (const u of m.units.values()) {
     const c = u.contract;
     if (c === null) continue;
@@ -274,7 +278,8 @@ export function writePolicyRule(m: Model): Violation[] {
   const policy = m.pipeline?.writePolicy;
   const writable = policy?.writable ?? [];
   for (const u of m.units.values()) {
-    const extra: string[] = [...(policy?.units[u.name] ?? [])];
+    const named: string[] = [...(policy?.units[u.name] ?? [])];
+    const extra: string[] = [...named];
     if (u.kind === "skill") {
       extra.push(...(src?.repo ?? []), ...(src?.owner ?? []));
       if (u.contract !== null && "kind" in u.contract && u.contract.kind === "internal") extra.push(...(policy?.internalSkills ?? []));
@@ -284,6 +289,8 @@ export function writePolicyRule(m: Model): Violation[] {
       let reason: string | null = null;
       // AH-15: a write that can land in a CLI-only file or outside tests/qa is flagged (overlaps, not matches).
       if (cliOnly.some((s) => overlaps(s, p))) reason = "cli-only";
+      // AUD-112: a named exception (writePolicy.units) admits that unit's write, even into the target; never a CLI-only file.
+      else if (named.some((w) => matches(w, p))) reason = null;
       else if (p.startsWith("{tests}/") && !matches("{tests}/qa/**", p)) reason = "outside-tests-qa";
       else if (p.startsWith("{target}/")) reason = "target-source";
       else if (!writable.some((w) => matches(w, p)) && !extra.some((w) => matches(w, p))) reason = "not-writable";
@@ -297,6 +304,7 @@ export function writePolicyRule(m: Model): Violation[] {
 export function emitterRule(m: Model): Violation[] {
   const out: Violation[] = [];
   const reachable = reachableUnits(m);
+  const hooked = new Set((m.pipeline?.hookEmits ?? []).map((h) => h.event));
   const emitters = new Map<string, Set<string>>();
   for (const u of m.units.values()) {
     const c = u.contract;
@@ -309,6 +317,7 @@ export function emitterRule(m: Model): Violation[] {
   for (const u of m.units.values()) {
     if (u.contract === null || !reachable.has(u.name)) continue;
     for (const ev of new Set(u.contract.awaits)) {
+      if (hooked.has(ev)) continue; // hooks always run
       const es = emitters.get(ev);
       if (es === undefined || es.size === 0 || [...es].some((n) => reachable.has(n))) continue;
       out.push(violation("EVENT", u.name, ev, "unreachable-emitter", u.file, u.contractLine, `${ev} is emitted only by ${[...es].join(", ")}, which nothing reachable dispatches`));

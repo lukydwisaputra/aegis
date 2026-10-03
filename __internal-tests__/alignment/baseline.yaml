@@ -424,9 +424,6 @@ entries:
   - key: "EVENT:qa-metrics-collector:devops.flake-detected:unreachable-emitter"
     ids: [AUD-011]
     note: "devops.flake-detected is emitted only by qa-cicd-evaluator, which nothing reachable dispatches"
-  - key: "EVENT:qa-metrics-collector:token.used:no-emitter"
-    ids: [AUD-042b]
-    note: "nobody emits token.used"
   - key: "EVENT:qa-promote-stage:run.gate.check.triggered:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
@@ -777,21 +774,6 @@ entries:
   - key: "WRITE-POLICY:_qa-init-project:~/.aegis/workspace-index.json:not-writable"
     ids: [AUD-068]
     note: "write to ~/.aegis/workspace-index.json violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-gate.yml:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .github/workflows/qa-gate.yml violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-regression.yml:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .github/workflows/qa-regression.yml violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.github/workflows/qa-smoke.yml:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .github/workflows/qa-smoke.yml violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:.husky/pre-commit:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to .husky/pre-commit violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-ci-bootstrap:docs/ci-secrets-setup.md:not-writable"
-    ids: [AUD-112, AUD-065]
-    note: "write to docs/ci-secrets-setup.md violates the write policy (not-writable)"
   - key: "WRITE-POLICY:qa-cicd-implementer:{target}/.github/workflows/qa-*.yml:target-source"
     ids: [AUD-112, AUD-046]
     note: "write to {target}/.github/workflows/qa-*.yml violates the write policy (target-source)"
@@ -813,9 +795,6 @@ entries:
   - key: "WRITE-POLICY:qa-deps-update:reports/deps-update-{date}.md:not-writable"
     ids: [AUD-068, AUD-065]
     note: "write to reports/deps-update-{date}.md violates the write policy (not-writable)"
-  - key: "WRITE-POLICY:qa-environment-engineer:{target}/playwright.config.ts:target-source"
-    ids: [AUD-112]
-    note: "write to {target}/playwright.config.ts violates the write policy (target-source)"
   - key: "WRITE-POLICY:qa-event-bus:{run}/events.jsonl:cli-only"
     ids: [AUD-048, CO-01]
     note: "write to {run}/events.jsonl violates the write policy (cli-only)"
@@ -861,3 +840,15 @@ entries:
   - key: "WRITE-POLICY:qa-triage:artifacts/defects/**:not-writable"
     ids: [AUD-058]
     note: "write to artifacts/defects/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/components/domain/**:not-writable"
+    ids: [AUD-050]
+    note: "write to apps/dashboard/src/components/domain/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/components/layout/**:not-writable"
+    ids: [AUD-050]
+    note: "write to apps/dashboard/src/components/layout/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/components/ui/**:not-writable"
+    ids: [AUD-050]
+    note: "write to apps/dashboard/src/components/ui/** violates the write policy (not-writable)"
+  - key: "WRITE-POLICY:qa-ui-designer:apps/dashboard/src/styles/globals.css:not-writable"
+    ids: [AUD-050]
+    note: "write to apps/dashboard/src/styles/globals.css violates the write policy (not-writable)"

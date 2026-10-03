@@ -174,7 +174,7 @@ No command lists or removes an ingested book; each book is a directory under `kn
 
 #### `/qa-ci-bootstrap`
 
-Generates the GitHub Actions workflows, Husky hook and secrets guide for the target repo.
+Generates the QA GitHub Actions workflows for the target repo and prints the Husky hook and the secrets guide, which the developers add themselves.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

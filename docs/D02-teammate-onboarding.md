@@ -187,7 +187,7 @@ Visit `http://localhost:3030`. The smoke run from Step 4 should appear.
 | `gh` CLI operations | `repo`, `workflow`, `read:org` scopes — run `gh auth refresh -s repo,workflow,read:org` |
 | Secrets (DB, Supabase, etc.) | Ask the installer — do not store in chat or email |
 | Dashboard (if hosted) | URL + auth token from installer |
-| Claude Code agent permissions | `aegis/.claude/settings.json` controls which tools agents can call; defaults are safe |
+| Claude Code hooks | `aegis/.claude/settings.json` registers the four enforcement hooks (scripts in `aegis/scripts/hooks/`); run `pnpm build` (or `pnpm install` without `--ignore-scripts`, whose prepare script builds what they load) — until then, agents cannot write. The prepare script runs only under the pinned pnpm (`package.json#packageManager`; `.npmrc` sets `ignore-scripts=true`), and the build goes stale after a pull: re-run `pnpm build` after pulling |
 
 ---
 

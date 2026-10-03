@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { GATE_AFTER, GateIdSchema, SPECIALISTS, specialistShortName, type RunState } from "@qa/contracts";
+import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { PathGuardError, assertEnvSafe } from "@qa/path-guard";
+import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
 import { readSettings } from "./config.js";
@@ -152,6 +152,28 @@ async function assertEnvAllows(root: string, state: RunState, caller: string, no
   }
 }
 
+/** The run environment's policy from aegis.config.json (undefined when the file is missing; an unreadable or corrupt one fails closed). */
+function envPolicy(root: string, env: string): EnvironmentSpecialistConfig | undefined {
+  try {
+    return readEnvPolicy(root, env);
+  } catch (e) {
+    throw new RunStateError("invalid-input", (e as Error).message);
+  }
+}
+
+/** P0a carry-over: a non-specialist whose role changes the environment in this task's phase is refused on a read-only one. */
+async function assertRoleEnvAllows(root: string, state: RunState, caller: string, taskPhase: string | undefined, now?: Date): Promise<void> {
+  const phase = PhaseIdSchema.safeParse(taskPhase);
+  const verdict = envVerdict(caller, phase.success ? phase.data : null, state.environment, envPolicy(root, state.environment));
+  if (verdict.allowed) return;
+  await appendChained(
+    { type: "env.specialist-blocked", ts: iso(now), env: state.environment, specialist: caller },
+    busPath(root, state.runId),
+    { emittedBy: caller, runId: state.runId }
+  );
+  throw new RunStateError("env-blocked", verdict.reason);
+}
+
 /** I6: a task is claimed only by the agent it was added for. */
 function assertAssignee(task: Task, caller: string): void {
   if (task.assignee !== caller) {
@@ -189,6 +211,8 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
             `${running.length}/${maxSpecialists} specialists already running (aegis.config.json#parallelism.maxSpecialists)`
           );
         }
+      } else {
+        await assertRoleEnvAllows(root, readRun(root, runId), caller, current.phase ?? readRun(root, runId).currentPhase ?? undefined, now);
       }
       const before = await mustGet(root, runId, taskId);
       try {
@@ -248,15 +272,27 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
 }
 
 /**
- * A release needs a work report from this claim: the caller's latest attempt exists, is newer than any a gate
- * rejection superseded, and is not reviewed yet. Otherwise the released task could never be reviewed or reopened.
- * Called under the submit lock, which also serialises submitWorkReport and submitReview for this agent/task.
+ * The release freshness rule (R6): the attempt of `agent`'s work report from its current claim of `taskId`, or null.
+ * Fresh means the latest attempt exists, is newer than any a gate rejection superseded, and has neither a review nor
+ * an escalation decision (a retry reopens the task for a new attempt, so the failed one never counts again).
+ * `aegis task release` and the SubagentStop hook (H2) both judge by this one rule.
+ */
+export function freshAttempt(root: string, runId: string, agent: string, taskId: string): number | null {
+  const attempts = attemptsIn(workDir(root, runId), agent, taskId);
+  if (attempts.length === 0) return null;
+  const latest = Math.max(...attempts);
+  if (latest <= supersededAttempt(readRun(root, runId), agent, taskId)) return null;
+  const reviews = reviewDir(root, runId);
+  if (existsSync(join(reviews, `${agent}.${taskId}.${latest}.json`))) return null;
+  return existsSync(join(reviews, escalationFile(agent, taskId, latest))) ? null : latest;
+}
+
+/**
+ * A release needs a work report from this claim (freshAttempt). Otherwise the released task could never be reviewed
+ * or reopened. Called under the submit lock, which also serialises submitWorkReport and submitReview for this agent/task.
  */
 function assertWorkSubmittedThisClaim(root: string, runId: string, agent: string, taskId: string): void {
-  const attempts = attemptsIn(workDir(root, runId), agent, taskId);
-  const latest = attempts.length === 0 ? 0 : Math.max(...attempts);
-  const fresh = latest > supersededAttempt(readRun(root, runId), agent, taskId) && !existsSync(join(reviewDir(root, runId), `${agent}.${taskId}.${latest}.json`));
-  if (!fresh) {
+  if (freshAttempt(root, runId, agent, taskId) === null) {
     throw new RunStateError("no-work-report", `task ${taskId}: ${agent} has submitted no work report in this claim; run aegis work-report submit before releasing`);
   }
 }

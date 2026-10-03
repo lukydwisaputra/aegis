@@ -6,12 +6,12 @@
 
 The event bus is an append-only JSONL file at `runs/{runId}/events.jsonl`.
 
-**Append protocol (in `@qa/event-bus`):**
-1. Acquire `proper-lockfile` on `{busPath}.lock` (stale 5s, retries 8)
-2. Zod-validate the event against `AegisEventSchema`
-3. Append single JSON line
-4. Release lock
-5. On schema failure: write `bus.error` event (best-effort), throw
+**Append protocol (`appendChained` in `@qa/event-bus`, called by the aegis CLI and `@qa/reporters.writeArtifact`):**
+1. Validate the event against `AegisEventSchema`; refuse undeclared fields and caller-set envelope fields (nothing is written on a refusal)
+2. Acquire the `proper-lockfile` lock on the log (stale 5s)
+3. Refuse a torn tail (an unterminated, unparseable last line); the owner cuts it with `aegis integrity repair-tail` (whatever the run status), which keeps the bytes in the run's integrity directory and records `integrity.tail-repaired`
+4. Append one line with the envelope `seq`, `prevHash` (sha256 of the previous line), `emittedBy` and `runId`
+5. Release the lock
 
 Every event includes `ts: string` (ISO-8601 UTC). No agent overwrites another's events. Reads are unrestricted and concurrent; only writes are serialized.
 
@@ -36,26 +36,94 @@ If an agent crashes after claiming but before releasing, the orphan lock is dete
 
 ## 13.3 Path-guard enforcement
 
-Every write in the system routes through `@qa/path-guard.assertWritable(path)`.
+Writes are enforced by the PreToolUse hook `scripts/hooks/guard-writes.mjs` (H1). It applies the role table in
+`packages/@qa/path-guard/src/roles.ts` to every `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` call and checks
+every `Agent` dispatch. Exit 2 denies the call with the reason.
 
-The allowlist is derived from `aegis.config.json` at runtime:
-- `../tests/**` (target test files)
-- `aegis/runs/**`
-- `aegis/packages/@qa/**`
-- `aegis/apps/**`
-- `aegis/agent-memory/**`
-- `aegis/sandbox/**` (sandbox-first exploration, gitignored)
+- A call that carries a non-empty `agent_id` (of any type) is a subagent's, and its `agent_type` names the caller; a
+  call without one is the main thread (a `--agent` session included).
+- Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`,
+  `intake/`, `hooks/`, `integrity/`, lock files and the active-run pointer — are refused for every caller.
+- Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
+  when the written text matches a brand-exposure pattern.
+- The main thread never writes a run directory or the target's `tests/`; a subagent whose name does not start with
+  `qa-` never writes inside this repo either. Rollout exception: the direct run writes of the skills not yet rewritten
+  onto the CLI (`LEGACY_MAIN_THREAD_RUN_WRITES` in `packages/@qa/path-guard/src/guard.ts`) are allowed from the main
+  thread with a warning and a `legacy-write` hook-ledger entry; P0c/P3 remove each skill's entry when they rewrite it.
+  The two files git tracks in the runs directory, its `README.md` and `.gitkeep`, are framework files: the main thread
+  may edit them, restore them with `git checkout`/`git restore` and `git rm` them.
+- The main thread never writes target source either: anything inside the target outside this repo, the tests
+  directories, the QA-owned `qa-*.yml` workflow files and the `/qa-push-reports` collector repo named by
+  `aegis.config.json#collector.path` (with no such key there is no collector exception). The target's Playwright
+  config is the environment engineer's alone.
+- A `qa-*` agent writes only its role row's globs — {run} is the active run, {testsDir} is
+  `aegis.config.json#testsDir`, {target} is `targetProjectRoot` — or the OS temp directory; never `packages/`, `apps/`,
+  `.claude/`, a `package.json` or a lockfile, and nothing at all while the run's environment forbids it.
+- A `qa-*` agent never changes dependencies in this repo or the target: `pnpm`, `npm`, `yarn` or `bun` with `add`,
+  `install`, `ci`, `remove`, `update`, `link`, `unlink` (or an alias) is refused when its directory (the command's
+  cwd, or `-C`/`--dir`/`--prefix`/`--cwd`) is inside either and outside the sandbox. A global install (`-g`,
+  `--global`) is allowed: the environment engineer's `npm install -g @playwright/cli` is one.
+- A `task claim` is logged in the ledger of the run its `--run` names when that run exists, otherwise in the active
+  run's; a `--run` naming no existing run logs nothing.
+- A `pnpm aegis` call carries `AEGIS_AGENT=<caller>` (`owner` for the main thread) and must be a command that caller
+  may run; `aegis align`, `init`, `update`, `doctor` and `reconfigure` are the owner's.
+- A `qa-*` agent dispatches only `qa-*` agents, never `qa-orchestrator`.
+- Paths are compared physically: each existing component is realpathed before a `..` climbs, and only the part not
+  created yet is normalized as text, so a symlink cannot carry a write past a rule. A subagent may not climb with
+  `..` out of a directory that does not exist yet, nor link (`ln`, symbolic or hard) into `runs/` or the framework.
+- Without a build, or on a guard error, the hook fails closed for `qa-*` agents, for other subagents whose call names
+  a path inside this repo, and for main-thread calls whose path fields or unquoted command text name the runs
+  directory; anything else is allowed with a warning (a `systemMessage`).
 
-Territory rule — `assertAegisOwnership(agent, path)`:
-- If path is under `aegis/` AND agent name does not start with `qa-` → throw `AegisTerritoryViolation`
-- Emit `aegis.territory.violated` event
-- SPV auto-fails the work-report
+Bash targets are parsed best-effort (redirections, `tee`, `cp`, `mv`, `rm`, `sed -i`, `rsync`, heredocs, `cd`,
+`bash -c`); writes inside interpreters are not seen. The hash chain and `aegis integrity verify` make such writes
+detectable (spec §4.4).
 
-**Env-safety extension — `assertEnvSafe(env, action)`** (called by the CLI whenever a specialist claims a task):
+**Env-safety — `envVerdict(agent, phase, env, policy)`** (H1, the SubagentStart context and `aegis task claim`):
 - Names match by short name (`SPECIALISTS` in `@qa/contracts`); agent names are normalised
-- If the env is read-only (`readOnly: true` or `mutating: false`) AND the specialist's `mutates` flag is set → throw
-- If the specialist is in `forbiddenSpecialists`, or `allowedSpecialists` lacks both `*` and the specialist → throw
-- On any refusal the CLI records `env.specialist-blocked` and the claim fails with `env-blocked`
+- If the env is read-only (`readOnly: true` or `mutating: false`) AND the specialist's `mutates` flag is set → refused
+- If the specialist is in `forbiddenSpecialists`, or `allowedSpecialists` lacks both `*` and the specialist → refused
+- A non-specialist is refused on a read-only env in a phase where its role changes the environment (`mutatesEnvIn`,
+  e.g. the environment engineer in Env-data)
+- On a refused claim the CLI records `env.specialist-blocked` and the claim fails with `env-blocked`; H1 denies every
+  write of a refused agent
+
+**Stop check — H2 (`scripts/hooks/require-work-report.mjs`, SubagentStop):**
+- Only a call that carries `agent_id` and a `qa-*` `agent_type` is checked; the main thread and other subagents stop
+  freely. Exit 2 keeps the subagent working, with the reason on stderr. Every other outcome exits 0, and a warning
+  goes to stdout as a `systemMessage`. A missing build or an internal error lets the stop through, because the phase
+  barrier still refuses unreported or unreviewed work.
+- A worker is judged only on the tasks its own instance claimed, from the hook ledger (the `hooks/agents.jsonl` file of
+  the active run). H1 logs a claim before the CLI runs, so H2 acts on a claim only when the task file confirms it: the
+  task is in progress under that agent type, and this instance's ledger claim is the latest one at or before the
+  task's `claimedAt`. A refused claim, or `task claim --help`, neither blocks nor releases.
+- Every allowed stop appends a `stopped` ledger entry. Once the holder has `stopped` or `stop-unresolved`, the claim
+  passes to the latest instance of the same type that tried to claim the task after `claimedAt` and has not ended.
+  That instance is a resumed worker, which the CLI told to continue without claiming. A live parallel duplicate never
+  inherits the claim.
+- **Claim race (known limit).** The ledger is matched to the claim by time, not by identity. Suppose two instances
+  of one type try to claim the same task at once, and the first one's claim command starts later. H2 can then pick
+  the wrong instance as holder. That instance is held or released in the other's place. The phase barrier still
+  checks the work itself. Binding a claim to its instance waits for the P0c caller-ticket design.
+- A claimed task without a work report from this claim blocks the stop. A fresh report that was never released is
+  released `done` for the worker. "Fresh" is the same rule `aegis task release` applies (`freshAttempt` in
+  `packages/@qa/run-state/src/tasks.ts`). An attempt with a review or an escalation decision is not fresh, so a
+  retried task needs a new report. Only a missing report blocks. When the release on the worker's behalf is
+  refused for another reason, H2 re-reads the task. It skips a task that is no longer held, and otherwise lets the
+  stop through with a warning.
+- An SPV may stop once it has submitted a review since its `start` ledger entry, or when no released report of a
+  paired worker awaits review.
+- One instance is blocked at most 3 times. After that the stop is allowed with a warning, and the ledger records
+  `stop-unresolved`.
+- **`token.used` limitation (AUD-042b).** SubagentStop passes the session transcript (`transcript_path`), not a
+  per-agent one. H2 counts only transcript lines whose `agentId` equals the stopping `agent_id`. It also reads the
+  per-agent file Claude Code keeps beside the session transcript (`subagents/agent-<agent_id>.jsonl` in the session's
+  folder), under the same per-line rule. That file layout is observed, not documented. When no line can be
+  attributed, H2 records no `token.used`, and appends a `token-unattributed` ledger note instead. Token totals are
+  therefore a lower bound: an agent missing from them has no attributable usage, not zero usage. A message id counts
+  once, with the largest numbers seen across its repeated stream lines. A continued agent is charged only for entries
+  after its last `tokens-recorded` ledger entry. That entry is written only when at least one event was recorded.
+  When the bus refuses every event, a `token-unattributed` note carries the error, and the next stop retries.
 
 ## 13.4 Agent-memory dedup algorithm
 
@@ -144,6 +212,8 @@ This pattern keeps worker context lean — agents don't grep raw knowledge files
 6. Emit `run.resumed` event
 
 If a lock file is stale but the task is still running (e.g., the agent is just slow), `/qa-resume` will not interrupt it — it only releases locks with no heartbeat activity for > 5 minutes.
+
+**Orphan run directory.** `aegis run create` appends `run.created` before it writes `run.json` and points `runs/.active` at the run. A crash in between leaves a `RUN-*` directory with no `run.json`: it is inert (no command treats it as a run, `runs/.active` still names the previous run, and the next `run create` takes a new id) and safe to delete.
 
 ## 13.10 → Deep dives
 

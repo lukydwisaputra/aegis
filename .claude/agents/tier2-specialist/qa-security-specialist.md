@@ -52,7 +52,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 8. **Never log actual secret values.** Gitleaks `--redact` flag must be used; redacted markers only in evidence.
 
-9. **Sandbox for scratch.** ZAP/Semgrep intermediate scan files and investigation scratch go to a sandbox dir (`sandbox/{YYYY-MM-DD}-{slug}/`), removed at task end with `rm -rf sandbox/{YYYY-MM-DD}-{slug}` — not into `runs/` or `tests/`. Do not call `completeSandbox()` from `@qa/sandbox-manager`: it appends to the event log without the hash chain.
+9. **Sandbox for scratch.** ZAP/Semgrep intermediate scan files and investigation scratch go to a sandbox dir (`sandbox/{YYYY-MM-DD}-{slug}/`), removed at task end with `rm -rf sandbox/{YYYY-MM-DD}-{slug}` — not into `runs/` or `tests/`.
 
 10. **Assert something that can fail.** Every committed spec carries at least one assertion that can fail — no assertion-free "smoke" scripts.
 

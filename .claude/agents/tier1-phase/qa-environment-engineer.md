@@ -36,7 +36,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 - `tests/qa/fixtures/auth.fixture.ts` — per-role auth fixture (adminPage, managerPage, userPage, anonPage) with storageState + teardown
 - `tests/qa/global-setup.ts` — login + storageState save per role; halts suite on login failure
 - `tests/qa/global-teardown.ts` — storageState cleanup; server-side session termination
-- `playwright.config.ts` — browser matrix, project config, reporter, retries, timeouts (lives at the target root, not under `tests/`; its `testDir` points at `tests/qa`)
+- `playwright.config.ts` — your `qa-e2e`, `qa-setup` and `qa-teardown` project entries: browser matrix, retries, timeouts, output and artifact settings (lives at the target root, not under `tests/`; its `testDir` points at `tests/qa`). It is the one target-root file you write, a named exception in the CLAUDE.md read/write table because HANDBOOK/17 rule (b) needs the `qa-e2e` project in the target's own config: change only your own project entries, never a top-level key and never the developers' other projects.
 - `tests/qa/factories/` — scope=data: Faker.js factories for the entity types the approved cases need
 - `runs/{runId}/env-auth-report.{md,json}` — scope=auth: roles logged in, their storage-state paths, the Playwright projects, the installed `@playwright/cli` version, the smoke-ping result and health status
 - `runs/{runId}/env-setup-report.{md,json}` — scope=data: factories and seed data created, what was skipped, health status
@@ -48,21 +48,19 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 
 1. **Read context.** Load the test plan's environment section (scope=data), target-profile.json, aegis.config.json, and your lessons.md. Identify: which test levels are in scope, which roles need auth fixtures, which apps in the monorepo are being tested, which environment (development / testing / staging) is the target.
 
-2. **Configure Playwright.** Write or update `playwright.config.ts`:
-   - `projects`: Chromium + Firefox + WebKit (all three enabled by default per plan; override via `aegis.config.json.browsers`)
-   - `globalSetup` and `globalTeardown` paths
-   - `use.baseURL` from the target environment's URL
-   - `use.headless`: `false` if `aegis.config.json.playwright.headed` is `true` (default `true`/headless otherwise)
-   - `reporter`: HTML + JUnit XML (JUnit for CI PR checks)
-   - `retries`: 2 on CI, 0 local (per Greffier ch-09 flake quarantine discipline)
-   - `fullyParallel`: true per worker
-   - `timeout` and `actionTimeout` from plan's environment section or defaults
-   - `outputDir`: **must** be set to `../../aegis/runs/{runId}/playwright-output` (relative to the target's `tests/` root). This is the only directory Playwright may write test-result artifacts to — never `test-results/`, never `tests/runs/`, never any path inside `tests/` itself.
-   - `screenshot: 'always'` — capture a screenshot for every test (pass AND fail), not only on failure. Without this, no per-test screenshots are generated (the failure observed in real runs).
-   - `video: 'retain-on-failure'` — record video, retained on failures.
-   - `trace: 'on-first-retry'` — capture a Playwright trace on the first retry.
-   - `testMatch`: `'**/*.spec.ts'` so specs under `tests/qa/**` are discovered.
-   - Do not set a top-level `testDir`. Instead, express the browser matrix as a single named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` (or one entry per browser, each carrying `testDir: 'tests/qa'`, if the matrix is split into per-browser projects) so `tests/qa` is declared exactly once, at the project level. This is what the VSCode Playwright Test Explorer scans — QA specs become discoverable and appear as their own named group in the sidebar.
+2. **Configure Playwright.** Edit `playwright.config.ts` in the target root, and only your own project entries in its `projects` array: never a top-level key (no top-level `reporter`, `retries`, `fullyParallel`, `timeout`, `outputDir`, `globalSetup`, `globalTeardown` or `testDir`) and never the developers' other projects. Create the file with just those entries when it does not exist. Entries you own:
+   - `qa-e2e`: `{ name: 'qa-e2e', testDir: 'tests/qa', testMatch: '**/*.spec.ts', dependencies: ['qa-setup'], ... }`. Declaring `tests/qa` here, once, at the project level is what makes QA specs discoverable in the VSCode Playwright Test Explorer as their own named group. If the browser matrix is split, use one entry per browser, each carrying `testDir: 'tests/qa'`. Chromium + Firefox + WebKit are all enabled by default per plan (override via `aegis.config.json.browsers`).
+   - `qa-setup` and `qa-teardown`: the auth setup and the cleanup, as `{ name: 'qa-setup', testDir: 'tests/qa', testMatch: '**/global-setup.ts', teardown: 'qa-teardown', outputDir }` and `{ name: 'qa-teardown', testDir: 'tests/qa', testMatch: '**/global-teardown.ts', outputDir }`, with the same canonical `outputDir` as `qa-e2e` (below). `qa-e2e` lists `qa-setup` in `dependencies` (Playwright project dependencies replace top-level `globalSetup`/`globalTeardown`). All three `qa-*` projects set `testDir` and `outputDir` themselves, so none of them ever writes Playwright's default `test-results/` in the target.
+   - Settings on the `qa-e2e` entry, never at the top level:
+     - `use.baseURL` from the target environment's URL
+     - `use.headless`: `false` if `aegis.config.json.playwright.headed` is `true` (headless otherwise)
+     - `retries`: 2 on CI, 0 local (per Greffier ch-09 flake quarantine discipline)
+     - `timeout` and `use.actionTimeout` from the plan's environment section or defaults
+     - `outputDir`: **must** be set to `../../aegis/runs/{runId}/playwright-output` (relative to the target's `tests/` root). This is the only directory Playwright may write test-result artifacts to: never `test-results/`, never `tests/runs/`, never any path inside `tests/` itself.
+     - `use.screenshot: 'always'`: a screenshot for every test (pass and fail). Without it no per-test screenshots are generated.
+     - `use.video: 'retain-on-failure'`
+     - `use.trace: 'on-first-retry'`
+   - The reporter is not a config key you set. Runs pass it on the command line (`--reporter=html,junit`; JUnit XML for CI PR checks).
    - After writing the config, emit `test.config-written { testDir, projectName }`.
 
 3. **Generate per-role auth fixture.** For each role in `aegis.config.json.target.supabase.rolesToTest[]` (or detected roles from target-profile):
@@ -104,16 +102,18 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 - Any credential value written to logs, events.jsonl, or the work report
 - Playwright configured with a single browser only (all three required unless explicitly overridden)
 - `storageState` path not gitignored (`tests/qa/state/*.json` must be gitignored)
-- `playwright.config.ts` sets `retries: 0` on CI (minimum 2 retries required on CI for flake tolerance before quarantine)
+- The `qa-e2e` project sets `retries: 0` on CI (minimum 2 retries required on CI for flake tolerance before quarantine)
 - `playwright-cli install --skills` skipped — qa-web-explorer and qa-exploratory-specialist cannot function without it
 - Smoke-ping skipped or silenced
 - Empty file or directory created (any file or folder with no real content, including stub fixture files with fake bytes, placeholder directories, and zero-byte assets — if a file has no meaningful content yet, do not create it)
 - Temporary files created inside `runs/` (temp files belong in `tests/qa/fixtures/files/` and must be deleted by the test that uses them via a `finally` block, not left on disk)
-- `playwright.config.ts` does not set `outputDir` explicitly — it must be set to the canonical `aegis/runs/{runId}/playwright-output` path; omitting it causes Playwright to use its default `test-results/` directory inside the target project, creating a duplicate run artifact location
+- One of the three `qa-*` projects (`qa-e2e`, `qa-setup`, `qa-teardown`) does not set `outputDir` explicitly — each must set the canonical `aegis/runs/{runId}/playwright-output` path; omitting it causes Playwright to use its default `test-results/` directory inside the target project, creating a duplicate run artifact location
+- `qa-setup` or `qa-teardown` without `testDir: 'tests/qa'` and its own `testMatch` (`**/global-setup.ts`, `**/global-teardown.ts`)
 - `outputDir` set to any path under `tests/` (e.g. `tests/runs/`, `test-results/`) — all Playwright output must go to `aegis/runs/{runId}/playwright-output`, never inside the target's test directory tree
-- `playwright.config.ts` does not explicitly set `screenshot`, `video`, and `trace` — leaving them to Playwright defaults means screenshots/videos are not generated for every test (the artifact-generation failure observed in real runs)
+- The `qa-e2e` project does not explicitly set `use.screenshot`, `use.video`, and `use.trace` — leaving them to Playwright defaults means screenshots/videos are not generated for every test (the artifact-generation failure observed in real runs)
 - The `qa-e2e` project's (or the per-browser projects') `testDir` does not resolve to `tests/qa` (specs would be undiscoverable in the VSCode Test Explorer)
 - A top-level `testDir` is set in addition to the project-level `testDir` (redundant double-declaration of the QA scope)
+- Any top-level config key (`reporter`, `retries`, `timeout`, `outputDir`, `globalSetup`, `globalTeardown`, `fullyParallel`) added or changed, or a project other than your own `qa-*` entries edited
 - No named QA Playwright project registered (QA specs not grouped in the Test Explorer)
 - `test.config-written` not emitted after the config is written
 - A scope=auth dispatch that seeds data, or a scope=data dispatch that touches the auth fixture or `playwright.config.ts`
@@ -137,7 +137,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-environment-eng
 
 ## Concurrency
 
-Claims its task through the CLI (see Task Protocol). Writes to `tests/qa/fixtures/`, `tests/qa/factories/`, `tests/qa/state/` (gitignored), `playwright.config.ts`. These are target-side test paths — the write allowlist in path-guard must list them. Never writes to `apps/`, `packages/`, or `services/` (target source code).
+Claims its task through the CLI (see Task Protocol). Writes to `tests/qa/fixtures/`, `tests/qa/factories/`, `tests/qa/state/` (gitignored), `playwright.config.ts` (your own `qa-*` project entries only). These are target-side test paths — the write allowlist in path-guard must list them. Never writes to `apps/`, `packages/`, or `services/` (target source code).
 
 ## Knowledge Refs
 

@@ -17,6 +17,10 @@ commands are discovered from `.claude/skills/` relative to this root.
 ## Commands
 
 ```bash
+# Install; the root prepare script also builds the CLI and the packages the hooks load
+# (it runs under the pinned pnpm, package.json#packageManager; re-run pnpm build after every pull)
+pnpm install
+
 # Build all packages (pnpm workspaces)
 pnpm build
 
@@ -105,6 +109,7 @@ Model assignments are centralized in `.claude/model-policy.yaml` — **never har
 3. Every worker claims its task, submits its work report and releases the task through the aegis CLI (`aegis task claim`, `aegis work-report submit`, `aegis task release`). Its SPV then submits a verdict with `aegis review submit`, which pipes any `CorrectiveInstruction` into the worker's lessons and escalates the third rejection to the owner.
 4. Agents record their events with `aegis event append`, which hash-chains them into `runs/{runId}/events.jsonl` (the only crash-recovery source of truth) through `@qa/event-bus`. Nothing writes that file directly.
 5. Three locked human gates pause every full cycle: G1 Plan approval (after Planning), G2 Defect triage (after Triage), G3 Closure (after Closure-final). They cannot be disabled. The owner decides each with `/qa-gate-decide`; the CLI writes `gates/gate-{N}-decision.json`. `/qa-smoke` has no human gate — its G2 is auto-decided from `thresholds.yaml#smoke`.
+6. Hooks in `.claude/settings.json` (scripts in `scripts/hooks/`) make the rules physical. H1 (PreToolUse) checks every write, Bash command and agent dispatch against the path-guard role table (`packages/@qa/path-guard/src/roles.ts`), the CLI-only run files, the brand rule and the `AEGIS_AGENT` identity rule, and denies what breaks them. H2 (SubagentStop) keeps a `qa-*` worker from stopping with a claimed task and no work report (it releases a forgotten `done`), keeps an SPV from stopping before its review, and records `token.used`. H3 (UserPromptSubmit) gives the main thread the router rule and the active run; H4 (SubagentStart) gives each `qa-*` agent its run, environment verdict, writable paths and the CLI cheat-sheet with its exact `AEGIS_AGENT` prefix. The hooks load the built packages: without a build, run `pnpm build` (or `pnpm install` without `--ignore-scripts`); until then H1 denies every agent write.
 
 ### Key packages under `packages/@qa/`
 
@@ -122,14 +127,22 @@ Model assignments are centralized in `.claude/model-policy.yaml` — **never har
 
 ```
 runs/{runId}/
-  events.jsonl          # append-only audit trail (source of truth)
+  events.jsonl          # append-only, hash-chained audit trail (source of truth; CLI-written)
+  run.json              # run state: status, phases, gates, integrity checkpoint (CLI-written)
   plan.*                # test plan (brand-clean)
-  rtm.*                 # requirements traceability matrix
+  rtm.*                 # requirements traceability matrix (brand-clean)
   cases/                # test cases (brand-clean)
   defects/              # defect records (brand-clean)
-  reports/              # closure report + executive deck (brand-clean)
+  reports/closure/      # closure report (brand-clean)
+  reports/executive/    # executive deck and sign-off (brand-clean)
+  reports/work/         # work reports, one per attempt (CLI-written)
+  reports/review/       # SPV reviews (CLI-written)
+  reports/.locks/       # submit and claim locks (CLI-owned)
   gates/gate-{N}-decision.json  # owner gate decisions (CLI-written)
-  locks/                # task claim locks (auto-cleaned on resume)
+  taskmaster/           # the run's task tree and claim locks (CLI-written)
+  intake/               # requirement documents copied at run create (CLI-written)
+  hooks/agents.jsonl    # hook ledger: subagent starts, claims, stops (written by the hooks)
+  integrity/            # bytes cut by aegis integrity repair-tail (CLI-written)
 ```
 
 ### Knowledge pipeline
@@ -164,16 +177,20 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 2. Create SPV at `.claude/agents/spv/qa-{name}-spv.md` — SPVs get only `[Read, Bash]`.
 3. Create lessons stub: `echo '{"version":"1.0","lessons":[]}' > agent-memory/qa-{name}/lessons.json`
 4. Register both in `.claude/model-policy.yaml` under the correct tier.
-5. Run `_qa-build-agents` skill to stamp model names into frontmatter.
-6. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
+5. Add a row for each to the role table `packages/@qa/path-guard/src/roles.ts` (writable globs, SPV, `mutatesEnvIn`); the PreToolUse hook denies every write of an agent without a row.
+6. Run `_qa-build-agents` skill to stamp model names into frontmatter.
+7. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
 
 ---
 
 ## Territory rule
 
-Only agents whose name starts with `qa-` may write files inside `aegis/`.
-If you are operating as a general-purpose assistant (not a named `qa-*` agent),
-treat `aegis/` as read-only except for the explicitly permitted paths below.
+Enforced by the PreToolUse hook (`scripts/hooks/guard-writes.mjs`): a subagent whose name does not start with `qa-`
+cannot write inside `aegis/` or any QA artefact; `qa-*` agents write only the paths of their role-table row; the
+main thread may write anywhere except `runs/**` (CLI-only), the target's `tests/**` and target source, except the direct run writes
+of the not-yet-rewritten skills in `LEGACY_MAIN_THREAD_RUN_WRITES`, which are allowed with a warning and logged in the
+run's hook ledger until P0c/P3 move them onto the CLI. Framework work by subagents happens in a git worktree outside
+this directory.
 
 ---
 
@@ -185,14 +202,15 @@ treat `aegis/` as read-only except for the explicitly permitted paths below.
 | `../packages/**` | READ-ONLY |
 | `../services/**` | READ-ONLY |
 | `../src/**` | READ-ONLY |
-| `../tests/**` | WRITE allowed |
-| `aegis/runs/**` | WRITE allowed |
-| `aegis/packages/@qa/**` | WRITE allowed |
-| `aegis/apps/**` | WRITE allowed |
-| `aegis/agent-memory/**` | WRITE allowed |
+| `../tests/**` | WRITE by `qa-*` agents under `testsDir`, per their role row; never by the main thread |
+| `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
+| `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
+| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
+| `aegis/packages/**`, `aegis/apps/**`, `aegis/.claude/**` | Framework source: owner branch work only; agents are denied |
+| `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |
 
-Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report.
+Never modify source files in the target app. If a fix is needed in target source, surface it as a defect in the run report. The PreToolUse hook denies the main thread every write to target source outside the QA-owned `qa-*.yml` workflow files and the `/qa-push-reports` collector repo named by `aegis.config.json#collector.path`. The main thread may edit, restore or `git rm` the two tracked files `runs/README.md` and `runs/.gitkeep`.
 
 ---
 
@@ -201,7 +219,8 @@ Never modify source files in the target app. If a fix is needed in target source
 Never write the word "Aegis", internal agent names (e.g. `qa-director`,
 `qa-planner`, `qa-specialist-*`), or any framework-internal identifiers in:
 
-- `runs/*/reports/closure.*`
+- `runs/*/reports/closure/**`
+- `runs/*/reports/executive/**`
 - `runs/*/cases/**`
 - `runs/*/defects/**`
 - `runs/*/plan.*`

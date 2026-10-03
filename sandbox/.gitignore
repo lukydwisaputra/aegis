@@ -1,5 +1,5 @@
 # aegis/sandbox/.gitignore
-# Sandbox content is local-only by design. Auto-pruned per-use + 7-day TTL.
+# Sandbox content is local-only by design. Each experiment is removed by its agent at task end; nothing prunes it automatically.
 
 # Ignore everything by default
 *

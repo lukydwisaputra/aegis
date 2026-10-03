@@ -9,6 +9,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "work-report.submit": ["artifact.created"],
   "review.submit": ["review.passed", "review.passed-with-notes", "review.requested-changes", "task.escalated", "run.blocked"],
   "integrity.verify": ["integrity.violation", "run.blocked"],
+  "integrity.repair-tail": ["integrity.tail-repaired"],
   "phase.start": ["run.phase.started"],
   "phase.complete": ["run.phase.completed", "run.phase.not-applicable", "preflight.failed", "integrity.violation", "run.blocked"],
   "run.complete": ["run.completed", "integrity.violation", "run.blocked"],

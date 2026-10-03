@@ -87,7 +87,7 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 
 1. **Read target profile.** Read `target-profile.json` to get `discovery.entryPoints`, detected framework, auth method, and app list before crawling.
 
-2. **Load configuration.** Read `discovery` config from `aegis.config.json`. Respect `skipPatterns` (regex patterns to skip), `maxDepth`, and `maxPagesPerRun` hard caps. Any one-shot probe/inspection scripts go to a sandbox scratch dir (`sandbox/{YYYY-MM-DD}-{slug}/`), NEVER to `tests/qa/specs/` — and are removed with `rm -rf sandbox/{YYYY-MM-DD}-{slug}` at task end (never through `completeSandbox()` from `@qa/sandbox-manager`, which appends to the event log without the hash chain).
+2. **Load configuration.** Read `discovery` config from `aegis.config.json`. Respect `skipPatterns` (regex patterns to skip), `maxDepth`, and `maxPagesPerRun` hard caps. Any one-shot probe/inspection scripts go to a sandbox scratch dir (`sandbox/{YYYY-MM-DD}-{slug}/`), NEVER to `tests/qa/specs/` — and are removed with `rm -rf sandbox/{YYYY-MM-DD}-{slug}` at task end.
 
 3. **Authenticate per role.** Use the per-role auth fixture. Crawl each role's authenticated view separately — different roles see different UI.
 

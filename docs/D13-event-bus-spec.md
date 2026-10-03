@@ -9,10 +9,10 @@ No agent ever overwrites another's events.
 ## Library
 
 ```typescript
-import { append, tail, subscribe, readAll, typeFilter } from '@qa/event-bus';
+import { appendChained, tail, subscribe, readAll, typeFilter } from '@qa/event-bus';
 
-// Write
-await append(event, busPath);
+// Write (called by the aegis CLI and @qa/reporters.writeArtifact; agents use `aegis event append`)
+await appendChained(event, busPath, { emittedBy, runId });
 
 // Read all (sync)
 const events = readAll(busPath, typeFilter('task.claimed', 'task.released'));
@@ -26,11 +26,13 @@ const { unsubscribe } = subscribe(busPath, typeFilter('review.requested-changes'
 
 ## Append protocol
 
-1. Acquire `proper-lockfile` on `{busPath}.lock` (stale 5s, retries 8)
-2. Zod-validate the event against `AegisEventSchema`
-3. Append single JSON line to the file
-4. Release lock
-5. On schema failure: write `bus.error` event (best-effort), throw
+`appendChained` is the only writer of the log; it is called by the aegis CLI and `@qa/reporters.writeArtifact`.
+
+1. Validate the event against `AegisEventSchema`; refuse undeclared fields and caller-set envelope fields (nothing is written on a refusal)
+2. Acquire the `proper-lockfile` lock on the log (stale 5s)
+3. Refuse a torn tail (an unterminated, unparseable last line); the owner cuts it with `aegis integrity repair-tail`, which keeps the bytes in the run's integrity directory and records `integrity.tail-repaired`
+4. Append one line with the envelope `seq`, `prevHash` (sha256 of the previous line), `emittedBy` and `runId`
+5. Release the lock
 
 ## Event type catalog
 

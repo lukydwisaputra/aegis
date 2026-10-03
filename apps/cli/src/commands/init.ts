@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from "node
 import { execSync } from "node:child_process";
 import pc from "picocolors";
 import { DEFAULT_ENVIRONMENT_SPECIALISTS } from "@qa/contracts";
+import { RunStateError } from "@qa/run-state";
+import { action } from "./_io.js";
 
 export function initCommand(): Command {
   return new Command("init")
@@ -17,19 +19,14 @@ export function initCommand(): Command {
     )
     .option("--tests-dir <path>", "override auto-detected tests directory")
     .option("--skip-taskmaster", "skip task-master-ai initialisation")
-    .action(async (target: string, opts: InitOptions) => {
+    .action(action(async (target: string, opts: InitOptions) => {
       const targetRoot = resolve(target);
-      if (!existsSync(targetRoot)) {
-        console.error(pc.red(`Target directory not found: ${targetRoot}`));
-        process.exit(1);
-      }
+      // A5: refusals are JSON envelopes (exit 2), like every other aegis command.
+      if (!existsSync(targetRoot)) throw new RunStateError("invalid-input", `Target directory not found: ${targetRoot}`);
 
       const aegisDir = join(targetRoot, "aegis");
 
-      if (existsSync(aegisDir)) {
-        console.error(pc.yellow(`aegis/ already exists at ${aegisDir}. Use 'aegis update' to refresh.`));
-        process.exit(1);
-      }
+      if (existsSync(aegisDir)) throw new RunStateError("invalid-input", `aegis/ already exists at ${aegisDir}. Use 'aegis update' to refresh.`);
 
       console.log(pc.blue("Initialising Aegis QA framework…"));
 
@@ -97,7 +94,7 @@ export function initCommand(): Command {
 
       console.log(pc.green(`\nAegis initialised at ${aegisDir}`));
       console.log(pc.dim("Next: ingest QA books with /qa-ingest-book, then run /qa-start"));
-    });
+    }));
 }
 
 interface InitOptions {
