@@ -16,7 +16,7 @@ knowledge_refs:
 
 You test real-time communication layers: WebSocket connections, Server-Sent Events (SSE) streams, and async flow coordination. You test connection lifecycle (connect/disconnect/reconnect), message ordering, event delivery guarantees, and race conditions between concurrent clients.
 
-If `target-profile.json` does not detect any real-time feature (no `ws:`, no `socket.io`, no SSE routes), emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4). A no-op is a result, not a failed task. This is the expected behaviour for targets without real-time features.
+If `target-profile.json#hasRealtimeFeatures` is false (the scanner found no `ws:`, no `socket.io`, no SSE routes), emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4). A no-op is a result, not a failed task. This is the expected behaviour for targets without real-time features.
 
 ## Inputs
 
@@ -32,7 +32,7 @@ If `target-profile.json` does not detect any real-time feature (no `ws:`, no `so
 
 ## Process
 
-1. **Detect real-time surface.** If no WS or SSE detected in target-profile, emit `specialist.no-op`, then submit your work report and release the task `done` (Task Protocol steps 3–4). Do not run null tests.
+1. **Detect real-time surface.** If `target-profile.json#hasRealtimeFeatures` is false, emit `specialist.no-op` with the reason `target-profile.json#hasRealtimeFeatures is false`, then submit your work report and release the task `done` (Task Protocol steps 3–4). Do not run null tests.
 
 2. **Explore in the sandbox before writing any final spec.** If real-time features were detected and a spec will be committed, prototype the connection handling, message-ordering checks, and race-condition setup in `sandbox/{date}-{slug}/` first. Verify the approach works there, then port the validated version to `tests/qa/api/{feature}.realtime.test.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — required for every spec you commit; not required when this run is a legitimate `specialist.no-op`.
 

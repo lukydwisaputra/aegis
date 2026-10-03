@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
 import { parse } from 'yaml';
+import { routeTestCase } from '@qa/contracts';
 import { roleWritable } from '@qa/path-guard';
 
 // P2b — profiles and relevance (docs/superpowers/specs/2026-10-02-p2-roster-design.md §4.8–4.10, §7).
@@ -148,5 +149,39 @@ describe('the email specialist detects, no-ops, and reads the inbox through its 
       const down = loadHelper(async () => response({}, 503)).api;
       await expect(down.listMessages()).rejects.toThrow('Mailpit GET /api/v1/messages failed: HTTP 503');
     });
+  });
+});
+
+describe('designer, routing and reviewers act on the same profile flags (AUD-051)', () => {
+  it('routeTestCase sends an Email TC to the email specialist and a Realtime TC to the realtime specialist', () => {
+    expect(routeTestCase({ testType: ['E2E'], testTechnique: ['Email'] })).toEqual(['qa-ui-specialist', 'qa-email-specialist']);
+    expect(routeTestCase({ testType: ['API'], testTechnique: ['Realtime'] })).toEqual(['qa-api-specialist', 'qa-realtime-specialist']);
+  });
+
+  it('the designer tags Email only when the profile shows email flows', () => {
+    expect(read('.claude/agents/tier1-phase/qa-test-designer.md')).toContain(
+      '`Email` when target-profile.json `hasEmailFlows` is true and the requirement sends mail (sign-up confirmation, password reset, invitation, notification)',
+    );
+  });
+
+  it('both specialists name their profile field in the no-op path', () => {
+    const realtime = section(read('.claude/agents/tier2-specialist/qa-realtime-specialist.md'), 'Process');
+    expect(realtime).toMatch(/If `target-profile\.json#hasRealtimeFeatures` is false, emit `specialist\.no-op`/);
+    const email = section(read('.claude/agents/tier2-specialist/qa-email-specialist.md'), 'Process');
+    expect(email).toMatch(/`target-profile\.json#hasEmailFlows`\. When it is false, emit `specialist\.no-op`/);
+  });
+
+  it('both SPVs judge a no-op by the same field, and the email SPV checks the helper and the adapter', () => {
+    const emailSpv = read('.claude/agents/spv/qa-email-specialist-spv.md');
+    const checklist = section(emailSpv, 'Review Checklist');
+    expect(checklist).toContain('10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json#hasEmailFlows` is false. Otherwise = requested-changes.');
+    expect(checklist).toContain('1. **Inbox through the helper.** Specs reach the inbox only through `tests/qa/support/mailpit.ts`: no raw SMTP or `nodemailer`, and no Mailpit REST call in a spec body. A violation = requested-changes.');
+    expect(checklist).toContain('5. **Adapter matches config.** `aegis.config.json#emailAdapter` is `mailpit`, the only supported inbox.');
+    expect(checklist).toContain('Each test calls `purgeAll()` from the helper in `beforeEach`.');
+    expect(emailSpv).not.toMatch(/gmail/i);
+    expect(emailSpv).not.toMatch(/@qa\/email-adapters|\bEmailAdapter\b|adapter\.purgeAll/);
+    expect(paths(contractOf(emailSpv).reads)).toEqual(expect.arrayContaining(['{run}/target-profile.json', '{tests}/qa/support/mailpit.ts']));
+    const realtimeSpv = section(read('.claude/agents/spv/qa-realtime-specialist-spv.md'), 'Review Checklist');
+    expect(realtimeSpv).toContain('A `specialist.no-op` is legitimate only when `target-profile.json#hasRealtimeFeatures` is false');
   });
 });

@@ -24,7 +24,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 
 ## Review Checklist
 
-1. **specialist.no-op legitimacy.** If `specialist.no-op` was emitted, `target-profile.json` must confirm no WebSocket, SSE, or Socket.IO usage was detected. NoOp without evidence in target-profile = requested-changes.
+1. **specialist.no-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json#hasRealtimeFeatures` is false (no WebSocket, SSE, or Socket.IO usage detected). Otherwise = requested-changes.
 2. **Connection lifecycle coverage.** If real-time features exist: tests cover connect, disconnect (graceful and forceful), and reconnect. Missing reconnect test = passed-with-notes.
 3. **Message ordering.** At least one test verifies that messages arrive in the expected order under concurrent sends. Missing = passed-with-notes.
 4. **Backpressure test.** At least one test simulates a slow consumer to verify the system handles backpressure without data loss. Missing = passed-with-notes.
