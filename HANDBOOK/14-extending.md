@@ -91,7 +91,7 @@ Skills are the implementation of slash commands.
 
 1. Add a Zod schema to `@qa/contracts/reports.ts`
 2. Add an EJS template to `@qa/templates/{report-name}.md.ejs`
-3. Call `@qa/reporters.writeArtifact({ kind: '{report-name}', data })` from the closure reporter or relevant phase agent
+3. Call `@qa/reporters.writeArtifact({ kind: '{report-name}', data, jsonPath, mdPath, aegisRoot, busPath, chain: { emittedBy, runId }, renderMd })` from the closure reporter or relevant phase agent; `chain` is required, because `artifact.created` is appended to the hash-chained log
 4. Add a route to the Fastify API at `apps/dashboard-api/src/routes/reports.ts`
 5. Add a dashboard page at `apps/dashboard/src/routes/`
 6. Update `docs/D09-reports-catalog.md` with the new report's fields

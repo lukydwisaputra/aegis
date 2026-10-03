@@ -11,7 +11,7 @@ No agent ever overwrites another's events.
 ```typescript
 import { appendChained, tail, subscribe, readAll, typeFilter } from '@qa/event-bus';
 
-// Write (the aegis CLI only)
+// Write (called by the aegis CLI and @qa/reporters.writeArtifact; agents use `aegis event append`)
 await appendChained(event, busPath, { emittedBy, runId });
 
 // Read all (sync)
@@ -25,6 +25,8 @@ const { unsubscribe } = subscribe(busPath, typeFilter('review.requested-changes'
 ```
 
 ## Append protocol
+
+`appendChained` is the only writer of the log; it is called by the aegis CLI and `@qa/reporters.writeArtifact`.
 
 1. Validate the event against `AegisEventSchema`; refuse undeclared fields and caller-set envelope fields (nothing is written on a refusal)
 2. Acquire the `proper-lockfile` lock on the log (stale 5s)

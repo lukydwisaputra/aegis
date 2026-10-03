@@ -6,7 +6,7 @@
 
 The event bus is an append-only JSONL file at `runs/{runId}/events.jsonl`.
 
-**Append protocol (`appendChained` in `@qa/event-bus`, called only by the aegis CLI):**
+**Append protocol (`appendChained` in `@qa/event-bus`, called by the aegis CLI and `@qa/reporters.writeArtifact`):**
 1. Validate the event against `AegisEventSchema`; refuse undeclared fields and caller-set envelope fields (nothing is written on a refusal)
 2. Acquire the `proper-lockfile` lock on the log (stale 5s)
 3. Refuse a torn tail (an unterminated, unparseable last line); the owner cuts it with `aegis integrity repair-tail` (whatever the run status), which keeps the bytes in the run's integrity directory and records `integrity.tail-repaired`
@@ -40,8 +40,8 @@ Writes are enforced by the PreToolUse hook `scripts/hooks/guard-writes.mjs` (H1)
 `packages/@qa/path-guard/src/roles.ts` to every `Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `Bash` call and checks
 every `Agent` dispatch. Exit 2 denies the call with the reason.
 
-- A call that carries `agent_id` is a subagent's, and its `agent_type` names the caller; a call without `agent_id` is
-  the main thread (a `--agent` session included).
+- A call that carries a non-empty `agent_id` (of any type) is a subagent's, and its `agent_type` names the caller; a
+  call without one is the main thread (a `--agent` session included).
 - Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`,
   `intake/`, `hooks/`, `integrity/`, lock files and the active-run pointer — are refused for every caller.
 - Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
@@ -50,12 +50,21 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
   `qa-` never writes inside this repo either. Rollout exception: the direct run writes of the skills not yet rewritten
   onto the CLI (`LEGACY_MAIN_THREAD_RUN_WRITES` in `packages/@qa/path-guard/src/guard.ts`) are allowed from the main
   thread with a warning and a `legacy-write` hook-ledger entry; P0c/P3 remove each skill's entry when they rewrite it.
+  The two files git tracks in the runs directory, its `README.md` and `.gitkeep`, are framework files: the main thread
+  may edit them, restore them with `git checkout`/`git restore` and `git rm` them.
 - The main thread never writes target source either: anything inside the target outside this repo, the tests
-  directories, the QA-owned `qa-*.yml` workflow files and the `/qa-push-reports` collector repo. The target's
-  Playwright config is the environment engineer's alone.
+  directories, the QA-owned `qa-*.yml` workflow files and the `/qa-push-reports` collector repo named by
+  `aegis.config.json#collector.path` (with no such key there is no collector exception). The target's Playwright
+  config is the environment engineer's alone.
 - A `qa-*` agent writes only its role row's globs — {run} is the active run, {testsDir} is
   `aegis.config.json#testsDir`, {target} is `targetProjectRoot` — or the OS temp directory; never `packages/`, `apps/`,
   `.claude/`, a `package.json` or a lockfile, and nothing at all while the run's environment forbids it.
+- A `qa-*` agent never changes dependencies in this repo or the target: `pnpm`, `npm`, `yarn` or `bun` with `add`,
+  `install`, `ci`, `remove`, `update`, `link`, `unlink` (or an alias) is refused when its directory (the command's
+  cwd, or `-C`/`--dir`/`--prefix`/`--cwd`) is inside either and outside the sandbox. A global install (`-g`,
+  `--global`) is allowed: the environment engineer's `npm install -g @playwright/cli` is one.
+- A `task claim` is logged in the ledger of the run its `--run` names when that run exists, otherwise in the active
+  run's; a `--run` naming no existing run logs nothing.
 - A `pnpm aegis` call carries `AEGIS_AGENT=<caller>` (`owner` for the main thread) and must be a command that caller
   may run; `aegis align`, `init`, `update`, `doctor` and `reconfigure` are the owner's.
 - A `qa-*` agent dispatches only `qa-*` agents, never `qa-orchestrator`.
@@ -203,6 +212,8 @@ This pattern keeps worker context lean — agents don't grep raw knowledge files
 6. Emit `run.resumed` event
 
 If a lock file is stale but the task is still running (e.g., the agent is just slow), `/qa-resume` will not interrupt it — it only releases locks with no heartbeat activity for > 5 minutes.
+
+**Orphan run directory.** `aegis run create` appends `run.created` before it writes `run.json` and points `runs/.active` at the run. A crash in between leaves a `RUN-*` directory with no `run.json`: it is inert (no command treats it as a run, `runs/.active` still names the previous run, and the next `run create` takes a new id) and safe to delete.
 
 ## 13.10 → Deep dives
 

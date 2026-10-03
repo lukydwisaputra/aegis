@@ -6,7 +6,7 @@ import { AegisEventUnionSchema } from '@qa/contracts';
  * Guards against event-type drift.
  *
  * Agent and skill definitions document the events they emit. Every one of those
- * names reaches `@qa/event-bus.append()` at runtime, which validates against
+ * names reaches `appendChained()` in `@qa/event-bus` at runtime, which validates against
  * AegisEventSchema and THROWS on an unknown type. A name documented but not
  * declared is therefore a latent runtime failure, not a no-op.
  *

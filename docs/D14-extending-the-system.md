@@ -201,7 +201,12 @@ packages/@qa/templates/my-report.md.ejs
 
 ```typescript
 import { writeArtifact } from '@qa/reporters';
-await writeArtifact({ kind: 'my-report', data: myData, runId });
+// chain is required: artifact.created is appended to the run's hash-chained log (CO-01)
+await writeArtifact({
+  kind: 'my-report', data: myData, jsonPath, mdPath, aegisRoot, busPath,
+  chain: { emittedBy: 'qa-closure-reporter', runId },
+  renderMd: (d) => renderMyReport(d),
+});
 ```
 
 ### Step 4 — API route
