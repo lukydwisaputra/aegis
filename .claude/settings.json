@@ -14,6 +14,20 @@
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/require-work-report.mjs\"", "timeout": 30 }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/inject-routing.mjs\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/inject-run-context.mjs\"", "timeout": 10 }
+        ]
+      }
     ]
   },
   "permissions": {

@@ -37,3 +37,8 @@ it('every pipeline.yaml#hookEmits hook is a script in scripts/hooks/', () => {
   expect(pipeline.hookEmits).toEqual([{ hook: 'require-work-report', event: 'token.used' }]);
   for (const h of pipeline.hookEmits!) expect(fs.existsSync(path.join(REPO, 'scripts', 'hooks', `${h.hook}.mjs`))).toBe(true);
 });
+
+it('H3 runs on UserPromptSubmit and H4 on SubagentStart', () => {
+  expect(script('UserPromptSubmit')).toBe('scripts/hooks/inject-routing.mjs');
+  expect(script('SubagentStart')).toBe('scripts/hooks/inject-run-context.mjs');
+});
