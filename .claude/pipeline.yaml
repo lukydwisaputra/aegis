@@ -89,6 +89,8 @@ sources:
     - "{run}/intake/**"
     - "{run}/integrity/**"
     - "{run}/hooks/**"
+    - "{tests}/qa/support/test-helpers.ts"
+    - "{tests}/qa/support/supabase.ts"
   owner: []
   target:
     - "{target}/**"

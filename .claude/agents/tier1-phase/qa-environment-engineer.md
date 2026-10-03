@@ -44,7 +44,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 
 ## Process
 
-**Scope.** `scope=auth` runs steps 1–3 and 5–9; `scope=data` runs steps 1, 4, 8 and 9. Never do the other scope's steps.
+**Scope.** `scope=auth` runs steps 1–3, 3b and 5–9; `scope=data` runs steps 1, 4, 8 and 9. Never do the other scope's steps.
 
 1. **Read context.** Load the test plan's environment section (scope=data), target-profile.json, aegis.config.json, and your lessons.md. Identify: which test levels are in scope, which roles need auth fixtures, which apps in the monorepo are being tested, which environment (development / testing / staging) is the target.
 
@@ -69,12 +69,15 @@ scope=data never seeds on a read-only environment. There the orchestrator record
    - The fixture extends `base.extend<Fixtures>()` with named page vars per role
    - Teardown: explicit logout call + `clearCookies()` + `page.close()` + `ctx.close()`
    - If login fails for any role → `process.exit(1)` before any test runs (halt-suite-on-login-fail rule)
+   - On a Supabase target, `global-setup.ts` forges each role's JWT with `forgeRoleJwt` from `tests/qa/support/supabase.ts` (copied in step 3b)
    - Credentials sourced from `aegis/test-data/credentials/{role}.env.local` (never hardcoded, never logged)
+
+3b. **Copy the shared QA helpers (scope=auth).** Run `AEGIS_AGENT=qa-environment-engineer pnpm aegis helpers vendor --helpers test-helpers`, adding `,supabase` (`--helpers test-helpers,supabase`) when target-profile.json `platform` is `supabase`. The CLI writes `tests/qa/support/test-helpers.ts` (and `tests/qa/support/supabase.ts`) itself; you never write or edit them, and every spec imports them from there. A path in the command's `drift` list was edited by hand or copied from an older version, and is now overwritten: record each one in your work report's `uncertainties[]` (impact `low`). A refusal (`invalid-input`: a symlinked or non-regular copy, a missing target root, an unsafe tests dir) is reported in your work report and not retried.
 
 4. **Generate test data factories (scope=data).** For each entity type inferred from requirements + target schema (user, order, document, etc.):
    - Create `tests/qa/factories/{entity}.factory.ts`
    - Use `faker.seed(hashStr(testCaseId))` for deterministic reproducibility
-   - Implement `create()` + `cleanup()` pair — cleanup called in `afterEach`
+   - Implement `create()` + `cleanup()` pair — cleanup called in `afterEach`; track created records with `FactoryCleanupTracker` from `tests/qa/support/test-helpers.ts`
    - Prefix: `qa_`, `test_`, `e2e_`; email plus-aliases: `base+qa@domain.com`
    - Never seed real PII; never seed into production env
 
@@ -166,6 +169,8 @@ reads:
   - "agent-memory/qa-environment-engineer/lessons.md"
   - "test-data/credentials/{role}.env.local"
   - "secrets/.env.{env}"
+  - "{tests}/qa/support/test-helpers.ts"
+  - "{tests}/qa/support/supabase.ts"
 writes:
   - "{tests}/qa/fixtures/auth.fixture.ts"
   - "{tests}/qa/fixtures/**"
@@ -183,7 +188,7 @@ emits:
   - {event: credentials.missing, via: append}
   - {event: test.config-written, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, helpers.vendor]
 runs: [npm, playwright-cli]
 dispatches: []
 config:

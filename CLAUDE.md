@@ -117,6 +117,11 @@ Model assignments are centralized in `.claude/model-policy.yaml` — **never har
 - **ids** — atomic ID generation (`TYPE-MODULE-SEQUENCE`, e.g. `TC-AUTH-031`)
 - **agent-memory** — per-agent `lessons.json` auto-learning; promoted via `/qa-promote`
 - **taskmaster-client** — task claim/release protocol with file-lock serialization
+- **run-state** — run lifecycle, task claims, submissions and integrity checks behind the `aegis` CLI
+- **alignment** — static alignment checker behind `pnpm aegis align`
+- **metrics** — token logger and cycle-time tracker; writes rollup JSON from `events.jsonl`
+- **eslint-plugin** — custom ESLint rules for QA code
+- **test-helpers** and **supabase** — QA helpers (HAR sanitising, evidence naming, factory cleanup; Supabase role JWTs, migrations, RLS checks) that `aegis helpers vendor` copies into the target's `tests/qa/support/`
 - **reporters** — PDF and Markdown report rendering
 - **pdf-renderer** — Puppeteer-based PDF output for closure and executive reports
 

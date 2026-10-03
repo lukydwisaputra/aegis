@@ -7,7 +7,8 @@ import { staleBuild } from '@qa/alignment';
 import { checkBrandExposure } from '@qa/contracts';
 import { ROLES } from '@qa/path-guard';
 import { forgeRoleJwt } from '@qa/supabase';
-import { assertCallerAllowed, parseHelperList, vendoredHeader, vendorHelpers, VENDORED_HELPERS } from '@qa/run-state';
+import { parse } from 'yaml';
+import { assertCallerAllowed, parseHelperList, SINGLE_AGENT_COMMANDS, vendoredHeader, vendorHelpers, VENDORED_HELPERS } from '@qa/run-state';
 import { makeAegisRoot, startedRun, thrownCode, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, runHook } from './helpers/hooks';
 
@@ -262,5 +263,30 @@ describe('the PreToolUse hook (H1) and the role table', () => {
   it('no role row lets an agent write the copied helpers itself', () => {
     const own = (w: string) => w === '{testsDir}/**' || w === '{testsDir}/support/**' || /^\{testsDir\}\/support\/(test-helpers|supabase)\.ts$/.test(w);
     expect(ROLES.filter((r) => r.writes.some(own)).map((r) => r.agent)).toEqual([]);
+  });
+});
+
+describe('agents reach the helpers only through the copies (spec §4.11.3)', () => {
+  const agentFiles = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? agentFiles(path.join(dir, e.name)) : e.name.endsWith('.md') ? [path.join(dir, e.name)] : []));
+  const agents = agentFiles(path.join(REPO, '.claude', 'agents')).map((f) => ({ name: path.basename(f, '.md'), text: fs.readFileSync(f, 'utf-8') }));
+  const cliOf = (text: string): string[] =>
+    (/^cli: \[([^\]]*)\]$/m.exec(text.split('## Contract (machine-checked)')[1] ?? '')?.[1] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '');
+  const read = (rel: string) => fs.readFileSync(path.join(REPO, rel), 'utf-8');
+
+  it('only the agent SINGLE_AGENT_COMMANDS names lists helpers.vendor, and its prose runs the command', () => {
+    expect(agents.filter((a) => cliOf(a.text).includes('helpers.vendor')).map((a) => a.name)).toEqual([SINGLE_AGENT_COMMANDS['helpers.vendor']]);
+    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain('`AEGIS_AGENT=qa-environment-engineer pnpm aegis helpers vendor --helpers test-helpers`');
+  });
+
+  it('pipeline.yaml lists both copies as CLI-written', () => {
+    const p = parse(read('.claude/pipeline.yaml')) as { sources: { cli: string[] } };
+    expect(p.sources.cli).toEqual(expect.arrayContaining(['{tests}/qa/support/test-helpers.ts', '{tests}/qa/support/supabase.ts']));
+  });
+
+  it('no agent names the packages or the old forgeJWT; the specialists name the copied helpers', () => {
+    expect(agents.filter((a) => /@qa\/(supabase|test-helpers)|forgeJWT/.test(a.text)).map((a) => a.name)).toEqual([]);
+    expect(read('.claude/agents/tier2-specialist/qa-database-specialist.md')).toContain('`forgeRoleJwt({ role, userId, email, jwtSecret: SUPABASE_JWT_SECRET })` from `tests/qa/support/supabase.ts`');
+    for (const f of ['tier2-specialist/qa-api-specialist.md', 'tier2-specialist/qa-ui-specialist.md']) expect(read(`.claude/agents/${f}`)).toContain('`sanitizeHar` from `tests/qa/support/test-helpers.ts`');
   });
 });

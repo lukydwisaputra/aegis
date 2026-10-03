@@ -59,6 +59,9 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
 - A `qa-*` agent writes only its role row's globs — {run} is the active run, {testsDir} is
   `aegis.config.json#testsDir`, {target} is `targetProjectRoot` — or the OS temp directory; never `packages/`, `apps/`,
   `.claude/`, a `package.json` or a lockfile, and nothing at all while the run's environment forbids it.
+- No role row covers the copied QA helpers `{testsDir}/support/test-helpers.ts` and `{testsDir}/support/supabase.ts`.
+  Only `aegis helpers vendor` writes them, and only `qa-environment-engineer` may run it (in Env-auth); it overwrites a
+  hand-edited copy and reports it as drift.
 - A `qa-*` agent never changes dependencies in this repo or the target: `pnpm`, `npm`, `yarn` or `bun` with `add`,
   `install`, `ci`, `remove`, `update`, `link`, `unlink` (or an alias) is refused when its directory (the command's
   cwd, or `-C`/`--dir`/`--prefix`/`--cwd`) is inside either and outside the sandbox. A global install (`-g`,
