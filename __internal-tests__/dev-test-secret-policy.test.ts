@@ -1,4 +1,6 @@
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 const REPO = path.join(__dirname, '..');
@@ -7,7 +9,14 @@ const spv = fs.readFileSync(path.join(REPO, '.claude', 'agents', 'spv', 'qa-dev-
 
 const SECRET_EXCLUDES = [
   '.npmrc', '.yarnrc.yml', '.netrc', '.pgpass', "'*.pem'", "'*.key'", "'*.p12'", "'*.pfx'", "'*.jks'", "'*.keystore'",
-  "'id_rsa*'", "'id_ecdsa*'", "'id_ed25519*'", "'*service-account*.json'", "'*credentials*.json'", "'*.tfstate'", "'*.tfstate.*'",
+  "'id_rsa*'", "'id_ecdsa*'", "'id_ed25519*'", "'*service-account*.json'", "'*[Cc]redentials*.[jJ][sS][oO][nN]'", "'*.tfstate'", "'*.tfstate.*'",
+  "'.dev.vars.*'", "'*firebase-adminsdk*.json'", 'serviceAccountKey.json', '.pypirc', '.git-credentials', '.docker/config.json', '.htpasswd',
+  "'*.p8'", "'*.tfvars'",
+];
+
+const DEP_EXCLUDES = [
+  "'node_modules/**/.npmrc'", "'node_modules/**/.env'", "'node_modules/**/.env.*'", 'node_modules/.npmrc',
+  "'**/node_modules/**/.npmrc'", "'**/node_modules/**/.env'", "'**/node_modules/**/.env.*'", "'**/node_modules/.npmrc'",
 ];
 
 const rsync = /`(rsync -a [^`]+)`/.exec(agent)?.[1] ?? '';
@@ -20,24 +29,40 @@ it('dependencies are included before the secret excludes, so bundled certificate
   const include = rsync.indexOf("--include 'node_modules/**'");
   expect(include).toBeGreaterThan(rsync.indexOf('--exclude node_modules/.vite'));
   expect(include).toBeLessThan(rsync.indexOf("--exclude '*.pem'"));
+  expect(rsync.indexOf("--include '**/node_modules/**'")).toBeGreaterThan(include);
+  expect(rsync.indexOf("--include '**/node_modules/**'")).toBeLessThan(rsync.indexOf("--exclude '*.pem'"));
 });
 
-it('the copy gets a token-stripped .npmrc, and the SPV checks both', () => {
-  expect(agent).toMatch(/grep -vE '\(_authToken\|_auth\|_password\|username\|email\|certfile\|keyfile\)\[\[:space:\]\]\*=' <target>\/\.npmrc/);
+it('dependency dotenv and .npmrc files are excluded before the dependencies are included', () => {
+  const include = rsync.indexOf("--include 'node_modules/**'");
+  for (const x of DEP_EXCLUDES) {
+    const at = rsync.indexOf(`--exclude ${x}`);
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(include);
+  }
+});
+
+const NPMRC_CMD = /`(grep -E '[^']+' <target>\/\.npmrc \| grep -vE '[^']+' > [^`]+)`/.exec(agent)?.[1] ?? '';
+const NPMRC_PATTERNS = /grep -E '([^']+)' <target>\/\.npmrc \| grep -vE '([^']+)'/.exec(NPMRC_CMD) ?? [];
+const KEEP = NPMRC_PATTERNS[1] ?? '';
+const DROP = NPMRC_PATTERNS[2] ?? '';
+
+it('the copy gets an allowlisted .npmrc, and the SPV checks the copy and the excludes', () => {
+  expect(NPMRC_CMD).toContain("grep -E '^[[:space:]]*(@[^:=[:space:]]+:)?registry[[:space:]]*=' <target>/.npmrc | grep -vE '://[^/[:space:]]*@' > sandbox/{date}-dev-test-review/target/.npmrc");
+  expect(agent).toMatch(/an empty result is fine; a grep exit status of 1 is not a failure/);
+  expect(agent).toMatch(/root `node_modules`/);
   expect(spv).toMatch(/--exclude '\*\.pem'/);
-  expect(spv).toMatch(/no `_authToken`/);
+  expect(spv).toMatch(/--exclude 'node_modules\/\*\*\/\.npmrc'/);
+  expect(spv).toMatch(/only `registry=` and `@scope:registry=` lines/);
+  expect(spv).toMatch(/no URL in it contains `@`/);
 });
 
 // Behavioural fixtures: run the documented commands on a temp tree (argv only, no shell).
-import { execFileSync } from 'child_process';
-import * as os from 'os';
-
 const FAKE_TOKEN = 'FAKE-TOKEN-do-not-use-0000';
 
 function rsyncArgs(src: string, dst: string): string[] {
-  const parts = rsync.split(' ').slice(2); // drop "rsync -a"
+  const joined = rsync.split(' ').slice(2).join(' ');
   const args: string[] = ['-a'];
-  const joined = parts.join(' ');
   const re = /--(include|exclude) ('[^']*'|\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(joined))) {
@@ -47,6 +72,20 @@ function rsyncArgs(src: string, dst: string): string[] {
   }
   return [...args, src + '/', dst + '/'];
 }
+
+const DROPPED = [
+  '.npmrc', '.yarnrc.yml', '.netrc', '.pgpass', 'deploy.pem', 'a/server.key', 'c.p12', 'c.pfx', 'k.jks', 'k.keystore',
+  'id_rsa', 'id_rsa.pub', 'id_ecdsa', 'id_ed25519', 'my-service-account-1.json', 'aws-credentials.json', 'Credentials.JSON', 'gcp-Credentials.json',
+  'main.tfstate', 'main.tfstate.backup', '.env', '.env.local', 'sub/.env.production', '.envrc', '.dev.vars', '.dev.vars.production',
+  'proj-firebase-adminsdk-abc12.json', 'sub/serviceAccountKey.json', '.pypirc', '.git-credentials', 'home/.docker/config.json', '.htpasswd',
+  'AuthKey_ABC123.p8', 'prod.tfvars', 'infra/dev.tfvars',
+  'node_modules/.npmrc', 'node_modules/dep/.npmrc', 'node_modules/dep/.env', 'node_modules/dep/.env.local', 'node_modules/@s/dep/.npmrc',
+  'pkgs/a/node_modules/.npmrc', 'pkgs/a/node_modules/dep/.npmrc', 'pkgs/a/node_modules/dep/.env', 'pkgs/a/node_modules/dep/.env.local',
+];
+const KEPT = [
+  '.env.example', 'src/app.ts', 'package.json', 'config.json', '.docker/other.json', 'node_modules/pkg/index.js', 'node_modules/pkg/ca-bundle.pem',
+  'node_modules/pkg/test.key', 'pkgs/a/node_modules/dep/ca.pem', 'pkgs/a/node_modules/dep/index.js',
+];
 
 describe('rsync fixture', () => {
   let tmp: string;
@@ -60,64 +99,71 @@ describe('rsync fixture', () => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dtsp-'));
     dst = path.join(tmp, 'dst');
     fs.mkdirSync(dst);
-    for (const f of ['.npmrc', '.yarnrc.yml', '.netrc', '.pgpass', 'deploy.pem', 'a/server.key', 'c.p12', 'c.pfx', 'k.jks', 'k.keystore',
-      'id_rsa', 'id_rsa.pub', 'id_ecdsa', 'id_ed25519', 'my-service-account-1.json', 'aws-credentials.json', 'main.tfstate', 'main.tfstate.backup',
-      '.env', '.env.local', 'sub/.env.production', '.envrc', '.dev.vars']) put(f);
-    for (const f of ['.env.example', 'src/app.ts', 'package.json', 'node_modules/pkg/index.js', 'node_modules/pkg/ca-bundle.pem', 'node_modules/pkg/.npmrc']) put(f);
-    put('node_modules/.cache/junk');
+    for (const f of [...DROPPED, ...KEPT, 'node_modules/.cache/junk']) put(f);
     execFileSync('rsync', rsyncArgs(path.join(tmp, 'src'), dst));
   });
   afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-  it('drops every secret-pattern file', () => {
-    for (const f of ['.npmrc', '.yarnrc.yml', '.netrc', '.pgpass', 'deploy.pem', 'a/server.key', 'c.p12', 'c.pfx', 'k.jks', 'k.keystore',
-      'id_rsa', 'id_rsa.pub', 'id_ecdsa', 'id_ed25519', 'my-service-account-1.json', 'aws-credentials.json', 'main.tfstate', 'main.tfstate.backup',
-      '.env', '.env.local', 'sub/.env.production', '.envrc', '.dev.vars']) {
-      expect(fs.existsSync(path.join(dst, f))).toBe(false);
-    }
+  it('drops every secret-pattern file, including nested node_modules dotenv and .npmrc', () => {
+    for (const f of DROPPED) expect([f, fs.existsSync(path.join(dst, f))]).toEqual([f, false]);
   });
 
-  it('keeps source, .env.example and dependencies (bundled certificates included), not caches', () => {
-    for (const f of ['.env.example', 'src/app.ts', 'package.json', 'node_modules/pkg/index.js', 'node_modules/pkg/ca-bundle.pem']) {
-      expect(fs.existsSync(path.join(dst, f))).toBe(true);
-    }
+  it('keeps source, .env.example and dependencies (bundled certificates and keys included), not caches', () => {
+    for (const f of KEPT) expect([f, fs.existsSync(path.join(dst, f))]).toEqual([f, true]);
     expect(fs.existsSync(path.join(dst, 'node_modules/.cache'))).toBe(false);
   });
 });
 
-describe('token-stripped .npmrc', () => {
-  it('keeps registry and scope lines, never an auth, password, email or cert line', () => {
-    const cmd = /`(grep -vE '[^`]+)`/.exec(agent)?.[1] ?? '';
-    const pattern = /grep -vE '([^']+)'/.exec(cmd)?.[1] ?? '';
-    expect(pattern).not.toBe('');
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dtsp-npmrc-'));
+describe('allowlisted .npmrc', () => {
+  const run = (pattern: string, flag: string, input: string): string => {
     try {
-      const src = path.join(tmp, '.npmrc');
-      fs.writeFileSync(src, [
-        'registry=https://registry.example.test/',
-        '@acme:registry=https://npm.acme.example.test/',
-        `//registry.example.test/:_authToken=${FAKE_TOKEN}`,
-        `//npm.acme.example.test/:_auth=${FAKE_TOKEN}`,
-        `//registry.example.test/:_password=${FAKE_TOKEN}`,
-        '//registry.example.test/:username=someone',
-        'email=someone@example.test',
-        `_authToken = ${FAKE_TOKEN}`,
-        'certfile=/etc/x.pem',
-        'keyfile=/etc/x.key',
-        '',
-      ].join('\n'));
-      let out = '';
-      try {
-        out = execFileSync('grep', ['-vE', pattern, src], { encoding: 'utf-8' });
-      } catch (e: any) {
-        out = e.stdout?.toString() ?? '';
-      }
-      expect(out).toContain('registry=https://registry.example.test/');
-      expect(out).toContain('@acme:registry=https://npm.acme.example.test/');
-      expect(out).not.toContain(FAKE_TOKEN);
-      expect(out).not.toMatch(/_authToken|_auth\b|_password|email|username|certfile|keyfile/);
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
+      return execFileSync('grep', [flag, pattern], { encoding: 'utf-8', input });
+    } catch (e: any) {
+      if (e.status === 1) return ''; // no match is not a failure
+      throw e;
     }
+  };
+  const pipeline = (input: string) => run(DROP, '-vE', run(KEEP, '-E', input));
+
+  it('keeps plain registry and scope-registry lines', () => {
+    const out = pipeline([
+      'registry=https://registry.example.test/',
+      '@acme:registry=https://npm.acme.example.test/',
+      '  registry = https://spaced.example.test/',
+      'registry=https://host.example.test/@scoped/path/',
+      '',
+    ].join('\n'));
+    expect(out).toContain('registry=https://registry.example.test/');
+    expect(out).toContain('@acme:registry=https://npm.acme.example.test/');
+    expect(out).toContain('registry = https://spaced.example.test/');
+    expect(out).toContain('https://host.example.test/@scoped/path/');
+  });
+
+  it('drops every credential-bearing or unrelated line', () => {
+    const out = pipeline([
+      'registry=https://registry.example.test/',
+      `registry=https://u:${FAKE_TOKEN}@host.example.test/`,
+      `@acme:registry=https://u:p-${FAKE_TOKEN}@host.example.test/`,
+      `//registry.example.test/:_authToken=${FAKE_TOKEN}`,
+      `//registry.example.test/:_AUTHTOKEN=${FAKE_TOKEN}`,
+      `_authToken = ${FAKE_TOKEN}`,
+      `//npm.acme.example.test/:_auth=${FAKE_TOKEN}`,
+      `//registry.example.test/:_password=${FAKE_TOKEN}`,
+      '//registry.example.test/:username=someone',
+      'email=someone@example.test',
+      `proxy=http://u:${FAKE_TOKEN}@proxy.example.test`,
+      `https-proxy=http://u:${FAKE_TOKEN}@proxy.example.test`,
+      `key="-----BEGIN PRIVATE KEY-----${FAKE_TOKEN}-----END PRIVATE KEY-----"`,
+      `cert="-----BEGIN CERTIFICATE-----${FAKE_TOKEN}-----END CERTIFICATE-----"`,
+      'certfile=/etc/x.pem',
+      'keyfile=/etc/x.key',
+      '',
+    ].join('\n'));
+    expect(out).toBe('registry=https://registry.example.test/\n');
+    expect(out).not.toContain(FAKE_TOKEN);
+  });
+
+  it('an .npmrc with no registry line yields an empty result without failing', () => {
+    expect(pipeline(`_authToken=${FAKE_TOKEN}\n`)).toBe('');
   });
 });
