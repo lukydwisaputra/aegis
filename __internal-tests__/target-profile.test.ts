@@ -84,6 +84,27 @@ describe('TargetProfileSchema (AUD-031)', () => {
     for (const lib of ['nodemailer', 'resend', '@sendgrid/mail', 'postmark', 'mailgun.js', '@aws-sdk/client-ses']) expect(CHECKLIST).toContain('`' + lib + '`');
     expect(CHECKLIST).toMatch(/`platform` is `"supabase"` and `hasAuth` is `true`/);
   });
+  it('the strict schema refuses a profile missing a P2b field or carrying a wrong value', () => {
+    for (const key of ['hasPersonalData', 'personalDataSignals', 'hasEmailFlows']) {
+      const { [key]: _gone, ...rest } = example;
+      expect(TargetProfileSchema.safeParse(rest).success).toBe(false);
+    }
+    expect(TargetProfileSchema.safeParse({ ...example, hasPersonalData: 'yes' }).success).toBe(false);
+    expect(TargetProfileSchema.safeParse({ ...example, personalDataSignals: [''] }).success).toBe(false);
+    expect(TargetProfileSchema.safeParse({ ...example, hasEmailFlows: 'yes' }).success).toBe(false);
+  });
+  it('the full detection term lists stay in the checklist (deleting any term fails)', () => {
+    const personalTerms = ['email', 'phone', 'telephone', 'tel', 'mobile', 'name', 'username', 'surname', 'first_name', 'last_name', 'full_name', 'given_name', 'family_name', 'address', 'street', 'city', 'zip', 'postcode', 'postal', 'dob', 'date_of_birth', 'birth', 'nric', 'fin', 'passport', 'national_id', 'tax_id', 'ssn', 'gender', 'password', 'ip_address'];
+    const analytics = ['posthog-js', 'mixpanel-browser', '@segment/analytics-next', '@amplitude/analytics-browser', '@hubspot/api-client', '@vercel/analytics', 'react-ga4', 'hotjar', 'intercom', '@sentry/*'];
+    const authPackages = ['next-auth', '@auth/*', '@supabase/auth-js', '@auth0/*', '@clerk/*', 'firebase/auth', 'passport', 'lucia', 'better-auth', '@supabase/supabase-js', '@supabase/ssr'];
+    const emailEnv = ['*EMAIL*', '*SMTP*', '*MAIL*', 'RESEND_*', 'SENDGRID_*', 'POSTMARK_*', 'MAILGUN_*'];
+    const emailDeps = ['nodemailer', 'resend', '@sendgrid/mail', '@sendgrid/*', 'postmark', 'mailgun.js', 'mailgun-js', '@react-email/*', '@aws-sdk/client-ses'];
+    for (const t of [...personalTerms, ...analytics, ...authPackages, ...emailEnv, ...emailDeps]) expect(CHECKLIST).toContain('`' + t + '`');
+    expect(CHECKLIST).toMatch(/Match by token/);
+    expect(CHECKLIST).toMatch(/`final`, `find` and `hotel` do not match/);
+    for (const scope of ['supabase/migrations/**', 'prisma/schema.prisma', 'models/**', 'zod schemas', 'never row or seed values']) expect(CHECKLIST).toContain(scope);
+    expect(CHECKLIST).toMatch(/`\.auth\.` call/);
+  });
   it('generic targets: framework fallback, a root app entry, scan.warning fields (P2a final-review carries)', () => {
     expect(CHECKLIST).toMatch(/`framework\.name` \(`"unknown"` when the target is neither nextjs nor vite-react\)/);
     const appsLine = CHECKLIST.split('\n').find((l) => l.includes('**Apps list.**'))!;
