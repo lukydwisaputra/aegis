@@ -16,6 +16,8 @@ Compliance is configured in `aegis.config.json#compliance`. To disable a framewo
 
 All six are enabled by default. Disabling compliance frameworks is an audit risk; document the decision if you do it.
 
+Compliance is on by default and filtered by relevance. GDPR and PDPA run only when the target profile shows personal data: `target-profile.json#hasPersonalData` or `target-profile.json#hasAuth` is true, or `target-profile.json#personalDataSignals` is not empty. The phase is not-applicable when no listed regulation applies.
+
 ---
 
 ### 8.2 Compliance Tag Format
@@ -138,7 +140,7 @@ The PDPA agent covers Singapore's Personal Data Protection Act 2012 (amended 202
 The sequence during a full run:
 
 1. Closure-draft completes (the draft closure report exists)
-2. The `qa-orchestrator` dispatches every compliance agent listed in `aegis.config.json#compliance` simultaneously
+2. The `qa-orchestrator` dispatches every compliance agent listed in `aegis.config.json#compliance` simultaneously, except `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data; the Compliance barrier names any relevant regulation that has no task
 3. Each agent reads the test cases and RTM, annotates missing tags, and writes a compliance annotation file to `runs/<RUN-ID>/compliance/<framework>.json`
 4. The one shared compliance reviewer, `qa-compliance-spv`, reviews each compliance task on its own; the Compliance phase closes only after every compliance task has its review
 5. Closure-final merges the annotation files into the compliance section of the closure report

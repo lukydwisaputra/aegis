@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
+import { COMPLIANCE_REGULATIONS, isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
 
 export interface AegisSettings {
@@ -58,9 +58,16 @@ export function readRunConfig(root: string): RunConfig {
     throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
   }
   const intake = raw["intake"];
+  const compliance = stringList(raw["compliance"], "compliance");
+  // A regulation with no qa-compliance-<id> agent could never get a task, so the Compliance barrier would never pass.
+  const known = new Set<string>(COMPLIANCE_REGULATIONS);
+  const unknown = compliance.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    throw new RunStateError("invalid-input", `aegis.config.json#compliance lists unknown regulation(s) ${unknown.join(", ")}; known: ${COMPLIANCE_REGULATIONS.join(", ")}`);
+  }
   return {
     targetProjectRoot: typeof raw["targetProjectRoot"] === "string" ? raw["targetProjectRoot"] : "..",
-    compliance: stringList(raw["compliance"], "compliance"),
+    compliance,
     preCycleHealthCheck: raw["preCycleHealthCheck"] === true,
     intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
   };

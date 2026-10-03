@@ -104,7 +104,7 @@ SPVs are read-only (`tools: [Read, Bash]`): they submit their verdict with `aegi
 
 ### 6.7 Compliance Agents
 
-The compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`. Each produces a compliance annotation file, and `qa-compliance-spv` reviews each one.
+The compliance agents run in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance` (default all six). GDPR and PDPA run only when the target profile shows personal data. The phase is not-applicable when no listed regulation applies. Each produces a compliance annotation file, and `qa-compliance-spv` reviews each one.
 
 | Agent | Regulation | Output |
 |---|---|---|

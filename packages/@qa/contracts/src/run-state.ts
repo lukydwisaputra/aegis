@@ -19,6 +19,9 @@ export const PhaseRecordSchema = z
     reason: z.string().min(1).optional(),
     // Scan only: target-profile.json#existingTests.files.length when Scan completed; dev-test-review's not-applicable reads this snapshot.
     existingTestsCount: z.number().int().nonnegative().optional(),
+    // Scan only: whether target-profile.json showed personal data when Scan completed; compliance relevance reads this
+    // snapshot (AUD-055). Absent on runs scanned before P2b, which counts as true.
+    personalData: z.boolean().optional(),
   })
   .strict();
 

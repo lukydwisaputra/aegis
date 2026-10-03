@@ -30,3 +30,23 @@ describe('the lite profile is gone from code and config (AUD-053, code half)', (
     expect(read('HANDBOOK/09-reports-and-dashboards.md')).not.toMatch(/profile/i);
   });
 });
+
+describe('compliance relevance is stated where it is acted on (AUD-055)', () => {
+  const RELEVANCE = 'GDPR and PDPA run only when the target profile shows personal data';
+
+  it('HANDBOOK/01, 06 and 08 state the relevance rule and the not-applicable case', () => {
+    for (const f of ['HANDBOOK/01-what-is-this.md', 'HANDBOOK/06-agents.md', 'HANDBOOK/08-compliance.md']) {
+      expect(read(f)).toContain(RELEVANCE);
+      expect(read(f)).toMatch(/not-applicable when no listed regulation applies/);
+    }
+    expect(read('HANDBOOK/08-compliance.md')).toMatch(/except `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data/);
+  });
+
+  it('the orchestrator skips gdpr and pdpa on the three signals the CLI uses', () => {
+    const orch = read('.claude/agents/orchestrator/qa-orchestrator.md');
+    expect(orch).toContain(
+      'Skip `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data: `target-profile.json#hasPersonalData` and `target-profile.json#hasAuth` are both false and `target-profile.json#personalDataSignals` is empty.',
+    );
+    expect(orch).toContain('Compliance (an empty compliance list, or no listed regulation applies because the target profile shows no personal data)');
+  });
+});

@@ -22,7 +22,7 @@ The Software Testing Life Cycle in this framework runs in sixteen phases, in the
 | 9 | **Execution** | `qa-test-executor` + specialists | Test results, evidence, `execution-summary.json` |
 | 10 | **Triage** | `qa-defect-manager` | Triaged defect reports, from failures and confirmed defect candidates |
 | 11 | **Closure-draft** | `qa-closure-reporter` | Closure draft |
-| 12 | **Compliance** | `qa-compliance-*` (per `aegis.config.json#compliance`; not-applicable when empty) | `reports/compliance/*.json` |
+| 12 | **Compliance** | `qa-compliance-*` (per `aegis.config.json#compliance`; GDPR and PDPA only with personal data; not-applicable when no listed regulation applies) | `reports/compliance/*.json` |
 | 13 | **Closure-final** | `qa-closure-reporter` | `closure.md` + `closure.json` |
 | 14 | **Executive** | `qa-executive-reporter` | Three executive PDFs |
 | 15 | **Curator** | `qa-curator` | `pending-promotions/**` |

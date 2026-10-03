@@ -1,5 +1,6 @@
 import { isAbsolute, join, posix } from "node:path";
 import {
+  COMPLIANCE_REGULATIONS,
   SPECIALISTS,
   isReadOnlyEnvironment,
   specialistShortName,
@@ -45,8 +46,6 @@ function specialist(short: SpecialistShortName, writes: readonly string[]): Role
   return reviewed(agent, "specialist", [...writes, ...SPECIALIST_COMMON], mutates ? "any" : []);
 }
 
-const COMPLIANCE = ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"] as const;
-
 const SPVS = [
   "qa-orchestrator-spv", "qa-dev-test-reviewer-spv", "qa-requirements-analyst-spv", "qa-environment-engineer-spv",
   "qa-web-explorer-spv", "qa-test-planner-spv", "qa-test-designer-spv", "qa-test-executor-spv", "qa-defect-manager-spv",
@@ -84,7 +83,7 @@ export const ROLES: readonly Role[] = [
   reviewed("qa-defect-manager", "phase", ["{run}/defects/**", "{run}/rtm.json", "{run}/evidence/DEF-*/**"]),
   reviewed("qa-closure-reporter", "phase", ["{run}/reports/closure/closure.*"]),
   reviewed("qa-executive-reporter", "phase", ["{run}/reports/executive/**"]),
-  ...COMPLIANCE.map((c) => row(`qa-compliance-${c}`, "compliance", [`{run}/reports/compliance/${c}.*`], "qa-compliance-spv")),
+  ...COMPLIANCE_REGULATIONS.map((c) => row(`qa-compliance-${c}`, "compliance", [`{run}/reports/compliance/${c}.*`], "qa-compliance-spv")),
   row("qa-curator", "crosscutting", ["{run}/pending-promotions/**"], null),
   row("qa-metrics-collector", "crosscutting", ["{run}/reports/metrics/**"], null),
   specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),
