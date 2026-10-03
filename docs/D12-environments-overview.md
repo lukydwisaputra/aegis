@@ -48,7 +48,7 @@ When Aegis finds a bug it does **not** fix it. It writes a defect record to `run
 |-----------|-------------|---------|---------|-----------|
 | All specialists | ✓ | ✓ | ✓ | `ui` and `api` only (read-only smoke) |
 | Mutating test data | ✓ | ✓ | ✓ | ✗ |
-| Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit/Gmail) | ✗ |
+| Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit) | ✗ |
 | Performance testing | ✓ | ✓ | ✓ | ✗ |
 | Unit testing | ✓ | ✓ | ✓ | ✗ |
 | Read-only enforced | ✗ | ✗ | ✗ | ✓ |

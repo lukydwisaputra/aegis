@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import pc from "picocolors";
@@ -9,7 +9,8 @@ export function reconfigureCommand(): Command {
   return new Command("reconfigure")
     .description("Edit aegis settings without re-initialising")
     .argument("[aegis-dir]", "path to aegis/ directory", "aegis")
-    .option("--email <adapter>", "change email adapter (mailpit|gmail)")
+    // AUD-051 (T4): Mailpit is the only inbox; any other adapter is refused as invalid-input.
+    .addOption(new Option("--email <adapter>", "change email inbox adapter (mailpit only)").choices(["mailpit"]))
     .option("--project-name <name>", "change dashboard project name")
     .action(action((aegisDir: string, opts: ReconfigureOptions) => {
       const aegisRoot = resolve(aegisDir);

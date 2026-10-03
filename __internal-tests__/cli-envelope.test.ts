@@ -52,6 +52,20 @@ describe('commander parse errors are JSON envelopes (CO-04)', () => {
     expect(JSON.parse(envelopeFor(err).stderr)).toEqual({ error: 'invalid-input', message: "unknown option '--profile'" });
   });
 
+  it('init and reconfigure accept only the mailpit inbox (AUD-051, T4)', async () => {
+    // Inspect first: while gmail is accepted, parsing would run the action.
+    const program = buildProgram();
+    for (const name of ['init', 'reconfigure']) {
+      const email = program.commands.find((c) => c.name() === name)!.options.find((o) => o.long === '--email')!;
+      expect(email.argChoices).toEqual(['mailpit']);
+    }
+    for (const argv of [['init', 'x', '--email', 'gmail'], ['reconfigure', 'x', '--email', 'gmail']]) {
+      const err = (await parseError(argv))!;
+      expect(err.code).toBe('commander.invalidArgument');
+      expect(JSON.parse(envelopeFor(err).stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining('Allowed choices are mailpit') });
+    }
+  });
+
   it('help and version keep their own exit code and print no envelope', () => {
     expect(envelopeFor({ code: 'commander.helpDisplayed', exitCode: 0, message: '(outputHelp)' })).toEqual({ exitCode: 0, stderr: '' });
     expect(envelopeFor({ code: 'commander.version', exitCode: 0, message: '1.0.0' })).toEqual({ exitCode: 0, stderr: '' });

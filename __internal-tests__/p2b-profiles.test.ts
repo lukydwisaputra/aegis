@@ -185,3 +185,24 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
     expect(realtimeSpv).toContain('A `specialist.no-op` is legitimate only when `target-profile.json#hasRealtimeFeatures` is false');
   });
 });
+
+describe('Mailpit is the only inbox (AUD-051, T4)', () => {
+  it('no Gmail adapter remains in the email pair, the environment engineer, the CLI or the environment docs', () => {
+    const files = [
+      '.claude/agents/tier2-specialist/qa-email-specialist.md',
+      '.claude/agents/spv/qa-email-specialist-spv.md',
+      '.claude/agents/tier1-phase/qa-environment-engineer.md',
+      'apps/cli/src/commands/init.ts',
+      'apps/cli/src/commands/reconfigure.ts',
+      'docs/D12-environments-overview.md',
+    ];
+    expect(files.filter((f) => /gmail/i.test(read(f)))).toEqual([]);
+    expect(JSON.parse(read('aegis.config.json')).emailAdapter).toBe('mailpit');
+  });
+
+  it('the environment engineer checks the inbox only when the profile shows email flows', () => {
+    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain(
+      'If `target-profile.json#hasEmailFlows` is true: verify the Mailpit inbox answers at `MAILPIT_URL` (default `http://localhost:{ports.mailpit.http}`)',
+    );
+  });
+});

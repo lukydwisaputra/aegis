@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { resolve, join } from "node:path";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -11,7 +11,8 @@ export function initCommand(): Command {
   return new Command("init")
     .description("Initialise Aegis inside an existing project directory")
     .argument("[target]", "path to target project root", ".")
-    .option("--email <adapter>", "email adapter (mailpit|gmail)", "mailpit")
+    // AUD-051 (T4): Mailpit is the only inbox; any other adapter is refused as invalid-input.
+    .addOption(new Option("--email <adapter>", "email inbox adapter (mailpit only)").choices(["mailpit"]).default("mailpit"))
     .option(
       "--compliance <list>",
       "comma-separated compliance modules",
