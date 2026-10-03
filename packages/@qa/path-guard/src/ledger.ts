@@ -10,6 +10,8 @@ export type LedgerKind =
   | "claim"
   | "stop-blocked"
   | "stop-unresolved"
+  /** H2 let this instance stop; a claim it held passes to a resumed instance of the same type. */
+  | "stopped"
   | "legacy-write"
   /** H2 recorded token.used from the transcript entries up to `through` (AUD-042b). */
   | "tokens-recorded"

@@ -34,7 +34,8 @@ export function sidechainTranscript(sessionTranscript: string, agentId: string):
  *
  * SubagentStop hands the hook the SESSION transcript (`transcript_path`), not a per-agent one. Only lines whose
  * top-level `agentId` equals `agentId` count; the per-agent sidechain file beside it is read the same way, when present.
- * Each assistant message id counts once (a streamed message repeats its usage on every content block). With `after`,
+ * Each assistant message id counts once, with the largest numbers seen across its lines (a streamed message repeats
+ * its usage on every content block, and the early lines can carry partial output counts). With `after`,
  * only entries with a later `timestamp` count, so a continued agent is never charged twice.
  * input = input + cache-creation tokens, output = output tokens, cached = cache-read tokens. Synthetic models
  * ("<synthetic>") and empty totals are skipped. Throws only when the session transcript cannot be read.
@@ -50,8 +51,9 @@ export function transcriptUsage(sessionTranscript: string, agentId: string, afte
     }
   }
   const afterMs = after === null ? null : Date.parse(after);
-  const seen = new Set<string>();
-  const byModel = new Map<string, ModelUsage>();
+  // Fix-1 m3: per message id, the largest numbers across its repeated stream lines; lines without an id add up.
+  const byId = new Map<string, ModelUsage>();
+  const anonymous: ModelUsage[] = [];
   let attributed = 0;
   let through: string | null = null;
   let throughMs = -Infinity;
@@ -72,25 +74,40 @@ export function transcriptUsage(sessionTranscript: string, agentId: string, afte
       if (msg === null || typeof msg !== "object") continue;
       const m = msg as { id?: unknown; model?: unknown; usage?: unknown };
       if (typeof m.model !== "string" || m.model.startsWith("<") || m.usage === null || typeof m.usage !== "object") continue;
-      if (typeof m.id === "string") {
-        if (seen.has(m.id)) continue;
-        seen.add(m.id);
-      }
       const usage = m.usage as Record<string, unknown>;
       const n = (k: string): number => {
         const v = usage[k];
         return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
       };
-      const cur = byModel.get(m.model) ?? { model: m.model, input: 0, output: 0, cached: 0 };
-      cur.input += n("input_tokens") + n("cache_creation_input_tokens");
-      cur.output += n("output_tokens");
-      cur.cached += n("cache_read_input_tokens");
-      byModel.set(m.model, cur);
+      const counted: ModelUsage = {
+        model: m.model,
+        input: n("input_tokens") + n("cache_creation_input_tokens"),
+        output: n("output_tokens"),
+        cached: n("cache_read_input_tokens"),
+      };
+      if (typeof m.id !== "string") anonymous.push(counted);
+      else {
+        const prev = byId.get(m.id);
+        byId.set(
+          m.id,
+          prev === undefined
+            ? counted
+            : { model: prev.model, input: Math.max(prev.input, counted.input), output: Math.max(prev.output, counted.output), cached: Math.max(prev.cached, counted.cached) }
+        );
+      }
       if (ms > throughMs) {
         throughMs = ms;
         through = timestamp as string;
       }
     }
+  }
+  const byModel = new Map<string, ModelUsage>();
+  for (const u of [...byId.values(), ...anonymous]) {
+    const cur = byModel.get(u.model) ?? { model: u.model, input: 0, output: 0, cached: 0 };
+    cur.input += u.input;
+    cur.output += u.output;
+    cur.cached += u.cached;
+    byModel.set(u.model, cur);
   }
   return { usage: [...byModel.values()].filter((u) => u.input + u.output + u.cached > 0), attributed, through };
 }

@@ -273,7 +273,8 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
 
 /**
  * The release freshness rule (R6): the attempt of `agent`'s work report from its current claim of `taskId`, or null.
- * Fresh means the latest attempt exists, is newer than any a gate rejection superseded, and is not reviewed yet.
+ * Fresh means the latest attempt exists, is newer than any a gate rejection superseded, and has neither a review nor
+ * an escalation decision (a retry reopens the task for a new attempt, so the failed one never counts again).
  * `aegis task release` and the SubagentStop hook (H2) both judge by this one rule.
  */
 export function freshAttempt(root: string, runId: string, agent: string, taskId: string): number | null {
@@ -281,7 +282,9 @@ export function freshAttempt(root: string, runId: string, agent: string, taskId:
   if (attempts.length === 0) return null;
   const latest = Math.max(...attempts);
   if (latest <= supersededAttempt(readRun(root, runId), agent, taskId)) return null;
-  return existsSync(join(reviewDir(root, runId), `${agent}.${taskId}.${latest}.json`)) ? null : latest;
+  const reviews = reviewDir(root, runId);
+  if (existsSync(join(reviews, `${agent}.${taskId}.${latest}.json`))) return null;
+  return existsSync(join(reviews, escalationFile(agent, taskId, latest))) ? null : latest;
 }
 
 /**

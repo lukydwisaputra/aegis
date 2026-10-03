@@ -59,6 +59,8 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
   if (runId === null) {
     lines.push("- No active run: commands that need a run refuse until your dispatcher creates or resumes one; report that and stop.");
   } else {
+    // First, so a context that cannot be built (a corrupt config) never loses the start H2 times an SPV from.
+    if (agentId !== undefined && agentId !== "") appendLedger(root, runId, { ts: iso(now), agentId, agentType, kind: "start" });
     const ctx = loadGuardContext(root);
     try {
       const state = readRun(root, runId);
@@ -73,7 +75,6 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
       lines.push(`- Active run: ${runId}, but its run.json is unreadable (${(e as Error).message}); report this to your dispatcher and stop.`);
     }
     lines.push(`- Paths: run ${ctx.runDir ?? join(root, "runs", runId)}; QA tests ${ctx.testsDir}; target ${ctx.targetRoot}; sandbox ${join(root, "sandbox")}.`);
-    if (agentId !== undefined && agentId !== "") appendLedger(root, runId, { ts: iso(now), agentId, agentType, kind: "start" });
   }
   const role = roleOf(agentType);
   const writes = role === undefined ? "nothing (no row in the path-guard role table)" : role.writes.length === 0 ? "nothing directly — you work through the CLI" : role.writes.join(", ");

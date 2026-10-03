@@ -4,8 +4,11 @@ import { readLines } from '@qa/event-bus';
 import { appendLedger, readLedger } from '@qa/path-guard';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, busPath, checkSubagentStop, claimTask, freshAttempt, MAX_STOP_BLOCKS, releaseTask, submitReview, submitWorkReport, taskmasterDir, transcriptUsage,
+  addTask, busPath, checkSubagentStop, claimTask, decideEscalation, freshAttempt, MAX_STOP_BLOCKS, releaseTask, RunStateError, submitReview, submitWorkReport,
+  taskmasterDir, transcriptUsage,
 } from '@qa/run-state';
+// The same module instance stop-check imports (jest maps ./tasks.js to src/tasks), so a spy on it is seen by H2.
+import * as tasksModule from '../packages/@qa/run-state/src/tasks';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 import { review, workReport } from './helpers/pipeline';
 
@@ -69,7 +72,38 @@ describe('H2 for workers (spec §4.2)', () => {
     const v = await stop('a1', UI);
     expect(v.block).toBe(false);
     expect(v.warnings.join('\n')).toMatch(/unresolved/);
-    expect(readLedger(t.root, runId, 'a1').map((e) => e.kind)).toEqual(['claim', 'stop-blocked', 'stop-blocked', 'stop-blocked', 'stop-unresolved']);
+    expect(readLedger(t.root, runId, 'a1').map((e) => e.kind)).toEqual(['claim', 'stop-blocked', 'stop-blocked', 'stop-blocked', 'stop-unresolved', 'stopped']);
+  });
+
+  it('fix-1 m5: blocks only on no-work-report; another release refusal re-reads the task', async () => {
+    const realRelease = tasksModule.releaseTask;
+    const spy = jest.spyOn(tasksModule, 'releaseTask');
+    try {
+      await claimAs('a1', 'T-1');
+      await submitWorkReport(t.root, runId, json('wr.json', workReport(UI, 'T-1')), UI);
+      // Still held by a1, refused for another reason: allowed with a warning, never blocked.
+      spy.mockRejectedValueOnce(new RunStateError('caller-forbidden', 'not this time'));
+      const warned = await stop('a1', UI);
+      expect(warned).toMatchObject({ block: false, released: [] });
+      expect(warned.warnings.join('\n')).toMatch(/task T-1: .*not this time/);
+      // A race: the agent's own release landed first, then H2's attempt is refused. The task is no longer held: skipped.
+      spy.mockImplementationOnce(async (...args) => {
+        await realRelease(...args);
+        throw new RunStateError('not-claimed', 'task T-1 is not in progress under qa-ui-specialist');
+      });
+      expect(await stop('a1', UI)).toMatchObject({ block: false, released: [], warnings: [] });
+      expect(await status('T-1')).toBe('done');
+      // no-work-report from the release itself still blocks.
+      await claimAs('a2', 'T-2');
+      await submitWorkReport(t.root, runId, json('wr2.json', workReport(UI, 'T-2')), UI);
+      spy.mockRejectedValueOnce(new RunStateError('no-work-report', 'task T-2: no report'));
+      const held = await stop('a2', UI);
+      expect(held.block).toBe(true);
+      expect(held.reason).toMatch(/^task T-2 .*no work report from this claim/);
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('lets non-qa agents, the orchestrator and agents with no claim stop', async () => {
@@ -91,7 +125,7 @@ describe('m5: H2 acts only on a claim the CLI actually granted to this instance'
     await submitWorkReport(t.root, runId, json('wr.json', workReport(UI, 'T-1')), UI);
     expect(await stop('a1', UI)).toMatchObject({ block: false, released: [] });
     expect(await status('T-1')).toBe('in-progress');
-    expect(readLedger(t.root, runId, 'a1').map((e) => e.kind)).toEqual(['claim']);
+    expect(readLedger(t.root, runId, 'a1').map((e) => e.kind)).toEqual(['claim', 'stopped', 'stopped']);
     // a2, whose claim the CLI did grant, is the one released.
     expect(await stop('a2', UI)).toMatchObject({ block: false, released: ['T-1'] });
   });
@@ -100,6 +134,62 @@ describe('m5: H2 acts only on a claim the CLI actually granted to this instance'
     ledger('a1', UI, 'claim', 'T-2');
     expect(await stop('a1', UI)).toMatchObject({ block: false, released: [] });
     expect(await status('T-2')).toBe('pending');
+  });
+});
+
+describe('fix-1 m1: a resumed worker inherits the claim of an instance that has stopped', () => {
+  const later = (ms: number) => new Date(Date.now() + ms).toISOString();
+
+  it('probe C: the holder ends unresolved, the resumed instance (refused already-claimed) is held and then released', async () => {
+    await claimAs('a1', 'T-1');
+    for (let i = 0; i <= MAX_STOP_BLOCKS; i++) await stop('a1', UI);
+    expect(readLedger(t.root, runId, 'a1').map((e) => e.kind).slice(-2)).toEqual(['stop-unresolved', 'stopped']);
+    // The resumed instance tries to claim; the CLI says already-claimed: continue without claiming again.
+    ledger('a2', UI, 'claim', 'T-1', later(1_000));
+    await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/already-claimed/);
+    const held = await stop('a2', UI);
+    expect(held.block).toBe(true);
+    expect(held.reason).toMatch(/task T-1 /);
+    await submitWorkReport(t.root, runId, json('wr.json', workReport(UI, 'T-1')), UI);
+    expect(await stop('a2', UI)).toMatchObject({ block: false, released: ['T-1'] });
+    expect(await status('T-1')).toBe('done');
+  });
+
+  it('a live parallel duplicate never inherits: the holder has not stopped', async () => {
+    await claimAs('a1', 'T-1');
+    ledger('a3', UI, 'claim', 'T-1', later(1_000));
+    await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/already-claimed/);
+    expect(await stop('a3', UI)).toMatchObject({ block: false, released: [] });
+    await submitWorkReport(t.root, runId, json('wr.json', workReport(UI, 'T-1')), UI);
+    expect(await stop('a3', UI)).toMatchObject({ block: false, released: [] });
+    expect(await status('T-1')).toBe('in-progress');
+    // The live holder is still the one held and released.
+    expect(await stop('a1', UI)).toMatchObject({ block: false, released: ['T-1'] });
+  });
+
+  it('an earlier stop of the holder (before its claim) does not end it', async () => {
+    appendLedger(t.root, runId, { ts: new Date(Date.now() - 60_000).toISOString(), agentId: 'a1', agentType: UI, kind: 'stopped' });
+    await claimAs('a1', 'T-1');
+    ledger('a3', UI, 'claim', 'T-1', later(1_000));
+    expect(await stop('a3', UI)).toMatchObject({ block: false, released: [] });
+    expect((await stop('a1', UI)).block).toBe(true);
+  });
+});
+
+describe('fix-1 I1: an escalation retry needs a new report', () => {
+  it('retry → re-claim → stop with no new report: H2 blocks and aegis task release refuses', async () => {
+    await claimAs('a1', 'T-1');
+    await submitWorkReport(t.root, runId, json('wr.json', workReport(UI, 'T-1')), UI);
+    await releaseTask(t.root, runId, 'T-1', 'failed', UI);
+    await decideEscalation(t.root, runId, { taskId: 'T-1', decision: 'retry', reason: 'try again' }, 'owner');
+    expect(await status('T-1')).toBe('pending');
+    await claimAs('a2', 'T-1');
+    expect(freshAttempt(t.root, runId, UI, 'T-1')).toBeNull();
+    const v = await stop('a2', UI);
+    expect(v).toMatchObject({ block: true, released: [] });
+    expect(v.reason).toMatch(/task T-1 .*no work report from this claim/);
+    await expect(releaseTask(t.root, runId, 'T-1', 'done', UI)).rejects.toThrow(/no work report in this claim/);
+    expect(await status('T-1')).toBe('in-progress');
   });
 });
 
@@ -188,7 +278,28 @@ describe('token.used from the session transcript, attributed by agentId (AUD-042
     fs.appendFileSync(file, '\n' + entry('p', 'msg_6', 'claude-sonnet-5', usage(1, 2, 0, 3), '2026-10-03T11:00:00.000Z'));
     await stop('p', 'qa-test-planner', file);
     expect(tokenEvents().map((e) => [e.input, e.output, e.cached])).toEqual([[130, 55, 300], [1, 2, 3]]);
-    expect(readLedger(t.root, runId, 'p').map((e) => e.kind)).toEqual(['tokens-recorded', 'tokens-recorded']);
+    expect(readLedger(t.root, runId, 'p').map((e) => e.kind)).toEqual(['tokens-recorded', 'stopped', 'tokens-recorded', 'stopped']);
+  });
+
+  it('fix-1 m3: repeated stream lines of one message id count once, with the largest numbers', () => {
+    const file = write('s.jsonl', [
+      entry('p', 'msg_1', 'claude-sonnet-5', usage(100, 5, 20, 300)), // first stream line: output not final yet
+      entry('p', 'msg_1', 'claude-sonnet-5', usage(100, 50, 20, 300)), // final line
+      entry('p', 'msg_1', 'claude-sonnet-5', usage(90, 7, 0, 0)), // a later, smaller repeat never lowers it
+    ].join('\n'));
+    expect(transcriptUsage(file, 'p').usage).toEqual([{ model: 'claude-sonnet-5', input: 120, output: 50, cached: 300 }]);
+  });
+
+  it('fix-1 m6: tokens-recorded only when an event was recorded; otherwise token-unattributed with the error', async () => {
+    const file = write('s.jsonl', entry('p', 'msg_1', 'claude-sonnet-5', usage(100, 50)));
+    // A torn tail makes the bus refuse every append.
+    fs.appendFileSync(busPath(t.root, runId), '{"torn');
+    const v = await stop('p', 'qa-test-planner', file);
+    expect(v.block).toBe(false);
+    expect(v.warnings.join('\n')).toMatch(/token\.used not recorded for claude-sonnet-5/);
+    const notes = readLedger(t.root, runId, 'p');
+    expect(notes.map((e) => e.kind)).toEqual(['token-unattributed', 'stopped']);
+    expect(notes[0]!.note).toMatch(/torn tail/);
   });
 
   it('records no token.used and a ledger note when no entry is attributable to the agent; never blocks', async () => {
@@ -196,7 +307,10 @@ describe('token.used from the session transcript, attributed by agentId (AUD-042
     const v = await stop('p', 'qa-test-planner', file);
     expect(v).toMatchObject({ block: false, warnings: [] });
     expect(tokenEvents()).toEqual([]);
-    expect(readLedger(t.root, runId, 'p')).toEqual([expect.objectContaining({ kind: 'token-unattributed', note: expect.stringMatching(/no transcript entry carries agentId p/) })]);
+    expect(readLedger(t.root, runId, 'p')).toEqual([
+      expect.objectContaining({ kind: 'token-unattributed', note: expect.stringMatching(/no transcript entry carries agentId p/) }),
+      expect.objectContaining({ kind: 'stopped' }),
+    ]);
   });
 
   it('records nothing without a transcript path, and only warns on an unreadable one', async () => {
@@ -205,6 +319,6 @@ describe('token.used from the session transcript, attributed by agentId (AUD-042
     expect(v.block).toBe(false);
     expect(v.warnings.join('\n')).toMatch(/token\.used not recorded/);
     expect(tokenEvents()).toEqual([]);
-    expect(readLedger(t.root, runId, 'p').map((e) => e.kind)).toEqual(['token-unattributed']);
+    expect(readLedger(t.root, runId, 'p').map((e) => e.kind)).toEqual(['stopped', 'token-unattributed', 'stopped']);
   });
 });

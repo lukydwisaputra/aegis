@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { appendLedger } from '@qa/path-guard';
+import { appendLedger, readLedger, readRunLedger } from '@qa/path-guard';
 import { addTask, claimTask } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
@@ -27,6 +27,21 @@ test('the SubagentStop hook exits 2 with the reason for a worker without a work 
   expect(blocked.status).toBe(2);
   expect(blocked.stderr).toMatch(/aegis stop check: task T-1/);
   expect(runHook('require-work-report', { hook_event_name: 'SubagentStop', agent_id: 'b1', agent_type: 'Explore' }, t.root).status).toBe(0);
+});
+
+test('fix-1 X: H4 (SubagentStart) writes the start entry H2 times an SPV from, even when the run context cannot be built', async () => {
+  t = makeAegisRoot();
+  const runId = await startedRun(t.root);
+  const SPV = 'qa-ui-specialist-spv';
+  expect(runHook('inject-run-context', { hook_event_name: 'SubagentStart', agent_id: 's1', agent_type: SPV }, t.root).status).toBe(0);
+  expect(readLedger(t.root, runId, 's1')).toEqual([expect.objectContaining({ kind: 'start', agentId: 's1', agentType: SPV })]);
+  // A corrupt aegis.config.json breaks the context, not the start entry, and the hook still exits 0.
+  fs.writeFileSync(path.join(t.root, 'aegis.config.json'), '{not json');
+  expect(runHook('inject-run-context', { hook_event_name: 'SubagentStart', agent_id: 's2', agent_type: SPV }, t.root).status).toBe(0);
+  expect(readLedger(t.root, runId, 's2')).toEqual([expect.objectContaining({ kind: 'start', agentType: SPV })]);
+  // agent_type alone (the main thread) records nothing.
+  expect(runHook('inject-run-context', { hook_event_name: 'SubagentStart', agent_type: SPV }, t.root).status).toBe(0);
+  expect(readRunLedger(t.root, runId).filter((e) => e.kind === 'start')).toHaveLength(2);
 });
 
 test('the caller signal is agent_id: agent_type alone is the main thread, which is never held', async () => {

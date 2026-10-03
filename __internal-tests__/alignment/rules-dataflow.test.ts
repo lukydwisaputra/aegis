@@ -314,9 +314,22 @@ it('AUD-042b: an event a Claude Code hook records has an emitter (pipeline.yaml#
   a.cleanup();
   const b = makeRepo({ agents, pipeline: { ...ppl({}), hookEmits: [{ hook: 'require-work-report', event: 'token.used' }] } });
   expect(keys(eventRule(loadModel(b.root)))).toEqual([]);
-  expect(keys(emitterRule(loadModel(b.root)))).toEqual([]);
   b.cleanup();
   const c = makeRepo({ agents: {}, pipeline: { ...ppl({}), hookEmits: [{ hook: 'require-work-report', event: 'made.up' }] } });
   expect(keys(eventRule(loadModel(c.root)))).toEqual(['EVENT:pipeline:made.up:undeclared']);
   c.cleanup();
+});
+
+it('AUD-042b: a hook-emitted event never has an unreachable emitter (emitterRule)', () => {
+  // qa-req is reachable (a pipeline phase agent) and awaits token.used; its only agent emitter qa-orphan is unreachable.
+  const agents = {
+    'qa-req': { contract: ag('req', { awaits: ['token.used'] }) },
+    'qa-orphan': { contract: ag('crosscutting', { emits: [{ event: 'token.used', via: 'append' }], cli: ['event.append'] }) },
+  };
+  const without = makeRepo({ agents, pipeline: ppl({}) });
+  expect(keys(emitterRule(loadModel(without.root)))).toEqual(['EVENT:qa-req:token.used:unreachable-emitter']);
+  without.cleanup();
+  const hooked = makeRepo({ agents, pipeline: { ...ppl({}), hookEmits: [{ hook: 'require-work-report', event: 'token.used' }] } });
+  expect(keys(emitterRule(loadModel(hooked.root)))).toEqual([]);
+  hooked.cleanup();
 });

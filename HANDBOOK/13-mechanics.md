@@ -88,9 +88,20 @@ detectable (spec §4.4).
   the active run). H1 logs a claim before the CLI runs, so H2 acts on a claim only when the task file confirms it: the
   task is in progress under that agent type, and this instance's ledger claim is the latest one at or before the
   task's `claimedAt`. A refused claim, or `task claim --help`, neither blocks nor releases.
+- Every allowed stop appends a `stopped` ledger entry. Once the holder has `stopped` or `stop-unresolved`, the claim
+  passes to the latest instance of the same type that tried to claim the task after `claimedAt` and has not ended.
+  That instance is a resumed worker, which the CLI told to continue without claiming. A live parallel duplicate never
+  inherits the claim.
+- **Claim race (known limit).** The ledger is matched to the claim by time, not by identity. Suppose two instances
+  of one type try to claim the same task at once, and the first one's claim command starts later. H2 can then pick
+  the wrong instance as holder. That instance is held or released in the other's place. The phase barrier still
+  checks the work itself. Binding a claim to its instance waits for the P0c caller-ticket design.
 - A claimed task without a work report from this claim blocks the stop. A fresh report that was never released is
   released `done` for the worker. "Fresh" is the same rule `aegis task release` applies (`freshAttempt` in
-  `packages/@qa/run-state/src/tasks.ts`).
+  `packages/@qa/run-state/src/tasks.ts`). An attempt with a review or an escalation decision is not fresh, so a
+  retried task needs a new report. Only a missing report blocks. When the release on the worker's behalf is
+  refused for another reason, H2 re-reads the task. It skips a task that is no longer held, and otherwise lets the
+  stop through with a warning.
 - An SPV may stop once it has submitted a review since its `start` ledger entry, or when no released report of a
   paired worker awaits review.
 - One instance is blocked at most 3 times. After that the stop is allowed with a warning, and the ledger records
@@ -100,8 +111,10 @@ detectable (spec §4.4).
   per-agent file Claude Code keeps beside the session transcript (`subagents/agent-<agent_id>.jsonl` in the session's
   folder), under the same per-line rule. That file layout is observed, not documented. When no line can be
   attributed, H2 records no `token.used`, and appends a `token-unattributed` ledger note instead. Token totals are
-  therefore a lower bound: an agent missing from them has no attributable usage, not zero usage. A continued agent is
-  charged only for entries after its last `tokens-recorded` ledger entry.
+  therefore a lower bound: an agent missing from them has no attributable usage, not zero usage. A message id counts
+  once, with the largest numbers seen across its repeated stream lines. A continued agent is charged only for entries
+  after its last `tokens-recorded` ledger entry. That entry is written only when at least one event was recorded.
+  When the bus refuses every event, a `token-unattributed` note carries the error, and the next stop retries.
 
 ## 13.4 Agent-memory dedup algorithm
 
