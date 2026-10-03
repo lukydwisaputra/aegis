@@ -17,6 +17,9 @@ commands are discovered from `.claude/skills/` relative to this root.
 ## Commands
 
 ```bash
+# Install; the root prepare script also builds the CLI and the packages the hooks load
+pnpm install
+
 # Build all packages (pnpm workspaces)
 pnpm build
 
