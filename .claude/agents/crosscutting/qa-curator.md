@@ -103,7 +103,13 @@ Group the signals: `framework.defect-suspected` by `component`; `cli.refused` by
 - it holds at least one `framework.defect-suspected`;
 - it is `cli.refused` with code `internal`, or with code `invalid-input` seen at least twice in the run or from at least two agents. A single `invalid-input` from one agent is that agent's mistake, not a framework defect.
 
-The slug is the group's component (for `cli.refused`, `aegis` plus the command with its dot as a space) in lower case, every run of other characters replaced by `-`, at most 60 characters. You never fix the framework, and a proposal names nothing to apply: the owner acknowledges or dismisses it. Never re-propose a slug that is already pending.
+The slug is built from the group's component (for `cli.refused`, `aegis` plus the command with its dot as a space) in this order: lower-case it; replace every run of characters other than `a-z` and `0-9` with one `-`; cut it to 60 characters; then strip any leading or trailing `-`; use `unknown` when nothing is left. `/qa-start` becomes `qa-start`, and a component made only of symbols becomes `unknown`. The slug is the proposal's key: qualifying groups that end with the same slug merge into one proposal (their signals concatenated, their occurrences summed), and the file is `framework-defect-<slug>.json` with `id` `framework-defect-<slug>`. Never re-propose a slug that is already pending. You read only this run's `pending-promotions/`, so this de-duplication is per run; de-duplication across runs waits for the `/qa-promote` queue rewrite. You never fix the framework, and a proposal names nothing to apply: the owner acknowledges or dismisses it.
+
+Fill the fields from the events:
+- `signals[]`: one entry per event, at most 20; `seq` is the event's chain `seq` in `events.jsonl`; `agent` is its `emittedBy` (for `cli.refused` that is its `caller`); `detail` is at most 300 characters: the first evidence line or the symptom for `framework.defect-suspected`, the refusal `message` for `cli.refused`, or its `code` when the message is empty.
+- `occurrences`: the number of events in the group, never fewer than the signals listed.
+- `component`: the group's component (at most 200 characters); for `cli.refused`, `aegis` plus the command with its dot as a space.
+- `symptom` (10–300 characters): the first `framework.defect-suspected` symptom; for a proposal made only of `cli.refused` events, `<component> refused with <code> <N> times`, for example `aegis event append refused with internal 3 times`.
 
 **Proposal format** (`FrameworkDefectProposalSchema` in `@qa/contracts`; strict: no other field):
 ```json
@@ -158,7 +164,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-curator pnpm ae
 
 ## Events You Emit
 
-- `curator.proposals-ready` — includes proposalCount, types: { skills, memories, lessonArchives, conflicts }
+- `curator.proposals-ready` — `proposalCount` (every proposal written this cycle, framework-defect proposals included) and `path` (the `pending-promotions/` directory)
 
 ## Contract (machine-checked)
 

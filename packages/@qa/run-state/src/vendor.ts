@@ -1,4 +1,4 @@
-import { closeSync, constants, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeSync, type Stats } from "node:fs";
+import { accessSync, closeSync, constants, fstatSync, ftruncateSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeSync, type Stats } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { loadGuardContext, within } from "@qa/path-guard";
 import { RunStateError } from "./errors.js";
@@ -110,21 +110,24 @@ export function vendorHelpers(root: string, helpers: readonly VendoredHelper[]):
   const supportDir = join(ctx.testsDir, "support");
 
   const targetStat = lstatOrNull(ctx.targetRoot);
-  if (targetStat === null || !statSync(ctx.targetRoot).isDirectory()) refuse(`the target root ${ctx.targetRoot} is not a directory`);
+  if (targetStat === null || !isDirectoryFollowing(ctx.targetRoot)) refuse(`the target root ${ctx.targetRoot} is not a directory`);
   if (!within(ctx.targetRoot, supportDir)) refuse(`${supportDir} is outside the target`);
   const expected = join(realpathSync.native(ctx.targetRoot), relative(ctx.targetRoot, supportDir));
-  if (realNearest(supportDir) !== expected) refuse(`a symlink lies between the target root and ${supportDir}`);
+  const real = realNearest(supportDir);
+  if (real !== expected) refuse(`${supportDir} does not match its real path ${real}`);
   const supportStat = lstatOrNull(supportDir);
   if (supportStat !== null && !supportStat.isDirectory()) refuse(`${supportDir} is not a directory`);
 
   const plan = helpers.map((name) => {
+    // The package sources are framework files: a missing or unreadable one is a framework defect, left to throw (internal).
     const pkg = join(root, "packages", "@qa", name);
     const { version } = JSON.parse(readFileSync(join(pkg, "package.json"), "utf-8")) as { version: string };
     const content = `${vendoredHeader(name, version)}\n${readFileSync(join(pkg, "src", "index.ts"), "utf-8")}`;
     const file = join(supportDir, `${name}.ts`);
     const st = lstatOrNull(file);
     if (st !== null && (!st.isFile() || st.nlink !== 1)) refuse(`${file} is not a plain single-link file`);
-    const same = st !== null && readFileSync(file, "utf-8") === content;
+    const same = st !== null && readDestination(file) === content;
+    if (st !== null && !same) assertWritable(file);
     return { file, content, existed: st !== null, same };
   });
 
@@ -135,13 +138,47 @@ export function vendorHelpers(root: string, helpers: readonly VendoredHelper[]):
       continue;
     }
     try {
-      mkdirSync(supportDir, { recursive: true });
+      try {
+        mkdirSync(supportDir, { recursive: true });
+      } catch (e) {
+        refuse(`cannot create ${supportDir}: ${(e as Error).message}`);
+      }
+      writeCopy(file, content);
     } catch (e) {
-      refuse(`cannot create ${supportDir}: ${(e as Error).message}`);
+      if (e instanceof RunStateError && out.written.length > 0) {
+        throw new RunStateError(e.code, `${e.message}; already written: [${out.written.join(", ")}]`);
+      }
+      throw e;
     }
-    writeCopy(file, content);
     out.written.push(file);
     if (existed) out.drift.push(file);
   }
   return out;
+}
+
+/** statSync(p).isDirectory(), following symlinks; a dangling or unreadable link refuses (invalid-input). */
+function isDirectoryFollowing(p: string): boolean {
+  try {
+    return statSync(p).isDirectory();
+  } catch (e) {
+    return refuse(`cannot resolve the target root ${p}: ${(e as Error).message}`);
+  }
+}
+
+/** The current content of an existing copy in the target; unreadable is the target's state, not a framework defect. */
+function readDestination(file: string): string {
+  try {
+    return readFileSync(file, "utf-8");
+  } catch (e) {
+    return refuse(`cannot read ${file}: ${(e as Error).message}`);
+  }
+}
+
+/** An existing copy that will be overwritten must be writable, checked before the first write. */
+function assertWritable(file: string): void {
+  try {
+    accessSync(file, constants.W_OK);
+  } catch (e) {
+    refuse(`cannot write ${file}: ${(e as Error).message}`);
+  }
 }

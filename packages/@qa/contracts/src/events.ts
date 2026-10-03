@@ -442,7 +442,7 @@ export const BusErrorEventSchema = EventBase.extend({
   errorMessage: z.string(),
 });
 
-// ─── App + migration (Supabase/multi-app) ────────────────────────────────────
+// ─── App + migration (Supabase) ──────────────────────────────────────────────
 
 export const AppDiscoveredEventSchema = EventBase.extend({
   type: z.literal("app.discovered"),

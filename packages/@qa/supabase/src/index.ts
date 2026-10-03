@@ -23,6 +23,8 @@ export async function forgeRoleJwt(opts: {
   extraClaims?: Record<string, unknown>;
 }): Promise<string> {
   const { role, userId, email, jwtSecret, expiresInSeconds = 3600, extraClaims = {} } = opts;
+  // An empty key would still sign, and the token would verify against any server that also lacks its secret.
+  if (typeof jwtSecret !== "string" || jwtSecret.length === 0) throw new Error("forgeRoleJwt: jwtSecret is required");
 
   const iat = Math.floor(Date.now() / 1000);
   const payload: Record<string, unknown> = {

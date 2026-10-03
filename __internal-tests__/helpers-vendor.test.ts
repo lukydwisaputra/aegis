@@ -3,10 +3,11 @@ import { createHmac } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { staleBuild } from '@qa/alignment';
+import { extractContract, staleBuild } from '@qa/alignment';
 import { checkBrandExposure } from '@qa/contracts';
 import { ROLES } from '@qa/path-guard';
 import { forgeRoleJwt } from '@qa/supabase';
+import * as ts from 'typescript';
 import { parse } from 'yaml';
 import { assertCallerAllowed, parseHelperList, SINGLE_AGENT_COMMANDS, vendoredHeader, vendorHelpers, VENDORED_HELPERS } from '@qa/run-state';
 import { makeAegisRoot, startedRun, thrownCode, type TmpAegis } from './helpers/aegis-root';
@@ -29,10 +30,33 @@ describe('the helper sources run in any target (T7)', () => {
     for (const n of VENDORED_HELPERS) {
       expect(specifiers(source(n)).filter((s) => !s.startsWith('node:'))).toEqual([]);
       expect(checkBrandExposure(source(n))).toBeNull();
+      expect(source(n)).not.toMatch(/@qa\//);
       expect(version(n)).toMatch(/^\d+\.\d+\.\d+$/);
     }
     const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'packages', '@qa', 'supabase', 'package.json'), 'utf-8')) as { dependencies?: Record<string, string> };
     expect(pkg.dependencies ?? {}).not.toHaveProperty('jose');
+    expect(pkg.dependencies ?? {}).toEqual({});
+  });
+
+  it('each copy loads in a directory with no node_modules (transpiled and required by plain node)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-vendor-load-'));
+    try {
+      for (const n of VENDORED_HELPERS) {
+        const js = ts.transpileModule(source(n), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+        const file = path.join(dir, `${n}.js`);
+        fs.writeFileSync(file, js);
+        const r = spawnSync(process.execPath, ['-e', 'const m = require(process.argv[1]); process.stdout.write(Object.keys(m).sort().join(","))', file], { cwd: dir, encoding: 'utf-8' });
+        expect({ helper: n, status: r.status, stderr: r.stderr }).toEqual({ helper: n, status: 0, stderr: '' });
+        expect(r.stdout.split(',')).toContain(n === 'supabase' ? 'forgeRoleJwt' : 'sanitizeHar');
+      }
+      expect(fs.readdirSync(dir).sort()).toEqual(['supabase.js', 'test-helpers.js']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('forgeRoleJwt refuses an empty jwtSecret', async () => {
+    await expect(forgeRoleJwt({ role: 'authenticated', userId: 'u-1', email: 'qa+1@example.com', jwtSecret: '' })).rejects.toThrow(/jwtSecret is required/);
   });
 
   it('forgeRoleJwt signs HS256 so an independent HMAC-SHA256 check verifies it', async () => {
@@ -184,6 +208,85 @@ describe('vendorHelpers (spec §4.11.3)', () => {
     expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
   });
 
+  const messageOf = (fn: () => unknown): { code: string | undefined; message: string } => {
+    try {
+      fn();
+    } catch (e) {
+      return { code: (e as { code?: string }).code, message: (e as Error).message };
+    }
+    throw new Error('expected a refusal');
+  };
+
+  it('checks every existing copy is writable before the first write (C1)', () => {
+    if (process.getuid?.() === 0) return;
+    vendorHelpers(t.root, ['test-helpers', 'supabase']);
+    for (const n of VENDORED_HELPERS) fs.appendFileSync(file(n), '\n// edit\n');
+    fs.chmodSync(file('supabase'), 0o444);
+    const r = messageOf(() => vendorHelpers(t.root, ['test-helpers', 'supabase']));
+    expect(r.code).toBe('invalid-input');
+    expect(r.message).toContain(file('supabase'));
+    expect(fs.readFileSync(file('test-helpers'), 'utf-8')).toContain('// edit');
+  });
+
+  it('a write that still fails names the copies already written (C1)', () => {
+    if (process.getuid?.() === 0) return;
+    vendorHelpers(t.root, ['test-helpers']);
+    fs.appendFileSync(file('test-helpers'), '\n// edit\n');
+    fs.chmodSync(t.support, 0o555);
+    try {
+      const r = messageOf(() => vendorHelpers(t.root, ['test-helpers', 'supabase']));
+      expect(r.code).toBe('invalid-input');
+      expect(r.message).toContain(`already written: [${file('test-helpers')}]`);
+      expect(fs.readFileSync(file('test-helpers'), 'utf-8')).not.toContain('// edit');
+    } finally {
+      fs.chmodSync(t.support, 0o755);
+    }
+  });
+
+  it('an unreadable existing copy is invalid-input naming it (C2)', () => {
+    if (process.getuid?.() === 0) return;
+    vendorHelpers(t.root, ['test-helpers']);
+    fs.chmodSync(file('test-helpers'), 0o200);
+    const r = messageOf(() => vendorHelpers(t.root, ['test-helpers']));
+    expect(r).toEqual({ code: 'invalid-input', message: expect.stringContaining(`cannot read ${file('test-helpers')}`) });
+  });
+
+  it('a missing package source stays a framework defect (internal, not invalid-input) (C2)', () => {
+    fs.rmSync(path.join(t.root, 'packages', '@qa', 'supabase', 'src', 'index.ts'));
+    const r = messageOf(() => vendorHelpers(t.root, ['supabase']));
+    expect(r.code).toBe('ENOENT');
+  });
+
+  it('a target root that is a dangling symlink is invalid-input (C3)', () => {
+    const cfg = path.join(t.root, 'aegis.config.json');
+    fs.symlinkSync(path.join(t.base, 'gone'), path.join(t.base, 'dangling'));
+    fs.writeFileSync(cfg, JSON.stringify({ targetProjectRoot: '../dangling', testsDir: '../dangling/tests/qa' }));
+    expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
+    expect(fs.existsSync(path.join(t.base, 'gone'))).toBe(false);
+  });
+
+  it('a support dir that is not its real path is refused as such, not blamed on a symlink (C4)', () => {
+    fs.mkdirSync(t.support, { recursive: true });
+    const upper = path.join(t.base, 'TESTS', 'qa', 'support');
+    if (!fs.existsSync(upper)) return; // case-sensitive file system: the case mismatch cannot happen
+    fs.writeFileSync(path.join(t.root, 'aegis.config.json'), JSON.stringify({ targetProjectRoot: '..', testsDir: '../TESTS/qa' }));
+    const r = messageOf(() => vendorHelpers(t.root, ['test-helpers']));
+    expect(r.code).toBe('invalid-input');
+    expect(r.message).toMatch(/does not match its real path/);
+    expect(fs.readdirSync(t.support)).toEqual([]);
+  });
+
+  it('a tests dir it cannot enter is invalid-input (C5)', () => {
+    if (process.getuid?.() === 0) return;
+    fs.mkdirSync(t.support, { recursive: true });
+    fs.chmodSync(path.join(t.base, 'tests', 'qa'), 0o000);
+    try {
+      expect(thrownCode(() => vendorHelpers(t.root, ['test-helpers']))).toBe('invalid-input');
+    } finally {
+      fs.chmodSync(path.join(t.base, 'tests', 'qa'), 0o755);
+    }
+  });
+
   it('refuses a hard-linked destination and leaves the outside file untouched', () => {
     const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-vendor-elsewhere-'));
     try {
@@ -270,13 +373,34 @@ describe('agents reach the helpers only through the copies (spec §4.11.3)', () 
   const agentFiles = (dir: string): string[] =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? agentFiles(path.join(dir, e.name)) : e.name.endsWith('.md') ? [path.join(dir, e.name)] : []));
   const agents = agentFiles(path.join(REPO, '.claude', 'agents')).map((f) => ({ name: path.basename(f, '.md'), text: fs.readFileSync(f, 'utf-8') }));
-  const cliOf = (text: string): string[] =>
-    (/^cli: \[([^\]]*)\]$/m.exec(text.split('## Contract (machine-checked)')[1] ?? '')?.[1] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '');
+  /** The contract's `cli` list (flow or block YAML); null when the agent has a contract without a `cli` list. */
+  const cliOf = (text: string): string[] | null => {
+    const c = extractContract(text);
+    if (typeof c === 'string') return [];
+    const cli = (parse(c.yaml) as { cli?: unknown }).cli;
+    return Array.isArray(cli) ? cli.map(String) : null;
+  };
   const read = (rel: string) => fs.readFileSync(path.join(REPO, rel), 'utf-8');
 
+  it('every agent with a contract has a cli list the test can read, multi-line lists included', () => {
+    const withContract = agents.filter((a) => typeof extractContract(a.text) !== 'string');
+    expect(withContract.length).toBeGreaterThan(40);
+    expect(withContract.filter((a) => cliOf(a.text) === null).map((a) => a.name)).toEqual([]);
+    expect(cliOf(read('.claude/agents/orchestrator/qa-orchestrator.md'))).toEqual(expect.arrayContaining(['phase.start', 'task.add']));
+  });
+
   it('only the agent SINGLE_AGENT_COMMANDS names lists helpers.vendor, and its prose runs the command', () => {
-    expect(agents.filter((a) => cliOf(a.text).includes('helpers.vendor')).map((a) => a.name)).toEqual([SINGLE_AGENT_COMMANDS['helpers.vendor']]);
+    expect(agents.filter((a) => (cliOf(a.text) ?? []).includes('helpers.vendor')).map((a) => a.name)).toEqual([SINGLE_AGENT_COMMANDS['helpers.vendor']]);
     expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain('`AEGIS_AGENT=qa-environment-engineer pnpm aegis helpers vendor --helpers test-helpers`');
+  });
+
+  it('a vendor refusal fails the Env-auth task, and the SPV checks the copies and their drift (D1, D2)', () => {
+    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toMatch(/is not retried: the specs cannot import the helpers, so set `health` to FAILED in step 8, name the refusal in your work report, submit it, and release your task with `--result failed`\./);
+    const spv = read('.claude/agents/spv/qa-environment-engineer-spv.md');
+    expect(spv).toContain('`scope=auth` (Env-auth): items 1–4 and 6–16.');
+    expect(spv).toMatch(/16\. \*\*Shared QA helpers copied \(scope=auth\)\.\*\* `tests\/qa\/support\/test-helpers\.ts` exists, and `tests\/qa\/support\/supabase\.ts` too when `target-profile\.json` `platform` is `supabase`/);
+    expect(spv).toMatch(/reported in `drift` appears in the work report's `uncertainties\[\]`/);
+    expect(spv).toContain('  - "{tests}/qa/support/test-helpers.ts"\n  - "{tests}/qa/support/supabase.ts"');
   });
 
   it('pipeline.yaml lists both copies as CLI-written', () => {

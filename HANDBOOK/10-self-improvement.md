@@ -84,6 +84,7 @@ Routine successes do not trigger appends. The lessons file is not a diary.
 | Fact not in books | Propose memory entry |
 | Lesson conflicts across agents | Flag for human resolution |
 | Stale/contradicting memory | Propose deletion/merge |
+| Suspected framework defect (`framework.defect-suspected`, `cli.refused`) | Propose for the owner to acknowledge or dismiss; never applied |
 
 Proposals land in `runs/{runId}/pending-promotions/` as markdown files with evidence.
 

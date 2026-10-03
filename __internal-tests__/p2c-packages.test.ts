@@ -28,7 +28,7 @@ describe('deleted packages (AUD-054)', () => {
 
   it('no tracked file outside the history folders names one (sources, manifests, pnpm-lock.yaml, docs, secrets/README.md)', () => {
     // Internal tests may name a deleted package to assert that it is gone (legacy-writers.test.ts).
-    const scanned = (f: string) => !HISTORY.test(f) && !/^__internal-tests__\/.*\.test\.ts$/.test(f) && /\.(ts|tsx|js|mjs|cjs|json|ya?ml|md)$/.test(f);
+    const scanned = (f: string) => !HISTORY.test(f) && !/^__internal-tests__\/.*\.test\.ts$/.test(f) && /\.(ts|tsx|js|mjs|cjs|json|ya?ml|md|sh)$/.test(f);
     expect(tracked().filter((f) => scanned(f) && named.test(read(f)))).toEqual([]);
   });
 
@@ -61,6 +61,11 @@ describe('dead config keys (spec §4.11.2)', () => {
     expect(cfg.discovery).not.toHaveProperty('captureScreenshots');
     expect(cfg.target).not.toHaveProperty('apps');
     expect(read('scripts/reset-target.sh')).not.toMatch(/\.target\.apps\s*=/);
+    expect(read('scripts/reset-target.sh')).toContain('del(.target.apps)');
+  });
+
+  it('the shared contracts carry no multi-app wording', () => {
+    expect(read('packages/@qa/contracts/src/events.ts')).not.toMatch(/multi-app/);
   });
 
   it('no aegis.config.json key is unused except the baselined ones', () => {

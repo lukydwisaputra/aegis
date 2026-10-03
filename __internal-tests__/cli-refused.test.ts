@@ -116,6 +116,44 @@ describe('scrubRefusalMessage', () => {
     }
   });
 
+  it('whole argv values are kept before their lines: a short value survives 1999 longer description lines', async () => {
+    const description = Array.from({ length: 1999 }, (_, i) => `description body line ${String(i).padStart(4, '0')} of the brief`).join('\n');
+    const argv = ['task', 'add', '--id', 'T-9', '--title', 'tt', '--agent', 'qa-hiddenvalue', '--description', description];
+    const typed = typedFragments(argv, new Set(['--id', '--title', '--agent', '--description']));
+    expect(typed).toContain('qa-hiddenvalue');
+    expect(typed.length).toBeLessThanOrEqual(MAX_TYPED_FRAGMENTS);
+    for (let i = 1; i < typed.length; i++) expect(typed[i]!.length).toBeLessThanOrEqual(typed[i - 1]!.length);
+    await expect(
+      recordCliRefusal(t.root, { caller: 'qa-test-designer', argv, vocabulary: new Set(['--id', '--title', '--agent', '--description']) }, { command: 'task.add', code: 'invalid-input', message: 'agent qa-hiddenvalue is not in the role table' }),
+    ).resolves.toBe(true);
+    const [line] = refused();
+    expect(line!['message']).toBe('agent <value> is not in the role table');
+    expect(JSON.stringify(lines())).not.toContain('hiddenvalue');
+  });
+
+  it('caps the message at 512 KB before subtracting: 600 KB and 2000 fragments scrub in under 300 ms', () => {
+    const argv = Array.from({ length: 2000 }, (_, i) => `typed-fragment-${String(i).padStart(5, '0')}-value`);
+    const typed = typedFragments(argv);
+    expect(typed).toHaveLength(2000);
+    const message = `id "${'filler words without the fragments '.repeat(Math.ceil((600 * 1024) / 35))}" end`;
+    expect(message.length).toBeGreaterThan(600 * 1024);
+    const t0 = Date.now();
+    const out = scrubRefusalMessage(message, typed);
+    expect(Date.now() - t0).toBeLessThan(300);
+    expect(out).toBe('id "<value>"');
+  });
+
+  it('the window prefilter subtracts exactly what a plain scan would, across inserted markers too', () => {
+    const plain = (s: string, typed: string[]) => scrubRefusalMessage(typed.reduce((acc, f) => acc.split(f).join('<value>'), s));
+    const cases: Array<[string, string[]]> = [
+      ['xx ABCDEFGHIJtail yy', ['ABCDEFGHIJ', 'e>tail']],
+      ['lead HEADtail and HEAD alone', ['HEADtail', 'HEAD', 'zzz']],
+      ['unicode ключ-значение here', ['ключ-значение', 'abc']],
+      ['short ab in text', ['ab', 'nope']],
+    ];
+    for (const [s, typed] of cases) expect(scrubRefusalMessage(s, typed)).toBe(plain(s, typed));
+  });
+
   it('JSON leaves and keys (raw and escaped) and resolved paths are fragments', () => {
     const typed = typedFragments(['event', 'append', '--json', JSON.stringify({ hunterkey: ['a" hunterleaf', 'x\\y'] }), '--file=/nonexistent/zz/../hunterpath.json']);
     expect(typed).toEqual(expect.arrayContaining(['hunterkey', 'a" hunterleaf', 'a\\" hunterleaf', 'x\\y', 'x\\\\y', path.resolve('/nonexistent/hunterpath.json')]));

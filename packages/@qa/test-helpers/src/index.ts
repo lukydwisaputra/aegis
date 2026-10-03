@@ -1,5 +1,5 @@
 /**
- * @qa/test-helpers
+ * QA test helpers
  * Shared Playwright/Jest helpers, HAR sanitizer, evidence-naming utilities,
  * test-data seeding helpers, and factory cleanup tracker.
  */

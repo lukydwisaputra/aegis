@@ -319,11 +319,7 @@ importers:
         specifier: ^2.5.0
         version: 2.9.1
 
-  packages/@qa/supabase:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
+  packages/@qa/supabase: {}
 
   packages/@qa/taskmaster-client:
     dependencies:

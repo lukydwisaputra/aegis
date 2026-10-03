@@ -1,5 +1,7 @@
 import { AegisEventSchema, FrameworkDefectProposalSchema } from '@qa/contracts';
+import { appendChained, readLines } from '@qa/event-bus';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { assertAppendableByAgent, FRAMEWORK_DEFECT_LINE, runContextFor } from '@qa/run-state';
 import { makeAegisRoot, startedRun, thrownCode, type TmpAegis } from './helpers/aegis-root';
@@ -29,6 +31,21 @@ describe('events', () => {
     expect(AegisEventSchema.safeParse({ ...ok, caller: 'owner' }).success).toBe(false);
     expect(AegisEventSchema.safeParse({ ...ok, message: 'x'.repeat(301) }).success).toBe(false);
     expect(thrownCode(() => assertAppendableByAgent('cli.refused'))).toBe('invalid-input');
+  });
+
+  it('framework.defect-suspected: an undeclared field is refused at append and nothing is written', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-fd-'));
+    try {
+      const bus = path.join(dir, 'events.jsonl');
+      const ctx = { emittedBy: 'qa-ui-specialist', runId: 'RUN-20261003-001' };
+      const ev = { type: 'framework.defect-suspected', ts, component: 'aegis task claim', symptom: 'refuses the --task flag', evidence: ['stderr: unknown option'] };
+      await expect(appendChained({ ...ev, patch: 'edit caller.ts' }, bus, ctx)).rejects.toThrow(/undeclared field\(s\).*patch/);
+      expect(readLines(bus)).toEqual([]);
+      await appendChained(ev, bus, ctx);
+      expect(readLines(bus)).toHaveLength(1);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -61,6 +78,66 @@ describe('FrameworkDefectProposalSchema', () => {
     expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, occurrences: 0 }).success).toBe(false);
     expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, suggestedOwnerAction: 'x'.repeat(301) }).success).toBe(false);
   });
+
+  it('rejects stray patch and command keys (a proposal carries nothing to run or apply)', () => {
+    expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, patch: '--- a/caller.ts' }).success).toBe(false);
+    expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, command: 'pnpm aegis task claim' }).success).toBe(false);
+  });
+
+  it('rejects fewer occurrences than listed signals', () => {
+    expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, occurrences: 1 }).success).toBe(false);
+    expect(FrameworkDefectProposalSchema.safeParse({ ...PROPOSAL, occurrences: 5 }).success).toBe(true);
+  });
+});
+
+/** The slug rule of qa-curator.md §5, in its stated order. */
+const slugOf = (component: string): string =>
+  component.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60).replace(/^-+|-+$/g, '') || 'unknown';
+
+describe('proposals derived by the curator rules validate', () => {
+  const signal = (source: 'framework.defect-suspected' | 'cli.refused', seq: number, agent: string, detail: string) => ({ source, seq, agent, detail });
+  const derive = (component: string, symptom: string, signals: ReturnType<typeof signal>[], occurrences: number) => ({
+    type: 'framework-defect',
+    id: `framework-defect-${slugOf(component)}`,
+    runId: 'RUN-20261003-001',
+    component,
+    symptom,
+    signals,
+    occurrences,
+    suggestedOwnerAction: 'Check the component against the agent instructions that name it',
+    createdAt: ts,
+  });
+
+  it('the slug rule: lower case, runs to -, cut to 60, then trimmed, unknown when empty', () => {
+    expect(slugOf('/qa-start')).toBe('qa-start');
+    expect(slugOf('{tests}/qa/support/x.ts')).toBe('tests-qa-support-x-ts');
+    expect(slugOf('%%%/{}')).toBe('unknown');
+    expect(slugOf(`${'a'.repeat(59)}/b`)).toBe('a'.repeat(59));
+  });
+
+  it('a /qa-start component', () => {
+    const p = derive('/qa-start', 'The skill names a --profile flag that does not exist', [signal('framework.defect-suspected', 7, 'qa-orchestrator', 'qa-start step 2 names --profile')], 1);
+    expect(p.id).toBe('framework-defect-qa-start');
+    expect(FrameworkDefectProposalSchema.safeParse(p).success).toBe(true);
+  });
+
+  it('a path component and an all-symbol component', () => {
+    const a = derive('{tests}/qa/support/x.ts', 'The vendored helper named by step 3b is missing', [signal('framework.defect-suspected', 3, 'qa-environment-engineer', 'missing file')], 1);
+    expect(FrameworkDefectProposalSchema.safeParse(a).success).toBe(true);
+    const b = derive('%%%/{}', 'The component named in the instructions is unreadable', [signal('framework.defect-suspected', 4, 'qa-ui-specialist', 'see the symptom')], 1);
+    expect(b.id).toBe('framework-defect-unknown');
+    expect(FrameworkDefectProposalSchema.safeParse(b).success).toBe(true);
+  });
+
+  it('a cli.refused internal group with an empty message: detail is the code, symptom counts the refusals', () => {
+    const component = 'aegis task add';
+    const p = derive(component, `${component} refused with internal 3 times`, [
+      signal('cli.refused', 11, 'qa-test-designer', 'internal'),
+      signal('cli.refused', 12, 'qa-test-designer', 'internal'),
+    ], 3);
+    expect(p.id).toBe('framework-defect-aegis-task-add');
+    expect(FrameworkDefectProposalSchema.safeParse(p).success).toBe(true);
+  });
 });
 
 describe('the curator proposes framework defects (spec §4.12)', () => {
@@ -82,6 +159,25 @@ describe('the curator proposes framework defects (spec §4.12)', () => {
     expect(text).toContain('  - "{run}/pending-promotions/framework-defect-{slug}.json"');
     expect(text).toContain('- `framework-defect-{slug}.json`');
   });
+
+  it('states the slug order, the merge on a shared slug, per-run de-duplication and the field mapping', () => {
+    const text = curator();
+    expect(text).toContain('cut it to 60 characters; then strip any leading or trailing `-`; use `unknown` when nothing is left');
+    expect(text).toMatch(/qualifying groups that end with the same slug merge into one proposal \(their signals concatenated, their occurrences summed\)/);
+    expect(text).toMatch(/this de-duplication is per run/);
+    expect(text).toMatch(/`seq` is the event's chain `seq`/);
+    expect(text).toMatch(/`agent` is its `emittedBy` \(for `cli\.refused` that is its `caller`\)/);
+    expect(text).toMatch(/or its `code` when the message is empty/);
+    expect(text).toMatch(/`occurrences`: the number of events in the group, never fewer than the signals listed/);
+  });
+
+  it('curator.proposals-ready names only the fields events.ts declares', () => {
+    const line = curator().split('## Events You Emit')[1]!.split('\n').find((l) => l.includes('curator.proposals-ready'))!;
+    expect(line).toContain('`proposalCount`');
+    expect(line).toContain('`path`');
+    expect(line).toContain('framework-defect proposals included');
+    expect(line).not.toMatch(/types/);
+  });
 });
 
 describe('every qa-* agent is told how to report a framework defect (T10)', () => {
@@ -99,5 +195,6 @@ describe('every qa-* agent is told how to report a framework defect (T10)', () =
   it('the orchestrator and HANDBOOK/10 send framework defects to the owner queue', () => {
     expect(read('.claude/agents/orchestrator/qa-orchestrator.md')).toContain("framework defects go to the owner's `/qa-promote` queue (`framework.defect-suspected` and `cli.refused`, grouped by the curator)");
     expect(read('HANDBOOK/10-self-improvement.md')).toMatch(/Until `\/qa-promote` loads this type, read the proposals in `summary\.md`\./);
+    expect(read('HANDBOOK/10-self-improvement.md')).toMatch(/^\| Suspected framework defect \(`framework\.defect-suspected`, `cli\.refused`\) \| .*never applied \|$/m);
   });
 });

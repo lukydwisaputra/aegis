@@ -29,7 +29,13 @@ export const FrameworkDefectProposalSchema = z
     suggestedOwnerAction: z.string().min(1).max(300),
     createdAt: z.string().datetime({ offset: false }),
   })
-  .strict();
+  .strict()
+  .superRefine((p, ctx) => {
+    // occurrences counts every event in the group; the signals listed may be capped, never more than it.
+    if (p.occurrences < p.signals.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["occurrences"], message: `occurrences (${p.occurrences}) is less than the ${p.signals.length} signals listed` });
+    }
+  });
 
 export type FrameworkDefectSignal = z.infer<typeof FrameworkDefectSignalSchema>;
 export type FrameworkDefectProposal = z.infer<typeof FrameworkDefectProposalSchema>;
