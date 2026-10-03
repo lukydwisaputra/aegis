@@ -13,6 +13,7 @@ import { runCommand } from "./commands/run.js";
 import { reviewCommand, workReportCommand } from "./commands/submit.js";
 import { taskCommand } from "./commands/task.js";
 import { updateCommand } from "./commands/update.js";
+import { helpersCommand } from "./commands/vendor.js";
 
 /** The aegis program. Parsing never exits the process: parse errors are thrown as commander errors (see runCli). */
 export function buildProgram(): Command {
@@ -21,7 +22,7 @@ export function buildProgram(): Command {
   for (const command of [
     initCommand(), reconfigureCommand(), updateCommand(), doctorCommand(), runCommand(), eventCommand(), idCommand(),
     taskCommand(), workReportCommand(), reviewCommand(), integrityCommand(), alignCommand(), phaseCommand(), gateCommand(),
-    escalationCommand(),
+    escalationCommand(), helpersCommand(),
   ]) {
     program.addCommand(command);
   }
