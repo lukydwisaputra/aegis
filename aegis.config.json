@@ -72,8 +72,6 @@
     "mode": "always",
     "format": "screenshot",
     "videoTranscodeMp4": false,
-    "videoQuality": "medium",
-    "screenshotOnEveryStep": false,
     "inspectionScreenshots": "delete-after-use",
     "evidenceStore": "artifacts/evidence",
     "retention": {
@@ -98,7 +96,6 @@
     "maxPagesPerRun": 100,
     "allowedDestructive": [],
     "rolesToExplore": ["admin", "user"],
-    "captureScreenshots": true,
     "skipPatterns": []
   },
   "dashboard": {

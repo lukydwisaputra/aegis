@@ -210,57 +210,11 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
 
-  packages/@qa/artifact-policy:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/auth-fixtures:
-    dependencies:
-      '@playwright/test':
-        specifier: ^1.44.0
-        version: 1.60.0
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
   packages/@qa/contracts:
     dependencies:
       zod:
         specifier: ^3.23.0
         version: 3.25.76
-
-  packages/@qa/dashboard-ui:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      react:
-        specifier: ^18.3.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.0
-        version: 18.3.1(react@18.3.1)
-      tailwind-merge:
-        specifier: ^2.3.0
-        version: 2.6.1
-    devDependencies:
-      '@types/react':
-        specifier: ^18.3.0
-        version: 18.3.29
-      '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.7(@types/react@18.3.29)
-
-  packages/@qa/deps-updater:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
 
   packages/@qa/email-adapters:
     dependencies:
@@ -380,19 +334,7 @@ importers:
         specifier: ^2.5.0
         version: 2.9.1
 
-  packages/@qa/secrets:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
   packages/@qa/supabase:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/target-scanner:
     dependencies:
       '@qa/contracts':
         specifier: workspace:*
@@ -408,15 +350,6 @@ importers:
         version: 4.1.2
 
   packages/@qa/test-helpers:
-    dependencies:
-      '@playwright/test':
-        specifier: ^1.44.0
-        version: 1.60.0
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/web-explorer:
     dependencies:
       '@playwright/test':
         specifier: ^1.44.0

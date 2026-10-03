@@ -116,7 +116,6 @@ Model assignments are centralized in `.claude/model-policy.yaml` — **never har
 - **contracts** — shared TypeScript interfaces for runs, events, reports, tasks, work-reports
 - **ids** — atomic ID generation (`TYPE-MODULE-SEQUENCE`, e.g. `TC-AUTH-031`)
 - **agent-memory** — per-agent `lessons.json` auto-learning; promoted via `/qa-promote`
-- **target-scanner** — static analysis of the target app (routes, components, test inventory)
 - **taskmaster-client** — task claim/release protocol with file-lock serialization
 - **reporters** — PDF and Markdown report rendering
 - **pdf-renderer** — Puppeteer-based PDF output for closure and executive reports

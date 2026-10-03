@@ -26,7 +26,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 
 - `runs/{runId}/plan.json` — scope=data: test plan (environment requirements section)
 - `target-profile.json` — detected stack, framework, auth method, monorepo apps
-- `aegis/aegis.config.json` — environment config, ports, secrets refs, emailAdapter
+- `aegis/aegis.config.json` — environment config, ports, emailAdapter
 - `aegis/test-data/credentials/` — role credential files (read-only; never log values)
 - `runs/{runId}/cases/*.json` — scope=data: approved test cases (which factories and seed data they need)
 - `agent-memory/qa-environment-engineer/lessons.md`

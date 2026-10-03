@@ -22,7 +22,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 - Test case batch (IDs + schemas) for API/contract types
 - `target-profile.json` — detected API routes, auth method
 - `runs/{runId}/discovery-report.json` — inferred API surface from discovery phase
-- `aegis/aegis.config.json` — environment URLs, secrets refs
+- `aegis/aegis.config.json` — environment URLs
 - `agent-memory/qa-api-specialist/lessons.md`
 - The target's `package.json` test script — read-only, to run the developer test a developer-covered TC names
 
