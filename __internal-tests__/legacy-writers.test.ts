@@ -54,6 +54,40 @@ describe('CO-01: no unchained event writer is left', () => {
     expect(hits).toEqual([]);
   });
 
+  it('A2: nothing but @qa/event-bus chain.ts writes an events.jsonl (repo-wide regression guard)', () => {
+    const CHAIN = path.join(REPO, 'packages', '@qa', 'event-bus', 'src', 'chain.ts');
+    const sources = [
+      ...fs.readdirSync(path.join(REPO, 'packages', '@qa')).map((p) => path.join('packages', '@qa', p, 'src')),
+      ...fs.readdirSync(path.join(REPO, 'apps')).map((a) => path.join('apps', a, 'src')),
+      'scripts',
+    ]
+      .flatMap(filesUnder)
+      .filter((f) => /\.(ts|mjs|js)$/.test(f) && f !== CHAIN);
+    const WRITE = /\b(appendFileSync|writeFileSync|appendFile|writeFile|createWriteStream|openSync|truncateSync|ftruncateSync|writeSync|renameSync|copyFileSync|rmSync|unlinkSync)\s*\(([^;]*)/g;
+    const offenders: string[] = [];
+    for (const f of sources) {
+      const text = fs.readFileSync(f, 'utf-8');
+      // Names bound to the event log in this file: `const busPath = join(dir, "events.jsonl")`, `= busPath(root, id)`, …
+      const names = new Set(['busPath']);
+      for (const m of text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:events\.jsonl|busPath\s*\()/g)) names.add(m[1]!);
+      for (const m of text.matchAll(WRITE)) {
+        const args = m[2]!;
+        if (m[1] === 'openSync' && /,\s*["']r["']/.test(args)) continue; // opened for reading
+        const named = args.includes('events.jsonl') || [...names].some((n) => new RegExp(`(^|[^\\w$.])${n.replace(/\$/g, '\\$')}\\b`).test(args));
+        if (named) offenders.push(`${path.relative(REPO, f)}: ${m[0]!.slice(0, 120)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('A2: the guard itself catches a planted direct write (self-test of the scan)', () => {
+    const planted = 'const log = join(runDir, "events.jsonl");\nappendFileSync(log, line);\nwriteFileSync(busPath(root, id), "x");\n';
+    const names = new Set(['busPath']);
+    for (const m of planted.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:events\.jsonl|busPath\s*\()/g)) names.add(m[1]!);
+    const hits = [...planted.matchAll(/\b(appendFileSync|writeFileSync)\s*\(([^;]*)/g)].filter((m) => [...names].some((n) => new RegExp(`(^|[^\\w$.])${n}\\b`).test(m[2]!)));
+    expect(hits).toHaveLength(2);
+  });
+
   it('writeArtifact records artifact.created on the hash chain', async () => {
     const bus = path.join(dir, 'runs', RUN, 'events.jsonl');
     await writeArtifact(artifact(bus));

@@ -34,6 +34,19 @@ test('run resume lists the acknowledged errors; run status keeps them as integri
   expect(aegis('owner', 'run', 'status').out.integrityWaived).toEqual(resumed.out.acknowledgedErrors);
 });
 
+test('A7: --acknowledge-integrity without --reason is refused (exit 2); a plain resume prints acknowledgedErrors: []', () => {
+  aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH');
+  expect(aegis('owner', 'run', 'stop', '--reason', 'pause').status).toBe(0);
+  expect(aegis('owner', 'run', 'resume', '--acknowledge-integrity')).toMatchObject({
+    status: 2,
+    err: { error: 'invalid-input', message: '--reason is required with --acknowledge-integrity' },
+  });
+  expect(aegis('owner', 'run', 'resume', '--acknowledge-integrity', '--reason', '   ')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  const plain = aegis('owner', 'run', 'resume');
+  expect(plain.status).toBe(0);
+  expect(plain.out.acknowledgedErrors).toEqual([]);
+});
+
 test('integrity repair-tail is an owner command of the built CLI (CO-02)', () => {
   const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
   fs.appendFileSync(path.join(t.root, 'runs', runId, 'events.jsonl'), '{"seq":2');

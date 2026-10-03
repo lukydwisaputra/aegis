@@ -27,9 +27,17 @@ describe('commander parse errors are JSON envelopes (CO-04)', () => {
     });
   });
 
-  it('an invalid choice and an unknown command are invalid-input', async () => {
-    for (const argv of [['task', 'release', '--task', 'T-1', '--result', 'maybe'], ['nonsense']]) {
-      const env = envelopeFor((await parseError(argv))!);
+  it('an invalid choice, an unknown command and an unknown option are invalid-input', async () => {
+    const cases: Array<[string[], string]> = [
+      [['task', 'release', '--task', 'T-1', '--result', 'maybe'], 'commander.invalidArgument'],
+      [['nonsense'], 'commander.unknownCommand'],
+      // A3: an unknown option on a subcommand goes through the same envelope.
+      [['task', 'claim', '--task', 'T-1', '--bogus'], 'commander.unknownOption'],
+    ];
+    for (const [argv, code] of cases) {
+      const err = (await parseError(argv))!;
+      expect(err.code).toBe(code);
+      const env = envelopeFor(err);
       expect(env.exitCode).toBe(2);
       expect(JSON.parse(env.stderr)).toMatchObject({ error: 'invalid-input' });
     }
@@ -78,4 +86,29 @@ describe('locks (CO-04)', () => {
   expect(JSON.parse(bad.stderr)).toEqual({ error: 'invalid-input', message: "required option '--task <id>' not specified" });
   const v = run('--version');
   expect({ status: v.status, out: v.stdout.trim() }).toEqual({ status: 0, out: '1.0.0' });
+});
+
+(stale ? it.skip : it)('A3: --help and task --help exit 0 and print help on stdout; an unknown option is an envelope', () => {
+  const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { cwd: ROOT, encoding: 'utf-8', env: { ...process.env, AEGIS_AGENT: 'qa-ui-specialist' } });
+  const top = run('--help');
+  expect({ status: top.status, stderr: top.stderr }).toEqual({ status: 0, stderr: '' });
+  expect(top.stdout).toMatch(/^Usage: aegis/);
+  const task = run('task', '--help');
+  expect({ status: task.status, stderr: task.stderr }).toEqual({ status: 0, stderr: '' });
+  expect(task.stdout).toMatch(/^Usage: aegis task/);
+  expect(task.stdout).toContain('claim');
+  const bogus = run('task', 'claim', '--task', 'T-1', '--bogus');
+  expect(bogus.status).toBe(2);
+  expect(JSON.parse(bogus.stderr)).toEqual({ error: 'invalid-input', message: "unknown option '--bogus'" });
+});
+
+(stale ? it.skip : it)('A5: init and reconfigure refuse a missing directory with the JSON envelope (exit 2), not a bare exit 1', () => {
+  const missing = path.join(os.tmpdir(), `aegis-no-such-dir-${process.pid}`);
+  const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { cwd: os.tmpdir(), encoding: 'utf-8' });
+  for (const args of [['init', missing], ['reconfigure', missing, '--profile', 'lite']]) {
+    const r = run(...args);
+    expect(r.status).toBe(2);
+    expect(JSON.parse(r.stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining(missing) });
+  }
+  expect(fs.existsSync(missing)).toBe(false);
 });

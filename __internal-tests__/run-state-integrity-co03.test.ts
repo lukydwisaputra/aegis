@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { hashLine, readLines } from '@qa/event-bus';
-import { busPath, createRun, readRun, requestStop, resumeRun, runsDir, verifyRunIntegrity } from '@qa/run-state';
+import { busPath, createRun, readRun, requestStop, resumeRun, verifyRunIntegrity } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
 let t: TmpAegis;
@@ -18,18 +18,7 @@ it('seeds the checkpoint from the run.created line (CO-03)', async () => {
   expect((await verifyRunIntegrity(t.root, runId, 'owner')).ok).toBe(true);
 });
 
-it('a verify racing createRun never records a violation: run.created lands before run.json (CO-03)', async () => {
-  const listRuns = () => (fs.existsSync(runsDir(t.root)) ? fs.readdirSync(runsDir(t.root)).filter((d) => d.startsWith('RUN-')) : []);
-  let done = false;
-  const creating = create().finally(() => { done = true; });
-  while (!done) {
-    for (const id of listRuns()) await verifyRunIntegrity(t.root, id, 'owner');
-    await new Promise((r) => setImmediate(r));
-  }
-  const { runId } = await creating;
-  expect(lines(runId).map((l) => JSON.parse(l).type)).toEqual(['run.created']);
-  expect(readRun(t.root, runId).status).toBe('created');
-});
+// The ordering of createRun (run.created before run.json) is pinned deterministically in run-state-createrun-order.test.ts (A6).
 
 it('names the checkpointed line in the checkpoint error (CO-03)', async () => {
   const { runId } = await create();

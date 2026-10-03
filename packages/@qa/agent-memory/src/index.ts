@@ -60,6 +60,12 @@ function agentMemoryDir(aegisRoot: string, agentName: string): string {
   return resolve(aegisRoot, "agent-memory", agentName);
 }
 
+/**
+ * A4: the shared run-state lock budget (50 retries, 20-250 ms, ~11 s). It outlasts `stale` (5 s), so a crashed
+ * holder's lock is reclaimed and a busy one waited out instead of leaking ELOCKED.
+ */
+const LOCK_OPTIONS = { stale: 5_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } };
+
 function lessonsJsonPath(aegisRoot: string, agentName: string): string {
   return resolve(agentMemoryDir(aegisRoot, agentName), "lessons.json");
 }
@@ -163,10 +169,7 @@ export async function proposeLesson(
   mkdirSync(dir, { recursive: true });
   if (!existsSync(jsonPath)) writeLessonsFile(jsonPath, readLessonsFile(jsonPath, agentName));
 
-  const release = await lockfile.lock(jsonPath, {
-    stale: 5_000,
-    retries: { retries: 6, minTimeout: 50 },
-  });
+  const release = await lockfile.lock(jsonPath, LOCK_OPTIONS);
 
   try {
     const file = readLessonsFile(jsonPath, agentName);
@@ -309,7 +312,7 @@ export async function pruneAgedEntries(
   const jsonPath = lessonsJsonPath(aegisRoot, agentName);
   if (!existsSync(jsonPath)) return { pruned: 0 };
 
-  const release = await lockfile.lock(jsonPath, { stale: 5_000, retries: { retries: 5, minTimeout: 50 } });
+  const release = await lockfile.lock(jsonPath, LOCK_OPTIONS);
   try {
     const file = readLessonsFile(jsonPath, agentName);
     const now = Date.now();
