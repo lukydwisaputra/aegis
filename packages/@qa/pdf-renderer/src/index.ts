@@ -168,6 +168,8 @@ export interface SignoffSpec {
   scope: string;
   verdict: "GO" | "NO-GO" | "CONDITIONAL";
   exitCriteria: Array<{ criterion: string; met: boolean }>;
+  /** The line printed when exitCriteria is empty; defaults to "Exit criteria: not available". */
+  exitCriteriaNote?: string;
   openDefectsSummary: string;
   residualRisk: string;
   signatoryRoles: string[]; // e.g. ["QA Lead", "Engineering Lead", "Product Owner"]
@@ -706,7 +708,13 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
       ),
       React.createElement(View, { style: baseStyles.divider }),
       ...(spec.exitCriteria.length === 0
-        ? [React.createElement(Text, { key: "exit-none", style: baseStyles.body }, `Exit criteria: ${NOT_AVAILABLE}`)]
+        ? [
+            React.createElement(
+              Text,
+              { key: "exit-none", style: baseStyles.body },
+              spec.exitCriteriaNote ?? `Exit criteria: ${NOT_AVAILABLE}`
+            ),
+          ]
         : []),
       ...spec.exitCriteria.map((criterion, i) =>
         React.createElement(

@@ -25,10 +25,10 @@ You review performance test scripts and results from `qa-performance-specialist`
 
 ## Review Checklist
 
-1. **k6 thresholds match `thresholds.yaml`.** k6 script thresholds for `p95` and `errorRate` match the values in `thresholds.yaml#{env}.performance` (the run's environment). Mismatched thresholds = requested-changes.
+1. **k6 thresholds match `thresholds.yaml`.** k6 script thresholds for `p95ResponseMs`, `p99ResponseMs` and `errorRate` match the values in `thresholds.yaml#{env}.load` (the run's environment). Mismatched thresholds = requested-changes.
 2. **Core Web Vitals measured.** Results include LCP, INP (not FID — deprecated), and CLS. Acceptable vs. Good band reported. INP missing or FID used instead = passed-with-notes.
 3. **Good band comparison.** Results compare against web.dev Good band: LCP ≤2.5s, INP ≤200ms, CLS ≤0.1. Result summary that omits band comparison = passed-with-notes.
-4. **Lighthouse-CI integration.** `.lighthouserc.*` config exists and references the performance thresholds. Missing Lighthouse-CI integration = passed-with-notes.
+4. **Lighthouse-CI integration.** `.lighthouserc.*` config exists and references the performance thresholds of `thresholds.yaml#{env}.performance`. Missing Lighthouse-CI integration = passed-with-notes.
 5. **Production never targeted.** Work report confirms tests ran against `development`, `testing`, or `staging` — never `production`. Evidence: `--env` flag in the work report or `APP_BASE_URL` not pointing to the production domain. Production targeting = requested-changes.
 6. **Regression comparison + baseline preserved.** Baseline results are preserved at `runs/{runId}/evidence/{TC-ID}/baseline/` (never overwritten on rerun). If a prior baseline exists, the results include a delta comparison (p95 vs baseline, LCP vs baseline). Missing comparison when a baseline is available, or no preserved baseline dir = passed-with-notes.
 7. **File naming.** Perf test files match `*.perf.ts`. Incorrect extension = passed-with-notes.
@@ -76,5 +76,5 @@ awaits: []
 cli: [review.submit]
 runs: []
 dispatches: []
-config: ["thresholds.yaml#{env}.performance"]
+config: ["thresholds.yaml#{env}.performance", "thresholds.yaml#{env}.load"]
 ```

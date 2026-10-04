@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as zlib from 'zlib';
+import { DefectSchema } from '@qa/contracts';
 
 // Run-path fixes, task 3 (AUD-060): the three executive PDF scripts render from the files the run
 // really holds and print real PDFs under reports/executive/. The renderer is @react-pdf (no browser),
@@ -267,6 +268,256 @@ describe('executive deck (Deliverable 3)', () => {
     const r = run(SCRIPT.slides, noDeck.root);
     expect(r.status).toBe(3);
     expect(r.stderr).toContain('executive-deck.json');
+  });
+});
+
+// ─── Final fix wave: real defect records, one open-defect resolver, coverage noData, refusals ───────────
+
+/** A defect record shaped exactly like DefectSchema: severity and status are objects, not strings. */
+function defectRecord(n: number, statusCode: string, sevCode: string, sevName: string): Record<string, unknown> {
+  const id = `DEF-00${n}-AUTH-UI`;
+  return {
+    id,
+    title: `Login form issue number ${n} on the sign-in page`,
+    summary: 'Signing in with a plus-aliased email address shows an error.',
+    reporter: 'QA team',
+    reportedAt: '2026-10-04T01:00:00Z',
+    assignee: null,
+    status: { code: statusCode, transitionedAt: '2026-10-04T01:05:00Z' },
+    severity: { code: sevCode, name: sevName },
+    priority: { code: 'P1', name: 'Next release' },
+    defectType: 'Logic',
+    phaseIntroduced: 'Code',
+    foundIn: 'System',
+    regression: false,
+    customerFacing: true,
+    environment: { browser: 'chromium', backendEnv: 'development' },
+    reproductionSteps: [{ step: 1, action: 'Sign in as user+alias@example.com' }],
+    expectedResult: 'The user is signed in',
+    actualResult: 'An error message is shown',
+    rootCause: { status: 'unknown', summary: null, evidence: [], fiveWhys: [] },
+    resolution: { status: null, fixCommit: null, fixPr: null, fixedInVersion: null, verifiedBy: null, verifiedAt: null, regressionTestId: null },
+    compliance: [],
+    evidence: { screenshots: [], videos: [], logs: [], har: [] },
+    history: [],
+  };
+}
+
+// Two open (Triaged Sev2, Reopened Sev3), two closed (Closed Sev1, Won't Fix Sev4); no defectMetrics in closure.
+const SCHEMA_DEFECTS = {
+  'defects/DEF-001-AUTH-UI.json': defectRecord(1, 'Triaged', 'Sev2', 'Critical'),
+  'defects/DEF-002-AUTH-UI.json': defectRecord(2, 'Closed', 'Sev1', 'Blocker'),
+  'defects/DEF-003-AUTH-UI.json': defectRecord(3, "Won't Fix", 'Sev4', 'Minor'),
+  'defects/DEF-004-AUTH-UI.json': defectRecord(4, 'Reopened', 'Sev3', 'Major'),
+};
+
+describe('A1/A2: real DefectSchema records', () => {
+  it('the fixture records validate against DefectSchema', () => {
+    for (const rec of Object.values(SCHEMA_DEFECTS)) expect(DefectSchema.safeParse(rec).success).toBe(true);
+  });
+
+  const { root, runDir } = fixture({
+    'reports/closure/closure.json': { metrics: { passed: 10, failed: 2, blocked: 0 } },
+    'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+    ...SCHEMA_DEFECTS,
+  });
+  const tech = run(SCRIPT.technical, root);
+  const sign = run(SCRIPT.signoff, root);
+
+  it('the technical report renders and counts open/closed from status.code (closed = Closed, Verified, Resolved, Won\'t Fix, …)', () => {
+    expect(tech.stderr).toBe('');
+    expect(tech.status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Open Defects\n2');
+    expect(text).toContain('Closed Defects\n2');
+    expect(text).toContain('Sev2');
+    expect(text).toContain('Triaged');
+    expect(text).not.toContain('[object Object]');
+  });
+
+  it('the sign-off counts the same open defects and names the highest open severity by its code', () => {
+    expect(sign.stderr).toBe('');
+    expect(sign.status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+    // The renderer breaks the line after the leading number into its own text run.
+    expect(text).toMatch(/(^|\n)2[^a-z0-9]*open defects; highest severity: Sev2/);
+    expect(text).not.toContain('[object Object]');
+  });
+});
+
+describe('A2: the technical report and the sign-off agree on open defects', () => {
+  it('on FULL_RUN both take closure.json#defectMetrics.confirmedOpen first (3), not the one record', () => {
+    const { root, runDir } = fixture(FULL_RUN);
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open Defects\n3');
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toMatch(/(^|\n)3[^a-z0-9]*open defects; highest severity: Sev2/);
+  });
+
+  it('with no defects/ and no defectMetrics the sign-off says "Open defects: not available", never "No open defects"', () => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0 } },
+      'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+    });
+    const r = run(SCRIPT.signoff, root);
+    expect(r.status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+    expect(text).toContain('Open defects: not available');
+    expect(text).not.toContain('No open defects');
+  });
+
+  it('confirmedOpen 0 prints "No open defects at sign-off."', () => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0 }, defectMetrics: { totalLogged: 2, confirmedOpen: 0 } },
+      'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+    });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toContain('No open defects at sign-off.');
+  });
+});
+
+describe('A3: coverage.json noData', () => {
+  it('coverage reads "not available" when reports/metrics/coverage.json holds noData, even though closure says 0', () => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 3, failed: 0, blocked: 0, requirementsCoverage: 0 }, unavailableMetrics: [] },
+      'reports/metrics/coverage.json': { noData: true, requirementsCoverage: 0 },
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Requirements Coverage\nnot available');
+    expect(text).not.toMatch(/(^|\n)0\.0%/);
+  });
+});
+
+describe('A4: a compliance report without regulation', () => {
+  it('is listed under its file name', () => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 3, failed: 0, blocked: 0 } },
+      'reports/compliance/istqb.json': { sectionsCovered: ['ISTQB-FL-1.4', 'ISTQB-FL-5.1', 'ISTQB-FL-5.3'], gaps: ['ISTQB-FL-4.2'] },
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('istqb\n3\n1');
+    expect(text).not.toContain('Compliance reports: not available');
+  });
+});
+
+describe('B1: cycle time and token usage shapes', () => {
+  it('reads cycle-time.json#totalWallClockMs before the phase sum, and sums only {agent, model, ts} rows, never a rollup row', () => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 3, failed: 0, blocked: 0 } },
+      'reports/metrics/cycle-time.json': {
+        phases: [{ phase: 'scan', startedAt: '2026-10-04T00:00:00Z', completedAt: '2026-10-04T00:30:00Z', durationMs: 1800000, agentName: 'scanner' }],
+        totalWallClockMs: 7200000,
+        bottleneckPhase: 'scan',
+      },
+      'reports/metrics/token-usage.jsonl':
+        [
+          { agent: 'a', model: 'm', inputTokens: 1, outputTokens: 1, cachedTokens: 0, usdCost: 1.5, ts: '2026-10-04T00:00:00Z' },
+          { model: 'm', scope: 'per-model', usdCost: 1.5 },
+          { agent: 'a', usdCost: 1.5 },
+        ]
+          .map((r) => JSON.stringify(r))
+          .join('\n') + '\n',
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Cycle Time: 2 h 0 min');
+    expect(text).toContain('Token Cost: $1.5000');
+  });
+});
+
+describe('B3: exit criteria from closure.json#exitCriteria', () => {
+  const base = { 'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'] };
+
+  it('an empty list prints "Exit criteria: not defined in the test plan"', () => {
+    const { root, runDir } = fixture({ ...base, 'reports/closure/closure.json': { metrics: {}, exitCriteria: [] } });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+    expect(text).toContain('Exit criteria: not defined in the test plan');
+    expect(text).not.toContain('Exit criteria: not available');
+  });
+
+  it('listed criteria are printed one per line', () => {
+    const { root, runDir } = fixture({
+      ...base,
+      'reports/closure/closure.json': {
+        metrics: {},
+        exitCriteria: [
+          { criterion: 'No open Sev1 defects', met: true, evidence: 'defectMetrics.confirmedOpen by severity' },
+          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'coverage.json' },
+        ],
+      },
+    });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+    expect(text).toContain('No open Sev1 defects');
+    expect(text).toContain('Requirements coverage at least 90%');
+  });
+});
+
+describe('A5/A6: refusals', () => {
+  const deck = FULL_RUN['reports/executive/executive-deck.json'];
+  const slides = (d: unknown) => {
+    const f = fixture({ 'reports/executive/executive-deck.json': d });
+    return { ...run(SCRIPT.slides, f.root), pdf: path.join(f.runDir, 'reports', 'executive', 'executive-deck.pdf') };
+  };
+
+  it.each([
+    ['recommendations is empty', { ...deck, recommendations: [] }],
+    ['residualRisks is empty', { ...deck, residualRisks: [] }],
+    ['residualRisks is not an array', { ...deck, residualRisks: 'Users may fail to sign in.' }],
+    ['recommendations is not an array', { ...deck, recommendations: { action: 'Fix it' } }],
+    ['an impact is not HIGH|MEDIUM|LOW', { ...deck, recommendations: [{ ...deck.recommendations[0], impact: 'CRITICAL' }] }],
+  ])('slides exit 4 when %s', (_why, d) => {
+    const r = slides(d);
+    expect(r.status).toBe(4);
+    expect(fs.existsSync(r.pdf)).toBe(false);
+  });
+
+  it.each([
+    ['1 insight (4 slides)', deck.supportingInsights.slice(0, 1)],
+    ['5 insights (8 slides)', [...deck.supportingInsights, ...deck.supportingInsights.slice(0, 2)]],
+  ])('slides exit 6 for %s', (_why, insights) => {
+    const r = slides({ ...deck, supportingInsights: insights });
+    expect(r.status).toBe(6);
+    expect(fs.existsSync(r.pdf)).toBe(false);
+  });
+
+  it.each([
+    ['an agent name', 'Raised by qa-ui-specialist during the cycle.'],
+    ['the framework name', 'The Aegis pipeline found one login issue.'],
+  ])('slides exit 7 when the deck names %s', (_why, keyFinding) => {
+    const r = slides({ ...deck, keyFinding });
+    expect(r.status).toBe(7);
+    expect(fs.existsSync(r.pdf)).toBe(false);
+  });
+
+  it('the sign-off exits 3 with no gates/gate-3-decision.json', () => {
+    const { root, runDir } = fixture({ 'reports/closure/closure.json': FULL_RUN['reports/closure/closure.json'] });
+    const r = run(SCRIPT.signoff, root);
+    expect(r.status).toBe(3);
+    expect(r.stderr).toContain('gate-3-decision.json');
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toBe(false);
+  });
+
+  it('the sign-off exits 4 on a gate decision it cannot map', () => {
+    const { root } = fixture({
+      'reports/closure/closure.json': FULL_RUN['reports/closure/closure.json'],
+      'gates/gate-3-decision.json': { ...FULL_RUN['gates/gate-3-decision.json'], decision: 'deferred' },
+    });
+    expect(run(SCRIPT.signoff, root).status).toBe(4);
+  });
+});
+
+describe('A7: the executive reporter describes the deck the script renders', () => {
+  const text = read('.claude/agents/tier1-phase/qa-executive-reporter.md');
+  const d3 = text.slice(text.indexOf('### Deliverable 3'), text.indexOf('## Tone-Check Protocol'));
+
+  it('Deliverable 3 says 2–4 supporting insights and has no appendix slide', () => {
+    expect(d3).toContain('2–4 SUPPORTING INSIGHTS');
+    expect(d3).not.toMatch(/appendix/i);
+    expect(d3).not.toMatch(/\b3 SUPPORTING INSIGHTS/);
   });
 });
 

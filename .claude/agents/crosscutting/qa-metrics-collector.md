@@ -30,13 +30,15 @@ Every dispatch writes every metric file below, whether or not it has data for it
 ### Token Usage (from `token.used` events)
 The SubagentStop hook (require-work-report) records `token.used` once per subagent run, one event per model, from the transcript entries marked with that subagent's agent id: `input` is the input plus cache-creation tokens, `output` the output tokens, `cached` the cache-read tokens. When the transcript attributes nothing to the subagent, the hook records no event, so a missing agent means no attributable usage, not zero usage.
 Per event (fields `agent`, `model`, `input`, `output`, `cached`): one row `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`, with `usdCost` computed from the model-policy rates.
-Rollup: totals per agent, per model tier, per phase.
+Rollup: totals per agent, per model tier, per phase, for your return report and the `metrics.cycle-complete` total. A rollup is never written into `token-usage.jsonl`: the file holds rows only, each exactly `{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`, and the technical report sums `usdCost` over the rows that carry `agent`, `model` and `ts`.
 Output: `runs/{runId}/reports/metrics/token-usage.jsonl` (one row per `token.used` event, rewritten in full on every dispatch so no row is counted twice).
 
 ### Cycle Time (from `run.phase.started`, `run.phase.completed` events)
-Per phase: `{ phase, startedAt, completedAt, durationMs, agentName }`
-Rollup: total wall-clock, bottleneck phase (longest duration).
-Output: `runs/{runId}/reports/metrics/cycle-time.json`.
+Output: `runs/{runId}/reports/metrics/cycle-time.json`, exactly `{ phases: [{ phase, startedAt, completedAt, durationMs, agentName }], totalWallClockMs, bottleneckPhase }`.
+- `phases`: one entry per phase, `startedAt` and `completedAt` ISO timestamps (`completedAt` absent while the phase runs), `durationMs` = `completedAt` − `startedAt`, `agentName` the phase agent.
+- `totalWallClockMs` runs from the run's start (the first `run.phase.started`) to the last `completedAt`, including the time spent waiting at gates, so it is not the sum of the phase durations. The technical report reads it first.
+- `bottleneckPhase`: the phase with the longest `durationMs`.
+With no completed phase the file is `{ "phases": [], "totalWallClockMs": 0, "bottleneckPhase": null, "noData": true }`.
 
 ### Coverage
 - **Requirements coverage**: `requirementId`s covered by ≥1 TC / total `requirementId`s in plan.

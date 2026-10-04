@@ -30,8 +30,8 @@ The skill is a thin orchestrator. It pulls the verdict from `gate-3-decision.jso
 ## Inputs (read from `runs/{run}/`)
 
 - `gates/gate-3-decision.json` — the closure gate decision (verdict source: its `decision`)
-- `reports/closure/closure.json` — exit criteria evaluation (`exitCriteria[]`)
-- `defects/*.json` — open defect summary and the security tag
+- `reports/closure/closure.json` — exit criteria evaluation (`exitCriteria[]`, each `{criterion, met, evidence}`) and `defectMetrics.confirmedOpen`
+- `defects/*.json` — open defect summary (`DefectSchema` records: the `code` of `status` and of `severity`) and the security tag
 - `reports/compliance/*.json` — whether a Compliance Officer signs
 - `risk-register.json` — residual risk after testing
 - `plan.json` — scope, product version
@@ -45,12 +45,13 @@ The skill is a thin orchestrator. It pulls the verdict from `gate-3-decision.jso
 
 1. Resolve `--run` and verify `gates/gate-3-decision.json` exists. The signoff cannot be produced before Gate 3 is closed.
 2. Map the gate decision's `decision` field (`approved` → GO, `approved-with-conditions` → CONDITIONAL, `rejected` → NO-GO) to the `SignoffSpec.verdict` enum.
-3. Read exit criteria from `reports/closure/closure.json#exitCriteria` — each row becomes a `{ criterion, met }` entry. No exit criteria prints "Exit criteria: not available".
-4. Read residual risk summary from `risk-register.json#residual`. No risk register prints "Residual risk: not available".
-5. Generate a `documentId` of the form `SIGNOFF-{runId}-{ISO date}`.
-6. Default signatory roles: `["QA Lead", "Engineering Lead", "Product Owner"]`. Add `"Security Officer"` if any defect has tag `security` and `"Compliance Officer"` if any compliance phase ran.
-7. Check the sign-off data against the stakeholder brand patterns of `@qa/contracts`; a match fails the run (exit 5).
-8. Call `renderSignoffDocument(spec)` and write to `--out`, then verify the file is a PDF (`%PDF-` header, over 1 KB).
+3. Read exit criteria from `reports/closure/closure.json#exitCriteria` — each row becomes a `{ criterion, met }` entry. An empty list (the test plan defines none) prints "Exit criteria: not defined in the test plan"; no `exitCriteria` key prints "Exit criteria: not available".
+4. Count open defects with the technical report's resolver (`resolveDefectFigures` in `@qa/contracts`): `closure.json#defectMetrics.confirmedOpen` first, then the `code` of each defect record's `status` (closed, verified, resolved, won't fix, duplicate, cannot reproduce and not a bug are closed). The summary names the highest open severity by its `code` (Sev1 is highest). With neither source it prints "Open defects: not available", never "No open defects".
+5. Read residual risk summary from `risk-register.json#residual`. No risk register prints "Residual risk: not available".
+6. Generate a `documentId` of the form `SIGNOFF-{runId}-{ISO date}`.
+7. Default signatory roles: `["QA Lead", "Engineering Lead", "Product Owner"]`. Add `"Security Officer"` if any defect has tag `security` and `"Compliance Officer"` if any compliance phase ran.
+8. Check the sign-off data against the stakeholder brand patterns of `@qa/contracts`; a match fails the run (exit 5).
+9. Call `renderSignoffDocument(spec)` and write to `--out`, then verify the file is a PDF (`%PDF-` header, over 1 KB).
 
 ## Implementation
 

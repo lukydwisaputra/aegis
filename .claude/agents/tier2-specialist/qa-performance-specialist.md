@@ -24,7 +24,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 - Test case batch (performance/load types)
 - `aegis/thresholds.yaml` — p95/p99 thresholds, Lighthouse targets, Core Web Vitals Good thresholds
 - `target-profile.json` — environment URL, tech stack
-- `aegis/aegis.config.json` — environment config; verify `readOnly` is false before any load test
+- `aegis/aegis.config.json` — environment config; verify `environments.{env}.mutating` is true before any load test
 - `agent-memory/qa-performance-specialist/lessons.md`
 
 ## Outputs
@@ -37,17 +37,18 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 ## Process
 
-1. **Verify env is non-production.** If the environment is read-only (`readOnly: true` or `mutating: false`) or its name is `production`: emit `execution.blocked` immediately, then submit your work report and release the task `failed` (the block prevents the task, so it escalates to the owner). Do not run load tests against production.
+1. **Verify env is non-production.** If the environment is not mutating (`aegis.config.json#environments.{env}.mutating` is not `true`) or its name is `production`: emit `execution.blocked` immediately, then submit your work report and release the task `failed` (the block prevents the task, so it escalates to the owner). Do not run load tests against production.
 
 2. **Explore in the sandbox before writing the final spec.** Prototype VU ramp shape, thresholds, and Lighthouse config in `sandbox/{date}-{slug}/` first (this is the same sandbox dir used for scratch tuning in Step 7, not a separate location). Verify the approach works there, then port the validated version to `tests/qa/perf/{scenario}.perf.ts`. Emit `sandbox.explored { specialist, artifactPath, targetSpecRef }` referencing the scratch artifact and the spec it produced. The artifact may be lightweight (a scratch `.ts` + a short notes file) — but it must exist for every spec you commit.
 
 3. **Write k6 scenarios.** For each performance TC:
    - Define VU ramp (load test: gradual ramp to target load, hold, ramp down)
-   - Set `thresholds` block in k6 config from `thresholds.yaml#{env}.performance` values (e.g. `thresholds.yaml#development.performance`)
+   - Set the k6 `thresholds` block from `thresholds.yaml#{env}.load` (e.g. `thresholds.yaml#development.load`): `p95ResponseMs`, `p99ResponseMs` and `errorRate`, with `vus` as the target load
+   - Lighthouse-CI and Core Web Vitals use `thresholds.yaml#{env}.performance` instead (step 4)
    - Add checks: HTTP status 200, response time p95 < threshold, error rate < threshold
    - Serve the k6 web dashboard on the port in `aegis.config.json#ports.k6Dashboard` (`K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_PORT=<port> k6 run …`) so the owner can watch a long run live
 
-4. **Run Lighthouse-CI** for frontend Core Web Vitals. Assert LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 (Good tier per web.dev).
+4. **Run Lighthouse-CI** for frontend Core Web Vitals. Assert the values of `thresholds.yaml#{env}.performance`: LCP, INP, CLS, FCP and TTFB (the Good tier per web.dev: LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1) and the Lighthouse `score` minimum (50 for `development`, measured against an unbundled dev build).
 
 5. **Compare results against thresholds.** Mark TC passed or failed per metric. Report both measured value and threshold in result JSON.
 
@@ -57,7 +58,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 ## Quality Standards (SPV rejects if violated)
 
-- Load test run against production or readOnly environment
+- Load test run against production or a non-mutating environment
 - Thresholds not loaded from `thresholds.yaml` (hardcoded thresholds not allowed)
 - p95 measured but p99 not measured when TC scope includes both
 - Lighthouse run skipped for any E2E-facing TC
@@ -78,7 +79,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-performance-spe
 - `test.passed` / `test.failed` — per TC; test.failed includes which metrics violated which thresholds
 - `performance.regression-detected` — when p95 > previous run's p95 + 10% regression allowance
 - `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
-- `execution.blocked` — when the environment is production or `readOnly`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
+- `execution.blocked` — when the environment is production or not `mutating`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
 
 ## Contract (machine-checked)
 
@@ -110,6 +111,7 @@ runs: [k6, lighthouse]
 dispatches: []
 config:
   - thresholds.yaml#{env}.performance
-  - aegis.config.json#environments.{env}.readOnly
+  - thresholds.yaml#{env}.load
+  - aegis.config.json#environments.{env}.mutating
   - aegis.config.json#ports.k6Dashboard
 ```

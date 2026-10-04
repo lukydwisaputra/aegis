@@ -89,21 +89,19 @@ Skill to invoke: `_qa-report-signoff-pdf`
 
 ### Deliverable 3 — Executive Slide Deck (`executive-deck.pdf`)
 
-5-7 slides. Minto Pyramid Principle — punchline first.
+5-7 slides: 1 key finding + 2–4 supporting insights + 1 recommendations slide + 1 risk slide. Minto Pyramid Principle — punchline first.
 
 **Slide 1 — KEY FINDING:**
 One sentence. The most important finding from this cycle — NOT a ship/no-ship verdict. Example: "Zero blocking issues found. 3 minor issues accepted for next release with owner-assigned fixes." A "Recommended action" box at the bottom is permitted, framed as an evidence-based suggestion.
 
-**Slides 2-4 — 3 SUPPORTING INSIGHTS** (What / So-What / Now-What per slide):
+**Next slides — 2–4 SUPPORTING INSIGHTS**, one slide each (What / So-What / Now-What per slide):
 - WHAT: the data point, visualised (chart, big number, table)
 - SO WHAT: why it matters in business terms (not technical terms)
 - NOW WHAT: the recommended action (one sentence)
 
-**Slide 5 — RECOMMENDATIONS:** 3-5 action items. Owner, deadline, impact rating (HIGH / MEDIUM / LOW).
+**Then — RECOMMENDATIONS:** 3-5 action items. Owner, deadline, impact rating (HIGH / MEDIUM / LOW). At least one; the skill refuses an empty list or any other impact value.
 
-**Slide 6 — BUSINESS-LANGUAGE RISK SUMMARY:** Top 3 residual risks in plain English.
-
-**Slide 7 (optional) — APPENDIX POINTER.**
+**Last slide — BUSINESS-LANGUAGE RISK SUMMARY:** Top 3 residual risks in plain English. At least one; the skill refuses an empty list.
 
 Skill to invoke: `_qa-report-executive-slides` (includes tone-check pass; it renders the deck file you write at Process step 4)
 
@@ -140,7 +138,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, `runs/{runId}/reports/metrics/token-usage.jsonl`. Load lessons.md.
 
-2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill (`node .claude/skills/_qa-report-technical-pdf/run.mjs --run=<runId>`). It reads `reports/closure/closure.json`, `reports/metrics/token-usage.jsonl` and `reports/metrics/cycle-time.json`, and writes `reports/executive/technical-report.pdf`. **You must invoke the skill — never hand-write a `.md` instead.** If the skill fails, fix the input its error names and run it again; if it still fails, emit `report.fallback {deliverable: "technical", reason}` with the error, write no substitute file, and release the task `failed` (Task Protocol step 4) so the owner sees the render failure. Never write to the `reports/` root.
+2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill (`node .claude/skills/_qa-report-technical-pdf/run.mjs --run=<runId>`). It reads `reports/closure/closure.json`, the defect records in `defects/`, `reports/metrics/token-usage.jsonl`, `reports/metrics/cycle-time.json`, `reports/metrics/coverage.json` and `reports/compliance/*.json`, and writes `reports/executive/technical-report.pdf`. **You must invoke the skill — never hand-write a `.md` instead.** If the skill fails, fix the input its error names and run it again; if it still fails, emit `report.fallback {deliverable: "technical", reason}` with the error, write no substitute file, and release the task `failed` (Task Protocol step 4) so the owner sees the render failure. Never write to the `reports/` root.
 
 3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes `reports/executive/signoff.pdf`). Populate the signature block with role placeholders — humans sign. Same skill-first rule as Deliverable 1: a render failure is recorded with `report.fallback`, never covered by a `.md`.
 

@@ -29,11 +29,12 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 ## Inputs (read from `runs/{run}/`)
 
 - `reports/closure/closure.json` — from its `metrics` object: `passed`, `failed`, `blocked` (total = passed + failed + blocked), `passRate`, `requirementsCoverage`, and `skipped` when present; from its `defectMetrics` object: `confirmedOpen` and `totalLogged`; and `unavailableMetrics[]`
-- `defects/*.json` — full defect list (id, title, severity, status)
-- `reports/compliance/*.json` — one gap report per relevant regulation (compliance section): `regulation`, `gaps[]`, and the regulation's covered list (`characteristicsCovered`, `articlesCovered`, `practicesCovered` or `sectionsCovered`)
+- `defects/*.json` — full defect list: `DefectSchema` records, printed as id, title, and the `code` of `severity` and of `status` (a plain string severity or status from an older run is read as is). When `closure.json` has no `defectMetrics.confirmedOpen`, open and closed are counted from the status codes: a status matching closed, verified, resolved, won't fix, duplicate, cannot reproduce or not a bug is closed, anything else is open. The sign-off skill counts open defects with the same resolver (`resolveDefectFigures` in `@qa/contracts`), so the two documents agree
+- `reports/compliance/*.json` — one gap report per relevant regulation (compliance section): `regulation`, `gaps[]`, and the regulation's covered list (`characteristicsCovered`, `articlesCovered`, `practicesCovered` or `sectionsCovered`); a report without `regulation` is listed under its file name
 - `plan.json` — scope (project name comes from `aegis.config.json#dashboard.projectName`)
-- `reports/metrics/token-usage.jsonl` — token cost in USD: the sum of every row's `usdCost`
-- `reports/metrics/cycle-time.json` — cycle time: the total wall-clock, else the sum of the per-phase `durationMs`
+- `reports/metrics/token-usage.jsonl` — token cost in USD: the sum of `usdCost` over the rows that carry `agent`, `model` and `ts` (the collector writes rows only; a line without them is not summed)
+- `reports/metrics/cycle-time.json` — cycle time: `totalWallClockMs`, else the sum of the per-phase `durationMs`
+- `reports/metrics/coverage.json` — when it holds `"noData": true`, requirements coverage reads "not available" whatever `closure.json` says
 
 ## Output
 
@@ -96,6 +97,7 @@ reads:
   - "{run}/plan.json"
   - "{run}/reports/metrics/token-usage.jsonl"
   - "{run}/reports/metrics/cycle-time.json"
+  - "{run}/reports/metrics/coverage.json"
 writes:
   - "{run}/reports/executive/technical-report.pdf"
 emits:

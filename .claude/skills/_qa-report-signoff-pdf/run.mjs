@@ -56,8 +56,9 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
+/** Every JSON document of a directory, or null when the directory is absent. */
 function readJsonGlob(dir) {
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir)) return null;
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
     .map((f) => readJson(join(dir, f)))
@@ -75,11 +76,29 @@ if (!gate3) {
 const closure = readJson(join(runDir, "reports", "closure", "closure.json")) ?? {};
 const riskRegister = readJson(join(runDir, "risk-register.json")) ?? {};
 const plan = readJson(join(runDir, "plan.json")) ?? {};
+// null when the run has no defects/ directory: the open-defect figure is then not available, never 0.
 const defects = readJsonGlob(join(runDir, "defects"));
-const complianceReports = readJsonGlob(join(runDir, "reports", "compliance"));
+const complianceReports = readJsonGlob(join(runDir, "reports", "compliance")) ?? [];
 
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
+
+// ─── load the built packages ──────────────────────────────────────────────────
+
+async function load(url, what) {
+  try {
+    return await import(url.href);
+  } catch (err) {
+    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
+    process.exit(7);
+  }
+}
+
+const { renderSignoffDocument } = await load(RENDERER, "the PDF renderer");
+const { checkBrandExposure, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+  CONTRACTS,
+  "the brand check",
+);
 
 // ─── verdict mapping ──────────────────────────────────────────────────────────
 
@@ -103,23 +122,21 @@ if (ALLOWED_VERDICTS.has(rawVerdict)) {
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 
+// The closure reporter writes closure.json#exitCriteria from the test plan's exit criteria, [] when the
+// plan defines none; an absent key means the closure data does not say.
 const exitCriteria = Array.isArray(closure.exitCriteria)
   ? closure.exitCriteria.map((c) => ({
-      criterion: c.criterion ?? c.name ?? String(c),
-      met: Boolean(c.met),
+      criterion: typeof c === "string" ? c : String(c?.criterion ?? c?.name ?? "not available"),
+      met: c?.met === true,
     }))
   : [];
+const exitCriteriaNote = Array.isArray(closure.exitCriteria)
+  ? "Exit criteria: not defined in the test plan"
+  : "Exit criteria: not available";
 
-const openDefects = defects.filter((d) => d.status !== "closed" && d.status !== "verified-fixed");
-const openDefectsSummary =
-  openDefects.length === 0
-    ? "No open defects at sign-off."
-    : `${openDefects.length} open defects; highest severity: ${
-        openDefects
-          .map((d) => d.severity)
-          .sort()
-          .at(0) ?? "unknown"
-      }`;
+// The same resolver as the technical report: closure.json#defectMetrics.confirmedOpen first, then the
+// defect records' status codes; neither present → "Open defects: not available".
+const openDefectsSummary = summariseOpenDefects(resolveDefectFigures(closure, defects));
 
 const residualRisk = !existsSync(join(runDir, "risk-register.json"))
   ? "Residual risk: not available (no risk register in this run)"
@@ -130,7 +147,7 @@ const residualRisk = !existsSync(join(runDir, "risk-register.json"))
       : "No residual risk recorded";
 
 const signatoryRoles = ["QA Lead", "Engineering Lead", "Product Owner"];
-const hasSecurityDefect = defects.some((d) =>
+const hasSecurityDefect = (defects ?? []).some((d) =>
   Array.isArray(d.tags) ? d.tags.some((t) => /security/i.test(t)) : false,
 );
 if (hasSecurityDefect) signatoryRoles.push("Security Officer");
@@ -148,24 +165,11 @@ const spec = {
   scope: plan.scope ?? closure.scope ?? "Full cycle",
   verdict,
   exitCriteria,
+  exitCriteriaNote,
   openDefectsSummary,
   residualRisk,
   signatoryRoles,
 };
-
-// ─── load the built packages ──────────────────────────────────────────────────
-
-async function load(url, what) {
-  try {
-    return await import(url.href);
-  } catch (err) {
-    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
-    process.exit(7);
-  }
-}
-
-const { renderSignoffDocument } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure } = await load(CONTRACTS, "the brand check");
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 

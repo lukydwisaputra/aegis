@@ -59,7 +59,7 @@ You evaluate the QA cycle against ISO/IEC 5055:2021, which defines automated sou
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/iso5055.{md,json}` — gap report
+- `runs/{runId}/reports/compliance/iso5055.{md,json}` — gap report. `runs/{runId}/reports/compliance/iso5055.json` is `{ "regulation": "iso5055", "characteristicsCovered": [<covered tags>], "gaps": [<one object per uncovered CWE>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `ISO5055-{Characteristic}-CWE-{id}` tags added to relevant TCs/defects
 
 ## Quality Standards

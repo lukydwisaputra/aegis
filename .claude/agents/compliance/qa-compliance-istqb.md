@@ -43,7 +43,7 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/istqb.{md,json}` — gap report
+- `runs/{runId}/reports/compliance/istqb.{md,json}` — gap report. `runs/{runId}/reports/compliance/istqb.json` is `{ "regulation": "istqb", "sectionsCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `ISTQB-Foundation-{section}` tags added to TCs/defects as applicable
 
 ## Quality Standards

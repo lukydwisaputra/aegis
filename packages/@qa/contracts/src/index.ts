@@ -23,3 +23,4 @@ export * from "./defect-candidate.js";
 export * from "./execution-summary.js";
 export * from "./env-report.js";
 export * from "./promotions.js";
+export * from "./report-defects.js";

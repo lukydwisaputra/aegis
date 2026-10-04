@@ -78,6 +78,20 @@ for (const f of requiredFields) {
     process.exit(4);
   }
 }
+// The recommendations and risk slides render from non-empty lists; an empty or non-list field would print a
+// blank slide, so the deck is refused instead.
+for (const f of ["recommendations", "residualRisks"]) {
+  if (!Array.isArray(deckSource[f]) || deckSource[f].length === 0) {
+    console.error(`ERROR: executive-deck.json#${f} must be a non-empty array`);
+    process.exit(4);
+  }
+}
+const IMPACTS = new Set(["HIGH", "MEDIUM", "LOW"]);
+const badImpact = deckSource.recommendations.findIndex((r) => !IMPACTS.has(r?.impact));
+if (badImpact !== -1) {
+  console.error(`ERROR: executive-deck.json#recommendations[${badImpact}].impact must be HIGH, MEDIUM or LOW`);
+  process.exit(4);
+}
 
 // ─── load the built packages ──────────────────────────────────────────────────
 
@@ -140,8 +154,8 @@ const spec = {
   title: rewritten.title ?? `${projectName} — QA Cycle Summary`,
   keyFinding: rewritten.keyFinding,
   supportingInsights,
-  recommendations: Array.isArray(rewritten.recommendations) ? rewritten.recommendations : [],
-  residualRisks: Array.isArray(rewritten.residualRisks) ? rewritten.residualRisks : [],
+  recommendations: rewritten.recommendations,
+  residualRisks: rewritten.residualRisks,
 };
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────

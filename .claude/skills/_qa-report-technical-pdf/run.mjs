@@ -56,12 +56,18 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-function readJsonGlob(dir) {
+/** Every JSON file of a directory as { name, doc }, or null when the directory is absent. */
+function readJsonEntries(dir) {
   if (!existsSync(dir)) return null;
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => readJson(join(dir, f)))
-    .filter((v) => v !== null);
+    .map((f) => ({ name: f.replace(/\.json$/, ""), doc: readJson(join(dir, f)) }))
+    .filter((e) => e.doc !== null);
+}
+
+function readJsonGlob(dir) {
+  const entries = readJsonEntries(dir);
+  return entries === null ? null : entries.map((e) => e.doc);
 }
 
 /** Every parseable row of a JSONL file, or null when the file is absent. */
@@ -91,10 +97,28 @@ const defects = readJsonGlob(join(runDir, "defects"));
 const plan = readJson(join(runDir, "plan.json")) ?? {};
 const tokenUsage = readJsonl(join(runDir, "reports", "metrics", "token-usage.jsonl"));
 const cycleTime = readJson(join(runDir, "reports", "metrics", "cycle-time.json"));
-const complianceReports = readJsonGlob(join(runDir, "reports", "compliance")) ?? [];
+const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
+const complianceReports = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
 
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
+
+// ─── load the built packages ──────────────────────────────────────────────────
+
+async function load(url, what) {
+  try {
+    return await import(url.href);
+  } catch (err) {
+    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
+    process.exit(6);
+  }
+}
+
+const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
+const { checkBrandExposure, resolveDefectFigures, defectSeverityCode, defectStatusCode } = await load(
+  CONTRACTS,
+  "the brand check",
+);
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 // An absent input is null, which the renderer prints as "not available" — never a silent 0.
@@ -117,18 +141,18 @@ const failed = metric("failed");
 const blocked = metric("blocked");
 const totalTests = passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 
-// Open/closed defects: the closure reporter's defectMetrics first, then the defect records' statuses.
-const dm = closure.defectMetrics ?? {};
-let openDefects = num(dm.confirmedOpen);
-let closedDefects = openDefects !== null && num(dm.totalLogged) !== null ? num(dm.totalLogged) - openDefects : null;
-if (openDefects === null && defects !== null && defects.every((d) => typeof d.status === "string")) {
-  const isClosed = (d) => d.status === "closed" || d.status === "verified-fixed";
-  openDefects = defects.filter((d) => !isClosed(d)).length;
-  closedDefects = defects.filter(isClosed).length;
-}
+// Open/closed defects: the resolver the sign-off uses too — closure.json#defectMetrics first, then the
+// defect records' status codes (DefectSchema `status.code`; Closed, Verified, Resolved, Won't Fix, … are closed).
+const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closure, defects);
 
-// Cost: the sum of usdCost over the collector's token-usage rows; no priced row means not available.
-const pricedRows = (tokenUsage ?? []).filter((r) => num(r?.usdCost) !== null);
+// Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
+const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
+
+// Cost: the sum of usdCost over the collector's token-usage rows — {agent, model, ..., usdCost, ts}. A rollup
+// (per agent, model or phase) is never a row, so a line without agent, model and ts is not summed.
+const isUsageRow = (r) =>
+  r !== null && typeof r === "object" && typeof r.agent === "string" && typeof r.model === "string" && typeof r.ts === "string";
+const pricedRows = (tokenUsage ?? []).filter((r) => isUsageRow(r) && num(r.usdCost) !== null);
 const tokenCostUsd =
   pricedRows.length > 0 && !isUnavailable("token-usage") ? pricedRows.reduce((s, r) => s + r.usdCost, 0) : null;
 
@@ -144,13 +168,14 @@ function cycleTimeMsOf(ct) {
 }
 
 // Compliance: each report names its regulation and lists gaps[]; its covered list is the regulation's
-// own key (characteristicsCovered, articlesCovered, practicesCovered or sectionsCovered).
+// own key (characteristicsCovered, articlesCovered, practicesCovered or sectionsCovered). A report
+// without a regulation is listed under its file name (istqb.json → istqb).
 const COVERED_KEYS = ["characteristicsCovered", "articlesCovered", "practicesCovered", "sectionsCovered"];
 const countOf = (v) => (Array.isArray(v) ? v.length : num(v));
 const compliance = {};
-for (const report of complianceReports) {
-  const key = typeof report.regulation === "string" ? report.regulation : null;
-  if (key === null) continue;
+for (const { name, doc: report } of complianceReports) {
+  if (typeof report !== "object" || Array.isArray(report)) continue;
+  const key = typeof report.regulation === "string" && report.regulation.trim() !== "" ? report.regulation : name;
   const coveredKey = COVERED_KEYS.find((k) => report[k] !== undefined);
   compliance[key] = {
     covered: coveredKey ? countOf(report[coveredKey]) : null,
@@ -170,34 +195,20 @@ const spec = {
     blocked,
     skipped: metric("skipped"),
     passRate: metric("passRate"),
-    coveragePercent: metric("requirementsCoverage", "coverage"),
+    coveragePercent: coverageNoData ? null : metric("requirementsCoverage", "coverage"),
     openDefects,
     closedDefects,
   },
   defects: (defects ?? []).map((d) => ({
-    id: d.id,
-    title: d.title,
-    severity: d.severity ?? "not available",
-    status: d.status ?? "not available",
+    id: typeof d.id === "string" ? d.id : "not available",
+    title: typeof d.title === "string" ? d.title : "not available",
+    severity: defectSeverityCode(d) ?? "not available",
+    status: defectStatusCode(d) ?? "not available",
   })),
   compliance,
   tokenCostUsd,
   cycleTimeMs: cycleTimeMsOf(cycleTime),
 };
-
-// ─── load the built packages ──────────────────────────────────────────────────
-
-async function load(url, what) {
-  try {
-    return await import(url.href);
-  } catch (err) {
-    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
-    process.exit(6);
-  }
-}
-
-const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure } = await load(CONTRACTS, "the brand check");
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 // Class B contract: no framework name or agent name in the rendered output.

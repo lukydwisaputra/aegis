@@ -22,7 +22,7 @@ flowchart TD
         Orchestrator(["qa-orchestrator"])
     end
 
-    subgraph CrossCutting["Cross-Cutting (continuous)"]
+    subgraph CrossCutting["Cross-Cutting (on demand)"]
         MetricsCollector(["qa-metrics-collector<br/>before Closure-draft and Executive, writes reports/metrics/"])
         Curator(["qa-curator<br/>post Gate 3"])
     end

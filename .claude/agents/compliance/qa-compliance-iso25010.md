@@ -47,7 +47,7 @@ Evaluate coverage for each:
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/iso25010.{md,json}` — gap report
+- `runs/{runId}/reports/compliance/iso25010.{md,json}` — gap report. `runs/{runId}/reports/compliance/iso25010.json` is `{ "regulation": "iso25010", "characteristicsCovered": [<covered tags>], "gaps": [<one object per gap, as in Process step 5>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - The `ISO25010-*` tags of TCs and defects, recorded in the gap report only (you edit no test case, defect or RTM file)
 
 ## Quality Standards

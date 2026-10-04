@@ -14,8 +14,29 @@ function closure(dir: string, seen = new Set<string>()): Set<string> {
   return seen;
 }
 
-it('the root prepare script builds the CLI and its workspace dependencies (CO-11)', () => {
-  expect(pkg('.').scripts?.['prepare']).toBe('pnpm --filter "@aegis-qa/cli..." run build');
+it('the root prepare script builds the CLI, the PDF renderer and their workspace dependencies (CO-11, AUD-060)', () => {
+  expect(pkg('.').scripts?.['prepare']).toBe('pnpm --filter "@aegis-qa/cli..." --filter "@qa/pdf-renderer..." run build');
+});
+
+it('every package an executive report script loads is built by prepare, so pnpm install alone makes the scripts work', () => {
+  const filters = [...(pkg('.').scripts?.['prepare'] ?? '').matchAll(/--filter "([^"]+)\.\.\."/g)].map((m) => m[1] ?? '');
+  const built = new Set<string>(filters);
+  for (const f of filters) {
+    const dir = f === pkg(path.join('apps', 'cli')).name ? path.join('apps', 'cli') : path.join('packages', f);
+    for (const p of closure(dir)) built.add(p);
+  }
+  const skills = path.join(REPO, '.claude', 'skills');
+  const imported = new Set<string>();
+  for (const s of fs.readdirSync(skills).filter((d) => d.startsWith('_qa-report-'))) {
+    const src = fs.readFileSync(path.join(skills, s, 'run.mjs'), 'utf-8');
+    for (const m of src.matchAll(/packages\/@qa\/([a-z0-9-]+)\/dist\//g)) imported.add(`@qa/${m[1]}`);
+  }
+  expect(imported).toContain('@qa/pdf-renderer');
+  expect([...imported].filter((p) => !built.has(p))).toEqual([]);
+});
+
+it('CLAUDE.md says pnpm install builds the PDF renderer too', () => {
+  expect(fs.readFileSync(path.join(REPO, 'CLAUDE.md'), 'utf-8')).toMatch(/prepare script also builds the CLI, the packages the hooks load and the PDF renderer/);
 });
 
 it('A17: the prepare filter names the CLI package (apps/cli) and pnpm is pinned, so prepare runs', () => {
