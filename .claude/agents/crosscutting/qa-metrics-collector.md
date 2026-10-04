@@ -41,7 +41,7 @@ Output: `runs/{runId}/reports/metrics/cycle-time.json`.
 ### Coverage
 - **Requirements coverage**: `requirementId`s covered by ≥1 TC / total `requirementId`s in plan.
 - **Test execution coverage**: TCs executed / TCs planned.
-- **Code coverage**: from the unit specialist's work reports, `runs/{runId}/reports/work/qa-unit-specialist.*.json` (one per task and attempt; the highest attempt per task counts), if available.
+- **Code coverage**: from the unit specialist's `runs/{runId}/reports/unit-coverage.json`, if it exists; absent, the code-coverage figure is not available (no 0).
 Rollup: percentage per type.
 Output: `runs/{runId}/reports/metrics/coverage.json`.
 
@@ -62,7 +62,7 @@ Per agent: `{ reviewPassRate, requestedChangesCount, meanTaskDurationMs, lessonA
 Output: `runs/{runId}/reports/metrics/agent-reliability.json`.
 
 ### Flaky Tests (from retry and attempt data)
-- Per test: `{ testRef, flakeRate, retryCount }`, from the retry and attempt data in `runs/{runId}/cases/*-result.json` (a test that failed and then passed on a retry counts as a flake)
+- Per test: `{ testRef, flakeRate, retryCount }`, from the retry and attempt data in the result files, `runs/{runId}/cases/{TC-ID}-result.json` and the per-viewport `runs/{runId}/cases/{TC-ID}-{viewport}-result.json` of the responsive specialist (the glob `cases/*-result.json` matches both; a viewport result belongs to the TC id before the viewport, and a TC's executed status is read across all of its viewport results) (a test that failed and then passed on a retry counts as a flake)
 Output: `runs/{runId}/reports/metrics/flaky.json`.
 
 ## Process
@@ -103,7 +103,8 @@ reads:
   - "{run}/cases/*.json"
   - "{run}/defects/*.json"
   - "{run}/plan.json"
-  - {path: "{run}/reports/work/qa-unit-specialist.*.json", optional: true}
+  - {path: "{run}/reports/unit-coverage.json", optional: true}
+  - "{run}/cases/*-result.json"
   - ".claude/model-policy.yaml"
 writes:
   - "{run}/reports/metrics/token-usage.jsonl"

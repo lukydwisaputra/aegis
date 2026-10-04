@@ -247,9 +247,6 @@ entries:
   - key: "EVENT:qa-dashboard:dashboard.stopped:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-defect-manager:rtm.append-link:named-consumer-missing"
-    ids: [AUD-027]
-    note: "qa-defect-manager says rtm.append-link is processed by an unnamed consumer, which does not await it"
   - key: "EVENT:qa-deps-update:deps.applied:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"

@@ -59,7 +59,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 ## Outputs
 
 - `runs/{runId}/defects/{DEF-ID}.{md,json}` — one file pair per defect (Zod-validated); each carries an `originConfirmation { ruledOut: [...], reproducedOnClean: bool, evidenceRef }` block
-- `runs/{runId}/rtm.json` — updated via `rtm.append-link` events (defectId appended to row)
+- `runs/{runId}/rtm.json` — you append each defect id to the `defectIds` of the matching requirement row yourself
 - Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
 ## Process
@@ -90,7 +90,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 6. **Apply abductive inference** (Kaner ch-02 tester mindset). You do not know the root cause with certainty — you infer it from evidence. When the inference is uncertain, document the uncertainty explicitly: "Most likely: the email validation regex does not accept `+` as a valid character. Alternative: the OAuth callback URL-decodes `+` as a space before validation." Surface both hypotheses in `rootCause.summary`.
 
-7. **Emit `rtm.append-link` events.** For every defect opened, emit an event that the RTM writer processes to append the defect ID to the relevant requirement rows. For scripted defects, the event carries `parentTCId`. **For EXP-type defects (from exploratory, no parent TC), the event carries `charterSessionId` instead** — the RTM row's `charterSessionId` field records which exploratory charter session surfaced it, since there is no test case to link.
+7. **Link each defect in `rtm.json` yourself.** For every defect opened, read `runs/{runId}/rtm.json`, find the row of the requirement the defect traces to (through the parent TC's `traceability`, or through the charter's requirement for an EXP-type defect), append the defect id to that row's `defectIds` (no duplicates) and write the file back, keeping every other row and field unchanged. No other agent writes the RTM in this phase, and nothing consumes a link event, so you emit none. For scripted defects, record `parentTCId` on the `defect.linked` event. **For EXP-type defects (from exploratory, no parent TC), the event carries `charterSessionId` instead** — the RTM row's `charterSessionId` field records which exploratory charter session surfaced it, since there is no test case to link; set that field on the row too.
 
 8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
@@ -123,12 +123,12 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-defect-manager 
 - `defect.origin-confirmed` — one per failed-TC group, one per candidate file and one per `wrong` developer test (with `evidenceRef`); `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
 - `defect.opened` — one per new defect; includes id, severity, priority, tcId
 - `defect.duplicate` — links new TC failure to existing defect
-- `defect.linked` — one per rtm.append-link; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
+- `defect.linked` — one per defect appended to an `rtm.json` row; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
 - `defect.management-complete` — single event at end; includes total opened, duplicates, severity breakdown
 
 ## Concurrency
 
-Claims its task through the CLI (see Task Protocol). Writes to `runs/{runId}/defects/`. Emits `rtm.append-link` events that qa-test-designer (if still active) or a post-design RTM updater processes.
+Claims its task through the CLI (see Task Protocol). Writes to `runs/{runId}/defects/`. Appends defect ids to `runs/{runId}/rtm.json` itself: it is the only agent writing the RTM in this phase.
 
 ## Knowledge Refs
 
@@ -176,7 +176,6 @@ emits:
   - {event: defect.duplicate, via: append}
   - {event: defect.linked, via: append}
   - {event: defect.management-complete, via: append}
-  - {event: rtm.append-link, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []

@@ -150,7 +150,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-designer p
 
 ## Concurrency
 
-Claims its task through the CLI (see Task Protocol). Writes to `runs/{runId}/cases/` and `runs/{runId}/rtm.*`. The RTM is the single-writer resource for this phase; qa-defect-manager may append `defectIds` later via `rtm.append-link` events.
+Claims its task through the CLI (see Task Protocol). Writes to `runs/{runId}/cases/` and `runs/{runId}/rtm.*`. The RTM is the single-writer resource for this phase; qa-defect-manager appends `defectIds` to its rows later, itself, after you are done.
 
 ## Knowledge Refs
 

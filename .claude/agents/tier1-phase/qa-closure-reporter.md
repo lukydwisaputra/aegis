@@ -25,6 +25,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 ## Inputs
 
 - `runs/{runId}/execution-summary.json` — test results
+- `runs/{runId}/cases/*-result.json` — per-test results, in both layouts: `{TC-ID}-result.json` and the responsive specialist's per-viewport `{TC-ID}-{viewport}-result.json` (a TC with viewport results passes only when every viewport result passes). You read them to confirm the execution summary; you never write them
 - `runs/{runId}/defects/*.json` — all defects (includes EXP-type exploratory defects with no parent TC — trace these via `charterSessionId`, not `testCaseIds`)
 - `runs/{runId}/cases/*.json` — all test cases (for coverage computation)
 - `runs/{runId}/rtm.json` — requirement-to-test traceability
@@ -159,6 +160,7 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-closure-reporter-spv
 reads:
   - "{run}/execution-summary.json"
+  - "{run}/cases/*-result.json"
   - "{run}/defects/*.json"
   - "{run}/cases/*.json"
   - "{run}/rtm.json"

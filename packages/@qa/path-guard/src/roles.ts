@@ -98,7 +98,7 @@ export const ROLES: readonly Role[] = [
   specialist("responsive", ["{testsDir}/specs/**/responsive.spec.ts", "{run}/defect-candidates/**"]),
   specialist("security", ["{testsDir}/security/**"]),
   specialist("ui", ["{testsDir}/specs/**", "{testsDir}/fixtures/files/**", "{testsDir}/pages/**", "{run}/proposed-changes/**"]),
-  specialist("unit", ["{testsDir}/unit/**", "{run}/reports/unit-coverage-gaps.json", "{run}/reports/metrics/coverage.json"]),
+  specialist("unit", ["{testsDir}/unit/**", "{run}/reports/unit-coverage-gaps.json", "{run}/reports/unit-coverage.json"]),
   ...SPVS.map((s) => row(s, "spv", [], null)),
 ];
 

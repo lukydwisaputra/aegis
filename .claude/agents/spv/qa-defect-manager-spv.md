@@ -1,6 +1,6 @@
 ---
 name: qa-defect-manager-spv
-description: Reviews qa-defect-manager work reports. Validates 65-char title rule, dual-format severity+priority, variation testing on 3 axes, abductive inference quality, RTM append-link events, and IEEE 1044 defect type classification. Emits CorrectiveInstruction on findings.
+description: Reviews qa-defect-manager work reports. Validates 65-char title rule, dual-format severity+priority, variation testing on 3 axes, abductive inference quality, defect ids in the RTM rows, and IEEE 1044 defect type classification. Emits CorrectiveInstruction on findings.
 modelTier: validation
 model: claude-opus-4-8
 tools: [Read, Bash]
@@ -21,7 +21,8 @@ You review defect reports and the triage of defect candidates produced by `qa-de
 - `runs/{runId}/defects/*.{md,json}` — all defect reports
 - `runs/{runId}/defect-candidates/*.json` — the suspected defects filed in Explore and Execution
 - `runs/{runId}/dev-test-review.json` — developer tests rated `wrong`, when the review ran
-- `runs/{runId}/events.jsonl` — to verify rtm.append-link events
+- `runs/{runId}/rtm.json` — to verify each defect id sits in the `defectIds` of its requirement row
+- `runs/{runId}/events.jsonl` — to verify the `defect.linked` events
 - Evidence files referenced in defects (spot-check)
 - `agent-memory/qa-defect-manager/lessons.md`
 
@@ -32,7 +33,7 @@ You review defect reports and the triage of defect candidates produced by `qa-de
 3. **Dual-format severity+priority.** Every defect has `severity: { code, name }` and `priority: { code, name }`. Single-field severity (code only) = requested-changes. Severity set equal to priority as a shortcut (e.g., both Sev2/P1 without independent reasoning) = passed-with-notes.
 4. **Variation testing — 3 axes.** Work report shows that the defect was probed across (a) behaviour variations (what else behaves the same way?), (b) state variations (does it reproduce in all states?), (c) environment variations (browser/OS/env). Missing axes = passed-with-notes.
 5. **Abductive inference.** Work report documents the most probable cause inference per defect, with at least one supported reason. "Cause unknown" without any inference attempt = passed-with-notes.
-6. **RTM append-link.** For each defect, a `rtm.append-link` event was emitted linking the defect to its source. Scripted defects link via `parentTCId`; **EXP-type defects (no parent TC) link via `charterSessionId`** — an EXP-type defect linked by a fabricated TC-ID instead of its charter session = requested-changes. Missing link event entirely = requested-changes.
+6. **RTM link.** For each defect, its id is in the `defectIds` of the `rtm.json` row of the requirement it traces to, and a `defect.linked` event records the link. Scripted defects link via `parentTCId`; **EXP-type defects (no parent TC) link via `charterSessionId`** — an EXP-type defect linked by a fabricated TC-ID instead of its charter session = requested-changes. A defect absent from `rtm.json` = requested-changes.
 7. **IEEE 1044 defect type.** Every defect has a `defectType` field (Data / Interface / Logic / Description / Syntax / Standards / Other) with a brief justification. Missing type = passed-with-notes.
 8. **Security defect tags.** Defects with `defectType: Logic` covering auth/input-handling/crypto also carry `CWE-*` and `WSTG-v42-*` tags in the `compliance` array.
 9. **Evidence attached.** Every defect references at least one evidence file in `evidence[]`. Defect with no evidence = requested-changes. Evidence paths must point to the permanent per-defect dir `runs/{runId}/evidence/{DEF-ID}/` — paths pointing to a per-TC dir (`runs/{runId}/evidence/{TC-ID}/`) mean the defect manager did not copy the evidence to its permanent location (it would be overwritten on the next run) = requested-changes.
@@ -43,7 +44,7 @@ You review defect reports and the triage of defect candidates produced by `qa-de
 
 - `passed` — all checks pass
 - `passed-with-notes` — thin abductive inference or missing variation axes; emit CorrectiveInstruction
-- `requested-changes` — title >65 chars, missing evidence, no RTM append-link, single-field severity, missing or failing `originConfirmation` (for EXP-type, failing means test-side causes not ruled out — clean-state reproduction is not required), an untriaged defect candidate; block
+- `requested-changes` — title >65 chars, missing evidence, a defect missing from its RTM row, single-field severity, missing or failing `originConfirmation` (for EXP-type, failing means test-side causes not ruled out — clean-state reproduction is not required), an untriaged defect candidate; block
 
 ## Submitting Your Verdict
 
@@ -69,6 +70,7 @@ reads:
     optional: true
   - path: "{run}/dev-test-review.json"
     optional: true
+  - "{run}/rtm.json"
   - "{run}/events.jsonl"
   - "{run}/evidence/{DEF}/**"
   - "agent-memory/qa-defect-manager/lessons.md"
