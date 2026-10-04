@@ -519,6 +519,27 @@ describe('B3: exit criteria from closure.json#exitCriteria', () => {
     expect(text).toContain('No open Sev1 defects');
     expect(text).toContain('Requirements coverage at least 90%');
   });
+
+  // Fix round 2, M1: the standard Helvetica font is WinAnsi-encoded and has no check-mark glyphs, so the
+  // checklist prints words.
+  it('each criterion prints "Met" or "Not met", never a check-mark glyph', () => {
+    const { root, runDir } = fixture({
+      ...base,
+      'reports/closure/closure.json': {
+        metrics: {},
+        exitCriteria: [
+          { criterion: 'No open Sev1 defects', met: true, evidence: 'defectMetrics' },
+          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'coverage.json' },
+        ],
+      },
+    });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+    expect(text).toMatch(/(^|\n)Met\nNo open Sev1 defects/);
+    expect(text).toMatch(/(^|\n)Not met\nRequirements coverage at least 90%/);
+    const src = read('packages/@qa/pdf-renderer/src/index.ts');
+    expect(src).not.toMatch(/[✓✗▸]/);
+  });
 });
 
 describe('A5/A6: refusals', () => {
@@ -534,6 +555,14 @@ describe('A5/A6: refusals', () => {
     ['residualRisks is not an array', { ...deck, residualRisks: 'Users may fail to sign in.' }],
     ['recommendations is not an array', { ...deck, recommendations: { action: 'Fix it' } }],
     ['an impact is not HIGH|MEDIUM|LOW', { ...deck, recommendations: [{ ...deck.recommendations[0], impact: 'CRITICAL' }] }],
+    // Fix round 2, M5: each item's shape is checked, not only the list.
+    ['a recommendation is a string', { ...deck, recommendations: ['Fix the login issue'] }],
+    ['a recommendation has no owner', { ...deck, recommendations: [{ action: 'Fix it', deadline: '2026-10-11', impact: 'HIGH' }] }],
+    ['a recommendation has an empty action', { ...deck, recommendations: [{ ...deck.recommendations[0], action: '  ' }] }],
+    ['a recommendation deadline is not a string', { ...deck, recommendations: [{ ...deck.recommendations[0], deadline: 20261011 }] }],
+    ['a residual risk is a string', { ...deck, residualRisks: ['Users may fail to sign in.'] }],
+    ['a residual risk has no plain text', { ...deck, residualRisks: [{ risk: 'Users may fail to sign in.' }] }],
+    ['a residual risk is null', { ...deck, residualRisks: [null] }],
   ])('slides exit 4 when %s', (_why, d) => {
     const r = slides(d);
     expect(r.status).toBe(4);

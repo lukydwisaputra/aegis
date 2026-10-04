@@ -46,7 +46,7 @@ This skill is distinct from the other two in one important way: **it enforces a 
    - `recommendations: Array<{ action, owner, deadline, impact }>` — impact `HIGH`, `MEDIUM` or `LOW`
    - `residualRisks: Array<{ plain }>`
 
-   A missing field, a `recommendations` or `residualRisks` that is not a non-empty array, or an `impact` other than `HIGH`, `MEDIUM` or `LOW` fails the run (exit 4).
+   A missing field, a `recommendations` or `residualRisks` that is not a non-empty array, an item not of that shape (an `action`, `owner`, `deadline` or `plain` that is not non-empty text), or an `impact` other than `HIGH`, `MEDIUM` or `LOW` fails the run (exit 4).
 2. Run `applyJargonRewrites()` over every string field in a copy of the deck content.
 3. Run `detectJargon()` over the rewritten content. If more survivors remain than `--max-jargon-survivors`, fail with exit code 5 and report the surviving terms.
 4. Assemble the `SlideSpec` (see `packages/@qa/pdf-renderer/src/index.ts`).

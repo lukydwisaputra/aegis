@@ -254,6 +254,12 @@ const baseStyles = StyleSheet.create({
     fontSize: 10,
     marginRight: 6,
   },
+  exitStatus: {
+    width: 44,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    marginRight: 6,
+  },
   verdictGo: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
@@ -384,7 +390,7 @@ function SlideDeckDocument({ spec }: { spec: SlideSpec }) {
         React.createElement(
           View,
           { key: `risk-${i}`, style: { ...baseStyles.row, marginBottom: 8 } },
-          React.createElement(Text, { style: baseStyles.checkmark }, "▸"),
+          React.createElement(Text, { style: baseStyles.checkmark }, "-"),
           React.createElement(Text, { style: baseStyles.body }, risk.plain)
         )
       )
@@ -722,8 +728,9 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
           { key: `exit-${i}`, style: { ...baseStyles.row, marginBottom: 6 } },
           React.createElement(
             Text,
-            { style: { ...baseStyles.checkmark, color: criterion.met ? "#1e8449" : "#c0392b" } },
-            criterion.met ? "✓" : "✗"
+            // Words, not check-mark glyphs: the standard Helvetica font is WinAnsi-encoded and has none.
+            { style: { ...baseStyles.exitStatus, color: criterion.met ? "#1e8449" : "#c0392b" } },
+            criterion.met ? "Met" : "Not met"
           ),
           React.createElement(
             Text,

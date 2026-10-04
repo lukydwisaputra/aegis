@@ -83,7 +83,7 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 ### closure.json: exit criteria
 
-`closure.json` always carries `exitCriteria`, which the sign-off document prints as its ✓/✗ checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against this cycle's results, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
+`closure.json` always carries `exitCriteria`, which the sign-off document prints as its Met/Not met checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against this cycle's results, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
 
 ## Process
 

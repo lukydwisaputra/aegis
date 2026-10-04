@@ -78,3 +78,27 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     expect(cov).toMatch(/percentages from 0 to 100/);
   });
 });
+
+describe('M2: the closure SPV maps each metric to its source file', () => {
+  it('check 2 names the file behind each of the 10 metrics, so unavailableMetrics (file names) can be checked', () => {
+    const text = read(`${AGENTS}/spv/qa-closure-reporter-spv.md`);
+    const check2 = text.slice(text.indexOf('2. **10 computed metrics present.**'), text.indexOf('3. **Metrics arithmetic'));
+    expect(check2).toContain('`coverage.json` → requirementsCoverage, testExecutionCoverage');
+    expect(check2).toContain('`defect-trend.json` → defectDensity, escapeRate, reopenRate, MTTD, MTTR');
+    expect(check2).toContain('`effectiveness.json` → DRE');
+    expect(check2).toContain('`execution-summary.json` → passRate');
+    expect(check2).toContain('`cases/*.json` → automationCoverage');
+    expect(check2).toMatch(/excused only when its source file is listed in `closure\.json#unavailableMetrics` or holds `"noData": true`/);
+  });
+});
+
+describe('M3: zero defect.opened events are data', () => {
+  it('the collector writes defect-trend.json with zero counts, and noData only when the event log is unreadable or absent', () => {
+    const text = read(COLLECTOR);
+    const metrics = text.slice(text.indexOf('## Metrics to Collect'), text.indexOf('### Token Usage'));
+    expect(metrics).toMatch(/`defect-trend\.json` with no `defect\.opened` event is data, not an absence/);
+    const defects = text.slice(text.indexOf('### Defect Metrics'), text.indexOf('### Test Effectiveness'));
+    expect(defects).toMatch(/no `defect\.opened` event[^\n]*zero counts[^\n]*without `noData`/);
+    expect(defects).toMatch(/`"noData": true` only when `events\.jsonl` is absent or unreadable/);
+  });
+});

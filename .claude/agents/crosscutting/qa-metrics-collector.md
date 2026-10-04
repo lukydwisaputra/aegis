@@ -25,7 +25,7 @@ You are **read-only** on all source artefacts. You write only to `runs/{runId}/r
 
 ## Metrics to Collect
 
-Every dispatch writes every metric file below, whether or not it has data for it: `token-usage.jsonl`, `cycle-time.json`, `coverage.json`, `defect-trend.json`, `effectiveness.json`, `agent-reliability.json` and `flaky.json`. The closure reporter requires the six `.json` files and never waits for one, so a file you skip is a hole in the closure report. A rollup without source data is written in its empty shape: `flaky.json` is `[]` when no test was retried, `token-usage.jsonl` is an empty file when no `token.used` event exists, and an object file holds zero counts and empty lists plus `"noData": true`, so its reader states the figure as not available instead of 0.
+Every dispatch writes every metric file below, whether or not it has data for it: `token-usage.jsonl`, `cycle-time.json`, `coverage.json`, `defect-trend.json`, `effectiveness.json`, `agent-reliability.json` and `flaky.json`. The closure reporter requires the six `.json` files and never waits for one, so a file you skip is a hole in the closure report. A rollup without source data is written in its empty shape: `flaky.json` is `[]` when no test was retried, `token-usage.jsonl` is an empty file when no `token.used` event exists, and an object file holds zero counts and empty lists plus `"noData": true`, so its reader states the figure as not available instead of 0. One exception: `defect-trend.json` with no `defect.opened` event is data, not an absence — zero defects opened is a real count (see "Defect Metrics").
 
 ### Token Usage (from `token.used` events)
 The SubagentStop hook (require-work-report) records `token.used` once per subagent run, one event per model, from the transcript entries marked with that subagent's agent id: `input` is the input plus cache-creation tokens, `output` the output tokens, `cached` the cache-read tokens. When the transcript attributes nothing to the subagent, the hook records no event, so a missing agent means no attributable usage, not zero usage.
@@ -52,7 +52,7 @@ Output: `runs/{runId}/reports/metrics/coverage.json`, exactly `{ requirementsCov
 - By severity: Sev1-Sev5 breakdown
 - By phase-introduced: where defects were injected
 - Defect density (defects per story point if available, else per 100 TCs)
-Output: `runs/{runId}/reports/metrics/defect-trend.json`.
+Output: `runs/{runId}/reports/metrics/defect-trend.json`. A log with no `defect.opened` event gives zero counts (0 opened, closed and reopened, every severity 0, density 0), written without `noData`. Write `"noData": true` only when `events.jsonl` is absent or unreadable.
 
 ### Test Effectiveness
 - Tests that found defects / total tests executed

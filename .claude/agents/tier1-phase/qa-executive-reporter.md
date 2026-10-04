@@ -81,7 +81,7 @@ Structure (all sections required):
 - Defect summary (open/closed/deferred with rationale per deferred)
 - Risk register status (mitigated / residual)
 - Compliance attestations per regulation (named clauses)
-- Exit criteria checklist (✓/✗ each)
+- Exit criteria checklist ("Met" or "Not met" each)
 - Quality verdict: GO / NO-GO / CONDITIONAL (this one exception — here you DO state a verdict, because the sign-off document is an attestation, not a report; the Go/No-Go is documented evidence of the human decision, not your recommendation)
 - Signature block: QA Lead, Engineering Lead, Product Owner, Security Officer (when applicable), Compliance Officer (when applicable)
 

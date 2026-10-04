@@ -86,12 +86,29 @@ for (const f of ["recommendations", "residualRisks"]) {
     process.exit(4);
   }
 }
+// Each item must have the shape the slide renders: { action, owner, deadline, impact } and { plain }, every
+// text a non-empty string. A malformed item would print a blank or "[object Object]" cell, so it is refused.
+const isText = (v) => typeof v === "string" && v.trim() !== "";
+const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const IMPACTS = new Set(["HIGH", "MEDIUM", "LOW"]);
-const badImpact = deckSource.recommendations.findIndex((r) => !IMPACTS.has(r?.impact));
-if (badImpact !== -1) {
-  console.error(`ERROR: executive-deck.json#recommendations[${badImpact}].impact must be HIGH, MEDIUM or LOW`);
-  process.exit(4);
-}
+deckSource.recommendations.forEach((r, i) => {
+  if (!isObject(r) || !["action", "owner", "deadline"].every((k) => isText(r[k]))) {
+    console.error(
+      `ERROR: executive-deck.json#recommendations[${i}] must be { action, owner, deadline, impact } with non-empty text`,
+    );
+    process.exit(4);
+  }
+  if (!IMPACTS.has(r.impact)) {
+    console.error(`ERROR: executive-deck.json#recommendations[${i}].impact must be HIGH, MEDIUM or LOW`);
+    process.exit(4);
+  }
+});
+deckSource.residualRisks.forEach((r, i) => {
+  if (!isObject(r) || !isText(r.plain)) {
+    console.error(`ERROR: executive-deck.json#residualRisks[${i}] must be { plain } with non-empty text`);
+    process.exit(4);
+  }
+});
 
 // ─── load the built packages ──────────────────────────────────────────────────
 
