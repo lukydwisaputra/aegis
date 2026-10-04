@@ -32,3 +32,25 @@ describe('I1: a defect that traces to no requirement', () => {
     expect(verdict).toMatch(/an untraced defect with no `untraced:` entry/);
   });
 });
+
+const CLOSURE = `${AGENTS}/tier1-phase/qa-closure-reporter.md`;
+const COLLECTOR = `${AGENTS}/crosscutting/qa-metrics-collector.md`;
+
+describe('I3: requirements coverage is a pinned key end to end', () => {
+  it('the closure key block carries metrics.requirementsCoverage, copied from coverage.json, null when unavailable', () => {
+    const text = read(CLOSURE);
+    const block = text.slice(text.indexOf('### closure.json keys the collector index reads'), text.indexOf('Two rules that matter'));
+    expect(block).toMatch(/"requirementsCoverage": 92\.5/);
+    expect(block).toMatch(/number 0–100 copied from `reports\/metrics\/coverage\.json#requirementsCoverage`, or null/);
+  });
+
+  it('the collector pins the coverage.json keys', () => {
+    const text = read(COLLECTOR);
+    const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
+    expect(cov).toContain(
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, noData? }`',
+    );
+    expect(cov).toMatch(/`codeCoverage` is a number or null/);
+    expect(cov).toMatch(/percentages from 0 to 100/);
+  });
+});

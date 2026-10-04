@@ -45,7 +45,7 @@ With no completed phase the file is `{ "phases": [], "totalWallClockMs": 0, "bot
 - **Test execution coverage**: TCs executed / TCs planned. Result files come in two layouts: `cases/{TC-ID}-result.json` and the responsive specialist's `cases/{TC-ID}-{viewport}-result.json`. A TC id matches `^TC-[A-Z]{2,8}-\d{3,}$`, a viewport is one of `desktop`, `tablet` or `mobile`, and a file name is parsed as the TC id, an optional `-{viewport}` and `-result.json`. A TC counts once, however many of its files exist. When both layouts exist for a TC, the per-viewport files win and the plain file is ignored. A TC with viewport files is executed, and passed, only when every viewport in its `viewportScope` (from `cases/{TC-ID}.json`; all three when absent) has a result and each is a pass; a viewport with no result file means the TC is not passed, never a viewport that is dropped.
 - **Code coverage**: from the unit specialist's `runs/{runId}/reports/unit-coverage.json`, if it exists; absent, the code-coverage figure is not available (no 0).
 Rollup: percentage per type.
-Output: `runs/{runId}/reports/metrics/coverage.json`.
+Output: `runs/{runId}/reports/metrics/coverage.json`, exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, noData? }`: percentages from 0 to 100 as plain numbers; `codeCoverage` is a number or null (null when `unit-coverage.json` is absent); `noData: true` only when there is no plan or case data to compute from. The closure reporter copies `requirementsCoverage` into `closure.json#metrics.requirementsCoverage`.
 
 ### Defect Metrics (from `defect.opened`, `defect.closed`, `defect.reopened` events)
 - Total opened, closed, reopened

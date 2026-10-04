@@ -417,6 +417,30 @@ describe('I2: the Security Officer signs when the run holds a security defect', 
   });
 });
 
+// Fix round 2, I3: the closure reporter copies coverage.json#requirementsCoverage into
+// closure.json#metrics.requirementsCoverage (number, or null when unavailable); the technical report prints it.
+describe('I3: the pinned requirements coverage prints', () => {
+  const coverage = { requirementsCoverage: 87.5, testExecutionCoverage: 95, codeCoverage: null };
+  const tech = (requirementsCoverage: number | null) => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 7, failed: 1, blocked: 0, passRate: 87.5, requirementsCoverage }, unavailableMetrics: [] },
+      'reports/metrics/coverage.json': { ...coverage, requirementsCoverage },
+    });
+    const r = run(SCRIPT.technical, root);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    return pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+  };
+
+  it('a value copied from coverage.json prints as a percentage', () => {
+    expect(tech(87.5)).toContain('Requirements Coverage\n87.5%');
+  });
+
+  it('null prints "not available", never 0', () => {
+    expect(tech(null)).toContain('Requirements Coverage\nnot available');
+  });
+});
+
 describe('A3: coverage.json noData', () => {
   it('coverage reads "not available" when reports/metrics/coverage.json holds noData, even though closure says 0', () => {
     const { root, runDir } = fixture({
