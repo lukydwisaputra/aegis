@@ -139,7 +139,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-closure-reporte
 
 ## Events You Emit
 
-- `closure.report-drafted` — includes runId, coveragePercent, openDefectCount (by severity); appended in both passes
+- `closure.report-drafted` — `{coveragePercent, openDefectCount}`: `coveragePercent` is `closure.json#metrics.requirementsCoverage` (null when unavailable), `openDefectCount` the open defects by severity code (e.g. `{"Sev2": 1}`); appended in both passes
 
 ## Concurrency
 

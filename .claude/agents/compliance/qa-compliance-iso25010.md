@@ -70,7 +70,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-iso2
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — `{regulation, characteristicsCovered, gaps, highSeverityGapCount}`
 
 ## Contract (machine-checked)
 

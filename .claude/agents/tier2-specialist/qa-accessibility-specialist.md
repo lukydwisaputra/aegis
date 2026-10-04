@@ -81,9 +81,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-accessibility-s
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC; test.failed includes violation count by impact level
-- `a11y.violation-critical` — for any critical axe finding
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` states the violation count by impact level)
+- `a11y.violation-critical` — for any critical axe finding: `{ruleId, impact, selector, wcagCriterion?}` (`impact` is `critical` or `serious`)
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
 ## Contract (machine-checked)
 

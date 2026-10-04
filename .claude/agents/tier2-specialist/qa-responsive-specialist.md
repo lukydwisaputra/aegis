@@ -88,9 +88,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-responsive-spec
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC per viewport
-- `breakpoint.defect-found` — includes viewport, element selector, defect type
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` — per passing TC per viewport: `{testCaseId, specialist}`
+- `test.failed` — per failing TC per viewport: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names the viewport)
+- `breakpoint.defect-found` — `{viewport, selector, defectType}` (`selector` the element selector)
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
 ## Contract (machine-checked)
 

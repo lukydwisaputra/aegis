@@ -143,9 +143,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-ui-specialist p
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC; test.failed includes evidence paths
-- `test.id-proposal-created` — per missing testid
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`evidencePaths` the run-relative evidence files)
+- `test.id-proposal-created` — per missing testid: `{selector, proposedTestId, path?}`
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
 ## Contract (machine-checked)
 

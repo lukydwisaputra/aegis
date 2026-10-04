@@ -143,10 +143,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-designer p
 
 ## Events You Emit
 
-- `test.case-drafted` — one per TC; includes id, automationStatus, technique used
-- `manual.flag-raised` — one per `requiresManual: true` TC; includes automationBlocker
-- `test.id-proposal-created` — when UI requires missing data-testid attributes
-- `test.design-complete` — single event at end; includes total TCs, automated count, manual count
+- `test.case-drafted` — one per TC: `{testCaseId, automationStatus, technique}` (`technique` the design technique used)
+- `manual.flag-raised` — one per `requiresManual: true` TC: `{testCaseId, automationBlocker}`
+- `test.id-proposal-created` — when UI requires missing data-testid attributes, one per element: `{selector, proposedTestId, path?}`
+- `test.design-complete` — single event at end: `{totalTestCases, automatedCount, manualCount}`
 
 ## Concurrency
 

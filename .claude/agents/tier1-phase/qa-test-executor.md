@@ -164,13 +164,14 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 
 ## Events You Emit
 
-- `specialist.dispatched` — exactly specialistName, taskId, tcIds assigned, environment and `brief` (missionGoal, lessonsRef, riskContext?, environmentNotes?, exploratoryFindings?)
-- `specialist.completed` — appended when a specialist returns with its task released; exactly specialistName, taskId, passCount, failCount and optionally durationMs
-- `test.passed` / `test.failed` — one per TC outcome; test.failed includes evidence paths
-- `har.sanitization-required` — flags unsafe evidence
-- `manual.test.required` — one per manual TC; includes steps and automation blocker
-- `execution.blocked` — if the environment's `health` is FAILED
-- `execution.complete` — single event at end; includes overall pass rate
+- `specialist.dispatched` — exactly specialistName, taskId, tcIds assigned, environment and `brief` (missionGoal, lessonsRef, riskContext?, environmentNotes?, exploratoryFindings?): `{specialistName, taskId, tcIds, environment, brief}`
+- `specialist.completed` — appended when a specialist returns with its task released; exactly specialistName, taskId, passCount, failCount and optionally durationMs: `{specialistName, taskId, passCount, failCount, durationMs?}`
+- `test.passed` — one per passing TC: `{testCaseId, specialist?}`
+- `test.failed` — one per failing TC: `{testCaseId, specialist?, firstAssertionFailure?, evidencePaths}` (`evidencePaths` the run-relative evidence files)
+- `har.sanitization-required` — flags unsafe evidence: `{path, unsafeHeaders}`
+- `manual.test.required` — one per manual TC: `{tcId, steps, justification, criticality}` (`justification` the automation blocker; `criticality` is `critical`, `important` or `nice-to-have`)
+- `execution.blocked` — if the environment's `health` is FAILED: `{reason}`
+- `execution.complete` — single event at end: `{passRate, passed, failed}` (`passRate` the overall pass rate, 0–100)
 
 ## Concurrency
 

@@ -950,7 +950,8 @@ export const BrandLeakDetectedEventSchema = EventBase.extend({
 export const ClosureReportDraftedEventSchema = EventBase.extend({
   type: z.literal("closure.report-drafted"),
   runId: RunIdSchema,
-  coveragePercent: z.number().min(0).max(100),
+  // closure.json#metrics.requirementsCoverage; null when coverage is unavailable (fix round 2, I4).
+  coveragePercent: z.number().min(0).max(100).nullable(),
   openDefectCount: z.record(z.string(), z.number().int().nonnegative()),
 });
 

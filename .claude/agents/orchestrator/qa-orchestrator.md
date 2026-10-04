@@ -189,7 +189,7 @@ All through the CLI; you never append a CLI-recorded event yourself.
 - `task.claimed`, `task.released` — `aegis task claim`, `aegis task release` for gate tasks; `run.blocked` — `aegis task release --result failed` (the escalation)
 - `task.cancelled` — `aegis task cancel`
 - `artifact.created` — `aegis work-report submit`
-- `budget.warning` — `aegis event append`
+- `budget.warning` — `aegis event append` with `{percentProjected, dimension}`
 
 ## Events You Subscribe To
 

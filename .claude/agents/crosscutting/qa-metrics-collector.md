@@ -88,7 +88,7 @@ You run without a task of your own: you never claim or release one and submit no
 
 ## Events You Emit
 
-- `metrics.phase-rollup` — one per completed phase not yet rolled up, on each dispatch
+- `metrics.phase-rollup` — one per completed phase not yet rolled up, on each dispatch: `{phase, durationMs}`
 - `metrics.cycle-complete` — on the dispatch before Executive, with the totals so far: `{"totalDurationMs": n, "totalTokensUsed": n}` (non-negative integers; the CLI adds `ts`, `runId` and your name)
 - `metrics.parse-error` — on malformed event: `{"rawLine": "<the line as read>", "errorMessage": "<why it did not parse>"}`
 

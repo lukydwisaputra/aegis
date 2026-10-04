@@ -176,10 +176,12 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-executive-repor
 
 ## Events You Emit
 
-- `executive.report.generated` / `report.produced` — one per deliverable; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
-- `jargon.flagged` / `tone.check-failed` — one per sentence rewritten by tone-check; includes original + rewrite
-- `brand.leak-detected` — if an internal name slips into any deliverable (must be fixed before completion)
-- `report.fallback` — one per deliverable whose skill failed to render; includes deliverable + reason (no `.md` is written in its place)
+- `executive.report.generated` — one per deliverable: `{deliverable, path}` (`deliverable` is `technical`, `signoff` or `slides`)
+- `report.produced` — one per deliverable, beside `executive.report.generated`: `{deliverable, path}`
+- `jargon.flagged` — one per sentence rewritten by tone-check: `{sentence, suggestedRewrite, source}` (`source` is `slides`, `signoff` or `technical`)
+- `tone.check-failed` — one per jargon term the tone-check could not rewrite (the slides skill exits 5): `{original, rewrite}`, `rewrite` the suggestion it reported
+- `brand.leak-detected` — if an internal name slips into any deliverable (must be fixed before completion): `{deliverable, matchedPattern}`
+- `report.fallback` — one per deliverable whose skill failed to render: `{deliverable, reason}` (no `.md` is written in its place)
 
 ## Concurrency
 

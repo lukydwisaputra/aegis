@@ -122,11 +122,11 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-defect-manager 
 
 ## Events You Emit
 
-- `defect.origin-confirmed` — one per failed-TC group, one per candidate file and one per `wrong` developer test (with `evidenceRef`); `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
-- `defect.opened` — one per new defect; includes id, severity, priority, tcId
-- `defect.duplicate` — links new TC failure to existing defect
-- `defect.linked` — one per defect appended to an `rtm.json` row, never for an untraced defect; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
-- `defect.management-complete` — single event at end; includes total opened, duplicates, severity breakdown
+- `defect.origin-confirmed` — one per failed-TC group, one per candidate file and one per `wrong` developer test: `{confirmed, evidenceRef?, defectId?}` (`defectId` once the defect is opened); `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
+- `defect.opened` — one per new defect: `{defectId, severity, module, testCaseId?}` (`severity` as `{code, name}`, `testCaseId` the parent TC of a scripted defect)
+- `defect.duplicate` — links a new TC failure to an existing defect: `{defectId, duplicateOf, testCaseId?}`
+- `defect.linked` — one per defect appended to an `rtm.json` row, never for an untraced defect: `{defectId, requirementId, parentTCId?, charterSessionId?}`, with `parentTCId` for a scripted defect or `charterSessionId` for an EXP-type one
+- `defect.management-complete` — single event at end: `{totalOpened, duplicates, severityBreakdown}` (`severityBreakdown` counts by severity code)
 
 ## Concurrency
 

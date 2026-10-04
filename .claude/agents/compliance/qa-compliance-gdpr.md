@@ -84,7 +84,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-gdpr
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, articlesCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — `{regulation, articlesCovered, gaps, highSeverityGapCount}`
 
 ## Contract (machine-checked)
 

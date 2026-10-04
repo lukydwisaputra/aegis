@@ -135,10 +135,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-web-explorer pn
 
 ## Events You Emit
 
-- `page.discovered` — one per unique URL
-- `pom.generated` — one per new POM skeleton file
-- `ui.defect-found` — one per defect candidate filed
-- `discovery.completed` — single event; includes pageCount, pomCount, defectCount (candidates filed)
+- `page.discovered` — one per unique URL: `{url, route, role}`
+- `pom.generated` — one per new POM skeleton file: `{path, page}`
+- `ui.defect-found` — one per defect candidate filed: `{surface, defectType}`
+- `discovery.completed` — single event: `{pageCount, defectCount}` (`defectCount` the candidates filed; the POM count goes in `discovery-report.json`, not the event)
 - `discovery.step-complete` — `{ step: "explore", artifact: "discovery-report.json" }` (informational; the phase advances through the orchestrator's phase barrier)
 
 ## Contract (machine-checked)

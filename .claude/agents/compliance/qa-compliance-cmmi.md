@@ -74,7 +74,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-cmmi
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, practicesCovered, gaps[], maturityIndicator
+- `compliance.review-complete` — `{regulation, practicesCovered, gaps, maturityIndicator}`
 
 ## Contract (machine-checked)
 

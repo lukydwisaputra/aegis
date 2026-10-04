@@ -77,9 +77,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-unit-specialist
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC
-- `coverage.updated` — after Jest run; includes new coverage delta. Write the figures, recomputed over the whole QA unit-test scope, to `runs/{runId}/reports/unit-coverage.json` before you release the task
-- `sandbox.explored` — one per committed QA unit test; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed test)
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `coverage.updated` — after the Jest run: `{coveragePercent, deltaPercent, module?}` (`coveragePercent` the new coverage, 0–100, `deltaPercent` its change). Write the figures, recomputed over the whole QA unit-test scope, to `runs/{runId}/reports/unit-coverage.json` before you release the task
+- `sandbox.explored` — one per committed QA unit test: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed test)
 
 ## Contract (machine-checked)
 

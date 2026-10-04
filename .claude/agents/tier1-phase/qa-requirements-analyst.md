@@ -93,9 +93,9 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-requirements-an
 
 ## Events You Emit
 
-- `ambiguity.flagged` — one per FLAG/BLOCK finding; includes requirementId, heuristicFailed, severity
-- `compliance.gap-flagged` — one per missing compliance tag
-- `requirements.analysis-complete` — single event at end; includes block count, flag count, passCount
+- `ambiguity.flagged` — one per FLAG/BLOCK finding: `{requirementId, heuristicFailed, severity}` (`severity` is `BLOCK` or `FLAG`)
+- `compliance.gap-flagged` — one per missing compliance tag: `{regulation, missingTag}`
+- `requirements.analysis-complete` — single event at end: `{blockCount, flagCount, passCount}`
 
 ## Concurrency
 

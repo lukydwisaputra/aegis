@@ -76,10 +76,11 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-performance-spe
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC; test.failed includes which metrics violated which thresholds
-- `performance.regression-detected` — when p95 > previous run's p95 + 10% regression allowance
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
-- `execution.blocked` — when the environment is production or not `mutating`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names which metrics violated which thresholds)
+- `performance.regression-detected` — when p95 > previous run's p95 + 10% regression allowance: `{metric, current, baseline, regressionPercent}`
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
+- `execution.blocked` — `{reason}`, when the environment is production or not `mutating`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
 
 ## Contract (machine-checked)
 

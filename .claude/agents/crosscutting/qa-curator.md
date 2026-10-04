@@ -164,7 +164,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-curator pnpm ae
 
 ## Events You Emit
 
-- `curator.proposals-ready` — `proposalCount` (every proposal written this cycle, framework-defect proposals included) and `path` (the `pending-promotions/` directory)
+- `curator.proposals-ready` — `{proposalCount, path}`: `proposalCount` is every proposal written this cycle, framework-defect proposals included, and `path` the `pending-promotions/` directory
 
 ## Contract (machine-checked)
 

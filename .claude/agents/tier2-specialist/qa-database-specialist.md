@@ -77,11 +77,12 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-database-specia
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC
-- `migration.applied` — one per migration file in the run
-- `rls.violation-detected` — when a role can access data it should not
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
-- `execution.blocked` — when the environment is production or `readOnly`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `migration.applied` — one per migration file in the run: `{migrationFile, env}`
+- `rls.violation-detected` — when a role can access data it should not: `{role, table, operation}`
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
+- `execution.blocked` — `{reason}`, when the environment is production or `readOnly`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
 
 ## Contract (machine-checked)
 

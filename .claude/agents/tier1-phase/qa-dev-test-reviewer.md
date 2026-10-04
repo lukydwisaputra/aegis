@@ -88,7 +88,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-dev-test-review
 
 ## Events You Emit
 
-- `dev-test.review-complete` — counts per verdict, whether mutation testing ran, and the overall mutation score when it did
+- `dev-test.review-complete` — counts per verdict, whether mutation testing ran, and the overall mutation score when it did: `{adequate, weak, wrong, unmapped, mutation, mutationScore?}` (`mutation` is `ran` or `skipped`)
 
 ## Knowledge Refs
 
