@@ -25,7 +25,7 @@ Kicks off a complete Software Testing Life Cycle run — requirements analysis, 
 
 ## Behaviour
 1. **Preflight (hard gate).** Before allocating a run: (a) resolve `targetProjectRoot`; abort if it resolves to a multi-project parent — heuristic: more than one nested `playwright.config.*` under it, OR no `package.json` at the resolved root. (b) If `aegis.config.json#preCycleHealthCheck` is true, run `/qa-health`; abort if it does not pass. Do not create a run directory when preflight fails.
-2. Validate flags and resolve the target environment config from `config/environments.yaml`.
+2. Validate flags and resolve the target environment from `aegis.config.json#environments.<env>` (its `url`, `mutating` flag and `allowedSpecialists`); abort if `<env>` is not a key there.
 3. Create the run: `AEGIS_AGENT=owner pnpm aegis run create --env <env> --module <codes> --cycle full --health <passed|not-run>` (plus `--intake <globs>` when given). `--health passed` only when step 1 ran `/qa-health` and it passed. The CLI allocates `RUN-YYYYMMDD-NNN`, writes `run.json` (status `created`), copies the intake documents, records `run.created` and makes the run active.
 4. Dispatch **qa-orchestrator** as a sub-agent, passing the run ID and the resolved flags.
 5. The orchestrator advances the phases through the CLI. The cycle pauses at the three gates (G1 Plan approval, G2 Defect triage, G3 Closure) until the owner decides each with `/qa-gate-decide`; no gate can be skipped.
@@ -61,5 +61,5 @@ config:
   - aegis.config.json#preCycleHealthCheck
   - aegis.config.json#intake.sources
   - aegis.config.json#parallelism.maxSpecialists
-  - config/environments.yaml
+  - aegis.config.json#environments
 ```

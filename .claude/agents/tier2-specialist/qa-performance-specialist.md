@@ -43,7 +43,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 3. **Write k6 scenarios.** For each performance TC:
    - Define VU ramp (load test: gradual ramp to target load, hold, ramp down)
-   - Set `thresholds` block in k6 config from `thresholds.yaml.gates.{env}.performance` values
+   - Set `thresholds` block in k6 config from `thresholds.yaml#{env}.performance` values (e.g. `thresholds.yaml#development.performance`)
    - Add checks: HTTP status 200, response time p95 < threshold, error rate < threshold
    - Serve the k6 web dashboard on the port in `aegis.config.json#ports.k6Dashboard` (`K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_PORT=<port> k6 run …`) so the owner can watch a long run live
 
@@ -109,7 +109,7 @@ cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [k6, lighthouse]
 dispatches: []
 config:
-  - thresholds.yaml#gates.{env}.performance
+  - thresholds.yaml#{env}.performance
   - aegis.config.json#environments.{env}.readOnly
   - aegis.config.json#ports.k6Dashboard
 ```

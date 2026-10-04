@@ -54,12 +54,6 @@ entries:
   - key: "CONFIG:qa-help:config/commands.yaml:missing"
     ids: [AUD-057, AUD-095]
     note: "config/commands.yaml does not exist"
-  - key: "CONFIG:qa-performance-specialist-spv:thresholds.yaml#gates.{stage}.performance:missing"
-    ids: [AUD-090]
-    note: "thresholds.yaml#gates.{stage}.performance does not exist"
-  - key: "CONFIG:qa-performance-specialist:thresholds.yaml#gates.{env}.performance:missing"
-    ids: [AUD-090]
-    note: "thresholds.yaml#gates.{env}.performance does not exist"
   - key: "CONFIG:qa-promote-stage:config/integrations.yaml:missing"
     ids: [AUD-057]
     note: "config/integrations.yaml does not exist"
@@ -69,9 +63,6 @@ entries:
   - key: "CONFIG:qa-smoke:config/thresholds.yaml:missing"
     ids: [AUD-057]
     note: "config/thresholds.yaml does not exist"
-  - key: "CONFIG:qa-start:config/environments.yaml:missing"
-    ids: [AUD-057]
-    note: "config/environments.yaml does not exist"
   # --- CONSUMER ---
   - key: "CONSUMER:qa-curator:{run}/pending-promotions/framework-defect-{slug}.json:unread"
     ids: [AUD-059]

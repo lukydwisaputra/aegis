@@ -25,7 +25,7 @@ You review performance test scripts and results from `qa-performance-specialist`
 
 ## Review Checklist
 
-1. **k6 thresholds match `thresholds.yaml`.** k6 script thresholds for `p95` and `errorRate` match the values in `thresholds.yaml.gates.{stage}.performance`. Mismatched thresholds = requested-changes.
+1. **k6 thresholds match `thresholds.yaml`.** k6 script thresholds for `p95` and `errorRate` match the values in `thresholds.yaml#{env}.performance` (the run's environment). Mismatched thresholds = requested-changes.
 2. **Core Web Vitals measured.** Results include LCP, INP (not FID — deprecated), and CLS. Acceptable vs. Good band reported. INP missing or FID used instead = passed-with-notes.
 3. **Good band comparison.** Results compare against web.dev Good band: LCP ≤2.5s, INP ≤200ms, CLS ≤0.1. Result summary that omits band comparison = passed-with-notes.
 4. **Lighthouse-CI integration.** `.lighthouserc.*` config exists and references the performance thresholds. Missing Lighthouse-CI integration = passed-with-notes.
@@ -76,5 +76,5 @@ awaits: []
 cli: [review.submit]
 runs: []
 dispatches: []
-config: ["thresholds.yaml#gates.{stage}.performance"]
+config: ["thresholds.yaml#{env}.performance"]
 ```

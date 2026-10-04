@@ -27,6 +27,19 @@ smoke:
 devTestReview:
   mutationScoreMin: 60   # Stryker's score: (killed + timeout) / (killed + timeout + survived + noCoverage) x 100; the Dev-test-review barrier refuses a lower threshold
 
+# ─── STAGE: development (/qa-start --env=development; local dev server) ───────
+# Performance only: the specialist reads thresholds.yaml#<env>.performance. Values equal the testing
+# stage (Google CWV "Good" bands); no dev-specific relaxation, so a development run measures against
+# the same bar the PR gate uses.
+development:
+  performance:
+    lcp:    2500   # ms
+    inp:    200    # ms
+    cls:    0.10   # score
+    fcp:    1800   # ms
+    ttfb:   800    # ms
+    score:  80     # Lighthouse performance score minimum
+
 # ─── STAGE: testing (PR gate — fast feedback, ~10 min budget) ─────────────────
 testing:
 
