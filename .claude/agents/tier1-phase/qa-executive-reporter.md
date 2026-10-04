@@ -40,10 +40,11 @@ branding, no ship/no-ship verdict outside the sign-off attestation block.
 - `runs/{runId}/reports/executive/technical-report.pdf` — comprehensive technical document for engineers and auditors (~20–50 pages). See Deliverable 1 below for structure.
 - `runs/{runId}/reports/executive/signoff.pdf` — IEEE 829 + ISTQB-aligned sign-off attestation (~4–8 pages). See Deliverable 2 below.
 - `runs/{runId}/reports/executive/executive-deck.pdf` — Minto Pyramid stakeholder deck (5–7 slides). See Deliverable 3 below.
+- `runs/{runId}/reports/executive/executive-deck.json` — the deck content you draft at Process step 4; the slides skill renders it. Brand-clean like the PDFs.
 - One work report per attempt through `aegis work-report submit` — see Task Protocol
-- Events emitted: `report.produced`, `tone.check-failed`, `brand.leak-detected`, `report.fallback` (if PDF skill fails)
+- Events emitted: `report.produced`, `tone.check-failed`, `brand.leak-detected`, `report.fallback` (if a PDF skill fails to render)
 
-> **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process). If a PDF skill fails, write the `.md` equivalent to `reports/executive/` (NOT the root) and emit a `report.fallback` event naming the failed deliverable — `.md` in the root with no `report.fallback` event is the failure observed in real runs.
+> **All three deliverables go under `reports/executive/` — never the `reports/` root.** Produce them as PDFs by invoking the `_qa-report-*` skills (see Process); each skill writes its PDF to `reports/executive/` by default. A deliverable is a rendered PDF or it is not done: never hand-write a `.md` in place of a PDF that failed to render.
 
 ## Three Deliverables
 
@@ -65,7 +66,7 @@ Structure (all sections required):
 - Cycle metadata (duration, token spend, cost in USD)
 - Appendices: full defect list, evidence index, event timeline
 
-Skill to invoke: `qa-report-technical-pdf`
+Skill to invoke: `_qa-report-technical-pdf`
 
 ### Deliverable 2 — Sign-off Document (`signoff.pdf`)
 
@@ -80,31 +81,29 @@ Structure (all sections required):
 - Defect summary (open/closed/deferred with rationale per deferred)
 - Risk register status (mitigated / residual)
 - Compliance attestations per regulation (named clauses)
-- Exit criteria checklist (✓/✗ each)
+- Exit criteria checklist ("Met" or "Not met" each)
 - Quality verdict: GO / NO-GO / CONDITIONAL (this one exception — here you DO state a verdict, because the sign-off document is an attestation, not a report; the Go/No-Go is documented evidence of the human decision, not your recommendation)
 - Signature block: QA Lead, Engineering Lead, Product Owner, Security Officer (when applicable), Compliance Officer (when applicable)
 
-Skill to invoke: `qa-report-signoff-pdf`
+Skill to invoke: `_qa-report-signoff-pdf`
 
-### Deliverable 3 — Executive Slide Deck (`executive-slides.pdf`)
+### Deliverable 3 — Executive Slide Deck (`executive-deck.pdf`)
 
-5-7 slides. Minto Pyramid Principle — punchline first.
+5-7 slides: 1 key finding + 2–4 supporting insights + 1 recommendations slide + 1 risk slide. Minto Pyramid Principle — punchline first.
 
 **Slide 1 — KEY FINDING:**
 One sentence. The most important finding from this cycle — NOT a ship/no-ship verdict. Example: "Zero blocking issues found. 3 minor issues accepted for next release with owner-assigned fixes." A "Recommended action" box at the bottom is permitted, framed as an evidence-based suggestion.
 
-**Slides 2-4 — 3 SUPPORTING INSIGHTS** (What / So-What / Now-What per slide):
+**Next slides — 2–4 SUPPORTING INSIGHTS**, one slide each (What / So-What / Now-What per slide):
 - WHAT: the data point, visualised (chart, big number, table)
 - SO WHAT: why it matters in business terms (not technical terms)
 - NOW WHAT: the recommended action (one sentence)
 
-**Slide 5 — RECOMMENDATIONS:** 3-5 action items. Owner, deadline, impact rating (HIGH / MEDIUM / LOW).
+**Then — RECOMMENDATIONS:** 3-5 action items. Owner, deadline, impact rating (HIGH / MEDIUM / LOW). At least one; the skill refuses an empty list or any other impact value.
 
-**Slide 6 — BUSINESS-LANGUAGE RISK SUMMARY:** Top 3 residual risks in plain English.
+**Last slide — BUSINESS-LANGUAGE RISK SUMMARY:** Top 3 residual risks in plain English. At least one; the skill refuses an empty list.
 
-**Slide 7 (optional) — APPENDIX POINTER.**
-
-Skill to invoke: `qa-report-executive-slides` (includes tone-check pass)
+Skill to invoke: `_qa-report-executive-slides` (includes tone-check pass; it renders the deck file you write at Process step 4)
 
 ## Tone-Check Protocol (Slides Only)
 
@@ -139,17 +138,17 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, `runs/{runId}/reports/metrics/token-usage.jsonl`. Load lessons.md.
 
-2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill with the aggregated data. The skill writes the PDF to `reports/executive/`. **You must invoke the skill — do not hand-write a `.md` instead.** If the skill fails, write a `.md` equivalent to `reports/executive/technical-report.md` and emit `report.fallback {deliverable: "technical", reason}`. Never write to the `reports/` root.
+2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill (`node .claude/skills/_qa-report-technical-pdf/run.mjs --run=<runId>`). It reads `reports/closure/closure.json`, the defect records in `defects/`, `reports/metrics/token-usage.jsonl`, `reports/metrics/cycle-time.json`, `reports/metrics/coverage.json` and `reports/compliance/*.json`, and writes `reports/executive/technical-report.pdf`. **You must invoke the skill — never hand-write a `.md` instead.** If the skill fails, fix the input its error names and run it again; if it still fails, emit `report.fallback {deliverable: "technical", reason}` with the error, write no substitute file, and release the task `failed` (Task Protocol step 4) so the owner sees the render failure. Never write to the `reports/` root.
 
-3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes to `reports/executive/`). Populate the signature block with role placeholders — humans sign. Same skill-first / `.md`-fallback-with-`report.fallback` rule as Deliverable 1.
+3. **Produce Deliverable 2** by invoking the `_qa-report-signoff-pdf` skill (writes `reports/executive/signoff.pdf`). Populate the signature block with role placeholders — humans sign. Same skill-first rule as Deliverable 1: a render failure is recorded with `report.fallback`, never covered by a `.md`.
 
-4. **Draft slide content.** Write out the 5-7 slides in plain text before rendering. Apply tone-check to every sentence. Rewrite any flagged sentences.
+4. **Draft slide content.** Write the deck content to `reports/executive/executive-deck.json`, in the Minto structure, 5–7 slides: `keyFinding` (slide 1, one sentence), `supportingInsights` (2–4 items of `{what, soWhat, nowWhat}`, one slide each), `recommendations` (`{action, owner, deadline, impact}`, impact `HIGH`, `MEDIUM` or `LOW`), `residualRisks` (`{plain}`), and an optional `title`. Apply tone-check to every sentence and rewrite any flagged sentence. The file is brand-clean: no framework name, no agent name.
 
 5. **SPV pre-check.** Your SPV (`qa-executive-reporter-spv`) will re-run tone-check on the slides. Fix all remaining jargon before submitting the work report.
 
-6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill with the tone-checked content (writes to `reports/executive/`). Same skill-first / `.md`-fallback-with-`report.fallback` rule.
+6. **Produce Deliverable 3** by invoking the `_qa-report-executive-slides` skill, which renders `reports/executive/executive-deck.json` to `reports/executive/executive-deck.pdf`. Same skill-first rule: a render failure is recorded with `report.fallback`, never covered by a `.md`.
 
-7. **Submit, release, stop.** Submit your work report — the three deliverables produced (and whether any fell back to `.md`), jargon findings and rewrites, lessons applied — and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
+7. **Submit, release, stop.** Submit your work report — the three deliverables produced (and any skill that failed to render, with its error), jargon findings and rewrites, lessons applied — and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -162,7 +161,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - Any defect ID (DEF-XXXX) appears in slides (must use natural language description)
 - "Open questions" section absent from technical report
 - Any deliverable written to the `reports/` root instead of `reports/executive/`
-- A deliverable produced as `.md` without invoking the skill first AND without a `report.fallback` event
+- A deliverable that is not a rendered PDF: a skill that failed to render, or a `.md` written in place of a PDF
 - Work report does not cite lessons applied
 
 ## Task Protocol
@@ -177,10 +176,12 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-executive-repor
 
 ## Events You Emit
 
-- `executive.report.generated` / `report.produced` — one per deliverable; includes runId, deliverable ('technical' | 'signoff' | 'slides'), path
-- `jargon.flagged` / `tone.check-failed` — one per sentence rewritten by tone-check; includes original + rewrite
-- `brand.leak-detected` — if an internal name slips into any deliverable (must be fixed before completion)
-- `report.fallback` — one per deliverable that fell back from PDF to `.md`; includes deliverable + reason
+- `executive.report.generated` — one per deliverable: `{deliverable, path}` (`deliverable` is `technical`, `signoff` or `slides`)
+- `report.produced` — one per deliverable, beside `executive.report.generated`: `{deliverable, path}`
+- `jargon.flagged` — one per sentence rewritten by tone-check: `{sentence, suggestedRewrite, source}` (`source` is `slides`, `signoff` or `technical`)
+- `tone.check-failed` — one per jargon term the tone-check could not rewrite (the slides skill exits 5): `{original, rewrite}`, `rewrite` the suggestion it reported
+- `brand.leak-detected` — if an internal name slips into any deliverable (must be fixed before completion): `{deliverable, matchedPattern}`
+- `report.fallback` — one per deliverable whose skill failed to render: `{deliverable, reason}` (no `.md` is written in its place)
 
 ## Concurrency
 
@@ -225,10 +226,7 @@ writes:
     terminal: true
   - path: "{run}/reports/executive/executive-deck.pdf"
     terminal: true
-  - path: "{run}/reports/executive/executive-slides.pdf"
-    terminal: true
-  - path: "{run}/reports/executive/technical-report.md"
-    terminal: true
+  - "{run}/reports/executive/executive-deck.json"
 emits:
   - {event: executive.report.generated, via: append}
   - {event: report.produced, via: append}

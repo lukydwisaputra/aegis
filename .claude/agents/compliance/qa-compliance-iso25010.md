@@ -47,8 +47,8 @@ Evaluate coverage for each:
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/iso25010.{md,json}` — gap report
-- Updated `ISO25010-*` tags on TCs and defects via `rtm.append-link` events
+- `runs/{runId}/reports/compliance/iso25010.{md,json}` — gap report. `runs/{runId}/reports/compliance/iso25010.json` is `{ "regulation": "iso25010", "characteristicsCovered": [<covered tags>], "gaps": [<one object per gap, as in Process step 5>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
+- The `ISO25010-*` tags of TCs and defects, recorded in the gap report only (you edit no test case, defect or RTM file)
 
 ## Quality Standards
 
@@ -70,7 +70,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-iso2
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, characteristicsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — `{regulation, characteristicsCovered, gaps, highSeverityGapCount}`
 
 ## Contract (machine-checked)
 
@@ -91,7 +91,6 @@ writes:
   - "{run}/reports/compliance/iso25010.{md,json}"
 emits:
   - {event: compliance.review-complete, via: append}
-  - {event: rtm.append-link, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []

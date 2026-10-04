@@ -2,19 +2,24 @@
 // qa-report-technical-pdf — render the technical report PDF for a run.
 //
 // Invoked by qa-executive-reporter via Bash:
-//   node aegis/.claude/skills/_qa-report-technical-pdf/run.mjs --run=RUN-...
+//   node .claude/skills/_qa-report-technical-pdf/run.mjs --run=RUN-...
 //
 // Reads the run's closure artefacts and writes
-// runs/{run}/reports/technical-report.pdf.
+// runs/{run}/reports/executive/technical-report.pdf.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderTechnicalReport } from "@qa/pdf-renderer";
+// The renderer and the brand check load from this repo's built packages, by a path relative to this
+// file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
+const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
+const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const AEGIS_ROOT = resolve(__dirname, "..", "..", "..");
+const REPO = resolve(__dirname, "..", "..", "..");
+// Test seam only: the agent never sets AEGIS_ROOT.
+const AEGIS_ROOT = process.env.AEGIS_ROOT ? resolve(process.env.AEGIS_ROOT) : REPO;
 
 // ─── arg parsing ──────────────────────────────────────────────────────────────
 
@@ -40,9 +45,9 @@ if (!existsSync(runDir)) {
   process.exit(2);
 }
 
-const out = args.out
-  ? resolve(args.out)
-  : join(runDir, "reports", "technical-report.pdf");
+// A relative --out is relative to the run directory.
+const outArg = args.out ?? "reports/executive/technical-report.pdf";
+const out = isAbsolute(outArg) ? outArg : resolve(runDir, outArg);
 
 // ─── input loading ────────────────────────────────────────────────────────────
 
@@ -51,45 +56,130 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-function readJsonGlob(dir) {
-  if (!existsSync(dir)) return [];
+/** Every JSON file of a directory as { name, doc }, or null when the directory is absent. */
+function readJsonEntries(dir) {
+  if (!existsSync(dir)) return null;
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => readJson(join(dir, f)))
-    .filter((v) => v !== null);
+    .map((f) => ({ name: f.replace(/\.json$/, ""), doc: readJson(join(dir, f)) }))
+    .filter((e) => e.doc !== null);
 }
 
-const closure = readJson(join(runDir, "reports", "closure.json"));
+function readJsonGlob(dir) {
+  const entries = readJsonEntries(dir);
+  return entries === null ? null : entries.map((e) => e.doc);
+}
+
+/** Every parseable row of a JSONL file, or null when the file is absent. */
+function readJsonl(path) {
+  if (!existsSync(path)) return null;
+  const rows = [];
+  for (const line of readFileSync(path, "utf-8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      rows.push(JSON.parse(line));
+    } catch {
+      // a torn or malformed row is skipped, not counted
+    }
+  }
+  return rows;
+}
+
+const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+const closure = readJson(join(runDir, "reports", "closure", "closure.json"));
 if (!closure) {
-  console.error(`ERROR: ${runId}/reports/closure.json is required and missing`);
+  console.error(`ERROR: ${runId}/reports/closure/closure.json is required and missing`);
   process.exit(3);
 }
 
 const defects = readJsonGlob(join(runDir, "defects"));
-const rtm = readJson(join(runDir, "rtm.json")) ?? { rows: [] };
 const plan = readJson(join(runDir, "plan.json")) ?? {};
-const metrics = readJson(join(runDir, "reports", "metrics", "cycle.json")) ?? {};
-const complianceReports = readJsonGlob(join(runDir, "reports", "compliance"));
+const tokenUsage = readJsonl(join(runDir, "reports", "metrics", "token-usage.jsonl"));
+const cycleTime = readJson(join(runDir, "reports", "metrics", "cycle-time.json"));
+const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
+const complianceReports = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
 
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
 
+// ─── load the built packages ──────────────────────────────────────────────────
+
+async function load(url, what) {
+  try {
+    return await import(url.href);
+  } catch (err) {
+    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
+    process.exit(6);
+  }
+}
+
+const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
+const { checkBrandExposure, resolveDefectFigures, defectSeverityCode, defectStatusCode } = await load(
+  CONTRACTS,
+  "the brand check",
+);
+
 // ─── spec assembly ────────────────────────────────────────────────────────────
+// An absent input is null, which the renderer prints as "not available" — never a silent 0.
 
-const metricsBlock = closure.metrics ?? {};
-const coveragePercent =
-  typeof rtm.coveragePercent === "number"
-    ? rtm.coveragePercent
-    : typeof metricsBlock.coveragePercent === "number"
-      ? metricsBlock.coveragePercent
-      : 0;
+// The closure reporter lists the metric files (or metric keys) it found without data in
+// closure.json#unavailableMetrics; a figure that depends on one is not available, whatever value sits beside it.
+const unavailable = new Set(
+  (Array.isArray(closure.unavailableMetrics) ? closure.unavailableMetrics : [])
+    .filter((v) => typeof v === "string")
+    .flatMap((v) => [v, v.replace(/\.jsonl?$/, "")]),
+);
+const isUnavailable = (...names) => names.some((n) => unavailable.has(n));
+// The collector writes { "noData": true } for a metric file it has no source data for.
+const hasData = (doc) => doc !== null && !(typeof doc === "object" && !Array.isArray(doc) && doc.noData === true);
 
+const m = closure.metrics ?? {};
+const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[key]));
+const passed = metric("passed");
+const failed = metric("failed");
+const blocked = metric("blocked");
+const totalTests = passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
+
+// Open/closed defects: the resolver the sign-off uses too — closure.json#defectMetrics first, then the
+// defect records' status codes (DefectSchema `status.code`; Closed, Verified, Resolved, Won't Fix, … are closed).
+const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closure, defects);
+
+// Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
+const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
+
+// Cost: the sum of usdCost over the collector's token-usage rows — {agent, model, ..., usdCost, ts}. A rollup
+// (per agent, model or phase) is never a row, so a line without agent, model and ts is not summed.
+const isUsageRow = (r) =>
+  r !== null && typeof r === "object" && typeof r.agent === "string" && typeof r.model === "string" && typeof r.ts === "string";
+const pricedRows = (tokenUsage ?? []).filter((r) => isUsageRow(r) && num(r.usdCost) !== null);
+const tokenCostUsd =
+  pricedRows.length > 0 && !isUnavailable("token-usage") ? pricedRows.reduce((s, r) => s + r.usdCost, 0) : null;
+
+// Cycle time: the collector's total wall-clock, else the sum of its per-phase durationMs.
+function cycleTimeMsOf(ct) {
+  if (!hasData(ct) || typeof ct !== "object" || isUnavailable("cycle-time")) return null;
+  for (const k of ["totalWallClockMs", "wallClockMs", "totalDurationMs", "totalMs"]) {
+    if (num(ct[k]) !== null) return ct[k];
+  }
+  const phases = Array.isArray(ct) ? ct : Array.isArray(ct.phases) ? ct.phases : null;
+  const durations = (phases ?? []).map((p) => num(p?.durationMs)).filter((d) => d !== null);
+  return durations.length > 0 ? durations.reduce((s, d) => s + d, 0) : null;
+}
+
+// Compliance: each report names its regulation and lists gaps[]; its covered list is the regulation's
+// own key (characteristicsCovered, articlesCovered, practicesCovered or sectionsCovered). A report
+// without a regulation is listed under its file name (istqb.json → istqb).
+const COVERED_KEYS = ["characteristicsCovered", "articlesCovered", "practicesCovered", "sectionsCovered"];
+const countOf = (v) => (Array.isArray(v) ? v.length : num(v));
 const compliance = {};
-for (const report of complianceReports) {
-  const key = report.regulation ?? report.name ?? "unknown";
+for (const { name, doc: report } of complianceReports) {
+  if (typeof report !== "object" || Array.isArray(report)) continue;
+  const key = typeof report.regulation === "string" && report.regulation.trim() !== "" ? report.regulation : name;
+  const coveredKey = COVERED_KEYS.find((k) => report[k] !== undefined);
   compliance[key] = {
-    covered: report.covered ?? 0,
-    gapped: report.gapped ?? 0,
+    covered: coveredKey ? countOf(report[coveredKey]) : null,
+    gapped: countOf(report.gaps),
   };
 }
 
@@ -99,35 +189,33 @@ const spec = {
   generatedAt: new Date().toISOString(),
   scope: plan.scope ?? closure.scope ?? "Full cycle",
   metrics: {
-    totalTests: metricsBlock.totalTests ?? 0,
-    passed: metricsBlock.passed ?? 0,
-    failed: metricsBlock.failed ?? 0,
-    blocked: metricsBlock.blocked ?? 0,
-    skipped: metricsBlock.skipped ?? 0,
-    passRate: metricsBlock.passRate ?? 0,
-    coveragePercent,
-    openDefects: defects.filter((d) => d.status !== "closed" && d.status !== "verified-fixed").length,
-    closedDefects: defects.filter((d) => d.status === "closed" || d.status === "verified-fixed").length,
+    totalTests,
+    passed,
+    failed,
+    blocked,
+    skipped: metric("skipped"),
+    passRate: metric("passRate"),
+    coveragePercent: coverageNoData ? null : metric("requirementsCoverage", "coverage"),
+    openDefects,
+    closedDefects,
   },
-  defects: defects.map((d) => ({
-    id: d.id,
-    title: d.title,
-    severity: d.severity,
-    status: d.status,
+  defects: (defects ?? []).map((d) => ({
+    id: typeof d.id === "string" ? d.id : "not available",
+    title: typeof d.title === "string" ? d.title : "not available",
+    severity: defectSeverityCode(d) ?? "not available",
+    status: defectStatusCode(d) ?? "not available",
   })),
   compliance,
-  tokenCostUsd: metrics.tokenCostUsd ?? metrics.costUsd ?? 0,
+  tokenCostUsd,
+  cycleTimeMs: cycleTimeMsOf(cycleTime),
 };
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
-// Class B contract: no internal framework names in the rendered output.
-const FORBIDDEN_STRINGS = ["Aegis", "qa-orchestrator", "qa-test-executor", "qa-defect-manager"];
-const specJson = JSON.stringify(spec);
-for (const forbidden of FORBIDDEN_STRINGS) {
-  if (specJson.includes(forbidden)) {
-    console.error(`ERROR: brand-clean violation — spec contains forbidden string "${forbidden}"`);
-    process.exit(4);
-  }
+// Class B contract: no framework name or agent name in the rendered output.
+const leak = checkBrandExposure(JSON.stringify(spec));
+if (leak) {
+  console.error(`ERROR: brand-clean violation — the report data matches ${leak}`);
+  process.exit(4);
 }
 
 // ─── render ───────────────────────────────────────────────────────────────────
@@ -139,8 +227,8 @@ if (!existsSync(dirname(out))) mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, buffer);
 
 const stats = statSync(out);
-if (stats.size < 10 * 1024) {
-  console.error(`ERROR: rendered PDF suspiciously small (${stats.size} bytes < 10 KB)`);
+if (stats.size < 1024 || buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+  console.error(`ERROR: rendered file is not a PDF (${stats.size} bytes)`);
   process.exit(5);
 }
 

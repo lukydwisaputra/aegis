@@ -25,13 +25,15 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 ## Inputs
 
 - `runs/{runId}/execution-summary.json` — test results
+- `runs/{runId}/cases/*-result.json` — per-test results, in both layouts: `{TC-ID}-result.json` and the responsive specialist's per-viewport `{TC-ID}-{viewport}-result.json` (a TC counts once; when both layouts exist for it the per-viewport files win; it passes only when every viewport in its `viewportScope` has a passing result, and a missing viewport result means it did not pass, never that the viewport is dropped; a TC id matches `^TC-[A-Z]{2,8}-\d{3,}$` and a viewport is `desktop`, `tablet` or `mobile`). You read them to confirm the execution summary; you never write them
 - `runs/{runId}/defects/*.json` — all defects (includes EXP-type exploratory defects with no parent TC — trace these via `charterSessionId`, not `testCaseIds`)
 - `runs/{runId}/cases/*.json` — all test cases (for coverage computation)
 - `runs/{runId}/rtm.json` — requirement-to-test traceability
 - `runs/{runId}/risk-register.json` — residual risk after testing
 - `runs/{runId}/plan.json` — original test plan (to compute variances)
-- `runs/{runId}/reports/metrics/*.json` — **computed metrics from qa-metrics-collector** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. They already exist on disk by the time Closure runs (metrics-collector writes intermediate rollups on every phase completion). If a required metric file is missing, emit `blocking.dependency` and wait — do not recompute it yourself.
-- `runs/{runId}/reports/compliance/*.json` — per-regulation compliance findings (if compliance phase ran)
+- `runs/{runId}/reports/metrics/*.json` — **computed metrics from qa-metrics-collector** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. The orchestrator runs qa-metrics-collector in the foreground immediately before Closure-draft, so they exist on disk when you start. If a required metric file is still missing, you never stop for it: record it as unavailable (Process step 2) and continue — do not recompute it yourself.
+- `runs/{runId}/reports/compliance/*.json` — per-regulation compliance findings, written in the Compliance phase; read in the final pass
+- `runs/{runId}/reports/closure/closure.json` and `closure.md` — your own draft, read in the final pass
 - `runs/{runId}/events.jsonl` — full event log
 - `agent-memory/qa-closure-reporter/lessons.md`
 
@@ -52,7 +54,8 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
   "cycleDate": "2026-07-27",           // or run.json#createdAt; the index shows "—" without one
   "metrics": {
     "passed": 886, "failed": 0, "blocked": 0,
-    "passRate": 100.0                   // headline rate as a plain number
+    "passRate": 100.0,                  // headline rate as a plain number
+    "requirementsCoverage": 92.5        // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
   },
   "defectMetrics": {
     "totalLogged": 16,
@@ -68,11 +71,27 @@ Two rules that matter more than they look:
 
 Do not invent new shapes for these figures. `gen-index.ts` carries compatibility resolvers for several historical layouts (`metrics.items[]` matched by prose `name`, `resultsSummary.overallTally`, `passRatePct` objects, `reports/test-status-inventory.json`). Those exist to read runs that are already closed — they are not a menu. A shape no resolver recognizes renders as `—`, and `export-run.sh` then refuses to publish the index rather than overwrite good values with dashes.
 
+### closure.json: unavailable metrics
+
+`closure.json` always carries `unavailableMetrics`: the file names of the required metric files (Inputs) that did not exist when you drafted, `[]` when every one did.
+
+```jsonc
+{
+  "unavailableMetrics": []              // e.g. ["flaky.json"] when that rollup was missing
+}
+```
+
+### closure.json: exit criteria
+
+`closure.json` always carries `exitCriteria`, which the sign-off document prints as its Met/Not met checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against this cycle's results, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
+
 ## Process
 
-1. **Read context.** Load all input files and your lessons.md. Expect one compliance report per relevant regulation: the regulations in `aegis.config.json#compliance` (all six when the key is absent), minus gdpr and pdpa when `aegis run status` shows `phases.scan.personalData: false`. A missing report for a relevant regulation is a closure gap, not a pass. When gdpr and pdpa were dropped, the closure report states: "GDPR and PDPA were not assessed: no personal data was detected in the application."
+You run twice per cycle, and your brief names the `pass`. The draft pass (Closure-draft, before Compliance) runs steps 1–4 and 6; the final pass (Closure-final, after Compliance) runs steps 5 and 6.
 
-2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If any required metric file is missing, emit `blocking.dependency` (with the missing filename) and wait — never silently recompute or fabricate a metric.
+1. **Read context.** Load the input files — all but the compliance reports and your own draft, which the final pass reads — and your lessons.md.
+
+2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If a required metric file is missing, record its file name in `closure.json#unavailableMetrics` and continue: the metrics it feeds read "not available" in `closure.md` and are absent from `closure.json`, and the comprehensiveness assessment names the gap. A file holding `"noData": true` exists but had no source data: state its figures as not available too. Never stop for a missing file, and never recompute or fabricate a metric.
 
 3. **Write ISTQB closure sections.** All required sections:
    - **Summary**: 2-3 sentences on scope, duration, overall outcome. No verdict.
@@ -84,10 +103,13 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
    - **Open questions**: The most valuable section. List what the testing did NOT answer — what remains unknown after this cycle. Example: "We did not test the SSO path with Singpass due to biometric constraint (TC-AUTH-035 manual). Real-user Singpass flows are untested in this cycle."
    - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
    - **Approvals**: Signature block for Gate 3. QA lead, engineering lead, product owner.
+   - **Exit criteria**: each exit criterion of the test plan, met or not, with its evidence — written to `closure.json#exitCriteria` (see "closure.json: exit criteria").
 
 4. **Residual risk summary.** From the risk register, list every risk that testing did not fully mitigate. For each: risk ID, original likelihood/impact/score, mitigation status (tested / partially tested / not tested), and residual exposure. This is the evidence for the Gate 3 human to decide whether to ship with known residual risk.
 
-5. **Submit, release, stop.** Append `closure.report-drafted` as your last event, then submit your work report (key decisions made, coverage gaps identified, lessons applied) and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
+5. **Final pass (Closure-final).** Read your draft `closure.json` and `closure.md` and the compliance reports in `reports/compliance/`. Expect one compliance report per relevant regulation: the regulations in `aegis.config.json#compliance` (all six when the key is absent), minus gdpr and pdpa when `aegis run status` shows `phases.scan.personalData: false`. Then rewrite `closure.json` and `closure.md`, folding in `reports/compliance/*`: each regulation's findings and gaps go into the comprehensiveness assessment, the open questions and the residual risk summary. A missing report for a relevant regulation is a closure gap, not a pass. When no regulation is relevant (the compliance list is empty, or the Compliance phase is not applicable), the closure report states: "No compliance assessment applied to this cycle." When gdpr and pdpa were dropped, the closure report states: "GDPR and PDPA were not assessed: no personal data was detected in the application." Keep the draft's numbers: `cycleDate`, `metrics`, `defectMetrics`, `unavailableMetrics`, `exitCriteria` and every figure taken from `reports/metrics/` stay exactly as drafted, and you do not re-read the metric files. The compliance reports add findings, never new figures.
+
+6. **Submit, release, stop.** Append `closure.report-drafted` as your last event, then submit your work report (key decisions made, coverage gaps identified, lessons applied) and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -95,8 +117,10 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 - Any ISTQB section is blank or says "N/A" without explanation
 - Open questions section is absent or empty — every cycle has unknowns
 - A Sev1 or Sev2 open defect is not explicitly called out in the defect metrics section
-- Compliance reports missing and not flagged as a gap
-- Metrics section missing any of the 10 required metrics (read from `reports/metrics/`)
+- Compliance reports missing and not flagged as a gap (final pass)
+- The final pass changed a number from the draft
+- A missing metric file not listed in `closure.json#unavailableMetrics`, or its metrics reported as 0 instead of not available
+- A metric neither reported nor stated as not available (listed in `unavailableMetrics` or backed by a `noData` file)
 - `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `closure.report-drafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
 - Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
 - `closure.json` omits `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, or `defectMetrics.confirmedOpen` — see "closure.json keys the collector index reads". A run missing these still closes, but publishes em dashes in the collector index and blocks the next export
@@ -115,8 +139,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-closure-reporte
 
 ## Events You Emit
 
-- `closure.report-drafted` — includes runId, coveragePercent, openDefectCount (by severity)
-- `blocking.dependency` — if a required `reports/metrics/*.json` file is missing when you start
+- `closure.report-drafted` — `{coveragePercent, openDefectCount}`: `coveragePercent` is `closure.json#metrics.requirementsCoverage` (null when unavailable), `openDefectCount` the open defects by severity code (e.g. `{"Sev2": 1}`); appended in both passes
 
 ## Concurrency
 
@@ -143,6 +166,7 @@ dispatchedBy: [qa-orchestrator]
 reviewedBy: qa-closure-reporter-spv
 reads:
   - "{run}/execution-summary.json"
+  - "{run}/cases/*-result.json"
   - "{run}/defects/*.json"
   - "{run}/cases/*.json"
   - "{run}/rtm.json"
@@ -151,6 +175,8 @@ reads:
   - "{run}/reports/metrics/*.json"
   - path: "{run}/reports/compliance/*.json"
     optional: true
+  - "{run}/reports/closure/closure.json"
+  - "{run}/reports/closure/closure.md"
   - "{run}/events.jsonl"
   - "agent-memory/qa-closure-reporter/lessons.md"
 writes:
@@ -159,7 +185,6 @@ writes:
   - "{run}/reports/closure/closure.json"
 emits:
   - {event: closure.report-drafted, via: append}
-  - {event: blocking.dependency, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append, run.status]
 runs: []

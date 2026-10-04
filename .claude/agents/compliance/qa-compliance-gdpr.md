@@ -62,7 +62,7 @@ You evaluate whether the test cycle adequately covers GDPR obligations for the a
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/gdpr.{md,json}` — gap report
+- `runs/{runId}/reports/compliance/gdpr.{md,json}` — gap report. `runs/{runId}/reports/compliance/gdpr.json` is `{ "regulation": "gdpr", "articlesCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `GDPR-Art{N}` tags on TCs and defects
 
 ## Quality Standards
@@ -84,7 +84,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-gdpr
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, articlesCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — `{regulation, articlesCovered, gaps, highSeverityGapCount}`
 
 ## Contract (machine-checked)
 

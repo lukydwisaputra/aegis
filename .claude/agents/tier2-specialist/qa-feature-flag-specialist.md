@@ -64,8 +64,9 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-feature-flag-sp
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC per flag state
-- `specialist.no-op` — when no flag system detected
+- `test.passed` — per passing TC per flag state: `{testCaseId, specialist}`
+- `test.failed` — per failing TC per flag state: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names the flag state)
+- `specialist.no-op` — when no flag system detected: `{specialist, reason}`
 
 ## Contract (machine-checked)
 

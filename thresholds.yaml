@@ -27,6 +27,28 @@ smoke:
 devTestReview:
   mutationScoreMin: 60   # Stryker's score: (killed + timeout) / (killed + timeout + survived + noCoverage) x 100; the Dev-test-review barrier refuses a lower threshold
 
+# ─── STAGE: development (/qa-start --env=development; local dev server) ───────
+# Performance only: the specialist reads thresholds.yaml#<env>.performance (Lighthouse-CI and Core Web
+# Vitals) and thresholds.yaml#<env>.load (k6). The web vitals equal the testing stage (Google CWV "Good"
+# bands); the Lighthouse score and the k6 load SLAs are relaxed for a local dev server (see each line).
+development:
+  performance:
+    lcp:    2500   # ms
+    inp:    200    # ms
+    cls:    0.10   # score
+    fcp:    1800   # ms
+    ttfb:   800    # ms
+    score:  50     # Lighthouse performance score minimum, measured against an unbundled dev build (no minification or code splitting)
+
+  # --- Load / stress (k6) --------------------------------------------------
+  # Same keys as staging.load. Lenient: a local dev server (unbundled, single process, debug logging)
+  # answers about twice as slowly as staging infrastructure and is run with few virtual users.
+  load:
+    p95ResponseMs:  2000   # 95th percentile response ≤ 2000 ms (staging: 1000)
+    p99ResponseMs:  4000   # 99th percentile response ≤ 4000 ms (staging: 2000)
+    errorRate:      0.05   # < 5% error rate (staging: 1%)
+    vus:            10     # virtual users for a local dev server (staging: 50)
+
 # ─── STAGE: testing (PR gate — fast feedback, ~10 min budget) ─────────────────
 testing:
 
@@ -82,6 +104,15 @@ testing:
     fcp:    1800   # ms  First Contentful Paint — Good ≤ 1800 ms
     ttfb:   800    # ms  Time to First Byte — Good ≤ 800 ms
     score:  80     # Lighthouse performance score minimum
+
+  # --- Load / stress (k6) --------------------------------------------------
+  # Same keys as staging.load. Moderate: a PR preview deployment is production-built but smaller than
+  # staging infrastructure, so the SLAs sit between development and staging.
+  load:
+    p95ResponseMs:  1500   # 95th percentile response ≤ 1500 ms (staging: 1000)
+    p99ResponseMs:  3000   # 99th percentile response ≤ 3000 ms (staging: 2000)
+    errorRate:      0.02   # < 2% error rate (staging: 1%)
+    vus:            20     # virtual users for a PR preview (staging: 50)
 
 # ─── STAGE: staging (full regression on main-branch merges + nightly) ────────
 staging:

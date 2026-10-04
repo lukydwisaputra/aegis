@@ -130,11 +130,13 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-exploratory-spe
 
 ## Events You Emit
 
-- `exploratory.session-started` / `exploratory.session-complete` — with charter scope and duration
-- `observation.recorded` — one per observation that is not a plain match (routes b and c); carries `kind`, `summary`, `storyId`, `acId`, `sessionId` and, for a suspected defect, `candidate`
-- `tc.proposal` — one per proposed test case; carries the story, the criteria, a title and the rationale
-- `sandbox.experiment-completed` — when the session sandbox is removed
-- `test.passed` / `test.failed` — Execution sessions only, per test case in the brief
+- `exploratory.session-started` — at the start of each charter session: `{charterId, scope}`
+- `exploratory.session-complete` — at its end: `{charterId, scope, durationMs, observationCount}`
+- `observation.recorded` — one per observation that is not a plain match (routes b and c): `{kind, summary, storyId, acId, sessionId, candidate?}`, with `candidate` only for a suspected defect
+- `tc.proposal` — one per proposed test case: `{storyId, acIds, title, rationale}` (the story, the criteria, a title and the rationale)
+- `sandbox.experiment-completed` — when the session sandbox is removed: `{path, agent}` (`agent` your name)
+- `test.passed` — Execution sessions only, per passing test case in the brief: `{testCaseId, specialist}`
+- `test.failed` — Execution sessions only, per failing test case in the brief: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
 
 ## Contract (machine-checked)
 

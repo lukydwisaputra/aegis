@@ -2,18 +2,25 @@
 // qa-report-executive-slides — render the Minto Pyramid stakeholder deck.
 //
 // Invoked by qa-executive-reporter via Bash:
-//   node aegis/.claude/skills/_qa-report-executive-slides/run.mjs --run=RUN-...
+//   node .claude/skills/_qa-report-executive-slides/run.mjs --run=RUN-...
 //
-// Runs a mandatory tone-check pass (jargon → plain English) before rendering.
+// Reads the deck content the executive reporter wrote to
+// runs/{run}/reports/executive/executive-deck.json, runs a mandatory tone-check
+// pass (jargon → plain English) and writes runs/{run}/reports/executive/executive-deck.pdf.
 
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderSlideDeck, applyJargonRewrites, detectJargon } from "@qa/pdf-renderer";
+// The renderer and the brand check load from this repo's built packages, by a path relative to this
+// file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
+const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
+const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const AEGIS_ROOT = resolve(__dirname, "..", "..", "..");
+const REPO = resolve(__dirname, "..", "..", "..");
+// Test seam only: the agent never sets AEGIS_ROOT.
+const AEGIS_ROOT = process.env.AEGIS_ROOT ? resolve(process.env.AEGIS_ROOT) : REPO;
 
 // ─── arg parsing ──────────────────────────────────────────────────────────────
 
@@ -39,9 +46,10 @@ if (!existsSync(runDir)) {
   process.exit(2);
 }
 
-const out = args.out
-  ? resolve(args.out)
-  : join(runDir, "reports", "executive-deck.pdf");
+// Relative --deck and --out paths are relative to the run directory.
+const inRun = (p) => (isAbsolute(p) ? p : resolve(runDir, p));
+const deckPath = inRun(args.deck ?? "reports/executive/executive-deck.json");
+const out = inRun(args.out ?? "reports/executive/executive-deck.pdf");
 
 const maxJargonSurvivors = Number.parseInt(args["max-jargon-survivors"] ?? "0", 10);
 
@@ -52,35 +60,73 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-const closure = readJson(join(runDir, "reports", "closure.json"));
-if (!closure) {
-  console.error(`ERROR: ${runId}/reports/closure.json is required and missing`);
+const deckSource = readJson(deckPath);
+if (!deckSource || typeof deckSource !== "object") {
+  console.error(
+    `ERROR: ${deckPath} is missing. The executive reporter writes the deck content (reports/executive/executive-deck.json) before invoking the slides skill.`,
+  );
   process.exit(3);
 }
 
-const plan = readJson(join(runDir, "plan.json")) ?? {};
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
-
-const deckSource = closure.executiveDeck;
-if (!deckSource || typeof deckSource !== "object") {
-  console.error(
-    `ERROR: closure.json#executiveDeck is missing. qa-executive-reporter must populate this block before invoking the slides skill.`,
-  );
-  process.exit(4);
-}
 
 const requiredFields = ["keyFinding", "supportingInsights", "recommendations", "residualRisks"];
 for (const f of requiredFields) {
   if (deckSource[f] === undefined) {
-    console.error(`ERROR: closure.json#executiveDeck.${f} is required`);
+    console.error(`ERROR: executive-deck.json#${f} is required`);
     process.exit(4);
   }
 }
+// The recommendations and risk slides render from non-empty lists; an empty or non-list field would print a
+// blank slide, so the deck is refused instead.
+for (const f of ["recommendations", "residualRisks"]) {
+  if (!Array.isArray(deckSource[f]) || deckSource[f].length === 0) {
+    console.error(`ERROR: executive-deck.json#${f} must be a non-empty array`);
+    process.exit(4);
+  }
+}
+// Each item must have the shape the slide renders: { action, owner, deadline, impact } and { plain }, every
+// text a non-empty string. A malformed item would print a blank or "[object Object]" cell, so it is refused.
+const isText = (v) => typeof v === "string" && v.trim() !== "";
+const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const IMPACTS = new Set(["HIGH", "MEDIUM", "LOW"]);
+deckSource.recommendations.forEach((r, i) => {
+  if (!isObject(r) || !["action", "owner", "deadline"].every((k) => isText(r[k]))) {
+    console.error(
+      `ERROR: executive-deck.json#recommendations[${i}] must be { action, owner, deadline, impact } with non-empty text`,
+    );
+    process.exit(4);
+  }
+  if (!IMPACTS.has(r.impact)) {
+    console.error(`ERROR: executive-deck.json#recommendations[${i}].impact must be HIGH, MEDIUM or LOW`);
+    process.exit(4);
+  }
+});
+deckSource.residualRisks.forEach((r, i) => {
+  if (!isObject(r) || !isText(r.plain)) {
+    console.error(`ERROR: executive-deck.json#residualRisks[${i}] must be { plain } with non-empty text`);
+    process.exit(4);
+  }
+});
+
+// ─── load the built packages ──────────────────────────────────────────────────
+
+async function load(url, what) {
+  try {
+    return await import(url.href);
+  } catch (err) {
+    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
+    process.exit(9);
+  }
+}
+
+const { renderSlideDeck, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
+const { checkBrandExposure } = await load(CONTRACTS, "the brand check");
 
 // ─── tone-check pass ──────────────────────────────────────────────────────────
 // Rewrite jargon in place across every string field. Mutates a deep copy
-// so the original closure.json is unaffected.
+// so the deck file is unaffected.
 
 function rewriteStrings(value) {
   if (typeof value === "string") return applyJargonRewrites(value);
@@ -111,11 +157,12 @@ if (survivors.length > maxJargonSurvivors) {
 // ─── spec assembly ────────────────────────────────────────────────────────────
 
 const supportingInsights = Array.isArray(rewritten.supportingInsights) ? rewritten.supportingInsights : [];
-// Slide budget: 1 (key finding) + N (insights) + 1 (recommendations) + 1 (risks) ≤ 7
+// Slide budget: 1 (key finding) + N (insights) + 1 (recommendations) + 1 (risks) = 5–7 slides.
+const minInsights = 2;
 const maxInsights = 4;
-if (supportingInsights.length > maxInsights) {
+if (supportingInsights.length < minInsights || supportingInsights.length > maxInsights) {
   console.error(
-    `ERROR: ${supportingInsights.length} supporting insights would push slide count above 7. Cap at ${maxInsights}.`,
+    `ERROR: ${supportingInsights.length} supporting insights give ${supportingInsights.length + 3} slides; the deck has 5–7 slides (${minInsights}–${maxInsights} insights).`,
   );
   process.exit(6);
 }
@@ -124,19 +171,16 @@ const spec = {
   title: rewritten.title ?? `${projectName} — QA Cycle Summary`,
   keyFinding: rewritten.keyFinding,
   supportingInsights,
-  recommendations: Array.isArray(rewritten.recommendations) ? rewritten.recommendations : [],
-  residualRisks: Array.isArray(rewritten.residualRisks) ? rewritten.residualRisks : [],
+  recommendations: rewritten.recommendations,
+  residualRisks: rewritten.residualRisks,
 };
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 
-const FORBIDDEN_STRINGS = ["Aegis", "qa-orchestrator", "qa-test-executor", "qa-defect-manager"];
-const specJson = JSON.stringify(spec);
-for (const forbidden of FORBIDDEN_STRINGS) {
-  if (specJson.includes(forbidden)) {
-    console.error(`ERROR: brand-clean violation — spec contains forbidden string "${forbidden}"`);
-    process.exit(7);
-  }
+const leak = checkBrandExposure(JSON.stringify(spec));
+if (leak) {
+  console.error(`ERROR: brand-clean violation — the deck content matches ${leak}`);
+  process.exit(7);
 }
 
 // ─── render ───────────────────────────────────────────────────────────────────
@@ -148,8 +192,8 @@ if (!existsSync(dirname(out))) mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, buffer);
 
 const stats = statSync(out);
-if (stats.size < 5 * 1024) {
-  console.error(`ERROR: rendered PDF suspiciously small (${stats.size} bytes < 5 KB)`);
+if (stats.size < 1024 || buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+  console.error(`ERROR: rendered file is not a PDF (${stats.size} bytes)`);
   process.exit(8);
 }
 

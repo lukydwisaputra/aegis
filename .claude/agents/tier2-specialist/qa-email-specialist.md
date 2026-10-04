@@ -127,10 +127,11 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-email-specialis
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC; test.failed includes which assertion failed
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names the assertion that failed)
 - `specialist.no-op` — `{ specialist, reason }`, when `target-profile.json#hasEmailFlows` is false
 - `execution.blocked` — `{ reason }`, when no Mailpit inbox answers or the profile is missing, unreadable or has no boolean `hasEmailFlows`; followed by the work report and a `failed` release
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
 ## Contract (machine-checked)
 

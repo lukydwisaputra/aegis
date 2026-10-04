@@ -126,8 +126,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-context-scanner
 
 ## Events You Emit
 
-- `target.profiled` — always, includes `appCount`, `framework`, `packageManager` and `platform` (the event `ts` is the scan time)
-- `target.changed` — when profile differs from previous, includes `changedFields[]`
+- `target.profiled` — always, `{appCount, framework, packageManager, platform}` (the event `ts` is the scan time)
+- `target.changed` — when profile differs from previous, `{changedFields}` (the list of changed profile keys)
 - `discovery.step-complete` — `{ step: "scan", artifact: "target-profile.json" }` (informational; the phase advances through the orchestrator's phase barrier)
 - `scan.warning` — `{ path, reason }`, both required: a path the scan could not read, or the missing lockfile (checklist step 1); the scan continues
 

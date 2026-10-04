@@ -36,7 +36,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 - `tests/qa/unit/{path}/{name}.test.ts` — net-new QA unit tests only (never edits developer unit tests)
 - `runs/{runId}/cases/{TC-ID}-result.json`
 - `runs/{runId}/evidence/{TC-ID}/` — for a developer-covered TC: the runner output and the before/after scoped `git status --porcelain` of the target (repo and QA tests directories left out)
-- contributes unit coverage data to `runs/{runId}/reports/metrics/coverage.json` (metrics-collector owns this file)
+- `runs/{runId}/reports/unit-coverage.json` — the unit coverage figures of your runs (`{ "statements": n, "branches": n, "functions": n, "lines": n }` as percentages, plus `"basis"` naming the command and scope they come from); the metrics collector reads it into its rollup. The file always reflects the whole QA unit-test run: on every dispatch recompute the figures over the full scope (never overwrite it with the figures of this dispatch's tests alone), and let `basis` name that scope. You never write `reports/metrics/coverage.json`: the collector owns it
 
 ## Process
 
@@ -77,9 +77,10 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-unit-specialist
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC
-- `coverage.updated` — after Jest run; includes new coverage delta
-- `sandbox.explored` — one per committed QA unit test; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed test)
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `coverage.updated` — after the Jest run: `{coveragePercent, deltaPercent, module?}` (`coveragePercent` the new coverage, 0–100, `deltaPercent` its change). Write the figures, recomputed over the whole QA unit-test scope, to `runs/{runId}/reports/unit-coverage.json` before you release the task
+- `sandbox.explored` — one per committed QA unit test: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed test)
 
 ## Contract (machine-checked)
 
@@ -100,7 +101,7 @@ writes:
   - "{tests}/qa/unit/{path}/{name}.test.ts"
   - "{run}/cases/{TC-ID}-result.json"
   - "{run}/evidence/{TC-ID}/**"
-  - "{run}/reports/metrics/coverage.json"
+  - "{run}/reports/unit-coverage.json"
   - "sandbox/{date}-{slug}/**"
 emits:
   - {event: test.passed, via: append}

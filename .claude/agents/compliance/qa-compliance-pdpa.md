@@ -73,7 +73,7 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/pdpa.{md,json}` — gap report
+- `runs/{runId}/reports/compliance/pdpa.{md,json}` — gap report. `runs/{runId}/reports/compliance/pdpa.json` is `{ "regulation": "pdpa", "sectionsCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `PDPA-Sec{N}` tags on TCs and defects (e.g., `PDPA-Sec24`)
 
 ## Quality Standards
@@ -96,7 +96,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-pdpa
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, sectionsCovered, gaps[], highSeverityGapCount
+- `compliance.review-complete` — `{regulation, sectionsCovered, gaps, highSeverityGapCount}`
 
 ## Contract (machine-checked)
 

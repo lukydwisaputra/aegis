@@ -79,11 +79,12 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-security-specia
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC
-- `security.finding-critical` — for any Critical severity finding; immediate escalation
-- `secret.leak-detected` — for any Gitleaks hit; immediate Sev1
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
-- `execution.blocked` — when the environment is production or `readOnly`; the task is then released `failed`, which escalates to the owner
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `security.finding-critical` — for any Critical severity finding; immediate escalation: `{tool, cwe?, summary}`
+- `secret.leak-detected` — for any Gitleaks hit; immediate Sev1: `{path, rule, severity}` (`severity` is `{"code": "Sev1", "name": "Blocker"}`)
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
+- `execution.blocked` — `{reason}`, when the environment is production or `readOnly`; the task is then released `failed`, which escalates to the owner
 
 ## Contract (machine-checked)
 

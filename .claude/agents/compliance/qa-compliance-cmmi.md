@@ -52,7 +52,7 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 
 ## Outputs
 
-- `runs/{runId}/reports/compliance/cmmi.{md,json}` — gap report
+- `runs/{runId}/reports/compliance/cmmi.{md,json}` — gap report. `runs/{runId}/reports/compliance/cmmi.json` is `{ "regulation": "cmmi", "practicesCovered": [<covered tags>], "gaps": [<one object per Partially or Not Implemented practice>], "maturityIndicator": "<highest fully achieved level, e.g. ML2>" }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `CMMI-{ProcessArea}-{Practice}` tags on relevant artefacts
 
 ## Quality Standards
@@ -74,7 +74,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-compliance-cmmi
 
 ## Events You Emit
 
-- `compliance.review-complete` — includes regulation, practicesCovered, gaps[], maturityIndicator
+- `compliance.review-complete` — `{regulation, practicesCovered, gaps, maturityIndicator}`
 
 ## Contract (machine-checked)
 

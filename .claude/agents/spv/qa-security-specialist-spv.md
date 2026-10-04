@@ -51,7 +51,7 @@ Prefix every command with your name: `AEGIS_AGENT=<your-name> pnpm aegis`, for e
 ## Events You Emit
 
 - `review.passed` / `review.passed-with-notes` / `review.requested-changes` — recorded by `aegis review submit`
-- `secret.leak-detected` — recorded with `aegis event append` when evidence holds an unredacted secret
+- `secret.leak-detected` — recorded with `aegis event append` when evidence holds an unredacted secret: `{path, rule, severity}`
 
 ## Contract (machine-checked)
 

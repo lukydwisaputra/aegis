@@ -62,7 +62,7 @@ proposeLesson(agent, candidate):
 
 ## Pruning (end of every cycle)
 
-Called by `qa-metrics-collector` at cycle close:
+Proposed by `qa-curator` in the Curator phase at cycle close (`qa-metrics-collector` only writes the metric rollups and prunes nothing):
 - Entries with no hitCount increment in last 10 runs → archived
 - Entries older than 90 days with hitCount === 1 → archived
 - Entries with hitCount ≥ 5 → protected from age-based pruning

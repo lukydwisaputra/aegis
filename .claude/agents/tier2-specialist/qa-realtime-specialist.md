@@ -69,10 +69,11 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-realtime-specia
 
 ## Events You Emit
 
-- `test.passed` / `test.failed` — per TC
-- `specialist.no-op` — when `target-profile.json#hasRealtimeFeatures` is false
+- `test.passed` — per passing TC: `{testCaseId, specialist}`
+- `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `specialist.no-op` — `{ specialist, reason }`, when `target-profile.json#hasRealtimeFeatures` is false
 - `execution.blocked` — `{ reason }`, when the profile is missing, unreadable or has no boolean `hasRealtimeFeatures`; followed by the work report and a `failed` release
-- `sandbox.explored` — one per spec; carries `artifactPath` (sandbox scratch) and `targetSpecRef` (committed spec)
+- `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
 ## Contract (machine-checked)
 

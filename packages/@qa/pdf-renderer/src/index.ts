@@ -126,16 +126,17 @@ export interface TechnicalReportSpec {
   projectName: string;
   generatedAt: string;
   scope: string;
+  /** null = the input was absent; the report prints "not available", never 0. */
   metrics: {
-    totalTests: number;
-    passed: number;
-    failed: number;
-    blocked: number;
-    skipped: number;
-    passRate: number;
-    coveragePercent: number;
-    openDefects: number;
-    closedDefects: number;
+    totalTests: number | null;
+    passed: number | null;
+    failed: number | null;
+    blocked: number | null;
+    skipped: number | null;
+    passRate: number | null;
+    coveragePercent: number | null;
+    openDefects: number | null;
+    closedDefects: number | null;
   };
   defects: Array<{
     id: string;
@@ -143,8 +144,10 @@ export interface TechnicalReportSpec {
     severity: string;
     status: string;
   }>;
-  compliance: Record<string, { covered: number; gapped: number }>;
-  tokenCostUsd: number;
+  compliance: Record<string, { covered: number | null; gapped: number | null }>;
+  tokenCostUsd: number | null;
+  /** Total cycle wall-clock in milliseconds; null when no cycle-time data exists. */
+  cycleTimeMs?: number | null;
   /** Optional evidence index — base64-encoded PNG data URIs keyed by defect ID */
   evidenceScreenshots?: Array<{
     defectId: string;
@@ -165,6 +168,8 @@ export interface SignoffSpec {
   scope: string;
   verdict: "GO" | "NO-GO" | "CONDITIONAL";
   exitCriteria: Array<{ criterion: string; met: boolean }>;
+  /** The line printed when exitCriteria is empty; defaults to "Exit criteria: not available". */
+  exitCriteriaNote?: string;
   openDefectsSummary: string;
   residualRisk: string;
   signatoryRoles: string[]; // e.g. ["QA Lead", "Engineering Lead", "Product Owner"]
@@ -247,6 +252,12 @@ const baseStyles = StyleSheet.create({
   checkmark: {
     width: 16,
     fontSize: 10,
+    marginRight: 6,
+  },
+  exitStatus: {
+    width: 44,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
     marginRight: 6,
   },
   verdictGo: {
@@ -379,7 +390,7 @@ function SlideDeckDocument({ spec }: { spec: SlideSpec }) {
         React.createElement(
           View,
           { key: `risk-${i}`, style: { ...baseStyles.row, marginBottom: 8 } },
-          React.createElement(Text, { style: baseStyles.checkmark }, "▸"),
+          React.createElement(Text, { style: baseStyles.checkmark }, "-"),
           React.createElement(Text, { style: baseStyles.body }, risk.plain)
         )
       )
@@ -388,6 +399,18 @@ function SlideDeckDocument({ spec }: { spec: SlideSpec }) {
 }
 
 // ─── Technical report component ───────────────────────────────────────────────
+
+/** What the report prints for an absent input: an absent figure is never shown as 0. */
+export const NOT_AVAILABLE = "not available";
+const formatCount = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : String(v));
+const formatPercent = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : `${v.toFixed(1)}%`);
+function formatDuration(ms: number | null | undefined): string {
+  if (ms == null) return NOT_AVAILABLE;
+  const totalMinutes = Math.round(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
+}
 
 function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
   return React.createElement(
@@ -429,7 +452,12 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         React.createElement(
           Text,
           { style: baseStyles.body },
-          `Token Cost: $${spec.tokenCostUsd.toFixed(4)}`
+          `Token Cost: ${spec.tokenCostUsd == null ? NOT_AVAILABLE : `$${spec.tokenCostUsd.toFixed(4)}`}`
+        ),
+        React.createElement(
+          Text,
+          { style: baseStyles.body },
+          `Cycle Time: ${formatDuration(spec.cycleTimeMs)}`
         )
       )
     ),
@@ -447,15 +475,15 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         React.createElement(Text, { style: baseStyles.cellBold }, "Value")
       ),
       ...[
-        ["Total Tests", spec.metrics.totalTests],
-        ["Passed", spec.metrics.passed],
-        ["Failed", spec.metrics.failed],
-        ["Blocked", spec.metrics.blocked],
-        ["Skipped", spec.metrics.skipped],
-        ["Pass Rate", `${spec.metrics.passRate.toFixed(1)}%`],
-        ["Coverage", `${spec.metrics.coveragePercent.toFixed(1)}%`],
-        ["Open Defects", spec.metrics.openDefects],
-        ["Closed Defects", spec.metrics.closedDefects],
+        ["Total Tests", formatCount(spec.metrics.totalTests)],
+        ["Passed", formatCount(spec.metrics.passed)],
+        ["Failed", formatCount(spec.metrics.failed)],
+        ["Blocked", formatCount(spec.metrics.blocked)],
+        ["Skipped", formatCount(spec.metrics.skipped)],
+        ["Pass Rate", formatPercent(spec.metrics.passRate)],
+        ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
+        ["Open Defects", formatCount(spec.metrics.openDefects)],
+        ["Closed Defects", formatCount(spec.metrics.closedDefects)],
       ].map(([label, value], i) =>
         React.createElement(
           View,
@@ -484,6 +512,9 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         React.createElement(Text, { style: baseStyles.cellBold }, "Covered"),
         React.createElement(Text, { style: baseStyles.cellBold }, "Gaps")
       ),
+      ...(Object.keys(spec.compliance).length === 0
+        ? [React.createElement(Text, { key: "compliance-none", style: baseStyles.body }, `Compliance reports: ${NOT_AVAILABLE}`)]
+        : []),
       ...Object.entries(spec.compliance).map(([standard, counts], i) =>
         React.createElement(
           View,
@@ -499,12 +530,12 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
           React.createElement(
             Text,
             { style: baseStyles.cell },
-            String(counts.covered)
+            formatCount(counts.covered)
           ),
           React.createElement(
             Text,
             { style: baseStyles.cell },
-            String(counts.gapped)
+            formatCount(counts.gapped)
           )
         )
       )
@@ -682,14 +713,24 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
         "Exit Criteria"
       ),
       React.createElement(View, { style: baseStyles.divider }),
+      ...(spec.exitCriteria.length === 0
+        ? [
+            React.createElement(
+              Text,
+              { key: "exit-none", style: baseStyles.body },
+              spec.exitCriteriaNote ?? `Exit criteria: ${NOT_AVAILABLE}`
+            ),
+          ]
+        : []),
       ...spec.exitCriteria.map((criterion, i) =>
         React.createElement(
           View,
           { key: `exit-${i}`, style: { ...baseStyles.row, marginBottom: 6 } },
           React.createElement(
             Text,
-            { style: { ...baseStyles.checkmark, color: criterion.met ? "#1e8449" : "#c0392b" } },
-            criterion.met ? "✓" : "✗"
+            // Words, not check-mark glyphs: the standard Helvetica font is WinAnsi-encoded and has none.
+            { style: { ...baseStyles.exitStatus, color: criterion.met ? "#1e8449" : "#c0392b" } },
+            criterion.met ? "Met" : "Not met"
           ),
           React.createElement(
             Text,

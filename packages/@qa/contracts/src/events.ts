@@ -950,7 +950,8 @@ export const BrandLeakDetectedEventSchema = EventBase.extend({
 export const ClosureReportDraftedEventSchema = EventBase.extend({
   type: z.literal("closure.report-drafted"),
   runId: RunIdSchema,
-  coveragePercent: z.number().min(0).max(100),
+  // closure.json#metrics.requirementsCoverage; null when coverage is unavailable (fix round 2, I4).
+  coveragePercent: z.number().min(0).max(100).nullable(),
   openDefectCount: z.record(z.string(), z.number().int().nonnegative()),
 });
 
@@ -960,12 +961,20 @@ export const ComplianceGapFlaggedEventSchema = EventBase.extend({
   missingTag: z.string(),
 });
 
+// Each compliance agent names its covered list after its regulation's unit: characteristics (ISO 25010,
+// ISO 5055), sections (ISTQB, PDPA), practices (CMMI) or articles (GDPR). Exactly one is present (AegisEventSchema).
+export const COMPLIANCE_COVERED_KEYS = ["characteristicsCovered", "sectionsCovered", "practicesCovered", "articlesCovered"] as const;
 export const ComplianceReviewCompleteEventSchema = EventBase.extend({
   type: z.literal("compliance.review-complete"),
   regulation: z.string(),
-  characteristicsCovered: z.array(z.string()),
+  characteristicsCovered: z.array(z.string()).optional(),
+  sectionsCovered: z.array(z.string()).optional(),
+  practicesCovered: z.array(z.string()).optional(),
+  articlesCovered: z.array(z.string()).optional(),
   gaps: z.array(z.string()).default([]),
-  highSeverityGapCount: z.number().int().nonnegative(),
+  // CMMI reports a maturity indicator instead of gap severities.
+  highSeverityGapCount: z.number().int().nonnegative().optional(),
+  maturityIndicator: z.string().optional(),
 });
 
 export const ReportFallbackEventSchema = EventBase.extend({
@@ -1886,6 +1895,13 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
 export const AegisEventSchema = AegisEventUnionSchema.superRefine((e, ctx) => {
   if (e.type === "tc.proposal" && e.storyId === undefined && e.acIds.length === 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["storyId"], message: "a tc.proposal names a storyId or at least one acId" });
+  }
+  if (e.type === "compliance.review-complete" && COMPLIANCE_COVERED_KEYS.filter((k) => e[k] !== undefined).length !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["characteristicsCovered"],
+      message: `a compliance.review-complete carries exactly one of ${COMPLIANCE_COVERED_KEYS.join(", ")}`,
+    });
   }
 });
 export type AegisEvent = z.infer<typeof AegisEventSchema>;

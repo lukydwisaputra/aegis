@@ -95,9 +95,9 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-planner pn
 
 ## Events You Emit
 
-- `test.plan-drafted` — includes planId, riskCount, specialistsProposed
-- `risk.flagged` — one per Critical (C) risk entry in the register
-- `planning.blocked` — reason and blockingRequirementIds of the BLOCKed requirements planned out of scope (the plan is still written)
+- `test.plan-drafted` — `{planId, riskCount, specialistsProposed}`
+- `risk.flagged` — one per Critical (C) risk entry in the register: `{riskId, ordinal, rationale}`
+- `planning.blocked` — reason and blockingRequirementIds of the BLOCKed requirements planned out of scope (the plan is still written): `{reason, blockingRequirementIds}`
 
 ## Concurrency
 
