@@ -23,7 +23,7 @@ flowchart TD
     end
 
     subgraph CrossCutting["Cross-Cutting (continuous)"]
-        MetricsCollector(["qa-metrics-collector<br/>tails events, writes reports/metrics/"])
+        MetricsCollector(["qa-metrics-collector<br/>before Closure-draft and Executive, writes reports/metrics/"])
         Curator(["qa-curator<br/>post Gate 3"])
     end
 
@@ -202,7 +202,7 @@ flowchart TD
 4. **Sandbox flow**: exploratory scratch → `sandbox/{date}-{slug}/`. At session end: covered observations → `reports/exploratory/`; suspected defects → `runs/{runId}/defect-candidates/` + `runs/{runId}/evidence/exploratory/`; then the specialist removes the sandbox.
 5. **Closure**: `qa-defect-manager` (triages scripted + EXP-type defects) → **Gate 2** → compliance (parallel) + `qa-closure-reporter` (reads `reports/metrics/`, writes `reports/closure/closure.{md,json}`) → **Gate 3** → `qa-executive-reporter` (PDFs in `reports/executive/`).
 6. **SPV loop**: every worker claims its task, submits a work report and releases the task through the CLI; its dispatcher (orchestrator for Tier-1, test-executor for Tier-2) dispatches the paired SPV, which submits its verdict with `aegis review submit`. The CLI appends a lesson on any non-pass verdict and escalates the third rejection.
-7. **Metrics**: `qa-metrics-collector` is dispatched at run start, tails `events.jsonl`, and writes intermediate rollups to `reports/metrics/` on every phase completion — so closure-reporter can read them with no finalize-wait.
+7. **Metrics**: the orchestrator dispatches `qa-metrics-collector` in the foreground immediately before Closure-draft and again before Executive. Each dispatch reads `events.jsonl` from the beginning and writes every rollup to `reports/metrics/`, so closure-reporter reads them with no wait; a file still missing is recorded in `closure.json#unavailableMetrics`.
 8. **Self-improvement**: `qa-curator` runs after Gate 3 and writes proposals to `pending-promotions/`.
 
 ## Regenerating the SVG

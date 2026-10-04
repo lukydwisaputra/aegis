@@ -66,7 +66,7 @@ PDFs are generated using a headless Chromium print pipeline. They respect the `d
 
 ### 9.4 Operational Rollups
 
-Rollups are per run. `qa-metrics-collector` writes them to `runs/<RUN-ID>/reports/metrics/` (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `agent-reliability.json` and others) as each phase completes, and `qa-closure-reporter` reads them into the closure report. No command aggregates a calendar week; to see the trend between two runs, diff them:
+Rollups are per run. `qa-metrics-collector` writes them to `runs/<RUN-ID>/reports/metrics/` (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `agent-reliability.json`, `flaky.json` and `token-usage.jsonl`) when the orchestrator dispatches it in the foreground, immediately before Closure-draft and again before Executive. Every dispatch writes every file (`flaky.json` is `[]` without retries), and `qa-closure-reporter` reads them into the closure report; a file still missing is listed in `closure.json#unavailableMetrics`, never waited for. No command aggregates a calendar week; to see the trend between two runs, diff them:
 ```bash
 /qa-compare RUN-20260516-001 RUN-20260523-001 --focus=defects,coverage
 ```
