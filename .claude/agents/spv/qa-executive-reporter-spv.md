@@ -18,9 +18,10 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 ## Inputs
 
 - `runs/{runId}/reports/work/qa-executive-reporter*.json` — the worker's work reports, one file per task and attempt
-- `runs/{runId}/reports/executive/technical-report.pdf` (or `.md` fallback / source data)
-- `runs/{runId}/reports/executive/signoff.pdf` (or `.md` fallback / source data)
-- `runs/{runId}/reports/executive/executive-deck.pdf` (or `.md` fallback / source data)
+- `runs/{runId}/reports/executive/technical-report.pdf`
+- `runs/{runId}/reports/executive/signoff.pdf`
+- `runs/{runId}/reports/executive/executive-deck.pdf`
+- `runs/{runId}/reports/executive/executive-deck.json` — the deck content the slides were rendered from (slide text to check)
 - Tone-check output log (if produced separately)
 - `agent-memory/qa-executive-reporter/lessons.md`
 
@@ -44,13 +45,13 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 
 9. **Brand-clean.** None of the 3 documents contain "Aegis", agent names, internal paths, or "events.jsonl". Run: `grep -i 'aegis\|qa-orchestrator\|qa-test-' <rendered-text>`. Match = requested-changes.
 10. **Evidence of tone-check run.** Work report must state that the `_qa-report-executive-slides` skill ran the tone-check pass. If absent = requested-changes.
-11. **Output location + format.** All three deliverables live under `runs/{runId}/reports/executive/` — never the `reports/` root. PDFs are expected; a `.md` deliverable is acceptable ONLY if the work report records a `report.fallback` event for that deliverable (skill failure). A `.md` deliverable with no `report.fallback` event, or any deliverable in the `reports/` root, = requested-changes.
+11. **Output location + format.** All three deliverables are rendered PDFs under `runs/{runId}/reports/executive/` — never the `reports/` root. A deliverable whose PDF failed to render is requested-changes, whether or not a `report.fallback` event records the failure: a `.md` (or any other file) in place of a PDF is not a deliverable. A deliverable in the `reports/` root = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — thin What/So-What/Now-What, pre-filled verdict, vague rewrite; emit CorrectiveInstruction
-- `requested-changes` — jargon without rewrite, brand leak, no signature block, slide 1 not punchline, deliverable in `reports/` root, `.md` fallback without a `report.fallback` event; block
+- `requested-changes` — jargon without rewrite, brand leak, no signature block, slide 1 not punchline, deliverable in `reports/` root, a PDF that failed to render or a `.md` in its place; block
 
 ## Submitting Your Verdict
 
@@ -74,6 +75,7 @@ reads:
   - "{run}/reports/executive/technical-report.pdf"
   - "{run}/reports/executive/signoff.pdf"
   - "{run}/reports/executive/executive-deck.pdf"
+  - "{run}/reports/executive/executive-deck.json"
   - "agent-memory/qa-executive-reporter/lessons.md"
 writes: []
 emits:

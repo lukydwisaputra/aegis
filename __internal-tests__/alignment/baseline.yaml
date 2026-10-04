@@ -88,15 +88,6 @@ entries:
   - key: "DOC-REF:.claude/agents/spv/qa-closure-reporter-spv.md:qa-executor:unknown"
     ids: [AUD-076]
     note: "qa-executor is not an agent, skill, package or allowlisted name"
-  - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-executive-slides:unknown"
-    ids: [AUD-060]
-    note: "qa-report-executive-slides is not an agent, skill, package or allowlisted name (skill is _qa-report-executive-slides)"
-  - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-signoff-pdf:unknown"
-    ids: [AUD-060]
-    note: "qa-report-signoff-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-signoff-pdf)"
-  - key: "DOC-REF:.claude/agents/tier1-phase/qa-executive-reporter.md:qa-report-technical-pdf:unknown"
-    ids: [AUD-060]
-    note: "qa-report-technical-pdf is not an agent, skill, package or allowlisted name (skill is _qa-report-technical-pdf)"
   - key: "DOC-REF:CLAUDE.md:qa-director:unknown"
     ids: [AUD-076]
     note: "qa-director is not an agent, skill, package or allowlisted name"
@@ -415,21 +406,6 @@ entries:
   - key: "SKILL:_qa-build-agents:config/model-policy.yaml:unresolved"
     ids: [AUD-061, AUD-057]
     note: "config/model-policy.yaml does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-executive-slides:{run}/reports/closure.json:unresolved"
-    ids: [AUD-060]
-    note: "{run}/reports/closure.json does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-signoff-pdf:{run}/reports/closure.json:unresolved"
-    ids: [AUD-060]
-    note: "{run}/reports/closure.json does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-technical-pdf:{run}/evidence/screenshots/**:unresolved"
-    ids: [AUD-060]
-    note: "{run}/evidence/screenshots/** does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-technical-pdf:{run}/reports/closure.json:unresolved"
-    ids: [AUD-060]
-    note: "{run}/reports/closure.json does not exist and nothing produces it"
-  - key: "SKILL:_qa-report-technical-pdf:{run}/reports/metrics/cycle.json:unresolved"
-    ids: [AUD-060]
-    note: "{run}/reports/metrics/cycle.json does not exist and nothing produces it"
   - key: "SKILL:qa-compare:{run}/execution/results.json:unresolved"
     ids: [AUD-056b]
     note: "{run}/execution/results.json does not exist and nothing produces it"

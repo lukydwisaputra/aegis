@@ -9,14 +9,14 @@ description: "Internal: render the comprehensive technical report PDF (Deliverab
 
 ## Purpose
 
-Renders `runs/{runId}/reports/technical-report.pdf` — the comprehensive technical document for engineers and auditors (Deliverable 1 of three from `qa-executive-reporter`).
+Renders `runs/{runId}/reports/executive/technical-report.pdf` — the comprehensive technical document for engineers and auditors (Deliverable 1 of three from `qa-executive-reporter`).
 
-The skill is a thin orchestrator. It reads the closure artefacts already produced by upstream phases, assembles a `TechnicalReportSpec`, and calls `renderTechnicalReport` from `@qa/pdf-renderer`. It does NOT compute metrics or synthesise findings — that work happens in `qa-closure-reporter` and `qa-defect-manager`.
+The skill is a thin orchestrator. It reads the closure artefacts already produced by upstream phases, assembles a `TechnicalReportSpec`, and calls `renderTechnicalReport` from the built PDF renderer. It does NOT compute metrics or synthesise findings — that work happens in `qa-closure-reporter`, `qa-metrics-collector` and `qa-defect-manager`.
 
 ## Usage
 
 ```
-/qa-report-technical-pdf --run=RUN-... [--out=runs/{runId}/reports/technical-report.pdf]
+/qa-report-technical-pdf --run=RUN-... [--out=reports/executive/technical-report.pdf]
 ```
 
 ## Key flags
@@ -24,40 +24,39 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--run` | required | Run ID whose artefacts to render |
-| `--out` | `runs/{run}/reports/technical-report.pdf` | Output path |
+| `--out` | `reports/executive/technical-report.pdf` | Output path; a relative path is relative to the run directory |
 
 ## Inputs (read from `runs/{run}/`)
 
-- `reports/closure.json` — pass/fail counts, coverage, open/closed defects, token cost
+- `reports/closure/closure.json` — from its `metrics` object: `passed`, `failed`, `blocked` (total = passed + failed + blocked), `passRate`, `requirementsCoverage`, and `skipped` when present; from its `defectMetrics` object: `confirmedOpen` and `totalLogged`; and `unavailableMetrics[]`
 - `defects/*.json` — full defect list (id, title, severity, status)
-- `rtm.json` — coverage % derived from this
-- `reports/compliance/*.json` — one gap report per relevant regulation (compliance section)
-- `plan.json` — scope and project name (project name also from `aegis.config.json#dashboard.projectName`)
-- `reports/metrics/cycle.json` — token cost in USD
-- `evidence/screenshots/` (optional) — base64-encoded PNG evidence for defects
+- `reports/compliance/*.json` — one gap report per relevant regulation (compliance section): `regulation`, `gaps[]`, and the regulation's covered list (`characteristicsCovered`, `articlesCovered`, `practicesCovered` or `sectionsCovered`)
+- `plan.json` — scope (project name comes from `aegis.config.json#dashboard.projectName`)
+- `reports/metrics/token-usage.jsonl` — token cost in USD: the sum of every row's `usdCost`
+- `reports/metrics/cycle-time.json` — cycle time: the total wall-clock, else the sum of the per-phase `durationMs`
 
 ## Output
 
-- `runs/{run}/reports/technical-report.pdf` — Class B (brand-clean) PDF, ~20–50 pages
+- `runs/{run}/reports/executive/technical-report.pdf` — Class B (brand-clean) PDF
 
 ## Behaviour
 
-1. Resolve `--run` to an absolute run directory; fail if `reports/closure.json` is missing.
-2. Load all input JSONs. Coalesce missing optional inputs to empty defaults (e.g. empty compliance map if compliance phase skipped).
-3. Read `aegis.config.json#dashboard.projectName` to populate the spec's `projectName`. Never write the literal "Aegis" or any internal agent name in the PDF — the renderer is Class B by contract.
+1. Resolve `--run` to an absolute run directory; fail (exit 3) if `reports/closure/closure.json` is missing.
+2. Load the inputs. An absent figure is printed as **"not available"**, never as 0: a missing file, a metric file the collector wrote as `{ "noData": true }`, a token log with no priced row, a metric named in `closure.json#unavailableMetrics`, and a key the closure report does not carry. No compliance report prints "Compliance reports: not available".
+3. Read `aegis.config.json#dashboard.projectName` to populate the spec's `projectName`. Never write the literal "Aegis" or any internal agent name in the PDF — the report data is checked against the stakeholder brand patterns of `@qa/contracts` before rendering, and a match fails the run (exit 4).
 4. Assemble a `TechnicalReportSpec` (see `packages/@qa/pdf-renderer/src/index.ts` for the type).
 5. Call `renderTechnicalReport(spec)` and write the returned buffer to `--out`.
-6. Verify the file is non-empty (>10 KB sanity check) before reporting success.
+6. Verify the file is a PDF (`%PDF-` header, over 1 KB) before reporting success.
 
 ## Implementation
 
-Invoked by the agent via `Bash` running the bundled `run.mjs`:
+Invoked by the agent via `Bash`:
 
 ```bash
-node aegis/.claude/skills/_qa-report-technical-pdf/run.mjs --run=$RUN_ID
+node .claude/skills/_qa-report-technical-pdf/run.mjs --run=$RUN_ID
 ```
 
-`run.mjs` imports `renderTechnicalReport` directly from the workspace's `@qa/pdf-renderer` package. No transpile step needed; the package builds to ESM.
+`run.mjs` loads `renderTechnicalReport` from `packages/@qa/pdf-renderer/dist/index.js` by a path relative to the skill file (`new URL('../../../packages/@qa/pdf-renderer/dist/index.js', import.meta.url)`); no package depends on `@qa/pdf-renderer`, so the bare specifier does not resolve. The renderer is `@react-pdf/renderer` (no browser). `pnpm build` builds it; without a build the script exits 6 and says so.
 
 ## Events emitted
 
@@ -67,9 +66,10 @@ node aegis/.claude/skills/_qa-report-technical-pdf/run.mjs --run=$RUN_ID
 
 ## Quality standards (qa-executive-reporter-spv rejects if violated)
 
-- Output file exists and is >10 KB
+- Output file exists under `reports/executive/` and is a PDF
 - No internal agent names ("qa-orchestrator", "qa-test-executor", etc.) anywhere in the rendered text
 - The literal word "Aegis" does not appear (brand-clean rule)
+- An absent figure reads "not available", never 0
 - One compliance section per report in `reports/compliance/`; omitted when the Compliance phase was not-applicable
 
 ## Example
@@ -78,7 +78,7 @@ node aegis/.claude/skills/_qa-report-technical-pdf/run.mjs --run=$RUN_ID
 /qa-report-technical-pdf --run=RUN-20260524-001
 ```
 
-Renders `runs/RUN-20260524-001/reports/technical-report.pdf` from that run's closure artefacts.
+Renders `runs/RUN-20260524-001/reports/executive/technical-report.pdf` from that run's closure artefacts.
 
 ## Contract (machine-checked)
 
@@ -89,18 +89,15 @@ kind: internal
 dispatchedBy: [qa-executive-reporter]
 reads:
   - "aegis.config.json"
-  - "{run}/reports/closure.json"
+  - "{run}/reports/closure/closure.json"
   - "{run}/defects/*.json"
-  - "{run}/rtm.json"
   - path: "{run}/reports/compliance/*.json"
     optional: true
   - "{run}/plan.json"
-  - "{run}/reports/metrics/cycle.json"
-  - path: "{run}/evidence/screenshots/**"
-    optional: true
+  - "{run}/reports/metrics/token-usage.jsonl"
+  - "{run}/reports/metrics/cycle-time.json"
 writes:
-  - path: "{run}/reports/technical-report.pdf"
-    terminal: true
+  - "{run}/reports/executive/technical-report.pdf"
 emits:
   - {event: report.technical.started, via: append}
   - {event: report.technical.completed, via: append}

@@ -9,14 +9,14 @@ description: "Internal: render the Minto Pyramid executive deck PDF (Deliverable
 
 ## Purpose
 
-Renders `runs/{runId}/reports/executive-deck.pdf` — the 5–7 slide Minto Pyramid stakeholder deck (Deliverable 3 of three from `qa-executive-reporter`).
+Renders `runs/{runId}/reports/executive/executive-deck.pdf` — the 5–7 slide Minto Pyramid stakeholder deck (Deliverable 3 of three from `qa-executive-reporter`).
 
 This skill is distinct from the other two in one important way: **it enforces a tone-check pass** before rendering. Technical jargon present anywhere in the supplied content (slide 1 key finding, supporting insights, recommendations, residual risks) is automatically rewritten to plain English using the `JARGON_RULES` table in `@qa/pdf-renderer`. The skill fails closed if more than `--max-jargon-survivors` (default: 0) jargon terms remain after rewriting — i.e., terms the rule table cannot translate.
 
 ## Usage
 
 ```
-/qa-report-executive-slides --run=RUN-... [--out=runs/{run}/reports/executive-deck.pdf] [--max-jargon-survivors=0]
+/qa-report-executive-slides --run=RUN-... [--deck=reports/executive/executive-deck.json] [--out=reports/executive/executive-deck.pdf] [--max-jargon-survivors=0]
 ```
 
 ## Key flags
@@ -24,41 +24,43 @@ This skill is distinct from the other two in one important way: **it enforces a 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--run` | required | Run ID whose artefacts to render |
-| `--out` | `runs/{run}/reports/executive-deck.pdf` | Output path |
+| `--deck` | `reports/executive/executive-deck.json` | The deck content; a relative path is relative to the run directory |
+| `--out` | `reports/executive/executive-deck.pdf` | Output path; a relative path is relative to the run directory |
 | `--max-jargon-survivors` | `0` | Fail if more than N jargon terms remain after rewrite |
 
-## Inputs (read from `runs/{run}/`)
+## Inputs
 
-- `reports/closure.json` — supplies `keyFinding`, `recommendations`, `residualRisks` content (the agent populates these into the closure JSON before invoking this skill)
-- `gates/gate-3-decision.json` — verdict (informs slide 1 framing but the deck never states a GO/NO-GO verdict itself)
-- `plan.json` — project name fallback
+- `runs/{run}/reports/executive/executive-deck.json` — the deck content `qa-executive-reporter` writes at its Process step 4, before invoking this skill
+- `aegis.config.json#dashboard.projectName` — the deck title when the deck file has no `title`
 
 ## Output
 
-- `runs/{run}/reports/executive-deck.pdf` — Class B (brand-clean) PDF, 5–7 slides
+- `runs/{run}/reports/executive/executive-deck.pdf` — Class B (brand-clean) PDF, 5–7 slides
 
 ## Behaviour
 
-1. Resolve `--run` and load `reports/closure.json`. The closure report must contain an `executiveDeck` block authored by `qa-executive-reporter` with:
+1. Resolve `--run` and load `reports/executive/executive-deck.json` (exit 3 if it is missing). The deck file carries:
+   - `title?: string` — optional deck title
    - `keyFinding: string` — slide 1 punchline
-   - `supportingInsights: Array<{ what, soWhat, nowWhat }>` — Minto-pyramid middle layer
-   - `recommendations: Array<{ action, owner, deadline, impact }>`
+   - `supportingInsights: Array<{ what, soWhat, nowWhat }>` — Minto-pyramid middle layer, 2–4 items
+   - `recommendations: Array<{ action, owner, deadline, impact }>` — impact `HIGH`, `MEDIUM` or `LOW`
    - `residualRisks: Array<{ plain }>`
-2. Run `applyJargonRewrites()` over every string field in the spec, in place.
-3. Run `detectJargon()` over the rewritten content. If any survivors remain (terms whose pattern matched but whose rewrite is itself in `JARGON_RULES`), fail with exit code 3 and report the surviving terms.
+2. Run `applyJargonRewrites()` over every string field in a copy of the deck content.
+3. Run `detectJargon()` over the rewritten content. If more survivors remain than `--max-jargon-survivors`, fail with exit code 5 and report the surviving terms.
 4. Assemble the `SlideSpec` (see `packages/@qa/pdf-renderer/src/index.ts`).
-5. Enforce slide count: 1 (key finding) + N supporting insights + 1 recommendations + 1 residual risks ≤ 7. Reject if the supplied content would overflow.
-6. Call `renderSlideDeck(spec)` and write to `--out`.
+5. Enforce slide count: 1 (key finding) + N supporting insights + 1 recommendations + 1 residual risks = 5–7. Reject (exit 6) content outside that range.
+6. Check the deck content against the stakeholder brand patterns of `@qa/contracts`; a match fails the run (exit 7).
+7. Call `renderSlideDeck(spec)` and write to `--out`, then verify the file is a PDF (`%PDF-` header, over 1 KB).
 
 ## Implementation
 
 Invoked by the agent via `Bash`:
 
 ```bash
-node aegis/.claude/skills/_qa-report-executive-slides/run.mjs --run=$RUN_ID
+node .claude/skills/_qa-report-executive-slides/run.mjs --run=$RUN_ID
 ```
 
-`run.mjs` imports `renderSlideDeck`, `applyJargonRewrites`, and `detectJargon` from `@qa/pdf-renderer`.
+`run.mjs` loads `renderSlideDeck`, `applyJargonRewrites`, and `detectJargon` from `packages/@qa/pdf-renderer/dist/index.js` by a path relative to the skill file (`new URL('../../../packages/@qa/pdf-renderer/dist/index.js', import.meta.url)`); no package depends on `@qa/pdf-renderer`, so the bare specifier does not resolve. `pnpm build` builds it; without a build the script exits 9 and says so.
 
 ## Events emitted
 
@@ -69,8 +71,8 @@ node aegis/.claude/skills/_qa-report-executive-slides/run.mjs --run=$RUN_ID
 
 ## Quality standards (qa-executive-reporter-spv rejects if violated)
 
-- Output exists, >5 KB
-- Slide count ≤ 7
+- Output exists under `reports/executive/` and is a PDF
+- Slide count 5–7
 - Slide 1 contains the KEY FINDING punchline (Minto pyramid top)
 - No jargon survivors above `--max-jargon-survivors` threshold
 - No GO/NO-GO verdict on any slide (that lives on the sign-off PDF only)
@@ -92,12 +94,10 @@ contract: 1
 kind: internal
 dispatchedBy: [qa-executive-reporter]
 reads:
-  - "{run}/reports/closure.json"
-  - "{run}/gates/gate-3-decision.json"
-  - "{run}/plan.json"
+  - "aegis.config.json"
+  - "{run}/reports/executive/executive-deck.json"
 writes:
-  - path: "{run}/reports/executive-deck.pdf"
-    terminal: true
+  - "{run}/reports/executive/executive-deck.pdf"
 emits:
   - {event: report.slides.started, via: append}
   - {event: report.slides.tone-check.applied, via: append}
@@ -108,5 +108,6 @@ cli: []
 runs:
   - node
 dispatches: []
-config: []
+config:
+  - aegis.config.json#dashboard.projectName
 ```

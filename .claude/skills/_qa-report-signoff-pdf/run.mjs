@@ -2,19 +2,24 @@
 // qa-report-signoff-pdf — render the sign-off attestation PDF for a run.
 //
 // Invoked by qa-executive-reporter via Bash:
-//   node aegis/.claude/skills/_qa-report-signoff-pdf/run.mjs --run=RUN-...
+//   node .claude/skills/_qa-report-signoff-pdf/run.mjs --run=RUN-...
 //
 // Reads the run's Gate 3 decision and closure data; writes
-// runs/{run}/reports/signoff.pdf.
+// runs/{run}/reports/executive/signoff.pdf.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderSignoffDocument } from "@qa/pdf-renderer";
+// The renderer and the brand check load from this repo's built packages, by a path relative to this
+// file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
+const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
+const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const AEGIS_ROOT = resolve(__dirname, "..", "..", "..");
+const REPO = resolve(__dirname, "..", "..", "..");
+// Test seam only: the agent never sets AEGIS_ROOT.
+const AEGIS_ROOT = process.env.AEGIS_ROOT ? resolve(process.env.AEGIS_ROOT) : REPO;
 
 // ─── arg parsing ──────────────────────────────────────────────────────────────
 
@@ -40,9 +45,9 @@ if (!existsSync(runDir)) {
   process.exit(2);
 }
 
-const out = args.out
-  ? resolve(args.out)
-  : join(runDir, "reports", "signoff.pdf");
+// A relative --out is relative to the run directory.
+const outArg = args.out ?? "reports/executive/signoff.pdf";
+const out = isAbsolute(outArg) ? outArg : resolve(runDir, outArg);
 
 // ─── input loading ────────────────────────────────────────────────────────────
 
@@ -67,7 +72,7 @@ if (!gate3) {
   process.exit(3);
 }
 
-const closure = readJson(join(runDir, "reports", "closure.json")) ?? {};
+const closure = readJson(join(runDir, "reports", "closure", "closure.json")) ?? {};
 const riskRegister = readJson(join(runDir, "risk-register.json")) ?? {};
 const plan = readJson(join(runDir, "plan.json")) ?? {};
 const defects = readJsonGlob(join(runDir, "defects"));
@@ -116,8 +121,9 @@ const openDefectsSummary =
           .at(0) ?? "unknown"
       }`;
 
-const residualRisk =
-  typeof riskRegister.residualSummary === "string"
+const residualRisk = !existsSync(join(runDir, "risk-register.json"))
+  ? "Residual risk: not available (no risk register in this run)"
+  : typeof riskRegister.residualSummary === "string"
     ? riskRegister.residualSummary
     : Array.isArray(riskRegister.residual)
       ? `${riskRegister.residual.length} residual risks accepted by the product owner`
@@ -147,15 +153,26 @@ const spec = {
   signatoryRoles,
 };
 
+// ─── load the built packages ──────────────────────────────────────────────────
+
+async function load(url, what) {
+  try {
+    return await import(url.href);
+  } catch (err) {
+    console.error(`ERROR: cannot load ${what} from ${fileURLToPath(url)} — run pnpm build (${err.message})`);
+    process.exit(7);
+  }
+}
+
+const { renderSignoffDocument } = await load(RENDERER, "the PDF renderer");
+const { checkBrandExposure } = await load(CONTRACTS, "the brand check");
+
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 
-const FORBIDDEN_STRINGS = ["Aegis", "qa-orchestrator", "qa-test-executor", "qa-defect-manager"];
-const specJson = JSON.stringify(spec);
-for (const forbidden of FORBIDDEN_STRINGS) {
-  if (specJson.includes(forbidden)) {
-    console.error(`ERROR: brand-clean violation — spec contains forbidden string "${forbidden}"`);
-    process.exit(5);
-  }
+const leak = checkBrandExposure(JSON.stringify(spec));
+if (leak) {
+  console.error(`ERROR: brand-clean violation — the sign-off data matches ${leak}`);
+  process.exit(5);
 }
 
 // ─── render ───────────────────────────────────────────────────────────────────
@@ -167,8 +184,8 @@ if (!existsSync(dirname(out))) mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, buffer);
 
 const stats = statSync(out);
-if (stats.size < 5 * 1024) {
-  console.error(`ERROR: rendered PDF suspiciously small (${stats.size} bytes < 5 KB)`);
+if (stats.size < 1024 || buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+  console.error(`ERROR: rendered file is not a PDF (${stats.size} bytes)`);
   process.exit(6);
 }
 

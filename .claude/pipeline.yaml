@@ -117,11 +117,7 @@ hookEmits:
   - {hook: require-work-report, event: token.used}
 # Every escape hatch a contract uses, with its reason (ESCAPE rule). A new entry needs the baseline-growth label.
 escapes:
-  - {unit: _qa-report-executive-slides, field: terminal, value: "{run}/reports/executive-deck.pdf", reason: "SKILL.md:12 renders the final stakeholder deck"}
-  - {unit: _qa-report-signoff-pdf, field: terminal, value: "{run}/reports/signoff.pdf", reason: "SKILL.md:12 renders the final sign-off attestation"}
-  - {unit: _qa-report-technical-pdf, field: optional, value: "{run}/reports/compliance/*.json", reason: "SKILL.md:46 missing optional inputs coalesce to empty defaults (compliance phase skipped)"}
-  - {unit: _qa-report-technical-pdf, field: optional, value: "{run}/evidence/screenshots/**", reason: "SKILL.md:37 evidence/screenshots/ (optional)"}
-  - {unit: _qa-report-technical-pdf, field: terminal, value: "{run}/reports/technical-report.pdf", reason: "SKILL.md:12 renders the final technical report"}
+  - {unit: _qa-report-technical-pdf, field: optional, value: "{run}/reports/compliance/*.json", reason: "SKILL.md:45 no compliance report (compliance phase skipped) prints Compliance reports: not available"}
   - {unit: qa-accessibility-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-api-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-closure-reporter, field: optional, value: "{run}/reports/compliance/*.json", reason: "qa-closure-reporter.md:35 per-regulation findings (if compliance phase ran)"}
@@ -147,8 +143,6 @@ escapes:
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.pdf", reason: "qa-executive-reporter.md:40 Deliverable 1, final human-facing PDF"}
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/signoff.pdf", reason: "qa-executive-reporter.md:41 Deliverable 2, final human-facing PDF"}
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/executive-deck.pdf", reason: "qa-executive-reporter.md:42 Deliverable 3, final human-facing PDF"}
-  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/executive-slides.pdf", reason: "qa-executive-reporter.md:89 Deliverable 3 slide deck, final human-facing PDF"}
-  - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.md", reason: "qa-executive-reporter.md:142 .md fallback when the skill fails, for human readers"}
   - {unit: qa-executive-reporter-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-exploratory-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-export, field: optional, value: "config/integrations.yaml", reason: "SKILL.md:25 tracker credentials from environment variables or config/integrations.yaml"}
