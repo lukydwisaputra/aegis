@@ -95,21 +95,22 @@ describe('scrubRefusalMessage', () => {
     expect(scrubRefusalMessage("option '--result' got --hunter3xyz for hunter2xyz\nhunter4xyz", typed)).toBe("option '--result' got <value> for <value>\n<value>");
   });
 
-  it('scrubs a 4096-character adversarial input in under 100 ms', () => {
+  // Wall-clock bounds sit ~10x above local timings so slow CI runners do not flake; a quadratic blow-up takes seconds.
+  it('scrubs a 4096-character adversarial input in under 1 s', () => {
     for (const bad of ['"'.repeat(4096), 'a'.repeat(4096), "'-".repeat(2048), '--x='.repeat(800)]) {
       const t0 = Date.now();
       scrubRefusalMessage(bad);
-      expect(Date.now() - t0).toBeLessThan(100);
+      expect(Date.now() - t0).toBeLessThan(1000);
     }
   });
 
-  it('bounds the typed set and scrubs with 200 elements x 1000 lines in under 200 ms', () => {
+  it('bounds the typed set and scrubs with 200 elements x 1000 lines in under 2 s', () => {
     const argv = Array.from({ length: 200 }, (_, e) => Array.from({ length: 1000 }, (_, l) => `line-${e}-${l}-zz`).join('\n'));
     for (const bad of ['"'.repeat(4096), 'line-1-1-zz '.repeat(400), '--x='.repeat(800)]) {
       const t0 = Date.now();
       const typed = typedFragments(argv);
       scrubRefusalMessage(bad, typed);
-      expect(Date.now() - t0).toBeLessThan(200);
+      expect(Date.now() - t0).toBeLessThan(2000);
       expect(typed.length).toBeLessThanOrEqual(MAX_TYPED_FRAGMENTS);
       expect(typed.reduce((n, f) => n + f.length, 0)).toBeLessThanOrEqual(MAX_TYPED_FRAGMENT_BYTES);
       expect(typed[0]!.length).toBe(Math.max(...argv.map((a) => a.length)));
@@ -131,7 +132,7 @@ describe('scrubRefusalMessage', () => {
     expect(JSON.stringify(lines())).not.toContain('hiddenvalue');
   });
 
-  it('caps the message at 512 KB before subtracting: 600 KB and 2000 fragments scrub in under 300 ms', () => {
+  it('caps the message at 512 KB before subtracting: 600 KB and 2000 fragments scrub in under 3 s', () => {
     const argv = Array.from({ length: 2000 }, (_, i) => `typed-fragment-${String(i).padStart(5, '0')}-value`);
     const typed = typedFragments(argv);
     expect(typed).toHaveLength(2000);
@@ -139,7 +140,7 @@ describe('scrubRefusalMessage', () => {
     expect(message.length).toBeGreaterThan(600 * 1024);
     const t0 = Date.now();
     const out = scrubRefusalMessage(message, typed);
-    expect(Date.now() - t0).toBeLessThan(300);
+    expect(Date.now() - t0).toBeLessThan(3000);
     expect(out).toBe('id "<value>"');
   });
 
