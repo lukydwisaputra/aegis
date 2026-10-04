@@ -22,6 +22,7 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 - `runs/{runId}/reports/executive/signoff.pdf`
 - `runs/{runId}/reports/executive/executive-deck.pdf`
 - `runs/{runId}/reports/executive/executive-deck.json` — the deck content the slides were rendered from (slide text to check)
+- `runs/{runId}/gates/gate-3-decision.json` — the owner's Gate 3 decision the sign-off verdict must equal (check 8)
 - Tone-check output log (if produced separately)
 - `agent-memory/qa-executive-reporter/lessons.md`
 
@@ -39,7 +40,7 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 ### Sign-off Document
 
 7. **Signature block present.** Document includes named roles: QA Lead, Engineering Lead, Product Owner, and the Security Officer when a defect id ends in `-SEC` or a defect's `compliance` holds a `CWE-` or `WSTG-` tag. Missing signature block = requested-changes.
-8. **GO/NO-GO field present.** Sign-off has a `Quality verdict: GO / NO-GO / CONDITIONAL` field (to be filled in by signers, not pre-filled by the reporter). Pre-filled GO/NO-GO = passed-with-notes.
+8. **Verdict equals the Gate 3 decision.** The sign-off prints the owner's Gate 3 decision from `gates/gate-3-decision.json#decision`, mapped as the sign-off script maps it: `approved` → `GO`, `approved-with-conditions` → `CONDITIONAL`, `rejected` → `NO-GO`. The pre-filled verdict is expected, not a note: it records the owner's decision, not the reporter's. A missing verdict, or a verdict that differs from the mapped decision = requested-changes.
 
 ### All 3 Documents
 
@@ -50,8 +51,8 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 ## Verdict
 
 - `passed` — all checks pass
-- `passed-with-notes` — thin What/So-What/Now-What, pre-filled verdict, vague rewrite; emit CorrectiveInstruction
-- `requested-changes` — jargon without rewrite, brand leak, no signature block, slide 1 not punchline, deliverable in `reports/` root, a PDF that failed to render or a `.md` in its place; block
+- `passed-with-notes` — thin What/So-What/Now-What, vague rewrite; emit CorrectiveInstruction
+- `requested-changes` — jargon without rewrite, brand leak, no signature block, a sign-off verdict that differs from the mapped Gate 3 decision, slide 1 not punchline, deliverable in `reports/` root, a PDF that failed to render or a `.md` in its place; block
 
 ## Submitting Your Verdict
 
@@ -76,6 +77,7 @@ reads:
   - "{run}/reports/executive/signoff.pdf"
   - "{run}/reports/executive/executive-deck.pdf"
   - "{run}/reports/executive/executive-deck.json"
+  - "{run}/gates/gate-3-decision.json"
   - "agent-memory/qa-executive-reporter/lessons.md"
 writes: []
 emits:
