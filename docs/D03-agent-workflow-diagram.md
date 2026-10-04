@@ -98,8 +98,8 @@ flowchart TD
     end
 
     %% Orchestrator start + metrics
-    Orchestrator -->|dispatch at run start| MetricsCollector
-    MetricsCollector -->|writes intermediate rollups| MetricsFiles
+    Orchestrator -->|dispatch before Closure-draft and Executive| MetricsCollector
+    MetricsCollector -->|writes every rollup| MetricsFiles
 
     %% Discovery (two-event barrier)
     Orchestrator -->|1. Discovery| Scanner

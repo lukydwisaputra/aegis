@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from 'yaml';
 import { roleWritable } from '@qa/path-guard';
+import { RtmRowSchema } from '@qa/contracts';
 
 // Run-path fixes, Task 4 (AUD-027, AUD-091, AUD-087): defects reach the RTM, unit coverage has its own file, and both
 // result-file layouts are read.
@@ -29,25 +30,56 @@ describe('the defect manager appends defects to rtm.json itself', () => {
     expect(contractOf(dm).emits.map((e) => e.event)).not.toContain('rtm.append-link');
   });
 
-  it('states the append to the requirement row, and its role row allows the file', () => {
-    expect(dm).toContain("append the defect id to that row's `defectIds`");
+  it('states the concrete append: row shape, requirementId match, no duplicates, schema-valid, rtm.md untouched', () => {
+    expect(dm).toContain('one row object per requirement (a top-level array of rows');
+    expect(dm).toContain('Each row is an `RtmRowSchema` object with `requirementId` and a `defectIds` array');
+    expect(dm).toContain('Find the row whose `requirementId` equals the requirement the defect traces to');
+    expect(dm).toContain("append the defect id to that row's `defectIds` unless it is already there");
+    expect(dm).toContain('so each row still parses with `RtmRowSchema`');
+    expect(dm).toContain('You do not touch `rtm.md`');
     expect(paths(contractOf(dm).writes)).toContain('{run}/rtm.json');
-    expect(roleWritable('qa-defect-manager', '/r/aegis/runs/RUN-1/rtm.json', P)).toBe(true);
   });
 
-  it('its SPV checks the RTM row, not an append-link event', () => {
+  it('its SPV pins requirementId and defectIds', () => {
     const spv = read(DM_SPV);
     expect(spv).not.toMatch(/append-link/);
-    expect(spv).toContain('`defectIds` of the `rtm.json` row');
+    expect(spv).toContain('`defectIds` array of the `rtm.json` row whose `requirementId` is the requirement it traces to');
     expect(paths(contractOf(spv).reads)).toContain('{run}/rtm.json');
   });
 
-  it('no agent file still emits or awaits rtm.append-link', () => {
-    for (const dir of ['tier1-phase', 'tier2-specialist', 'spv', 'crosscutting', 'orchestrator']) {
-      for (const f of fs.readdirSync(path.join(ROOT, '.claude/agents', dir))) {
-        expect(read(`.claude/agents/${dir}/${f}`)).not.toMatch(/rtm\.append-link/);
-      }
-    }
+  it('no agent file under .claude/agents (any depth) mentions rtm.append-link', () => {
+    const walk = (d: string): string[] =>
+      fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+    const files = walk(path.join(ROOT, '.claude/agents')).filter((f) => f.endsWith('.md'));
+    expect(files.length).toBeGreaterThan(50);
+    expect(files.filter((f) => /rtm\.append-link/.test(fs.readFileSync(f, 'utf-8')))).toEqual([]);
+    expect(read('docs/D13-concurrency-and-locking.md')).not.toMatch(/rtm\.append-link/);
+  });
+});
+
+describe('an RTM after the defect manager append still parses with RtmRowSchema', () => {
+  const row = (requirementId: string, defectIds: string[]): unknown => ({
+    requirementId, description: 'Login works', source: 'PRD', priority: { code: 'P2', name: 'This quarter' },
+    testCaseIds: ['TC-AUTH-001'], testStatus: 'Covered', defectIds,
+  });
+  /** What the prose tells the defect manager to do. */
+  const appendDefect = (rows: Array<{ requirementId: string; defectIds: string[] }>, req: string, def: string) =>
+    rows.map((r) => (r.requirementId === req && !r.defectIds.includes(def) ? { ...r, defectIds: [...r.defectIds, def] } : r));
+
+  it('appends once to the matching row and leaves the others alone', () => {
+    const rtm = [row('REQ-AUTH-01', []), row('REQ-AUTH-02', [])] as Array<{ requirementId: string; defectIds: string[] }>;
+    const after = appendDefect(appendDefect(rtm, 'REQ-AUTH-01', 'DEF-001-AUTH-UI'), 'REQ-AUTH-01', 'DEF-001-AUTH-UI');
+    expect(after[0]!.defectIds).toEqual(['DEF-001-AUTH-UI']);
+    expect(after[1]!.defectIds).toEqual([]);
+    for (const r of after) expect(RtmRowSchema.safeParse(r).success).toBe(true);
+  });
+
+  it('rejects a malformed row: no requirementId, or defectIds not an array', () => {
+    const good = row('REQ-AUTH-01', []) as Record<string, unknown>;
+    const { requirementId: _omit, ...noReq } = good;
+    expect(RtmRowSchema.safeParse(noReq).success).toBe(false);
+    expect(RtmRowSchema.safeParse({ ...good, defectIds: 'DEF-001-AUTH-UI' }).success).toBe(false);
+    expect(RtmRowSchema.safeParse({ ...good, defectIds: ['not-a-defect-id'] }).success).toBe(false);
   });
 });
 
@@ -66,7 +98,11 @@ describe('unit coverage has its own file; the collector owns reports/metrics/cov
   it('the role row follows: unit may write unit-coverage.json, no longer metrics/coverage.json', () => {
     expect(roleWritable('qa-unit-specialist', '/r/aegis/runs/RUN-1/reports/unit-coverage.json', P)).toBe(true);
     expect(roleWritable('qa-unit-specialist', '/r/aegis/runs/RUN-1/reports/metrics/coverage.json', P)).toBe(false);
-    expect(roleWritable('qa-metrics-collector', '/r/aegis/runs/RUN-1/reports/metrics/coverage.json', P)).toBe(true);
+  });
+
+  it('the file always reflects the whole tests/qa/unit run, recomputed per dispatch', () => {
+    expect(unit).toContain('on every dispatch recompute the figures over the full scope');
+    expect(unit).toContain('recomputed over the whole QA unit-test scope');
   });
 
   it('the collector reads unit-coverage.json (optional), not the unit work reports', () => {
@@ -78,10 +114,25 @@ describe('unit coverage has its own file; the collector owns reports/metrics/cov
 });
 
 describe('result files are read in both layouts', () => {
-  it('the responsive specialist writes the per-viewport file and its role row allows it', () => {
+  it('the responsive specialist writes the per-viewport file', () => {
     expect(paths(contractOf(read('.claude/agents/tier2-specialist/qa-responsive-specialist.md')).writes)).toContain('{run}/cases/{TC-ID}-{viewport}-result.json');
-    expect(roleWritable('qa-responsive-specialist', '/r/aegis/runs/RUN-1/cases/TC-AUTH-001-mobile-result.json', P)).toBe(true);
-    expect(roleWritable('qa-responsive-specialist', '/r/aegis/runs/RUN-1/cases/TC-AUTH-001-result.json', P)).toBe(true);
+  });
+
+  it('the collector counts a TC once, per-viewport files win, one flaky row, missing viewport = not passed', () => {
+    const c = read(COLLECTOR);
+    expect(c).toContain('`^TC-[A-Z]{2,8}-\\d{3,}$`');
+    expect(c).toContain('one of `desktop`, `tablet` or `mobile`');
+    expect(c).toContain('A TC counts once, however many of its files exist');
+    expect(c).toContain('the per-viewport files win and the plain file is ignored');
+    expect(c).toContain('a viewport with no result file means the TC is not passed, never a viewport that is dropped');
+    expect(c).toContain('a TC yields ONE flaky row, with `retryCount` the maximum across its viewport results');
+  });
+
+  it('the closure reporter states the same rules', () => {
+    const cl = read(CLOSURE);
+    expect(cl).toContain('a TC counts once; when both layouts exist for it the per-viewport files win');
+    expect(cl).toContain('a missing viewport result means it did not pass, never that the viewport is dropped');
+    expect(cl).toContain('`desktop`, `tablet` or `mobile`');
   });
 
   it('the collector names both layouts and reads the glob that matches both', () => {

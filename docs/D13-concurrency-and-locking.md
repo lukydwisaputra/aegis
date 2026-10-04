@@ -60,7 +60,7 @@ Shared mutable resources have exactly one agent that may write them:
 | Resource | Single writer | How others interact |
 |----------|--------------|---------------------|
 | `events.jsonl` | `appendChained` in `@qa/event-bus` (hash-chained, serialized), called by the aegis CLI and `@qa/reporters.writeArtifact` | Agents append through `aegis event append`; all read freely; never write directly |
-| `rtm.json` | `qa-test-designer` | `qa-defect-manager` appends links via `rtm.append-link` event |
+| `rtm.json` | `qa-test-designer` | `qa-defect-manager` appends each defect id to the matching row's `defectIds` itself, after the designer is done |
 | `defects/` | `qa-defect-manager` | Other agents emit events that defect-manager processes |
 | `.counters.json` | `@qa/ids` library (serialized) | All agents get IDs via `nextId()` — never write directly |
 

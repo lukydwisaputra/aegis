@@ -40,7 +40,7 @@ Output: `runs/{runId}/reports/metrics/cycle-time.json`.
 
 ### Coverage
 - **Requirements coverage**: `requirementId`s covered by ≥1 TC / total `requirementId`s in plan.
-- **Test execution coverage**: TCs executed / TCs planned.
+- **Test execution coverage**: TCs executed / TCs planned. Result files come in two layouts: `cases/{TC-ID}-result.json` and the responsive specialist's `cases/{TC-ID}-{viewport}-result.json`. A TC id matches `^TC-[A-Z]{2,8}-\d{3,}$`, a viewport is one of `desktop`, `tablet` or `mobile`, and a file name is parsed as the TC id, an optional `-{viewport}` and `-result.json`. A TC counts once, however many of its files exist. When both layouts exist for a TC, the per-viewport files win and the plain file is ignored. A TC with viewport files is executed, and passed, only when every viewport in its `viewportScope` (from `cases/{TC-ID}.json`; all three when absent) has a result and each is a pass; a viewport with no result file means the TC is not passed, never a viewport that is dropped.
 - **Code coverage**: from the unit specialist's `runs/{runId}/reports/unit-coverage.json`, if it exists; absent, the code-coverage figure is not available (no 0).
 Rollup: percentage per type.
 Output: `runs/{runId}/reports/metrics/coverage.json`.
@@ -62,16 +62,16 @@ Per agent: `{ reviewPassRate, requestedChangesCount, meanTaskDurationMs, lessonA
 Output: `runs/{runId}/reports/metrics/agent-reliability.json`.
 
 ### Flaky Tests (from retry and attempt data)
-- Per test: `{ testRef, flakeRate, retryCount }`, from the retry and attempt data in the result files, `runs/{runId}/cases/{TC-ID}-result.json` and the per-viewport `runs/{runId}/cases/{TC-ID}-{viewport}-result.json` of the responsive specialist (the glob `cases/*-result.json` matches both; a viewport result belongs to the TC id before the viewport, and a TC's executed status is read across all of its viewport results) (a test that failed and then passed on a retry counts as a flake)
+- Per test: `{ testRef, flakeRate, retryCount }`, from the retry and attempt data in the result files, `runs/{runId}/cases/{TC-ID}-result.json` and the per-viewport `runs/{runId}/cases/{TC-ID}-{viewport}-result.json` of the responsive specialist (the glob `cases/*-result.json` matches both, parsed as in "Test execution coverage": a TC yields ONE flaky row, with `retryCount` the maximum across its viewport results and `flakeRate` computed from the same files, and the per-viewport files win over a plain file of the same TC) (a test that failed and then passed on a retry counts as a flake)
 Output: `runs/{runId}/reports/metrics/flaky.json`.
 
 ## Process
 
 You run only when dispatched, and only in the foreground: the orchestrator dispatches you immediately before Closure-draft and again immediately before Executive, and starts the phase when you return. You do not stay running between dispatches and you never wait for an event. Each dispatch:
 
-1. **Read everything again.** Each time, read `events.jsonl` from the beginning, then the case, defect, plan and unit work-report inputs. Earlier dispatches leave nothing you rely on: every figure is recomputed from these records, and only events already in the log count.
+1. **Read everything again.** Each time, read `events.jsonl` from the beginning, then the case, result, defect and plan inputs and `reports/unit-coverage.json` when it exists. Earlier dispatches leave nothing you rely on: every figure is recomputed from these records, and only events already in the log count.
 2. **Write every metric file.** Write all seven files of "Metrics to Collect" to `runs/{runId}/reports/metrics/`, replacing the previous dispatch's files, each in its empty shape when it has no source data. A phase still running has no `completedAt` yet.
-3. **Record the rollup.** Append one `metrics.phase-rollup` per completed phase that has none in the log yet (`phase` and its `durationMs` from `cycle-time.json`). On the dispatch before Executive, also append `metrics.cycle-complete` with the totals so far; Executive and Curator come after it and are not in those totals.
+3. **Record the rollup.** Append one `metrics.phase-rollup` per completed phase that has none in the log yet (`phase` and its `durationMs` from `cycle-time.json`). On the dispatch before Executive, also append `metrics.cycle-complete` with `totalDurationMs` and `totalTokensUsed` so far; Executive and Curator come after it and are not in those totals.
 4. **Return.** Report the files written and any `metrics.parse-error` to the orchestrator. There is **no `MetricsFinalized` event** and no re-trigger: the closure reporter reads the files directly, and the curator, in the Curator phase, reads the rollups of the dispatch before Executive.
 
 ## Quality Standards
@@ -87,8 +87,8 @@ You run without a task of your own: you never claim or release one and submit no
 ## Events You Emit
 
 - `metrics.phase-rollup` — one per completed phase not yet rolled up, on each dispatch
-- `metrics.cycle-complete` — on the dispatch before Executive, with the totals so far
-- `metrics.parse-error` — on malformed event, with raw line reference
+- `metrics.cycle-complete` — on the dispatch before Executive, with the totals so far: `{"totalDurationMs": n, "totalTokensUsed": n}` (non-negative integers; the CLI adds `ts`, `runId` and your name)
+- `metrics.parse-error` — on malformed event: `{"rawLine": "<the line as read>", "errorMessage": "<why it did not parse>"}`
 
 ## Contract (machine-checked)
 

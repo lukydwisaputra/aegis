@@ -29,14 +29,14 @@ describe('the orchestrator runs the metrics collector in the foreground before C
 
   it('states the foreground dispatch, the two positions and the wait', () => {
     expect(orch).toContain(
-      'Dispatch `qa-metrics-collector` in the foreground, in its on-demand mode, immediately before `aegis phase start --phase closure-draft` and again immediately before `aegis phase start --phase executive`, and wait for it to return before you start the phase.',
+      'Dispatch `qa-metrics-collector` in the foreground, in its on-demand mode, immediately before `aegis phase start --phase closure-draft` and again immediately before `aegis phase start --phase executive`, and wait for it to return before you start the phase (pass `run_in_background: false` on the Agent call).',
     );
     expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| `qa-closure-reporter` \(draft pass\) \| Dispatch `qa-metrics-collector` in the foreground first/);
     expect(orch).toMatch(/\| Executive \| `executive` \| `qa-executive-reporter` \| Starts only after Gate 3 is approved\. Dispatch `qa-metrics-collector` in the foreground first/);
   });
 
   it('no longer starts a background collector at run start or on resume', () => {
-    expect(orch).not.toMatch(/background/i);
+    expect(orch.replace(/run_in_background: false/g, '')).not.toMatch(/background/i);
     expect(orch).not.toMatch(/tails? `?events\.jsonl/i);
     expect(orch).not.toMatch(/Do not wait for it/);
     expect(orch).not.toMatch(/Re-dispatch `qa-metrics-collector`/);
@@ -74,6 +74,40 @@ describe('the metrics collector writes every metric file the closure reporter re
     expect(collector).not.toMatch(/background/i);
     expect(collector).toContain('immediately before Closure-draft and again immediately before Executive');
     expect(collector).toContain('read `events.jsonl` from the beginning');
+  });
+});
+
+describe('every dispatch waits for its child (fix round)', () => {
+  const orch = read(ORCH);
+  const executor = read('.claude/agents/tier1-phase/qa-test-executor.md');
+
+  it('the orchestrator passes run_in_background: false on every Agent call and waits', () => {
+    expect(orch).toContain('Pass `run_in_background: false` on every `Agent` call you make');
+    expect(orch).toContain('wait for the child to return before the next CLI phase or claim step');
+    expect(orch).toContain('(pass `run_in_background: false` on the Agent call)');
+  });
+
+  it('the executor does the same for specialists and SPVs and waits for all concurrent children', () => {
+    expect(executor).toContain('Every `Agent` call you make (specialists and SPVs) passes `run_in_background: false`');
+    expect(executor).toContain('you complete nothing');
+    expect(executor).toContain('`run_in_background: false`, and wait for it to return');
+  });
+
+  it('the collector names the exact event payload fields', () => {
+    const c = read(COLLECTOR);
+    expect(c).toContain('{"totalDurationMs": n, "totalTokensUsed": n}');
+    expect(c).toContain('{"rawLine": "<the line as read>", "errorMessage": "<why it did not parse>"}');
+  });
+
+  it('pins the empty-shape and unavailable wording', () => {
+    expect(read(COLLECTOR)).toContain('"noData": true');
+    expect(read(CLOSURE)).toContain('`noData`');
+    expect(read(CLOSURE)).toContain('A metric neither reported nor stated as not available (listed in `unavailableMetrics` or backed by a `noData` file)');
+    expect(read('.claude/agents/spv/qa-closure-reporter-spv.md')).toContain('neither reported nor stated as not available');
+  });
+
+  it('the final pass states the no-compliance line', () => {
+    expect(read(CLOSURE)).toContain('"No compliance assessment applied to this cycle."');
   });
 });
 
