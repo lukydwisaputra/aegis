@@ -92,6 +92,8 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
 7. **Link each defect in `rtm.json` yourself.** For every defect opened, read `runs/{runId}/rtm.json`: the RTM as the test designer wrote it, one row object per requirement (a top-level array of rows; when the file wraps them as `{"rows": [...]}`, edit that array and keep the wrapper). Each row is an `RtmRowSchema` object with `requirementId` and a `defectIds` array. Find the row whose `requirementId` equals the requirement the defect traces to (through the parent TC's `traceability`, or through the charter's requirement for an EXP-type defect), append the defect id to that row's `defectIds` unless it is already there, and write the file back with every other row and field unchanged, so each row still parses with `RtmRowSchema`. You do not touch `rtm.md`: your role row allows only `rtm.json`, and the closure reporter reads `rtm.json`. No other agent writes the RTM in this phase, and nothing consumes a link event, so you emit none. For scripted defects, record `parentTCId` on the `defect.linked` event. **For EXP-type defects (from exploratory, no parent TC), the event carries `charterSessionId` instead** — the RTM row's `charterSessionId` field records which exploratory charter session surfaced it, since there is no test case to link; set that field on the row too.
 
+   **Untraced defects.** A defect whose parent TC, candidate or charter traces to no requirement (the TC's `traceability` names no `requirementId`, and the candidate or charter names none either) gets no `rtm.json` row and no `defect.linked` event: never invent a requirement or a row for it. Its record leaves `requirementId` and `userStory` unset (the defect schema has no untraced field). List it in your work report as one `uncertainties[]` entry whose `topic` starts with `untraced:` and names the defect id and why nothing traces it (for example `untraced: DEF-004-NAV-EXP — the charter covered no written requirement`), with `wouldUnblockBy` naming the requirement that would cover it.
+
 8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
 9. **Submit, release, stop.** Append `defect.management-complete` as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
@@ -123,7 +125,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-defect-manager 
 - `defect.origin-confirmed` — one per failed-TC group, one per candidate file and one per `wrong` developer test (with `evidenceRef`); `confirmed: true` proceeds to variation testing, `confirmed: false` is filed as a test-side finding (no defect)
 - `defect.opened` — one per new defect; includes id, severity, priority, tcId
 - `defect.duplicate` — links new TC failure to existing defect
-- `defect.linked` — one per defect appended to an `rtm.json` row; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
+- `defect.linked` — one per defect appended to an `rtm.json` row, never for an untraced defect; includes defectId, requirementId, and either `parentTCId` (scripted) or `charterSessionId` (EXP-type)
 - `defect.management-complete` — single event at end; includes total opened, duplicates, severity breakdown
 
 ## Concurrency
