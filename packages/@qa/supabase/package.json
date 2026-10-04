@@ -15,9 +15,6 @@
     "build": "tsc",
     "dev": "tsc --watch"
   },
-  "dependencies": {
-    "@qa/contracts": "workspace:*",
-    "jose": "^5.2.3"
-  },
+  "dependencies": {},
   "devDependencies": {}
 }

@@ -210,66 +210,11 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
 
-  packages/@qa/artifact-policy:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/auth-fixtures:
-    dependencies:
-      '@playwright/test':
-        specifier: ^1.44.0
-        version: 1.60.0
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
   packages/@qa/contracts:
     dependencies:
       zod:
         specifier: ^3.23.0
         version: 3.25.76
-
-  packages/@qa/dashboard-ui:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      react:
-        specifier: ^18.3.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.0
-        version: 18.3.1(react@18.3.1)
-      tailwind-merge:
-        specifier: ^2.3.0
-        version: 2.6.1
-    devDependencies:
-      '@types/react':
-        specifier: ^18.3.0
-        version: 18.3.29
-      '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.7(@types/react@18.3.29)
-
-  packages/@qa/deps-updater:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/email-adapters:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      node-fetch:
-        specifier: ^3.3.2
-        version: 3.3.2
 
   packages/@qa/eslint-plugin:
     devDependencies:
@@ -306,12 +251,6 @@ importers:
       '@qa/event-bus':
         specifier: workspace:*
         version: link:../event-bus
-
-  packages/@qa/multi-app:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
 
   packages/@qa/path-guard:
     dependencies:
@@ -380,26 +319,7 @@ importers:
         specifier: ^2.5.0
         version: 2.9.1
 
-  packages/@qa/secrets:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/supabase:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      jose:
-        specifier: ^5.2.3
-        version: 5.10.0
-
-  packages/@qa/target-scanner:
-    dependencies:
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
+  packages/@qa/supabase: {}
 
   packages/@qa/taskmaster-client:
     dependencies:
@@ -411,15 +331,6 @@ importers:
         version: 4.1.2
 
   packages/@qa/test-helpers:
-    dependencies:
-      '@playwright/test':
-        specifier: ^1.44.0
-        version: 1.60.0
-      '@qa/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-
-  packages/@qa/web-explorer:
     dependencies:
       '@playwright/test':
         specifier: ^1.44.0
@@ -3540,9 +3451,6 @@ packages:
   jiti@1.21.7:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
-
-  jose@5.10.0:
-    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
   jose@6.2.3:
     resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
@@ -8308,8 +8216,6 @@ snapshots:
       - ts-node
 
   jiti@1.21.7: {}
-
-  jose@5.10.0: {}
 
   jose@6.2.3: {}
 

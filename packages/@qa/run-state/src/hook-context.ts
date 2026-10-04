@@ -33,7 +33,12 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "gate.auto-decide": "gate auto-decide --gate G2 [--run <id>]",
   "run.complete": "run complete [--run <id>]",
   "escalation.decide": "escalation decide --task <id> --decision retry|accept-with-risk|abort --reason <text> [--run <id>]",
+  "helpers.vendor": "helpers vendor --helpers test-helpers[,supabase]",
 };
+
+/** NEW-06 (P2 spec §4.12, T10): the one framework-defect instruction every qa-* agent gets. */
+export const FRAMEWORK_DEFECT_LINE =
+  "- If an `aegis` command, skill, path or config key your instructions name is missing or behaves differently from your instructions, append `framework.defect-suspected` with the component, the symptom and the evidence (`event append --type framework.defect-suspected --json '{\"component\":…,\"symptom\":…,\"evidence\":[…]}'`). Then continue if you can, or release your task `failed` if you cannot. Never edit the framework to work around it.";
 
 function allowedFor(agent: string): CliCommand[] {
   return CLI_COMMANDS.filter((cmd) => {
@@ -92,6 +97,7 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
   const writes = role === undefined ? "nothing (no row in the path-guard role table)" : role.writes.length === 0 ? "nothing directly — you work through the CLI" : role.writes.join(", ");
   lines.push(`- You may write: ${writes} ({run} = the run directory, {testsDir} = the QA tests directory, {target} = the target root).`);
   lines.push(`- Never write these, which the CLI owns (the PreToolUse hook denies the write): runs/.active and, inside a run, ${CLI_ONLY_RUN_GLOBS.join(", ")}.`);
+  lines.push(FRAMEWORK_DEFECT_LINE);
   lines.push(`- Prefix every CLI call exactly as shown; the hook denies a missing or different AEGIS_AGENT. Commands you may run:`);
   for (const cmd of allowedFor(agentType)) lines.push(`  - \`${prefix} ${CLI_USAGE[cmd]}\``);
   return lines.join("\n");

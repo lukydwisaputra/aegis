@@ -36,20 +36,9 @@ After `aegis init` runs against a target project:
 2. Fill in the values. Reference what your target app needs (`apps/{name}/.env.example` in target repo).
 3. NEVER commit the real `.env.*` files.
 
-## Provider abstraction
+## Values kept in a vault
 
-For production deployments, secrets typically come from a vault (1Password / AWS SSM / Vault). `aegis.config.json.environments.{env}.secretsRef` configures the source:
-
-```jsonc
-{
-  "secretsRef": {
-    "type": "github-actions-secrets",   // local-1password | aws-ssm | vault
-    "prefix": "STAGING_"
-  }
-}
-```
-
-`@qa/secrets` resolves values at use-time without ever pulling them into agent context.
+Aegis has no vault resolver. Agents read the values from the gitignored `secrets/.env.{env}` file of the run's environment and never write them to logs, events or work reports. When the values live in a vault (1Password, AWS SSM, HashiCorp Vault), export them into that file before the cycle starts.
 
 ## What lives here (full list)
 

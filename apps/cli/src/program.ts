@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { noteParseRefusal } from "./commands/_io.js";
 import { alignCommand } from "./commands/align.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { escalationCommand } from "./commands/escalation.js";
@@ -13,6 +14,7 @@ import { runCommand } from "./commands/run.js";
 import { reviewCommand, workReportCommand } from "./commands/submit.js";
 import { taskCommand } from "./commands/task.js";
 import { updateCommand } from "./commands/update.js";
+import { helpersCommand } from "./commands/vendor.js";
 
 /** The aegis program. Parsing never exits the process: parse errors are thrown as commander errors (see runCli). */
 export function buildProgram(): Command {
@@ -21,7 +23,7 @@ export function buildProgram(): Command {
   for (const command of [
     initCommand(), reconfigureCommand(), updateCommand(), doctorCommand(), runCommand(), eventCommand(), idCommand(),
     taskCommand(), workReportCommand(), reviewCommand(), integrityCommand(), alignCommand(), phaseCommand(), gateCommand(),
-    escalationCommand(),
+    escalationCommand(), helpersCommand(),
   ]) {
     program.addCommand(command);
   }
@@ -47,7 +49,12 @@ export interface Envelope {
 /** CO-04: a commander parse error becomes the CLI's JSON refusal envelope (exit 2), like a RunStateError. */
 export function envelopeFor(err: { code: string; exitCode: number; message: string }): Envelope {
   if (PASS_THROUGH.has(err.code)) return { exitCode: err.exitCode, stderr: "" };
-  return { exitCode: 2, stderr: JSON.stringify({ error: "invalid-input", message: err.message.replace(/^error:\s*/, "") }) + "\n" };
+  return { exitCode: 2, stderr: JSON.stringify({ error: "invalid-input", message: parseMessage(err) }) + "\n" };
+}
+
+/** The refusal message of a commander parse error, computed once for the envelope and the cli.refused record. */
+function parseMessage(err: { message: string }): string {
+  return err.message.replace(/^error:\s*/, "");
 }
 
 function isCommanderError(e: unknown): e is { code: string; exitCode: number; message: string } {
@@ -56,12 +63,14 @@ function isCommanderError(e: unknown): e is { code: string; exitCode: number; me
 }
 
 export async function runCli(argv: readonly string[]): Promise<void> {
+  const program = buildProgram();
   try {
-    await buildProgram().parseAsync([...argv], { from: "user" });
+    await program.parseAsync([...argv], { from: "user" });
   } catch (e) {
     if (!isCommanderError(e)) throw e;
     const env = envelopeFor(e);
     if (env.stderr !== "") process.stderr.write(env.stderr);
     process.exitCode = env.exitCode;
+    if (env.exitCode === 2) await noteParseRefusal(argv, parseMessage(e), program);
   }
 }

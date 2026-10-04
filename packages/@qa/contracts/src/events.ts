@@ -442,7 +442,7 @@ export const BusErrorEventSchema = EventBase.extend({
   errorMessage: z.string(),
 });
 
-// ─── App + migration (Supabase/multi-app) ────────────────────────────────────
+// ─── App + migration (Supabase) ──────────────────────────────────────────────
 
 export const AppDiscoveredEventSchema = EventBase.extend({
   type: z.literal("app.discovered"),
@@ -1632,6 +1632,27 @@ export const DevTestReviewCompleteEventSchema = EventBase.extend({
   mutationScore: z.number().min(0).max(100).optional(),
 });
 
+// ─── Framework-defect channel (P2 NEW-06) ────────────────────────────────────
+// The curator groups both into runs/{runId}/pending-promotions/framework-defect-<slug>.json for the owner; nothing is applied.
+
+/** Appended by any qa-* agent: a command, skill, path or config key its instructions name is missing or behaves otherwise. */
+export const FrameworkDefectSuspectedEventSchema = EventBase.extend({
+  type: z.literal("framework.defect-suspected"),
+  component: z.string().min(1).max(200),
+  symptom: z.string().min(10).max(300),
+  evidence: z.array(z.string().min(1).max(300)).min(1),
+});
+
+/** Recorded only by the aegis CLI: a qa-* agent's invalid-input refusal, or the crash path (internal). */
+export const CliRefusedEventSchema = EventBase.extend({
+  type: z.literal("cli.refused"),
+  runId: RunIdSchema,
+  command: z.string().min(1).max(200),
+  code: z.enum(["invalid-input", "internal"]),
+  caller: z.string().regex(/^qa-[a-z0-9-]+$/),
+  message: z.string().max(300),
+});
+
 // ─── Union discriminated type ─────────────────────────────────────────────────
 
 /** The raw discriminated union: use `.options` to enumerate event types. Parse with AegisEventSchema, which adds cross-field rules. */
@@ -1857,6 +1878,8 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   TcProposalEventSchema,
   ObservationRecordedEventSchema,
   DevTestReviewCompleteEventSchema,
+  FrameworkDefectSuspectedEventSchema,
+  CliRefusedEventSchema,
 ]);
 
 /** Every event parser uses this: the union plus the rules a single object schema cannot carry. */

@@ -29,6 +29,7 @@ export const CLI_COMMANDS = [
   "gate.auto-decide",
   "run.complete",
   "escalation.decide",
+  "helpers.vendor",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -70,6 +71,9 @@ export const ORCHESTRATOR = "qa-orchestrator";
 // Commands that advance the run; only the orchestrator runs them (spec §3.6).
 export const ORCHESTRATOR_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["phase.start", "phase.complete", "gate.open", "gate.auto-decide", "run.complete"]);
 
+// Agent-only commands that one named agent runs (P2 spec §4.11.3): the environment engineer copies the QA helpers in Env-auth.
+export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>> = { "helpers.vendor": "qa-environment-engineer" };
+
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller === OWNER && !OWNER_COMMANDS.has(command)) {
     throw new RunStateError("caller-forbidden", `"${command}" is agent-only; the main thread cannot run it`);
@@ -80,11 +84,16 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller !== OWNER && caller !== ORCHESTRATOR && ORCHESTRATOR_ONLY.has(command)) {
     throw new RunStateError("caller-forbidden", `${command} is run only by ${ORCHESTRATOR}`);
   }
+  const only = SINGLE_AGENT_COMMANDS[command];
+  if (caller !== OWNER && only !== undefined && caller !== only) {
+    throw new RunStateError("caller-forbidden", `${command} is run only by ${only}`);
+  }
 }
 
 // Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
 export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity.", "escalation."];
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed"]);
+// cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself.
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

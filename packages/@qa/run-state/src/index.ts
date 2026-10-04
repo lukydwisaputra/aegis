@@ -18,3 +18,5 @@ export * from "./escalation.js";
 export * from "./token-usage.js";
 export * from "./stop-check.js";
 export * from "./hook-context.js";
+export * from "./vendor.js";
+export * from "./cli-refusal.js";

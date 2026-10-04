@@ -24,12 +24,13 @@ You review environment setup reports produced by `qa-environment-engineer`. You 
 - `tests/qa/fixtures/auth.fixture.ts` — the generated auth fixture
 - `tests/qa/global-setup.ts` and `tests/qa/global-teardown.ts`
 - `tests/qa/factories/*.ts` — data factories
+- `tests/qa/support/test-helpers.ts` and `tests/qa/support/supabase.ts` — scope=auth: the copied QA helpers (the second only on a Supabase target)
 - `playwright.config.ts` — at the target root; `testDir` must resolve to `tests/qa`
 - `agent-memory/qa-environment-engineer/lessons.md`
 
 ## Review Checklist
 
-The brief names the scope you review. `scope=auth` (Env-auth): items 1–4 and 6–15. `scope=data` (Env-data): items 5 and 15, plus: every factory or seed the approved cases need exists, and the dispatch did not touch the auth fixture or `playwright.config.ts`.
+The brief names the scope you review. `scope=auth` (Env-auth): items 1–4 and 6–16. `scope=data` (Env-data): items 5 and 15, plus: every factory or seed the approved cases need exists, and the dispatch did not touch the auth fixture or `playwright.config.ts`.
 
 1. **Per-role auth fixture.** `auth.fixture.ts` exports `{ adminPage, managerPage, userPage, anonPage }` (or equivalent roles from `target-profile.json`). Each role uses `storageState` (not raw credentials). Fixture is exported from `tests/qa/fixtures/auth.fixture` — not from `@playwright/test`.
 2. **Teardown completeness.** Each role fixture performs: (a) explicit logout, (b) `context.clearCookies()`, (c) `page.close()`, (d) `context.close()` — in that order. Missing teardown step = requested-changes.
@@ -46,6 +47,7 @@ The brief names the scope you review. `scope=auth` (Env-auth): items 1–4 and 6
 13. **Named QA project.** The `projects` array must include a named project `{ name: 'qa-e2e', testDir: 'tests/qa' }` so QA specs are grouped separately in the Test Explorer. Missing QA project = requested-changes.
 14. **`test.config-written` emitted.** `events.jsonl` must contain a `test.config-written { testDir, projectName }` event after the config is written. Missing event = requested-changes.
 15. **Outputs confined to `tests/qa/`.** All fixture, factory, global-setup/teardown, and state outputs live under `tests/qa/` (only `playwright.config.ts` itself sits at the target root, and only its own `qa-*` project entries change: a changed top-level key or a developer project edit = requested-changes). Any output written outside `tests/qa/` = requested-changes.
+16. **Shared QA helpers copied (scope=auth).** `tests/qa/support/test-helpers.ts` exists, and `tests/qa/support/supabase.ts` too when `target-profile.json` `platform` is `supabase`; each starts with the `// Vendored QA helper` header line. A missing copy without a FAILED `health` and a `failed` release = requested-changes. Every path the copy command reported in `drift` appears in the work report's `uncertainties[]`; a drift entry missing there = passed-with-notes.
 
 ## Verdict
 
@@ -79,6 +81,8 @@ reads:
   - "{tests}/qa/global-setup.ts"
   - "{tests}/qa/global-teardown.ts"
   - "{tests}/qa/factories/*.ts"
+  - "{tests}/qa/support/test-helpers.ts"
+  - "{tests}/qa/support/supabase.ts"
   - "{target}/playwright.config.ts"
   - "{run}/events.jsonl"
   - "{run}/target-profile.json"

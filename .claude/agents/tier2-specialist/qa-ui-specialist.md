@@ -106,7 +106,7 @@ tests/qa/
    - Capture screenshot at each key step for every TC
    - Implement a `test.afterEach` hook that captures a screenshot after EVERY test (pass AND fail) via `await page.screenshot()`, named `{TC-ID}_{step}_{ISO8601-Z}.png` under `runs/{runId}/evidence/{TC-ID}/`. Also verify `playwright.config.ts` has `screenshot: 'always'` and `video: 'retain-on-failure'` — if absent, note it as a warning in the work report.
    - Also capture console log and HAR on failure
-   - Sanitise HAR: strip `Authorization`, `Cookie`, `Set-Cookie` headers before saving
+   - Sanitise HAR: strip `Authorization`, `Cookie`, `Set-Cookie` headers before saving, with `sanitizeHar` from `tests/qa/support/test-helpers.ts`
    - Name evidence: `{TC-ID}_{step}_{ISO8601-Z}.{ext}`
    - **Inspection screenshots** (taken mid-task via MCP or CLI to resolve an ambiguous selector) must be deleted immediately after the selector decision is made — they are never written to `runs/{runId}/evidence/`
 
@@ -164,6 +164,7 @@ reads:
   - "{tests}/qa/factories/**"
   - "{target}/playwright.config.ts"
   - "{target}/package.json"
+  - "{tests}/qa/support/test-helpers.ts"
 writes:
   - "{tests}/qa/specs/{url-path}/**"
   - "{tests}/qa/fixtures/files/**"

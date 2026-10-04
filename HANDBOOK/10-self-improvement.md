@@ -84,8 +84,11 @@ Routine successes do not trigger appends. The lessons file is not a diary.
 | Fact not in books | Propose memory entry |
 | Lesson conflicts across agents | Flag for human resolution |
 | Stale/contradicting memory | Propose deletion/merge |
+| Suspected framework defect (`framework.defect-suspected`, `cli.refused`) | Propose for the owner to acknowledge or dismiss; never applied |
 
 Proposals land in `runs/{runId}/pending-promotions/` as markdown files with evidence.
+
+Framework defects use the same queue, and nothing in it is ever applied: Aegis never modifies its own framework. An agent whose instructions name an `aegis` command, skill, path or config key that is missing or behaves otherwise appends `framework.defect-suspected`, and the CLI records an agent's `invalid-input` refusal or crash as `cli.refused`. The curator groups both into `runs/{runId}/pending-promotions/framework-defect-<slug>.json` (a single `invalid-input` from one agent is that agent's mistake and is skipped) and lists them first in `summary.md`. The owner acknowledges or dismisses each one and makes any fix as framework development on a branch. Until `/qa-promote` loads this type, read the proposals in `summary.md`.
 
 ## 10.6 Using `/qa-promote`
 

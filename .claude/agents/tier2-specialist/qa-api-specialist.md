@@ -22,7 +22,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 - Test case batch (IDs + schemas) for API/contract types
 - `target-profile.json` — detected API routes, auth method
 - `runs/{runId}/discovery-report.json` — inferred API surface from discovery phase
-- `aegis/aegis.config.json` — environment URLs, secrets refs
+- `aegis/aegis.config.json` — environment URLs
 - `agent-memory/qa-api-specialist/lessons.md`
 - The target's `package.json` test script — read-only, to run the developer test a developer-covered TC names
 
@@ -43,7 +43,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 4. **Apply EP to API inputs.** For each endpoint parameter: valid inputs, boundary values, invalid types, missing required fields, extra unknown fields.
 
-5. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence.
+5. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence. Sanitise a HAR with `sanitizeHar` from `tests/qa/support/test-helpers.ts`.
 
 6. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
 
@@ -89,6 +89,7 @@ reads:
   - aegis.config.json
   - "{target}/package.json"
   - agent-memory/qa-api-specialist/lessons.md
+  - "{tests}/qa/support/test-helpers.ts"
 writes:
   - "{tests}/qa/api/{endpoint}.api.test.ts"
   - "{tests}/qa/contract/{consumer}-{provider}.pact.ts"

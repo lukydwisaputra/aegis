@@ -1,14 +1,18 @@
-import { SignJWT } from "jose";
+import { Buffer } from "node:buffer";
 import { execSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 // ─── JWT forging ─────────────────────────────────────────────────────────────
 
+const base64url = (text: string): string => Buffer.from(text, "utf-8").toString("base64url");
+
 /**
  * Forge a Supabase-compatible JWT for a given role.
- * Uses the HS256 algorithm with the SUPABASE_JWT_SECRET.
- * The forged token has the standard Supabase claims format.
+ * Uses the HS256 algorithm with the SUPABASE_JWT_SECRET, signed with node:crypto so the
+ * file runs in any Node project without extra dependencies.
+ * The forged token has the standard Supabase claims format; `iat` and `exp` are always set last.
  */
 export async function forgeRoleJwt(opts: {
   role: string;
@@ -19,9 +23,10 @@ export async function forgeRoleJwt(opts: {
   extraClaims?: Record<string, unknown>;
 }): Promise<string> {
   const { role, userId, email, jwtSecret, expiresInSeconds = 3600, extraClaims = {} } = opts;
+  // An empty key would still sign, and the token would verify against any server that also lacks its secret.
+  if (typeof jwtSecret !== "string" || jwtSecret.length === 0) throw new Error("forgeRoleJwt: jwtSecret is required");
 
-  const secret = new TextEncoder().encode(jwtSecret);
-
+  const iat = Math.floor(Date.now() / 1000);
   const payload: Record<string, unknown> = {
     sub: userId,
     email,
@@ -30,15 +35,13 @@ export async function forgeRoleJwt(opts: {
     user_metadata: {},
     iss: "supabase",
     ...extraClaims,
+    iat,
+    exp: iat + expiresInSeconds,
   };
 
-  const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSeconds)
-    .sign(secret);
-
-  return token;
+  const signingInput = `${base64url(JSON.stringify({ alg: "HS256" }))}.${base64url(JSON.stringify(payload))}`;
+  const signature = createHmac("sha256", jwtSecret).update(signingInput).digest("base64url");
+  return `${signingInput}.${signature}`;
 }
 
 // ─── Migration runner ─────────────────────────────────────────────────────────

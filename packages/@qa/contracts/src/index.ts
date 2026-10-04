@@ -22,3 +22,4 @@ export * from "./dev-test-review.js";
 export * from "./defect-candidate.js";
 export * from "./execution-summary.js";
 export * from "./env-report.js";
+export * from "./promotions.js";

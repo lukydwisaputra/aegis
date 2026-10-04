@@ -95,6 +95,40 @@ Look for: `lesson.conflict-flagged` events from this cycle (emitted when `@qa/ag
 }
 ```
 
+### 5. Framework-Defect Proposals
+
+Read two event types from `events.jsonl`. `framework.defect-suspected` is appended by an agent whose instructions name an `aegis` command, skill, path or config key that is missing or behaves otherwise. `cli.refused` is recorded by the CLI when it refused an agent with `invalid-input`, or crashed (`internal`).
+
+Group the signals: `framework.defect-suspected` by `component`; `cli.refused` by `command` plus its `message` with run ids, task ids, paths and numbers replaced by `<x>`. A group becomes one proposal when either holds:
+- it holds at least one `framework.defect-suspected`;
+- it is `cli.refused` with code `internal`, or with code `invalid-input` seen at least twice in the run or from at least two agents. A single `invalid-input` from one agent is that agent's mistake, not a framework defect.
+
+The slug is built from the group's component (for `cli.refused`, `aegis` plus the command with its dot as a space) in this order: lower-case it; replace every run of characters other than `a-z` and `0-9` with one `-`; cut it to 60 characters; then strip any leading or trailing `-`; use `unknown` when nothing is left. `/qa-start` becomes `qa-start`, and a component made only of symbols becomes `unknown`. The slug is the proposal's key: qualifying groups that end with the same slug merge into one proposal (their signals concatenated, their occurrences summed), and the file is `framework-defect-<slug>.json` with `id` `framework-defect-<slug>`. Never re-propose a slug that is already pending. You read only this run's `pending-promotions/`, so this de-duplication is per run; de-duplication across runs waits for the `/qa-promote` queue rewrite. You never fix the framework, and a proposal names nothing to apply: the owner acknowledges or dismisses it.
+
+Fill the fields from the events:
+- `signals[]`: one entry per event, at most 20; `seq` is the event's chain `seq` in `events.jsonl`; `agent` is its `emittedBy` (for `cli.refused` that is its `caller`); `detail` is at most 300 characters: the first evidence line or the symptom for `framework.defect-suspected`, the refusal `message` for `cli.refused`, or its `code` when the message is empty.
+- `occurrences`: the number of events in the group, never fewer than the signals listed.
+- `component`: the group's component (at most 200 characters); for `cli.refused`, `aegis` plus the command with its dot as a space.
+- `symptom` (10–300 characters): the first `framework.defect-suspected` symptom; for a proposal made only of `cli.refused` events, `<component> refused with <code> <N> times`, for example `aegis event append refused with internal 3 times`.
+
+**Proposal format** (`FrameworkDefectProposalSchema` in `@qa/contracts`; strict: no other field):
+```json
+{
+  "type": "framework-defect",
+  "id": "framework-defect-aegis-task-claim",
+  "runId": "RUN-20261003-001",
+  "component": "aegis task claim",
+  "symptom": "The --task flag named in the Task Protocol is refused as an unknown option",
+  "signals": [
+    { "source": "framework.defect-suspected", "seq": 42, "agent": "qa-ui-specialist", "detail": "Task Protocol step 1 says aegis task claim --task <taskId>; the CLI refuses --task" },
+    { "source": "framework.defect-suspected", "seq": 57, "agent": "qa-api-specialist", "detail": "same refusal on its own claim" }
+  ],
+  "occurrences": 2,
+  "suggestedOwnerAction": "Check that aegis task claim accepts --task, or correct the Task Protocol text in the agent definitions",
+  "createdAt": "2026-10-03T09:15:00.000Z"
+}
+```
+
 ## What NOT to Propose
 
 - Do not propose changes that are already described in a current knowledge synthesis file
@@ -109,7 +143,8 @@ All proposals written to `runs/{runId}/pending-promotions/`:
 - `memory-{title-slug}.json`
 - `lesson-archive-{agentName}-{lessonId}.json`
 - `lesson-conflict-{agentName}-{conflictId}.json`
-- `summary.md` — human-readable digest with evidence references and recommended actions
+- `framework-defect-{slug}.json`
+- `summary.md` — human-readable digest with evidence references and recommended actions; it lists the framework-defect proposals first, each with its component and suggested owner action
 
 ## Quality Standards
 
@@ -129,7 +164,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-curator pnpm ae
 
 ## Events You Emit
 
-- `curator.proposals-ready` — includes proposalCount, types: { skills, memories, lessonArchives, conflicts }
+- `curator.proposals-ready` — `proposalCount` (every proposal written this cycle, framework-defect proposals included) and `path` (the `pending-promotions/` directory)
 
 ## Contract (machine-checked)
 
@@ -152,6 +187,7 @@ writes:
   - "{run}/pending-promotions/memory-{title-slug}.json"
   - "{run}/pending-promotions/lesson-archive-{agentName}-{lessonId}.json"
   - "{run}/pending-promotions/lesson-conflict-{agentName}-{conflictId}.json"
+  - "{run}/pending-promotions/framework-defect-{slug}.json"
   - {path: "{run}/pending-promotions/summary.md", terminal: true}
 emits:
   - {event: curator.proposals-ready, via: append}
