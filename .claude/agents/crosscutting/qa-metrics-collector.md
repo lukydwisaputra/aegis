@@ -52,12 +52,12 @@ Output: `runs/{runId}/reports/metrics/coverage.json`, exactly `{ requirementsCov
 - By severity: Sev1-Sev5 breakdown
 - By phase-introduced: where defects were injected
 - Defect density (defects per story point if available, else per 100 TCs)
-Output: `runs/{runId}/reports/metrics/defect-trend.json`. A log with no `defect.opened` event gives zero counts (0 opened, closed and reopened, every severity 0, density 0), written without `noData`. Write `"noData": true` only when `events.jsonl` is absent or unreadable.
+Output: `runs/{runId}/reports/metrics/defect-trend.json`, exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, noData? }`. `bySeverity` has the keys `Sev1` to `Sev5`. `reopenRate` = reopened / closed; `escapeRate` = defects whose `phaseIntroduced` is after release / total defects; `mttdMs` = mean time from the first failing result of a defect's test case to its `defect.opened`; `mttrMs` = mean time from `defect.opened` to `defect.closed`. Each rate or mean is a number, or null when it cannot be computed (no closed defects, no timestamps) — never 0 for "unknown". A log with no `defect.opened` event gives zero counts (0 opened, closed and reopened, every severity 0, density 0) with the rates and means null, written without `noData`. Write `"noData": true` only when `events.jsonl` is absent or unreadable. The closure reporter reports these as escapeRate, reopenRate, MTTD and MTTR.
 
 ### Test Effectiveness
 - Tests that found defects / total tests executed
 - Defect detection by test type (E2E / API / unit / security / etc.)
-Output: `runs/{runId}/reports/metrics/effectiveness.json`.
+Output: `runs/{runId}/reports/metrics/effectiveness.json`, exactly `{ dre, testsThatFoundDefects, testsExecuted, byTestType, noData? }`. `dre` (defect removal efficiency) = defects found before release / (found before release + escaped) × 100, a number from 0 to 100, or null when no defect exists to compute it from; `byTestType` maps each test type to its count of defect-finding tests. The closure reporter reports `dre` as DRE.
 
 ### Agent Reliability (from `review.passed`, `review.requested-changes`, `task.claimed/released`)
 Per agent: `{ reviewPassRate, requestedChangesCount, meanTaskDurationMs, lessonAppendCount }`

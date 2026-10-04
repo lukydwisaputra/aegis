@@ -102,3 +102,20 @@ describe('M3: zero defect.opened events are data', () => {
     expect(defects).toMatch(/`"noData": true` only when `events\.jsonl` is absent or unreadable/);
   });
 });
+
+describe('the metric files hold every key the closure SPV traces to them', () => {
+  const collector = read(`${AGENTS}/crosscutting/qa-metrics-collector.md`);
+  it('defect-trend.json carries defectDensity, escapeRate, reopenRate, MTTD and MTTR; effectiveness.json carries DRE', () => {
+    expect(collector).toContain(
+      'exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, noData? }`',
+    );
+    expect(collector).toContain('exactly `{ dre, testsThatFoundDefects, testsExecuted, byTestType, noData? }`');
+    expect(collector).toMatch(/null when it cannot be computed[^\n]*never 0 for "unknown"/);
+    const check2 = read(`${AGENTS}/spv/qa-closure-reporter-spv.md`);
+    expect(check2).toContain('`defect-trend.json` → defectDensity, escapeRate, reopenRate, MTTD, MTTR');
+    expect(check2).toContain('`effectiveness.json` → DRE');
+  });
+  it('the defect-manager SPV check 10 accepts an untraced exploratory defect', () => {
+    expect(read(DM_SPV)).toContain('or listed as untraced per check 6');
+  });
+});
