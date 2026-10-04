@@ -376,6 +376,47 @@ describe('A2: the technical report and the sign-off agree on open defects', () =
   });
 });
 
+// Fix round 2, I2: the Security Officer row follows the fields DefectSchema really has — a SEC defect id or a
+// CWE-/WSTG- compliance tag — not a `tags` array no record carries.
+describe('I2: the Security Officer signs when the run holds a security defect', () => {
+  const secDefect = { ...defectRecord(1, 'Triaged', 'Sev2', 'Critical'), id: 'DEF-001-AUTH-SEC' };
+  const cweDefect = { ...defectRecord(2, 'Triaged', 'Sev3', 'Major'), compliance: ['CWE-79', 'WSTG-v42-INPV-01'] };
+  const signoff = (defects: Record<string, unknown>) => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 3, failed: 1, blocked: 0 } },
+      'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+      ...defects,
+    });
+    const r = run(SCRIPT.signoff, root);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    return pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+  };
+
+  it('the fixtures validate against DefectSchema', () => {
+    expect(DefectSchema.safeParse(secDefect).success).toBe(true);
+    expect(DefectSchema.safeParse(cweDefect).success).toBe(true);
+  });
+
+  it('a DEF-001-AUTH-SEC defect adds the Security Officer row', () => {
+    expect(signoff({ 'defects/DEF-001-AUTH-SEC.json': secDefect })).toContain('Security Officer');
+  });
+
+  it('a defect carrying a CWE-/WSTG- compliance tag adds it too', () => {
+    expect(signoff({ 'defects/DEF-002-AUTH-UI.json': cweDefect })).toContain('Security Officer');
+  });
+
+  it('a run with no security defect has no Security Officer row', () => {
+    expect(signoff(SCHEMA_DEFECTS)).not.toContain('Security Officer');
+  });
+
+  it('the skill and the agents state the same rule', () => {
+    expect(read('.claude/skills/_qa-report-signoff-pdf/SKILL.md')).toMatch(/`"Security Officer"` when a defect id ends in `-SEC` or a defect's `compliance` holds a `CWE-` or `WSTG-` tag/);
+    expect(read('.claude/skills/_qa-report-signoff-pdf/SKILL.md')).not.toContain('has tag `security`');
+    expect(read('.claude/agents/spv/qa-executive-reporter-spv.md')).toMatch(/Security Officer when a defect id ends in `-SEC` or a defect's `compliance` holds a `CWE-` or `WSTG-` tag/);
+  });
+});
+
 describe('A3: coverage.json noData', () => {
   it('coverage reads "not available" when reports/metrics/coverage.json holds noData, even though closure says 0', () => {
     const { root, runDir } = fixture({

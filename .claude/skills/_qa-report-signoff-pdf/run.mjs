@@ -147,8 +147,12 @@ const residualRisk = !existsSync(join(runDir, "risk-register.json"))
       : "No residual risk recorded";
 
 const signatoryRoles = ["QA Lead", "Engineering Lead", "Product Owner"];
-const hasSecurityDefect = (defects ?? []).some((d) =>
-  Array.isArray(d.tags) ? d.tags.some((t) => /security/i.test(t)) : false,
+// A security defect, by the fields DefectSchema has: a SEC-type id (DEF-{NNN}-{MODULE}-SEC) or a CWE-/WSTG-
+// compliance tag. DefectSchema carries no `tags` array, and no TestTechnique is "Security".
+const hasSecurityDefect = (defects ?? []).some(
+  (d) =>
+    (typeof d?.id === "string" && /-SEC$/.test(d.id)) ||
+    (Array.isArray(d?.compliance) && d.compliance.some((t) => typeof t === "string" && /^(CWE|WSTG)-/.test(t))),
 );
 if (hasSecurityDefect) signatoryRoles.push("Security Officer");
 if (complianceReports.length > 0) signatoryRoles.push("Compliance Officer");

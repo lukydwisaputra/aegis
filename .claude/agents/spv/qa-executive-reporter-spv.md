@@ -38,7 +38,7 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 
 ### Sign-off Document
 
-7. **Signature block present.** Document includes named roles: QA Lead, Engineering Lead, Product Owner, and Security Officer when applicable. Missing signature block = requested-changes.
+7. **Signature block present.** Document includes named roles: QA Lead, Engineering Lead, Product Owner, and the Security Officer when a defect id ends in `-SEC` or a defect's `compliance` holds a `CWE-` or `WSTG-` tag. Missing signature block = requested-changes.
 8. **GO/NO-GO field present.** Sign-off has a `Quality verdict: GO / NO-GO / CONDITIONAL` field (to be filled in by signers, not pre-filled by the reporter). Pre-filled GO/NO-GO = passed-with-notes.
 
 ### All 3 Documents

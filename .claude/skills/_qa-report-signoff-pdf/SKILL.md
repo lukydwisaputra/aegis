@@ -49,7 +49,7 @@ The skill is a thin orchestrator. It pulls the verdict from `gate-3-decision.jso
 4. Count open defects with the technical report's resolver (`resolveDefectFigures` in `@qa/contracts`): `closure.json#defectMetrics.confirmedOpen` first, then the `code` of each defect record's `status` (closed, verified, resolved, won't fix, duplicate, cannot reproduce and not a bug are closed). The summary names the highest open severity by its `code` (Sev1 is highest). With neither source it prints "Open defects: not available", never "No open defects".
 5. Read residual risk summary from `risk-register.json#residual`. No risk register prints "Residual risk: not available".
 6. Generate a `documentId` of the form `SIGNOFF-{runId}-{ISO date}`.
-7. Default signatory roles: `["QA Lead", "Engineering Lead", "Product Owner"]`. Add `"Security Officer"` if any defect has tag `security` and `"Compliance Officer"` if any compliance phase ran.
+7. Default signatory roles: `["QA Lead", "Engineering Lead", "Product Owner"]`. Add `"Security Officer"` when a defect id ends in `-SEC` or a defect's `compliance` holds a `CWE-` or `WSTG-` tag, and `"Compliance Officer"` if any compliance phase ran.
 8. Check the sign-off data against the stakeholder brand patterns of `@qa/contracts`; a match fails the run (exit 5).
 9. Call `renderSignoffDocument(spec)` and write to `--out`, then verify the file is a PDF (`%PDF-` header, over 1 KB).
 
