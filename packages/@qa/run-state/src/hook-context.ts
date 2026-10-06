@@ -37,7 +37,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "messaging.fetch-contract": "messaging fetch-contract [--run <id>]",
   "messaging.plan": "messaging plan [--run <id>]",
   "messaging.check": "messaging check [--run <id>]",
-  "messaging.scan-secrets": "messaging scan-secrets --paths <paths...> [--run <id>]",
+  "messaging.scan-secrets": "messaging scan-secrets <paths...> [--run <id>]",
   "messaging.exec": "messaging exec [--run <id>] -- <command...>",
 };
 
