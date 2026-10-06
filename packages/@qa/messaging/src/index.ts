@@ -180,6 +180,7 @@ function eachRecipient(body: Record<string, unknown>, fields: readonly string[],
   for (const field of fields) {
     const m = /^(\w+)\[\]\.(\w+)$/.exec(field);
     if (m === null) {
+      if (!/^\w+$/.test(field)) throw new Error(`unsupported recipient field pattern "${field}"`);
       if (field in body) fn(body, field, field);
       continue;
     }
@@ -250,6 +251,7 @@ export async function startStub(opts: { plan?: MessagingPlan; contract?: Messagi
   };
 
   const server = createServer((req, res) => {
+    let entry: Recorded | undefined;
     void (async () => {
       const raw = await readBody(req);
       const full = new URL(req.url ?? "/", "http://stub").pathname;
@@ -264,7 +266,7 @@ export async function startStub(opts: { plan?: MessagingPlan; contract?: Messagi
       }
       const isSend = method === adapter.operations.send.method && p === adapter.operations.send.path;
       const isRead = method === adapter.operations.readBack.method && readRe.test(p);
-      const entry: Recorded = { operation: isSend ? "send" : isRead ? "readBack" : "unknown", method, path: full, prefixed, credential, body, valid: false, errors: [] };
+      entry = { operation: isSend ? "send" : isRead ? "readBack" : "unknown", method, path: full, prefixed, credential, body, valid: false, errors: [] };
       log.push(entry);
       if (!isSend && !isRead) return reply(res, 404, adapter.errorBody("NOT_FOUND", `no route ${method} ${full}`));
       if (credential === "absent") return reply(res, 401, adapter.errorBody("UNAUTHORIZED", "Invalid or missing API key"));
@@ -290,7 +292,12 @@ export async function startStub(opts: { plan?: MessagingPlan; contract?: Messagi
       const ids = Array.from({ length: adapter.idsForSend(b) }, () => randomUUID());
       for (const id of ids) messages.set(id, b);
       return reply(res, 201, adapter.stubSendResponse(b, ids));
-    })();
+    })().catch((e: unknown) => {
+      const message = e instanceof Error ? e.message : String(e);
+      if (entry !== undefined) entry.errors = [{ path: "$", message }];
+      if (res.headersSent || res.writableEnded || res.destroyed) { res.destroy(); return; }
+      reply(res, 500, adapter.errorBody("STUB_ERROR", message));
+    });
   });
   await new Promise<void>((resolve) => server.listen(opts.port ?? plan.stubPort, "127.0.0.1", resolve));
   const port = (server.address() as { port: number }).port;

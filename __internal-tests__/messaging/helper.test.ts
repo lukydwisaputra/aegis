@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import {
-  ADAPTERS, DEFAULT_FAKE_RECIPIENTS, NotSimulatedError, adapterFor, apiPrefix, fakeRecipientProblem, liveUrl,
-  probeRegistered, replay, requestSchema, startStub, toFakeRecipient, validate,
+  ADAPTERS, DEFAULT_FAKE_RECIPIENTS, NotSimulatedError, adapterFor, assertOnlyFakes, apiPrefix, fakeRecipientProblem, liveUrl,
+  probeRegistered, replay, requestSchema, send, startStub, toFakeRecipient, validate,
   type MessagingContract, type MessagingPlan,
 } from '@qa/messaging';
 
@@ -52,6 +52,14 @@ describe('fake recipients', () => {
   });
 });
 
+describe('recipient field patterns', () => {
+  it('refuses a recipient field pattern it cannot address instead of passing vacuously', () => {
+    const odd = { ...adapter, recipientFields: ['contact.email'] };
+    expect(() => toFakeRecipient({ event_id: 'e', contact: { email: 'a@b.co' } }, plan(), odd)).toThrow(/unsupported recipient field pattern "contact\.email"/);
+    expect(() => assertOnlyFakes({ event_id: 'e' }, plan(), odd)).toThrow(/unsupported recipient field pattern/);
+  });
+});
+
 describe('stub', () => {
   it('records the credential as present, never its value, and validates against the contract', async () => {
     const stub = await startStub({ plan: plan(), contract });
@@ -97,6 +105,25 @@ describe('stub', () => {
       stub.respondNext('timeout');
       await expect(fetch(`${stub.url}/api/v1/events`, { method: 'POST', headers: { authorization: 'Bearer k' }, body: '{"event_id":"e"}', signal: AbortSignal.timeout(300) })).rejects.toThrow();
       expect((await post(`${stub.url}/api/v1/events`, { event_id: 'e' })).status).toBe(201);
+    } finally { await stub.stop(); }
+  });
+});
+
+describe('stub robustness', () => {
+  it('answers 500 STUB_ERROR when handling throws, and keeps serving', async () => {
+    const broken = JSON.parse(JSON.stringify(contract)) as MessagingContract;
+    (broken.openapi as any).paths['/events'].post.requestBody.content['application/json'].schema = { $ref: 'other.json#/x' };
+    const stub = await startStub({ plan: plan(), contract: broken });
+    try {
+      const r = await post(`${stub.url}/api/v1/events`, { event_id: 'e' });
+      expect(r.status).toBe(500);
+      expect(r.body.code).toBe('STUB_ERROR');
+      expect(r.body.error).toMatch(/unsupported \$ref/);
+      expect(stub.recorded()[0]!.errors[0]!.message).toMatch(/unsupported \$ref/);
+      const next = await post(`${stub.url}/api/v1/events`, { event_id: 'e' });
+      expect(next.status).toBe(500);
+      const unknown = await post(`${stub.url}/api/v1/nope`, { event_id: 'e' });
+      expect(unknown.status).toBe(404);
     } finally { await stub.stop(); }
   });
 });
@@ -157,6 +184,19 @@ describe('live replay (a stub stands in for the provider)', () => {
     } finally { await stub.stop(); }
     expect(adapter.probeResult(400, { code: 'RECIPIENT_CONTACT_REQUIRED', details: { channel: 'sms' } })).toEqual({ registered: true, channel: 'sms' });
     expect(adapter.probeResult(400, { code: 'UNKNOWN_EVENT_ID' })).toEqual({ registered: false, channel: null });
+  });
+
+
+  it('send refuses a body whose recipient is not the configured fake, and nothing reaches the provider', async () => {
+    const stub = await startStub({ plan: plan(), contract });
+    try {
+      await withEnv(`${stub.url}/api/v1`, async () => {
+        await expect(send({ event_id: 'e', recipient_email: 'real@corp.com' }, { plan: plan() })).rejects.toThrow(/not the configured fake recipient/);
+        await expect(send({ event_id: 'e', recipients: [{ recipient_external_id: 'r', recipient_phone: '+6591234567' }] }, { plan: plan() }))
+          .rejects.toThrow(/not the configured fake recipient/);
+      });
+      expect(stub.recorded()).toHaveLength(0);
+    } finally { await stub.stop(); }
   });
 });
 
