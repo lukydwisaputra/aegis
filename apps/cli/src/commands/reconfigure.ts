@@ -2,15 +2,16 @@ import { Command, Option } from "commander";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import pc from "picocolors";
-import { RunStateError, assertMailpitAdapter } from "@qa/run-state";
+import { ADAPTERS } from "@qa/messaging";
+import { RunStateError, assertMessagingConfig } from "@qa/run-state";
 import { action } from "./_io.js";
 
 export function reconfigureCommand(): Command {
   return new Command("reconfigure")
     .description("Edit aegis settings without re-initialising")
     .argument("[aegis-dir]", "path to aegis/ directory", "aegis")
-    // AUD-051 (T4): Mailpit is the only inbox; any other adapter is refused as invalid-input.
-    .addOption(new Option("--email <adapter>", "change email inbox adapter (mailpit only)").choices(["mailpit"]))
+    // NEW-07: the messaging adapter; a config still carrying emailAdapter is refused until it is removed.
+    .addOption(new Option("--messaging <adapter>", "change the messaging provider adapter").choices(Object.keys(ADAPTERS)))
     .option("--project-name <name>", "change dashboard project name")
     .action(action((aegisDir: string, opts: ReconfigureOptions) => {
       const aegisRoot = resolve(aegisDir);
@@ -21,9 +22,9 @@ export function reconfigureCommand(): Command {
 
       const config = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
 
-      if (opts.email) (config as { emailAdapter: string }).emailAdapter = opts.email;
-      // A config left on another adapter is refused, not rewritten; `--email mailpit` is the fix.
-      assertMailpitAdapter(config.emailAdapter);
+      if (opts.messaging) config.messaging = { ...(config.messaging as Record<string, unknown> | undefined), adapter: opts.messaging };
+      // A stale emailAdapter or an invalid messaging block is refused, not rewritten.
+      assertMessagingConfig(config);
       if (opts.projectName) {
         const dashboard = (config.dashboard ?? {}) as Record<string, unknown>;
         dashboard.projectName = opts.projectName;
@@ -36,6 +37,6 @@ export function reconfigureCommand(): Command {
 }
 
 interface ReconfigureOptions {
-  email?: string;
+  messaging?: string;
   projectName?: string;
 }

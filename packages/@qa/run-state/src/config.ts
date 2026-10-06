@@ -53,16 +53,6 @@ function stringList(value: unknown, key: string): string[] {
   return value as string[];
 }
 
-/**
- * @deprecated NEW-07: readRunConfig no longer calls this (emailAdapter is refused by assertMessagingConfig). Kept only so
- * apps/cli reconfigure.ts typechecks and behaves as before; Task 4 deletes it together with that caller.
- */
-export function assertMailpitAdapter(value: unknown): void {
-  if (value !== undefined && value !== "mailpit") {
-    throw new RunStateError("invalid-input", `aegis.config.json#emailAdapter must be mailpit (the only supported inbox), found ${typeof value === "string" ? value : JSON.stringify(value)}`);
-  }
-}
-
 export function readRunConfig(root: string): RunConfig {
   let raw: Record<string, unknown>;
   try {

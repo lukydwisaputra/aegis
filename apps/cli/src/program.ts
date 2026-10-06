@@ -8,6 +8,7 @@ import { gateCommand } from "./commands/gate.js";
 import { idCommand } from "./commands/id.js";
 import { initCommand } from "./commands/init.js";
 import { integrityCommand } from "./commands/integrity.js";
+import { messagingCommand } from "./commands/messaging.js";
 import { phaseCommand } from "./commands/phase.js";
 import { reconfigureCommand } from "./commands/reconfigure.js";
 import { runCommand } from "./commands/run.js";
@@ -23,7 +24,7 @@ export function buildProgram(): Command {
   for (const command of [
     initCommand(), reconfigureCommand(), updateCommand(), doctorCommand(), runCommand(), eventCommand(), idCommand(),
     taskCommand(), workReportCommand(), reviewCommand(), integrityCommand(), alignCommand(), phaseCommand(), gateCommand(),
-    escalationCommand(), helpersCommand(),
+    escalationCommand(), helpersCommand(), messagingCommand(),
   ]) {
     program.addCommand(command);
   }

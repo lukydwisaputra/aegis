@@ -60,6 +60,9 @@ importers:
       '@qa/ids':
         specifier: workspace:*
         version: link:../../packages/@qa/ids
+      '@qa/messaging':
+        specifier: workspace:*
+        version: link:../../packages/@qa/messaging
       '@qa/run-state':
         specifier: workspace:*
         version: link:../../packages/@qa/run-state

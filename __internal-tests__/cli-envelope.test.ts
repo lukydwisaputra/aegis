@@ -52,18 +52,18 @@ describe('commander parse errors are JSON envelopes (CO-04)', () => {
     expect(JSON.parse(envelopeFor(err).stderr)).toEqual({ error: 'invalid-input', message: "unknown option '--profile'" });
   });
 
-  it('init and reconfigure accept only the mailpit inbox (AUD-051, T4)', async () => {
-    // Inspect first: while gmail is accepted, parsing would run the action.
+  it('init and reconfigure accept only the known messaging adapters (NEW-07)', async () => {
+    // Inspect first: while mailgun is accepted, parsing would run the action.
     const program = buildProgram();
     for (const name of ['init', 'reconfigure']) {
-      const email = program.commands.find((c) => c.name() === name)!.options.find((o) => o.long === '--email')!;
-      expect(email.argChoices).toEqual(['mailpit']);
+      const messaging = program.commands.find((c) => c.name() === name)!.options.find((o) => o.long === '--messaging')!;
+      expect(messaging.argChoices).toEqual(['commshub']);
     }
-    for (const argv of [['init', 'x', '--email', 'gmail'], ['reconfigure', 'x', '--email', 'gmail']]) {
+    for (const argv of [['init', 'x', '--messaging', 'mailgun'], ['reconfigure', 'x', '--messaging', 'mailgun']]) {
       const err = (await parseError(argv))!;
       expect(err.code).toBe('commander.invalidArgument');
       expect(envelopeFor(err).exitCode).toBe(2);
-      expect(JSON.parse(envelopeFor(err).stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining('Allowed choices are mailpit') });
+      expect(JSON.parse(envelopeFor(err).stderr)).toMatchObject({ error: 'invalid-input', message: expect.stringContaining('Allowed choices are commshub') });
     }
   });
 
@@ -137,22 +137,28 @@ describe('locks (CO-04)', () => {
   expect(fs.existsSync(missing)).toBe(false);
 });
 
-(stale ? it.skip : it)('reconfigure refuses a config left on another email adapter, and --email mailpit repairs it (AUD-051)', () => {
+(stale ? it.skip : it)('reconfigure refuses a config still carrying emailAdapter, and --messaging commshub repairs it once it is removed (NEW-07)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-reconf-'));
   try {
     const cfg = path.join(dir, 'aegis.config.json');
-    const before = JSON.stringify({ emailAdapter: 'gmail', dashboard: { projectName: 'Old' } }, null, 2) + '\n';
+    const messaging = { adapter: 'commshub', commshub: { contract: { repo: 'org/repo', path: 'docs/api.yaml', ref: 'main' } } };
+    const before = JSON.stringify({ emailAdapter: 'mailpit', messaging, dashboard: { projectName: 'Old' } }, null, 2) + '\n';
     fs.writeFileSync(cfg, before);
     const run = (...args: string[]) => spawnSync(process.execPath, [CLI, 'reconfigure', dir, ...args], { cwd: os.tmpdir(), encoding: 'utf-8' });
     const refused = run('--project-name', 'QA');
     expect(refused.status).toBe(2);
     expect(JSON.parse(refused.stderr)).toEqual({
       error: 'invalid-input',
-      message: 'aegis.config.json#emailAdapter must be mailpit (the only supported inbox), found gmail',
+      message: 'aegis.config.json#emailAdapter was removed (NEW-07): delete it and configure messaging.adapter instead',
     });
     expect(fs.readFileSync(cfg, 'utf-8')).toBe(before);
-    expect(run('--email', 'mailpit').status).toBe(0);
-    expect(JSON.parse(fs.readFileSync(cfg, 'utf-8'))).toMatchObject({ emailAdapter: 'mailpit' });
+    // The owner deletes the stale key; the command then rewrites the file with the adapter set.
+    const stale = JSON.parse(before) as Record<string, unknown>;
+    delete stale.emailAdapter;
+    fs.writeFileSync(cfg, JSON.stringify(stale, null, 2) + '\n');
+    expect(run('--messaging', 'commshub').status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(cfg, 'utf-8'))).toMatchObject({ messaging: { adapter: 'commshub' } });
+    expect(JSON.parse(fs.readFileSync(cfg, 'utf-8'))).not.toHaveProperty('emailAdapter');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

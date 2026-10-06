@@ -7,7 +7,14 @@
   "shareBooks": false,
   "stack": "auto-detect",
   "packageManager": "auto-detect",
-  "emailAdapter": "mailpit",
+  "messaging": {
+    "adapter": "commshub",
+    "stubPort": 4010,
+    "dispatchTimeoutSeconds": 90,
+    "fakeRecipients": { "email": "qa-probe@example.com", "phone": "+6500000000" },
+    "env": { "baseUrl": null, "token": null },
+    "commshub": { "contract": { "repo": "WerkDone-Pte-Ltd/wd-commhub", "path": "docs/08-commhub-events-api.yaml", "ref": "development" } }
+  },
   "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 2 },
@@ -35,8 +42,7 @@
       "ephemeral": true,
       "ephemeralProvisioning": {
         "type": "vercel-preview",
-        "dbSnapshotFrom": "staging",
-        "mailpitPerInstance": true
+        "dbSnapshotFrom": "staging"
       },
       "allowedSpecialists": ["*"],
       "forbiddenSpecialists": ["messaging"],
@@ -64,7 +70,6 @@
   "ports": {
     "dashboard": 3030,
     "dashboardApi": 3031,
-    "mailpit": { "smtp": 1025, "http": 8025 },
     "storybook": 6006,
     "k6Dashboard": 5665,
     "trace": 9322

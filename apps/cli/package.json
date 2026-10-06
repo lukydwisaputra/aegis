@@ -17,6 +17,7 @@
     "@qa/contracts": "workspace:*",
     "@qa/event-bus": "workspace:*",
     "@qa/ids": "workspace:*",
+    "@qa/messaging": "workspace:*",
     "@qa/run-state": "workspace:*",
     "commander": "^12.0.0",
     "enquirer": "^2.4.1",
