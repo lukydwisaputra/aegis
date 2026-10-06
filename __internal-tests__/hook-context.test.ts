@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
+import { ADAPTERS } from '@qa/messaging';
 import { CLI_ONLY_RUN_GLOBS, readLedger } from '@qa/path-guard';
 import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
@@ -49,6 +50,15 @@ describe('H4 run context (spec §4.2)', () => {
 
   it('CLI_USAGE covers every CLI command', () => {
     expect(Object.keys(CLI_USAGE).sort()).toEqual([...CLI_COMMANDS].sort());
+  });
+
+  it('lists every messaging adapter with its detection hints, generated from the adapters (NEW-07: the scanner matches them)', async () => {
+    await create();
+    const text = runContextFor(t.root, 'qa-context-scanner', 's1')!;
+    const line = text.split('\n').find((l) => l.startsWith('- Messaging adapters: '));
+    expect(line).toBeDefined();
+    expect(Object.keys(ADAPTERS).length).toBeGreaterThan(0);
+    for (const a of Object.values(ADAPTERS)) expect(line).toContain(`${a.id} (${a.detectionHints})`);
   });
 
   it('d13: the never-write list is generated from CLI_ONLY_RUN_GLOBS, so it names every CLI-only file', async () => {

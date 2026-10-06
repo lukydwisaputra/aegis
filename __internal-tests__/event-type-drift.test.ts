@@ -45,11 +45,15 @@ const NON_EVENT_PREFIXES = [
   'dashboard.', 'discovery.', 'github.', 'target.', 'env.forbiddenSpecialists',
   'env.readOnly', 'ports.', 'engines.', 'url.', 'secretsRef.', 'reports.',
   'metrics.costSavings', 'scenario.sharedSeed',
+  // NEW-07: the messaging config keys, named one by one so the messaging.* events stay checked
+  'messaging.stubPort', 'messaging.dispatchTimeoutSeconds', 'messaging.fakeRecipients',
   // JSON field paths inside artefacts
   'defectMetrics.', 'resultsSummary.', 'rootCause.', 'work-report.',
   'SignoffSpec.', 'response.usage.',
+  'env.baseUrl', 'env.token', // runs/{runId}/messaging/plan.json
   // target-profile.json field paths named by the scanner checklist
   'monorepo.', 'ci.provider', 'framework.', 'existingTests.', 'language.', 'supabase.',
+  'messaging.provider', 'messaging.baseUrlEnv', 'messaging.tokenEnv',
   // library and framework APIs
   'Promise.', 'console.', 'page.', 'test.afterEach', 'test.beforeEach',
   'socket.io', 'use.', 'path-guard.',

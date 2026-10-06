@@ -154,7 +154,7 @@ Claims its task through the CLI (see Task Protocol). Read-only on all prior arte
 
 ## Worked Example
 
-`RUN-20260524-001` closure: Summary — "AUTH module tested over 3h across 8 TCs; 7 passed, 1 failed (DEF-001-AUTH-UI)." Open defects: DEF-001-AUTH-UI Sev2 — open, fix in review. Open questions: "Plus-aliased email failure only tested on 3 browsers; Singpass integration not tested (biometric). Email delivery to plus-aliased addresses was tested via Mailpit but not with real Gmail routing." Residual risk: RISK-AUTH-007 remains HIGH (fix unverified). Gate 3 approvals block: product owner must acknowledge residual risk before closure.
+`RUN-20260524-001` closure: Summary — "AUTH module tested over 3h across 8 TCs; 7 passed, 1 failed (DEF-001-AUTH-UI)." Open defects: DEF-001-AUTH-UI Sev2 — open, fix in review. Open questions: "Plus-aliased email failure only tested on 3 browsers; Singpass integration not tested (biometric). Email delivery to plus-aliased addresses was tested against the provider's development tenant with simulated delivery, not against real inboxes." Residual risk: RISK-AUTH-007 remains HIGH (fix unverified). Gate 3 approvals block: product owner must acknowledge residual risk before closure.
 
 ## Contract (machine-checked)
 

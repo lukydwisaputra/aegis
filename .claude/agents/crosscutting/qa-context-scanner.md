@@ -1,6 +1,6 @@
 ---
 name: qa-context-scanner
-description: Runs first every cycle. Read-only scan of the target project. Detects framework, package manager, monorepo layout, JSX/TSX ratio, existing tests, CI provider, API surface, env var names, Supabase usage, app list, personal data and email flows. Writes target-profile.json. Emits target.profiled and target.changed events. Never modifies target code.
+description: Runs first every cycle. Read-only scan of the target project. Detects framework, package manager, monorepo layout, JSX/TSX ratio, existing tests, CI provider, API surface, env var names, Supabase usage, app list, personal data and messaging integration. Writes target-profile.json. Emits target.profiled and target.changed events. Never modifies target code.
 modelTier: read-only
 model: claude-haiku-4-5-20251001
 tools: [Read, Write, Bash]
@@ -49,7 +49,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
     - a field name in scope matches a personal-data term. Scope: names only (never row or seed values) found in `supabase/migrations/**`, `prisma/schema.prisma`, drizzle schema files, `models/**`, form fields (`<input name=…>`, `register("…")`, `name="…"` in `.tsx` and `.jsx`), zod schemas and API handler request bodies. Terms: `email`, `phone`, `telephone`, `tel`, `mobile`, `name`, `username`, `surname`, `first_name`, `last_name`, `full_name`, `given_name`, `family_name`, `address`, `street`, `city`, `zip`, `postcode`, `postal`, `dob`, `date_of_birth`, `birth`, `nric`, `fin`, `passport`, `national_id`, `tax_id`, `ssn`, `gender`, `password` and `ip_address`. Match by token: split the field name on separators (`_`, `-`, `.`, space) and at camelCase boundaries, then lowercase; the name matches when any token equals a single-word term, or consecutive tokens equal a multi-word term. Plurals count: a token equal to a term followed by `s` or `es` also matches (`emails`, `phones`, `addresses`). `user_email`, `phoneNumber` and `postal_code` match `email`, `phone` and `postal`; `firstName`, `first-name` and `FIRST_NAME` all match `first_name`; a short term such as `fin` or `tel` must be a whole token, so `final`, `find` and `hotel` do not match;
     - an analytics, CRM, support or monitoring dependency is present, by presence alone: `posthog-js`, `mixpanel-browser`, `@segment/analytics-next`, `@amplitude/analytics-browser`, `@hubspot/api-client`, `@vercel/analytics`, `react-ga4`, `hotjar`, `intercom` or any `@sentry/*` package.
     When in doubt, record `true` and put what made you unsure in `personalDataSignals[]`. `hasPersonalData` is `false` only when you found no signal, and then `personalDataSignals` is empty. GDPR and PDPA run only when the profile shows personal data.
-19. **Email flows.** Record `hasEmailFlows` (`true` or `false`). It is `true` when any of these holds: the target depends on a mail library (`nodemailer`, `resend`, `@sendgrid/mail`, `@sendgrid/*`, `postmark`, `mailgun.js`, `mailgun-js`, `@react-email/*`, `@aws-sdk/client-ses`); a name matching `*EMAIL*`, `*SMTP*`, `*MAIL*`, `RESEND_*`, `SENDGRID_*`, `POSTMARK_*` or `MAILGUN_*` is in `envVarNames`; a Supabase edge function (`supabase/functions/**`) calls a mail API; or `platform` is `"supabase"` and `hasAuth` is `true` (Supabase auth sends confirmation mail). When it is `false`, the email specialist reports a no-op.
+19. **Messaging integration.** Match the detection hints of each messaging adapter, listed in the messaging adapters line of the CLI cheat-sheet: env var names and hosts that identify a provider, and the send call built from them. When an adapter's hints match, set `messaging.provider` to its id, `hasMessagingIntegration` to true, and `messaging.baseUrlEnv` / `messaging.tokenEnv` to the env names the client reads for the request's base URL and for its auth header. When no adapter matches but a mail library (`nodemailer`, `resend`, `@sendgrid/mail`, `@sendgrid/*`, `postmark`, `mailgun.js`, `mailgun-js`, `@react-email/*`, `@aws-sdk/client-ses`) or an env name matching `*SMTP*`, `*MAIL*`, `RESEND_*`, `SENDGRID_*`, `POSTMARK_*` or `MAILGUN_*` is found, set `messaging.provider` to `direct-mail` and `hasMessagingIntegration` to false. Otherwise `none` and false, with both env names null. When `hasMessagingIntegration` is false, the messaging specialist reports a no-op.
 
 ## Outputs
 
@@ -81,7 +81,7 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
   },
   "ci": { "provider": "github-actions", "workflowFiles": [] },
   "apiSurface": [],
-  "envVarNames": ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"],
+  "envVarNames": ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "COMMSHUB_BASE_URL", "COMMSHUB_SERVICE_TOKEN"],
   "hasAuth": true,
   "authProvider": "supabase",
   "nodeVersion": "20",
@@ -89,7 +89,8 @@ The target project root, determined by `aegis.config.json.targetProjectRoot`.
   "hasFeatureFlags": false,
   "hasPersonalData": true,
   "personalDataSignals": ["hasAuth", "services/auth/migrations/0003_profiles.sql:phone"],
-  "hasEmailFlows": true,
+  "hasMessagingIntegration": true,
+  "messaging": { "provider": "commshub", "baseUrlEnv": "COMMSHUB_BASE_URL", "tokenEnv": "COMMSHUB_SERVICE_TOKEN" },
   "sourceInventory": {
     "routes": [{ "path": "/auth/login", "file": "apps/prospect/src/routes/auth/login.tsx" }],
     "components": [{ "name": "LoginForm", "file": "apps/prospect/src/components/LoginForm.tsx" }],

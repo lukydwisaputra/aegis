@@ -24,7 +24,7 @@ Executes a fast, focused subset of the automated QA pipeline designed to act as 
 ## Behaviour
 1. Parse `--budget` into seconds; compute per-specialist time slices.
 2. Load P0 and P1 test cases only from the design artifacts (or generate a minimal set if none exist).
-3. Skip specialists: `exploratory`, `perf`, `email` (unless explicitly re-added via `--include-security`).
+3. Skip specialists: `exploratory`, `perf`, `messaging` (unless explicitly re-added via `--include-security`).
 4. Dispatch remaining specialists in parallel (api, ui, unit, a11y, and optionally security) with the budget constraint.
 5. Collect results; evaluate against smoke gate thresholds in `config/thresholds.yaml` (default: 0 P0 failures).
 6. Emit `smoke.passed` or `smoke.failed` with a compact terminal report.
