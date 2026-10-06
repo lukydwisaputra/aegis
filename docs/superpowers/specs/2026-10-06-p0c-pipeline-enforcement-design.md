@@ -4,7 +4,7 @@
 > the other program specs once P6 closes.
 
 - Date: 2026-10-06
-- Status: draft, awaiting owner review
+- Status: approved by the owner (2026-10-06), with the answers recorded in §2.1 (O5–O10)
 - Parent spec: `docs/superpowers/specs/2026-09-29-p0-pipeline-foundation-design.md` (§4.1–4.6, §5, §8). P0c
   builds what that spec left open and records each departure from it (§2.3).
 - Matrix: `docs/superpowers/specs/2026-09-29-audit-remediation-matrix.md`, the P0c rows, the "Notes for P0c from
@@ -22,7 +22,9 @@ Owner rules this slice applies:
 - Aegis never modifies its own framework at runtime, and agents never modify target source.
 - Production is read-only.
 - Customer-facing run files are brand-clean.
-- Completed runs are terminal, and their evidence is immutable (owner decision 2).
+- Completed runs are terminal, and their evidence is immutable (owner decision 2). The one later write into a
+  completed run is `/qa-rerender-report`. It adds a new PDF directory and a line to the run's re-render log, and
+  never touches `events.jsonl`, `run.json` or the evidence (O6, §4.3.12).
 
 ---
 
@@ -54,7 +56,7 @@ enforced end to end".
 |-----------|----------|
 | P0c-A | One-shot caller tickets (H1 mints, the CLI verifies and consumes). Instance-bound claims (fixes the H2 race). Authenticated `cli.refused`. Envelope fields `instance` and `authBy`. The new H1 rule: the main thread may Agent-dispatch only `qa-orchestrator` among `qa-*` agents. |
 | P0c-B | The deterministic `aegis rollup`, with `inputsHash` and closure freshness. H1 rule (c) for the rollup-owned files. `aegis trace` with T0–T5, wired into the Design and Execution barriers (staged). `tc.approved`. Specialists tag their scripts. `qa-metrics-collector` retired and `@qa/metrics` folded in. Stale-closure refusals at G3, in the `_qa-report-*` skills and in `/qa-push-reports`. The `/qa-rollup` skill. |
-| P0c-C | Derived runs (`--cycle retest\|smoke\|regression --from`). `aegis manual record`, `aegis run list`, `aegis phase reopen`, and the reopen event (CO-09 part). The new `/qa-retest` and `/qa-verify-defect`. Rewrites of smoke, rerun-failed, regression, record-manual, regenerate-report and qa-start. Retirement of run-phase, run-specialist, watch and triage. `.claude/routing.yaml` and the CLAUDE.md router rule. Five legacy entries go from warn to deny. AUD-100 for the execution-pipeline skills. |
+| P0c-C | Derived runs (`--cycle retest\|smoke\|regression --from`). `aegis manual record`, `aegis run list`, `aegis phase reopen`, and the reopen event (CO-09 part). The new `/qa-retest` and `/qa-verify-defect`. `aegis report rerender` and `/qa-rerender-report` (re-render the PDFs of a completed run, O6). Rewrites of smoke, rerun-failed, regression, record-manual, regenerate-report and qa-start. Retirement of run-phase, run-specialist, watch and triage. `.claude/routing.yaml` and the CLAUDE.md router rule. Five legacy entries go from warn to deny. AUD-100 for the execution-pipeline skills. |
 
 ### 1.3 Non-goals (moved out)
 
@@ -89,6 +91,17 @@ Rows already fixed by run-path (AUD-011, 027, 060, 087, 090, 091) are not P0c wo
 | O3 | **Staged traceability.** T1 and T5 are hard at the Design barrier, and `acIds` becomes required. `aegis trace` computes T2, T3 and T4 and shows them in closure and in the G2 `uncertainties[]`. They are warn-only for one real cycle, then flip to hard through `thresholds.yaml#traceability.enforce`. T0 is simplified to "every tagged TC id is in the approved set recorded at Design completion", and `review submit` emits `tc.approved`. | Today no specialist tags scripts, so hard T2/T3 would deadlock the first cycle at Execution. Staging ships the value now and keeps the hard end state behind one switch. | §4.2.4–4.2.6 |
 | O4 | **The rollup is a deterministic CLI command.** `aegis rollup` owns `execution-summary.json`, `reports/metrics/*` and `reports/closure/metrics.json`, plus `inputsHash` for staleness. `qa-metrics-collector` is retired, or reduced to calling `aegis rollup`. `@qa/metrics` is folded in with its paths and rates fixed. H1 rule (c) makes those files CLI-only. G3, the `_qa-report-*` skills and `/qa-push-reports` refuse a stale closure. | Staleness, the "automatic rollup" of NEW-05 and the closure SPV's rule "no number absent from metrics.json" all need idempotent numbers. An LLM recount drifts between passes and cannot be fenced by rule (c). This reverses the run-path departure from P0 D3. | §4.2.1–4.2.3 |
 
+Owner answers at spec review (2026-10-06, binding):
+
+| # | Decision | Reasoning | Design |
+|---|----------|-----------|--------|
+| O5 | **Derived runs keep the human G2 and G3**, `/qa-verify-defect` included. Only smoke auto-decides G2. | The owner decides defect status and closure for every run that has a closure. | §4.3.3 |
+| O6 | **Re-rendering the PDFs of a completed run is needed.** `aegis report rerender --run <RUN>` and the skill `/qa-rerender-report` rebuild the executive PDFs from the run's saved data into a new directory, `reports/executive/rerender-<timestamp>/`, and record the facts through the CLI. They refuse a stale closure. They never touch `events.jsonl`, `run.json` or the evidence. The command sits in P0c-C next to `/qa-regenerate-report`, which keeps refusing completed runs. | A template or renderer fix must reach a closed run without reopening it. The run's state, chain and evidence stay as they were. | §4.3.12 |
+| O7 | **T0 is staged with T2–T4** under the one boolean `traceability.enforce` (T12 accepted). | As T12. | §4.2.4 |
+| O8 | **The owner flips `traceability.enforce`** after the first clean real cycle, as a separate one-line change. It is not flipped inside the P0c-C PR. The default is `false`. | The flip is a policy call on evidence from a real cycle, not part of a feature PR. | §4.2.4 |
+| O9 | **A ticket lives 10 minutes** (T3 accepted). | As T3. | §4.1.2 |
+| O10 | **The unrun TCs of an accepted-with-risk task count as `notRun`**, not `blocked`, and the tasks are listed in `acceptedWithRisk[]` (§4.2.7 accepted). | The rollup cannot map a task to its TCs. | §4.2.7 |
+
 ### 2.2 Defaults (from the brief; the owner may adjust them at spec review)
 
 | # | Default | Reasoning | Design |
@@ -102,7 +115,7 @@ Rows already fixed by run-path (AUD-011, 027, 060, 087, 090, 091) are not P0c wo
 | D-g | **Stale closure.** It is refused at `gate open --gate G3`, by the `_qa-report-*` skills and by `/qa-push-reports`. | P0 §5.1, unchanged. | §4.2.3 |
 | D-h | **Scope moves.** AUD-007 and most of CO-09 go to P5, and P0c keeps only "reopen emits an event". The G2 Sev1 block belongs to P4. The maintenance and query skills' AUD-100 lines go to P3, along with the AUD-110 lines of qa-promote-stage and qa-deps-update, and qa-impact. qa-rollback is left to P3. | Each moved item is unrelated to pipeline safety. | §1.3 |
 
-### 2.3 Technical decisions this spec adds (need owner review)
+### 2.3 Technical decisions this spec adds (approved with the spec, 2026-10-06)
 
 | # | Decision | Reason | Design |
 |---|----------|--------|--------|
@@ -119,11 +132,11 @@ Rows already fixed by run-path (AUD-011, 027, 060, 087, 090, 091) are not P0c wo
 | T11 | The script inventory comes from a static scan of `testsDir`, not from `playwright test --list`. | It is deterministic, needs no target toolchain, and runs no target code in the CLI. P0 §5.2 named `--list`, so this is a departure. Dynamic titles are reported, not guessed. | §4.2.5 |
 | T12 | T0 is staged together with T2–T4 under one boolean, `thresholds.yaml#traceability.enforce`. `tc.approved` covers every TC definition file present at the passing designer review, with its content hash. | T0 depends on script tags, which do not exist yet. The owner decision named T2–T4 as warn-only and left T0's stage open. Hashing also catches a TC edited after approval. | §4.2.4 |
 | T13 | T4 has no separate waiver concept. A not-run TC stops counting once it has a recorded result, including `blocked` through `/qa-record-manual`. | One concept fewer, and the owner's action stays auditable (`manual.recorded`). | §4.2.4 |
-| T14 | A derived run copies the parent's full approved case set plus a frozen scope list. The parent is never written to. "Superseded by" is computed from the derived runs' `run.json`. | Brief §C5 says the parent closure is "marked superseded", which contradicts immutability. A computed relation gives the same view. | §4.3.2, §4.3.5 |
+| T14 | A derived run copies the parent's full approved case set plus a frozen scope list. Creating or running a derived run never writes to the parent. "Superseded by" is computed from the derived runs' `run.json`. | Brief §C5 says the parent closure is "marked superseded", which contradicts immutability. A computed relation gives the same view. | §4.3.2, §4.3.5 |
 | T15 | Smoke requires a parent (`--from`). `/qa-smoke` drops `--budget`, `--include-security` and the exit-code promise. | A smoke run has no Design phase, so it needs a case source. The dropped flags were never enforced (AUD-063). | §4.3.6 |
 | T16 | The regeneration path is `aegis phase reopen --phase closure-draft` (orchestrator only, stale closure only). `gate decide --gate G3` with an approval also refuses a stale closure. | Without a reopen, closure cannot be regenerated inside the phase model. Approving a stale closure would defeat D-g. | §4.3.4 |
 | T17 | `manual record` refuses Automated TCs, refuses on completed runs, and refuses after G3 is approved. `manual.override` is not built. | A manual result is for manual TCs; an automated one is re-run through `/qa-retest`. | §4.3.3 |
-| T18 | `/qa-regenerate-report` refuses a completed run and points to `/qa-retest`. | Completed runs are terminal (O2). | §4.3.7 |
+| T18 | `/qa-regenerate-report` refuses a completed run. It points to `/qa-retest`, or to `/qa-rerender-report` when only the PDFs need rebuilding (O6). | Completed runs are terminal (O2). | §4.3.4 |
 | T19 | AUD-108 closes by marking `{run}/playwright-output/**` `terminal`: raw Playwright traces kept for the owner. | The folder holds artefacts (traces, videos), not a JSON report, so the rollup has nothing to read in it. Costs one escape entry (§8). | §4.2.7 |
 | T20 | P0c-B also deletes the 10 AUD-100 lines of `_qa-report-*`, pulled forward from P3. | B edits those three skills anyway for the stale-closure refusal, and their `report.*` events have no consumer (`git grep`). | §4.2.3 |
 | T21 | The qa-doctor AUD-064 key (`templates/**`) moves to P3 with qa-impact. | It sits on a query-skill line that also carries AUD-057/058 paths. | §1.3 |
@@ -147,6 +160,7 @@ Rows already fixed by run-path (AUD-011, 027, 060, 087, 090, 091) are not P0c wo
 | §3.6: `/qa-resume` re-dispatches the metrics collector | No collector exists (T8). The CLI rolls up at the phase transitions. |
 | §4.3: routing statuses `ready\|not-implemented` | `not-implemented` carries `use:`. `kind` gains `maintenance`. |
 | §5.3: the verify-defect flow marks the parent closure superseded | Computed, never written (T14). |
+| §5.3: `/qa-regenerate-report` re-renders every report of any run | Split in two. `/qa-regenerate-report` regenerates a stale closure on an open run (T16). `/qa-rerender-report` rebuilds the PDFs of a completed run into a new directory (O6). |
 | §3.2: `/qa-smoke` is a cycle type with no case source | It needs a parent (T15). |
 
 ---
@@ -192,11 +206,11 @@ each merge (§6.3).
 
 | Aspect | Content |
 |--------|---------|
-| **Contents** | Derived runs (retest, regression, smoke). `manual record`, `run list`, `phase reopen`, and `run.phase.reopened` on gate rejection (CO-09 part). The `defect.closed`/`defect.reopened` emitter (the defect manager in a derived run). Skills: new `qa-retest` and `qa-verify-defect`; rewrites of `qa-smoke`, `qa-rerun-failed` (alias), `qa-regression`, `qa-record-manual`, `qa-regenerate-report` and `qa-start` (`--health`); `qa-run-phase`, `qa-run-specialist`, `qa-watch` and `qa-triage` deleted. `.claude/routing.yaml`, H3 reading it, the CLAUDE.md router rule and command list. Five legacy entries deleted. The specialists' `dispatchedBy` lists cleaned. Docs. |
-| **CLI** | `run create` gains `--cycle full\|smoke\|retest\|regression`, `--from <RUN>`, `--scope <selector>`, `--priority <P…>`, `--executive` and `--health` (boolean); `--module` and `--env` default from the parent. New: `run list [--status] [--cycle] [--module]`, `manual record --tc <id> --result pass\|fail\|blocked [--evidence <path>…] [--notes <text>] [--run]`, `phase reopen --phase closure-draft --reason <text> [--run]`. `gate decide` (a rejection also records `run.phase.reopened`). |
-| **Events** | `run.derived` and `manual.recorded` (both CLI-recorded). `run.phase.reopened {phases, cause: gate-rejected\|stale-closure, gate?, reason?, withdrawnGate?}`. `defect.closed` and `defect.reopened` get their emitter (`qa-defect-manager`, `event append`). |
-| **Schemas** | `CycleTypeSchema` (+`retest`, `regression`), `RunStateSchema.derivedFrom`, `InheritedManifestSchema`, `ScopeSelectorSchema`, `CommandRoutingSchema` (routing.yaml), `PreflightSchema` (checks list). |
-| **Files and hooks** | `run-state/src/derived.ts` (new), `manual.ts` (new), `run.ts`, `phases.ts`, `gates.ts` (`nextStep` per cycle, reopen helper), `phase-map.ts` (`CYCLE_PHASES`, `CYCLE_GATES`), `preflight.ts` (new); `apps/cli/src/commands/{run,manual,phase}.ts`; `path-guard/src/guard.ts` (`LEGACY_MAIN_THREAD_RUN_WRITES` −5; `inherited/**` and `evidence/manual/**` CLI-only); `hook-context.ts` (H3 reads routing.yaml; `CLI_USAGE`); `contracts/src/**`; `.claude/routing.yaml` (new); `.claude/skills/**` (as above); `qa-orchestrator.md` (derived cycles, regenerate mode, reopen); `qa-test-executor.md` (scope list); `qa-defect-manager.md` and its SPV (verify transitions); `qa-closure-reporter.md` (derived-run sections); the 12 specialist contracts (`dispatchedBy`); CLAUDE.md; HANDBOOK/05, 14; docs D02, D05-cheat-sheet, D05-commands-reference; `pipeline.yaml`; internal tests. |
+| **Contents** | Derived runs (retest, regression, smoke). `manual record`, `run list`, `phase reopen`, and `run.phase.reopened` on gate rejection (CO-09 part). The `defect.closed`/`defect.reopened` emitter (the defect manager in a derived run). `aegis report rerender` (O6). Skills: new `qa-retest`, `qa-verify-defect` and `qa-rerender-report`; rewrites of `qa-smoke`, `qa-rerun-failed` (alias), `qa-regression`, `qa-record-manual`, `qa-regenerate-report` and `qa-start` (`--health`); `qa-run-phase`, `qa-run-specialist`, `qa-watch` and `qa-triage` deleted. `.claude/routing.yaml`, H3 reading it, the CLAUDE.md router rule and command list. Five legacy entries deleted. The specialists' `dispatchedBy` lists cleaned. Docs. |
+| **CLI** | `run create` gains `--cycle full\|smoke\|retest\|regression`, `--from <RUN>`, `--scope <selector>`, `--priority <P…>`, `--executive` and `--health` (boolean); `--module` and `--env` default from the parent. New: `run list [--status] [--cycle] [--module]`, `manual record --tc <id> --result pass\|fail\|blocked [--evidence <path>…] [--notes <text>] [--run]`, `phase reopen --phase closure-draft --reason <text> [--run]`, `report rerender --run <RUN>` (owner only, completed runs only). `gate decide` (a rejection also records `run.phase.reopened`). |
+| **Events** | `run.derived` and `manual.recorded` (both CLI-recorded). `run.phase.reopened {phases, cause: gate-rejected\|stale-closure, gate?, reason?, withdrawnGate?}`. `defect.closed` and `defect.reopened` get their emitter (`qa-defect-manager`, `event append`). `report.rerendered` (CLI-recorded on the run's re-render log `rerender/log.jsonl`, never on `events.jsonl`). |
+| **Schemas** | `CycleTypeSchema` (+`retest`, `regression`), `RunStateSchema.derivedFrom`, `InheritedManifestSchema`, `ScopeSelectorSchema`, `CommandRoutingSchema` (routing.yaml), `PreflightSchema` (checks list), `RerenderManifestSchema`. |
+| **Files and hooks** | `run-state/src/derived.ts` (new), `manual.ts` (new), `run.ts`, `phases.ts`, `gates.ts` (`nextStep` per cycle, reopen helper), `phase-map.ts` (`CYCLE_PHASES`, `CYCLE_GATES`), `preflight.ts` (new), `rerender.ts` (new), `integrity.ts` (verifies the re-render log); `apps/cli/src/commands/{run,manual,phase,report}.ts`; `path-guard/src/guard.ts` and `roles.ts` (`LEGACY_MAIN_THREAD_RUN_WRITES` −5; `inherited/**`, `evidence/manual/**`, `rerender/**` and `reports/executive/rerender-*/**` CLI-only); `hook-context.ts` (H3 reads routing.yaml; `CLI_USAGE`); `contracts/src/**`; `.claude/routing.yaml` (new); `.claude/skills/**` (as above); `qa-orchestrator.md` (derived cycles, regenerate mode, reopen); `qa-test-executor.md` (scope list); `qa-defect-manager.md` and its SPV (verify transitions); `qa-closure-reporter.md` (derived-run sections); the 12 specialist contracts (`dispatchedBy`); CLAUDE.md; HANDBOOK/05, 14; docs D02, D05-cheat-sheet, D05-commands-reference; `pipeline.yaml`; internal tests. |
 | **Matrix rows closed** | AUD-012, AUD-021, AUD-056a, AUD-062, AUD-063, AUD-064 (P0c part), AUD-100 (pipeline part), AUD-102, AUD-110 (P0c part), NEW-04, NEW-05, CO-09 (reopen part), the P0b-2 note "legacy main-thread skills" (P0c's 5). |
 | **Depends on** | B (rollup, freshness, `features`, `DesignedTestCaseSchema`, `TestResultSchema`). Its design may start in parallel. |
 
@@ -516,11 +530,12 @@ recorded (T12).
 
 ```yaml
 traceability:
-  enforce: false   # T0, T2, T3, T4 warn-only; flip to true after one real cycle reports zero violations (O3)
+  enforce: false   # T0, T2, T3, T4 warn-only; the owner flips it to true after a clean real cycle (O3, O8)
 ```
 
 The flip is a one-line PR after the first real cycle whose `trace.evaluated` at Execution shows zero T0/T2/T3/T4
-violations. It may ride with P0c-C if C's live verification is that cycle. NEW-03 is `partial` after B, and `fixed`
+violations. The default is `false`. **The owner flips it** (O8), as a separate one-line change; it is never part of the
+P0c-B or P0c-C PR. NEW-03 is `partial` after B, and `fixed`
 once the switch is `true`.
 
 **`acIds` required (T25).** `DesignedTestCaseSchema = TestCaseObjectSchema` with `traceability.acIds` required (min 1),
@@ -693,8 +708,9 @@ Events, in order: `run.created` (seq 1), then `run.derived {parent, parentChainH
 approvalBasis, manifestSha256}` (seq 2).
 
 **Immutability.**
-- The parent is read and never written, so its evidence, chain and files are untouched. Derived-run evidence goes
-  under the derived run.
+- Creating and running a derived run reads the parent and never writes it, so the parent's evidence, chain and files
+  are untouched. Derived-run evidence goes under the derived run. The only later write into a completed run is
+  `/qa-rerender-report` (§4.3.12).
 - Inherited copies may be edited only where a role allows it: defect copies by the defect manager, and `rtm.json`
   defect links by the defect manager.
 - T0 reports any inherited case whose hash differs from the manifest as "changed after approval".
@@ -706,7 +722,7 @@ approvalBasis, manifestSha256}` (seq 2).
 | Cycle | Phases run | Pre-marked not-applicable at create (reason) | Gates |
 |-------|-----------|-----------------------------------------------|-------|
 | full | all 16 | — | G1, G2, G3 human |
-| retest, regression | intake, scan, env-auth, env-data, execution, triage, closure-draft, compliance\*, closure-final, executive\*\*, curator | dev-test-review, requirements, explore, planning, design: `inherited from <parent> (G1 approved there)` | G2, G3 human |
+| retest, regression | intake, scan, env-auth, env-data, execution, triage, closure-draft, compliance\*, closure-final, executive\*\*, curator | dev-test-review, requirements, explore, planning, design: `inherited from <parent> (G1 approved there)` | G2, G3 human (O5) |
 | smoke | intake, scan, env-auth, env-data, execution, triage | the other 10 | G2 auto (`thresholds.yaml#smoke`) |
 
 \* Compliance is computed not-applicable at its turn, with the reason `compliance inherited from <parent>: personal-
@@ -751,7 +767,7 @@ implicit rollup. The output includes the new freshness. When a closure exists, i
   - **Records** `run.phase.reopened {phases, cause: "stale-closure", reason, inputsHash, withdrawnGate?}`.
 
 `/qa-regenerate-report [--run <id>]`:
-1. On a completed run, refuse (T18).
+1. On a completed run, refuse (T18), naming `/qa-retest` for new results and `/qa-rerender-report` for the PDFs only.
 2. Run `aegis rollup`.
 3. If the closure is `fresh` or `none`, print that and stop.
 4. If it is `stale`, dispatch `qa-orchestrator` with `{mode: "regenerate-closure"}`. The orchestrator runs
@@ -780,7 +796,8 @@ appends an event.
 | `/qa-regression` | `--from` (default: the newest completed run), `--priority` (default `P0,P1,P2`), `--module`, `--against`. Then `run create --cycle regression …`, dispatch, relay. `--against` only prints `/qa-compare --a <against> --b <new run>` when the run completes (AUD-110). |
 | `/qa-smoke` | `--from` (default: the newest completed full, retest or regression run covering `--module`), `--env` (default `testing`), `--module`, `--priority` (default `P0,P1`). Then `run create --cycle smoke …`, dispatch, relay; G2 auto. `--budget`, `--include-security` and the exit code are dropped (T15, AUD-063). |
 | `/qa-record-manual` | `<TC> --result=pass\|fail\|blocked [--notes] [--evidence] [--run]`. Then `manual record`, and print the freshness. When the closure is stale, it says "run /qa-regenerate-report". It no longer reads `artifacts/` or writes `results.json` (AUD-056a). |
-| `/qa-regenerate-report` | §4.3.4. It no longer names a "reporter sub-agent" or `templates/reports/` (AUD-064). |
+| `/qa-regenerate-report` | §4.3.4. Open runs only. It no longer names a "reporter sub-agent" or `templates/reports/` (AUD-064). |
+| `/qa-rerender-report` (new) | `--run=<RUN>` (required). Then `report rerender --run <RUN>`; print the new directory and the files rendered or skipped. It dispatches no agent (§4.3.12). |
 | `/qa-start` | Step 1 drops the `/qa-health` call (AUD-110). `run create --cycle full … [--health]` runs the preflight in the CLI (§4.3.11). |
 | `/qa-rollup` (shipped in B) | `aegis rollup [--run]`, then `aegis run status`, then print the freshness. |
 | `/qa-run-phase`, `/qa-run-specialist`, `/qa-watch`, `/qa-triage` | Deleted (D-b). They stay in routing.yaml as `not-implemented` (§4.3.8). |
@@ -808,6 +825,8 @@ commands:
   - {command: /qa-rerun-failed, kind: execution, status: ready, aliasOf: "/qa-retest --scope=failed", intent: …}
   - {command: /qa-watch, kind: execution, status: not-implemented,
      use: "the developer's own playwright test --ui or jest --watch"}
+  - {command: /qa-rerender-report, kind: maintenance, status: ready, intent: "rebuild the PDFs of a completed run",
+     examples: ["re-render the reports of RUN-20261001-002"], args: "--run"}
   - {command: /qa-run-phase, kind: execution, status: not-implemented, use: "/qa-retest or /qa-regenerate-report"}
   - {command: /qa-run-specialist, kind: execution, status: not-implemented, use: "/qa-retest --scope=tc=…"}
   - {command: /qa-triage, kind: execution, status: not-implemented, use: "/qa-verify-defect --all-open"}
@@ -861,6 +880,73 @@ deterministic checks:
 When any check fails, the CLI refuses with `preflight-failed` and creates no run. When they all pass,
 `run.json#preflight = {health: "passed", checks: [{name, ok, detail}]}`. Without either trigger the health is
 `not-run`, and the post-Scan preflight check stays as today.
+
+#### 4.3.12 Re-rendering a completed run (O6)
+
+```
+aegis report rerender --run <RUN>          # skill: /qa-rerender-report --run=<RUN>
+```
+
+**Caller policy.**
+- `report.rerender` is in `OWNER_COMMANDS` and `OWNER_ONLY`. No agent may run it, and no role row grants it.
+- It needs an owner ticket (it writes), so it is not in the ticketless read-only set (§4.1.5).
+- It has no task and no SPV. The renderers are the deterministic `_qa-report-*` scripts, and no agent work is
+  involved.
+
+**Refusals.** Each exits 2 with the JSON envelope. A refusal records nothing.
+
+| Code | When |
+|------|------|
+| `caller-forbidden` | The caller is not `owner`. |
+| `ticket-missing` | There is no owner ticket. |
+| `out-of-order` | The run's status is not `completed` ("open runs use /qa-regenerate-report"). |
+| `closure-stale` | Closure freshness is `stale`. |
+| `invalid-input` | Closure freshness is `none` (for example a smoke run: no closure to render). |
+| `integrity-failed` | The run's main chain fails a check-only verification, or its existing re-render log does not verify. |
+| `nothing-to-render` | Neither the closure inputs (technical, sign-off) nor a saved deck (slides) are present. |
+| `internal` | A renderer exits non-zero. The partial directory is removed and nothing is recorded. |
+
+`legacy` freshness (a pre-P0c-B run) is allowed with a warning in the output, as at G3 (D-g).
+
+**What it does**, under the run lock:
+1. It verifies the main chain in **check-only** mode, which pins no checkpoint and records nothing, so `run.json` and
+   `events.jsonl` stay byte-identical. It then checks freshness.
+2. It creates `reports/executive/rerender-<YYYYMMDDTHHMMSSZ>.partial/` (UTC; an existing name refuses `busy`).
+3. It runs the renderers as child processes, with `AEGIS_TICKET` and `AEGIS_AGENT` stripped from their environment.
+   Each reads only the run's saved data, through the `--run` and `--out` options the scripts already accept:
+   - `_qa-report-technical-pdf/run.mjs --run <RUN> --out <dir>/technical-report.pdf`;
+   - `_qa-report-signoff-pdf/run.mjs --run <RUN> --out <dir>/signoff.pdf`;
+   - `_qa-report-executive-slides/run.mjs --run <RUN> --deck reports/executive/executive-deck.json --out <dir>/executive-deck.pdf`,
+     which is skipped (recorded as skipped) when no saved deck exists, for example a derived run without
+     `--executive`. Its jargon gate applies as usual.
+4. It writes `<dir>/manifest.json` (`RerenderManifestSchema`, brand-clean: no product or agent names), then renames
+   the `.partial` directory to its final name:
+
+   ```jsonc
+   { "renderedAt": "2026-10-06T08:00:00.000Z", "closureInputsHash": "…",
+     "files": [{"name": "technical-report.pdf", "sha256": "…"}, {"name": "signoff.pdf", "sha256": "…"}],
+     "skipped": [{"name": "executive-deck.pdf", "reason": "no saved executive deck"}] }
+   ```
+
+5. It records the CLI event `report.rerendered` on the run's **re-render log**, `runs/<RUN>/rerender/log.jsonl`.
+   This is a hash-chained log of its own, with its own genesis, written through `appendChained`. It is never
+   `events.jsonl`. The event carries `emittedBy: owner`, `instance: main` and `authBy: ticket:<id>`, plus
+   `{runId, dir, outputs: [{file, sha256}], skipped: [...], closureInputsHash, rendererSha256: {technical, signoff,
+   slides}, mainChainHead: {seq, lineHash}}`.
+
+**What it never touches:** `events.jsonl`, `run.json`, `gates/`, `evidence/`, any other `reports/` file, and the
+original PDFs in `reports/executive/`. The run's status stays `completed`.
+
+**Protection and integrity.**
+- `rerender/**` and `reports/executive/rerender-*/**` are CLI-only under H1 rule (c), for every tool caller. The
+  executive reporter's role glob `reports/executive/**` therefore no longer reaches them.
+- `report.rerendered` is added to `CLI_RECORDED_TYPES`, so no agent can append it.
+- `aegis integrity verify` also verifies `rerender/log.jsonl` as a separate chain when it exists. An error there is
+  reported as a re-render log error and blocks only a further re-render. It never changes the main chain's checkpoint
+  or the status of a completed run.
+
+`/qa-push-reports` pushes the re-render directories as ordinary report files beside the originals, and never replaces
+the originals.
 
 ### 4.4 `run.json#features` (shared by A, B and C)
 
@@ -1013,6 +1099,20 @@ All tests use jest temp directories and fixtures. No real target, environment or
 - **Reopen:** gate rejection now records `run.phase.reopened`; `phase reopen` refuses unless stale and before a G3
   approval, withdraws an open G3, and supersedes attempts.
 - **`run list`** and `supersededBy`.
+- **`report rerender`:**
+  - each refusal code in §4.3.12, including an agent caller, a ticketless owner, an open run, `stale`, `none`, a broken
+    main chain, a broken re-render log, and nothing to render;
+  - on success:
+    - a tree hash of the run directory, excluding `rerender/` and the new `reports/executive/rerender-*/`, is
+      identical before and after;
+    - `events.jsonl` and `run.json` are byte-identical;
+    - the manifest hashes match the files;
+    - the slides are skipped without a saved deck;
+    - the re-render log verifies and holds one `report.rerendered`;
+    - a second call creates a second directory and a second chained line;
+  - a failing renderer stub leaves no `.partial` directory and no event;
+  - H1 denies agent and main-thread writes to `rerender/**` and `reports/executive/rerender-*/**`;
+  - `/qa-regenerate-report` still refuses a completed run.
 - **Routing invariants** (§4.3.8). The H3 text with and without routing.yaml.
 - **Legacy deny:** the 5 skills' old paths are denied with no ledger `legacy-write`.
 - **Skill contracts:** the new and rewritten skills are clean under `aegis align`.
@@ -1046,7 +1146,8 @@ the transcripts and `aegis` outputs go into the PR (adapted from brief §D).
 | C | 9. `/qa-smoke --from <run>`. | It runs with no human gate; `gate.auto-decided` from `thresholds.yaml#smoke`. |
 | C | 10. `/qa-watch`, `/qa-run-phase`, `/qa-run-specialist`, `/qa-triage`. | The router answers "not available, use …" from routing.yaml. |
 | C | 11. `hooks/agents.jsonl` across steps 7–9. | No `legacy-write` entry for the 5 P0c skills. |
-| C | 12. If T0/T2–T4 reported zero violations in step 5 or 7. | The owner flips `traceability.enforce: true` (§4.2.4). |
+| C | 12. `/qa-rerender-report --run <the completed parent of step 7>`, twice. | Two new `reports/executive/rerender-*/` directories with the PDFs and a manifest. The sha256 of `events.jsonl` and `run.json` is unchanged. `aegis integrity verify` passes, including the re-render log, which holds two `report.rerendered` lines. `/qa-regenerate-report` on the same run refuses. |
+| After C, separately | 13. The first real cycle whose T0/T2–T4 report zero violations (step 5 or 7). | The owner flips `traceability.enforce` from the default `false` to `true` in a separate one-line change, outside every P0c PR (O8, §4.2.4). |
 
 ---
 
@@ -1068,6 +1169,8 @@ the transcripts and `aegis` outputs go into the PR (adapted from brief §D).
 | A derived run copies stale or unapproved cases | Only set A is copied (`tc.approved`, or the design-barrier basis for legacy parents). The manifest pins hashes; T0 reports drift; the parent chain head is recorded. |
 | The owner wants one report per release, not per run | The derived closure carries "Derived from" with the delta; `/qa-compare` diffs runs; `supersededBy` links them. Changing the model later is an M-size change. |
 | P0c-B is large (about 55 files, many prose edits) | It can split into B1 (rollup, freshness, collector retirement, rule c) and B2 (trace, `tc.approved`, tagging) inside one plan, with B1 merging first, if the plan finds it over budget. C needs B1 only for the rollup and both for the dry-cycle E2E. |
+| A re-render of a completed run is mistaken for a change to its results | It writes only a dated directory with a manifest and a separate log. Status, chain, gates and evidence are byte-unchanged (tested). The originals stay in place. Rendering newer templates over the same saved data is the stated purpose. |
+| Re-render needs the PDF renderer (Puppeteer) in the CLI's environment | The same built renderer the `_qa-report-*` scripts already load. A missing build refuses `internal` with the build hint and leaves no partial directory. |
 | Sibling projects still call the retired skills | Out of scope until P6. Routing.yaml answers with `use:`. |
 | Counts drift (tier table, HANDBOOK/06) after the collector retirement | Updated in the same commit; the AUD-075 checker lines are watched (§8). |
 
@@ -1109,16 +1212,29 @@ terminal line). No `contract-only-fix` label is needed.
    `manual.recorded` are declared in `events.ts`, listed in the checker's `CLI_RECORDS`, and either consumed
    (`cliConsumes`, the orchestrator through `aegis trace`) or marked audit-only. `defect.closed`/`defect.reopened`
    enter `cliConsumes.awaits` only in C, with their emitter.
-3. **New skills.** `qa-retest`, `qa-verify-defect` and `qa-rollup` ship clean contracts (`kind: execution`, `cli`,
-   `dispatches: [qa-orchestrator]` where they dispatch, and `emits` only with `via: cli:…`).
+3. **New skills.** `qa-retest`, `qa-verify-defect`, `qa-rollup` and `qa-rerender-report` ship clean contracts
+   (`kind: execution` or `maintenance`, `cli`, `dispatches: [qa-orchestrator]` where they dispatch, `writes: []`, and
+   `emits` only with `via: cli:…`).
 4. **Counts.** The CLAUDE.md tier table and HANDBOOK/06 drop the collector consistently (AUD-075).
 5. **New CLI-only and rollup-owned paths.** Each is added to `pipeline.yaml#sources.cli` in the same commit, so agent
    reads of `execution-summary.json`, `reports/metrics/**`, `reports/closure/metrics.json` and `inherited/**` resolve
-   to a producer.
+   to a producer. `rerender/**` and `reports/executive/rerender-*/**` join `sources.cli` and the `writePolicy` CLI-only
+   list too.
+
+**`report rerender` adds no key (verified against the checker at 8667164).**
+- The CONSUMER "unread" rule looks only at agent contract `writes` (`dataflow.ts#consumerRule`), so CLI outputs listed
+  in `sources.cli` raise no unread line.
+- The skill's contract has `writes: []` and `dispatches: []`. Its one event is `via: cli:report.rerender`, declared in
+  `events.ts` and the checker's `CLI_RECORDS`, and audit-only (growth item 2).
+- The new CLI-only globs overlap no agent contract write: the executive reporter's contract names four exact files in
+  `reports/executive/`, none under `rerender-*/`. So no WRITE-POLICY `cli-only` line appears.
+- DOC-REF lines are avoided because the skill directory exists before any doc names `/qa-rerender-report`.
+
+P0c-C's expectation stays −60 removed and 0 added.
 
 **Matrix edits per slice** (made when each slice merges):
 - **A:** the P0b-2 note "CLI-side identity binding" is marked done, and the NEW-06 carry-over closes.
-- **B:** AUD-004, AUD-092 and AUD-108 become `fixed`. NEW-03 becomes `partial (staged; enforce flips after one
+- **B:** AUD-004, AUD-092 and AUD-108 become `fixed`. NEW-03 becomes `partial (staged; the owner flips enforce, default false, after one
   cycle)`. The notes "H1 rule (c)" and "Metrics env.specialist-blocked" are done. AUD-054's "metrics → P0c" is closed.
 - **C:**
   - become `fixed`: AUD-012, AUD-021, AUD-056a, AUD-062, AUD-063, AUD-102, NEW-04, NEW-05, and the "legacy
