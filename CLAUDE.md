@@ -79,7 +79,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
 - `environments` — per-env URLs, allowed specialists, and `mutating` flag
-- `ports` — dashboard (3030), dashboardApi (3031), Mailpit (8025), k6 (5665)
+- `ports` — dashboard (3030), dashboardApi (3031), k6 (5665); the messaging stub port is messaging.stubPort (4010)
 - `dashboard.projectName` — appears in all customer-facing report output
 
 Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severity limits) live in `thresholds.yaml`.
@@ -146,6 +146,7 @@ runs/{runId}/
   intake/               # requirement documents copied at run create (CLI-written)
   hooks/agents.jsonl    # hook ledger: subagent starts, claims, stops (written by the hooks)
   integrity/            # bytes cut by aegis integrity repair-tail (CLI-written)
+  messaging/            # messaging contract.json and plan.json (CLI-written, aegis messaging)
 ```
 
 ### Knowledge pipeline
@@ -208,7 +209,7 @@ this directory.
 | `../tests/**` | WRITE by `qa-*` agents under `testsDir`, per their role row; never by the main thread |
 | `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
 | `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
-| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
+| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
 | `aegis/packages/**`, `aegis/apps/**`, `aegis/.claude/**` | Framework source: owner branch work only; agents are denied |
 | `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |

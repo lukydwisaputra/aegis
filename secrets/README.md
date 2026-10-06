@@ -45,7 +45,7 @@ Aegis has no vault resolver. Agents read the values from the gitignored `secrets
 - `APP_BASE_URL`, `APP_API_URL`
 - `DATABASE_URL`, `DATABASE_PASSWORD`, etc.
 - `SUPABASE_*` (when target.platform === "supabase")
-- `MAILPIT_URL`
+- The target's messaging base URL and key, under the env names `aegis messaging check` prints (development only)
 - `GITHUB_TOKEN`
 - `LINEAR_API_KEY` / `JIRA_API_TOKEN` / `CLICKUP_API_TOKEN` (optional)
 - `SENTRY_DSN` (optional)

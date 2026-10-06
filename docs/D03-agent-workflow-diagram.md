@@ -78,7 +78,7 @@ flowchart TD
         Responsive(["qa-responsive-specialist"])
         Unit(["qa-unit-specialist"])
         A11y(["qa-accessibility-specialist"])
-        Email(["qa-email-specialist"])
+        Messaging(["qa-messaging-specialist"])
         Realtime(["qa-realtime-specialist"])
         FeatureFlag(["qa-feature-flag-specialist"])
     end
@@ -144,7 +144,7 @@ flowchart TD
     Executor --> Responsive
     Executor --> Unit
     Executor --> A11y
-    Executor --> Email
+    Executor --> Messaging
     Executor --> Realtime
     Executor --> FeatureFlag
     UI -->|writes| EvidenceTC

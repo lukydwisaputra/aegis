@@ -203,7 +203,7 @@ Routing lives in `TEST_ROUTING` (`@qa/contracts`), mirrored by `.claude/pipeline
 |---|---|
 | `Unit` | also dispatches qa-unit-specialist |
 | `Accessibility` | also dispatches qa-accessibility-specialist |
-| `Email` | also dispatches qa-email-specialist |
+| `Messaging` | also dispatches qa-messaging-specialist |
 | `Realtime` | also dispatches qa-realtime-specialist |
 | `FeatureFlag` | also dispatches qa-feature-flag-specialist |
 | `Exploratory` | also dispatches qa-exploratory-specialist |

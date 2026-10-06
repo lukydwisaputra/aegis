@@ -48,7 +48,7 @@ When Aegis finds a bug it does **not** fix it. It writes a defect record to `run
 |-----------|-------------|---------|---------|-----------|
 | All specialists | ✓ | ✓ | ✓ | `ui` and `api` only (read-only smoke) |
 | Mutating test data | ✓ | ✓ | ✓ | ✗ |
-| Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit; needs `MAILPIT_URL` set) | ✗ |
+| Messaging testing | ✓ (stub + provider dev) | ✗ | ✗ | ✗ |
 | Performance testing | ✓ | ✓ | ✓ | ✗ |
 | Unit testing | ✓ | ✓ | ✓ | ✗ |
 | Read-only enforced | ✗ | ✗ | ✗ | ✓ |
@@ -57,7 +57,7 @@ When Aegis finds a bug it does **not** fix it. It writes a defect record to `run
 ## Testing environment — ephemeral per PR
 
 Each PR gets its own isolated instance:
-1. PR opened → provision preview deploy (Vercel/Netlify) + DB snapshot from staging + per-PR Mailpit
+1. PR opened → provision preview deploy (Vercel/Netlify) + DB snapshot from staging
 2. `/qa-smoke --env=testing` runs against the preview URL
 3. PR closed → all resources torn down
 
@@ -81,7 +81,7 @@ Production allows only the `ui` and `api` specialists, for read-only smoke. The 
     "mutating": false,
     "readOnly": true,
     "allowedSpecialists": ["ui", "api"],
-    "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"]
+    "forbiddenSpecialists": ["database", "performance", "security", "messaging", "feature-flag"]
   }
 }
 ```

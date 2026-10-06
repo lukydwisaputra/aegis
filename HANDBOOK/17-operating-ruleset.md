@@ -33,7 +33,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **Rule: Every writing specialist prototypes in the sandbox before committing a spec.** Before a final test artefact lands under `tests/qa/**`, the specialist must first explore in `sandbox/{date}-{slug}/` — prototype selectors, timing, and flow there, verify it works, then port the validated version to the real spec path.
 
-- Applies to all eight writing specialists that commit test artefacts: `qa-ui-specialist`, `qa-api-specialist`, `qa-accessibility-specialist`, `qa-database-specialist`, `qa-email-specialist`, `qa-performance-specialist`, `qa-realtime-specialist`, `qa-responsive-specialist`.
+- Applies to all eight writing specialists that commit test artefacts: `qa-ui-specialist`, `qa-api-specialist`, `qa-accessibility-specialist`, `qa-database-specialist`, `qa-messaging-specialist`, `qa-performance-specialist`, `qa-realtime-specialist`, `qa-responsive-specialist`.
 - Durable proof is the `sandbox.explored { specialist, artifactPath, targetSpecRef }` event appended to `events.jsonl` — not the sandbox directory itself, since `sandbox/*` is gitignored except `README.md`.
 - Enforced by: each specialist's own Process step 1 (e.g. `qa-ui-specialist.md` step 1, "Explore in the sandbox before writing the final spec") + the matching `<specialist>-spv.md` Review Checklist item ("Sandbox-first compliance" — a final spec under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact is a `requested-changes` finding). See e.g. `qa-ui-specialist.md` / `qa-ui-specialist-spv.md`.
 
@@ -95,7 +95,7 @@ Every rule below is written as: **what the rule is** → **Enforced by**: `<agen
 
 **(e) Stand-behind: no assertion-free specs, no flaky-test shortcuts.** A committed spec must not have zero assertions, must not use `waitForTimeout`/hard sleeps, and must use web-first (auto-retrying) assertions instead of manual polling — across every writing specialist, not just one.
 
-- Enforced by: each writing specialist's Process/Quality Standards section (e.g. `qa-ui-specialist.md`, `qa-responsive-specialist.md`) forbidding `waitForTimeout` and empty-assertion specs + the matching `<specialist>-spv.md` verdict line (e.g. `qa-ui-specialist-spv.md`: "a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used" is a block condition). The same pattern repeats across all specialist/SPV pairs that write specs: `qa-api-specialist(-spv)`, `qa-accessibility-specialist(-spv)`, `qa-database-specialist(-spv)`, `qa-email-specialist(-spv)`, `qa-performance-specialist(-spv)`, `qa-realtime-specialist(-spv)`, `qa-responsive-specialist(-spv)`.
+- Enforced by: each writing specialist's Process/Quality Standards section (e.g. `qa-ui-specialist.md`, `qa-responsive-specialist.md`) forbidding `waitForTimeout` and empty-assertion specs + the matching `<specialist>-spv.md` verdict line (e.g. `qa-ui-specialist-spv.md`: "a committed spec with zero assertions, `waitForTimeout` / hard sleeps or non-web-first assertions used" is a block condition). The same pattern repeats across all specialist/SPV pairs that write specs: `qa-api-specialist(-spv)`, `qa-accessibility-specialist(-spv)`, `qa-database-specialist(-spv)`, `qa-messaging-specialist(-spv)`, `qa-performance-specialist(-spv)`, `qa-realtime-specialist(-spv)`, `qa-responsive-specialist(-spv)`.
 
 ---
 

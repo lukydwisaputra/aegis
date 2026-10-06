@@ -218,8 +218,7 @@ describe('Mailpit is gone (NEW-07)', () => {
     expect(files.length).toBeGreaterThan(50);
     expect(files.filter((f) => /mailpit/i.test(read(f)))).toEqual([]);
   });
-  // NEW-07 Task 7: the documentation half; Task 7 rewrites the docs and un-skips it.
-  it.skip('no environment doc, handbook chapter, secrets README or CLAUDE.md names Mailpit', () => {
+  it('no environment doc, handbook chapter, secrets README or CLAUDE.md names Mailpit', () => {
     const files = tracked().filter((f) => /^(docs\/D\d|HANDBOOK\/|secrets\/README|CLAUDE\.md)/.test(f));
     expect(files.filter((f) => /mailpit/i.test(read(f)))).toEqual([]);
     expect(read('docs/D12-environments-overview.md')).toContain('| Messaging testing | ✓ (stub + provider dev) | ✗ | ✗ | ✗ |');

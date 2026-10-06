@@ -25,7 +25,7 @@ This covers:
 - Database writes (INSERT, UPDATE, DELETE)
 - File uploads
 - User creation / modification
-- Email sends (real SMTP, not Mailpit)
+- Messaging sends (real email or SMS to a real recipient)
 - Any `POST/PUT/PATCH/DELETE` HTTP request from a specialist
 
 Read-only actions allowed in production:
@@ -52,8 +52,8 @@ Configured in `aegis.config.json`:
   "production": {
     "readOnly": true,
     "allowedSpecialists": ["ui", "api"],  // read-only smoke
-    // destructive migrations, k6 load, ZAP active scan, real email sends, flag-override writes:
-    "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"]
+    // destructive migrations, k6 load, ZAP active scan, real messaging sends, flag-override writes:
+    "forbiddenSpecialists": ["database", "performance", "security", "messaging", "feature-flag"]
   }
 }
 ```
@@ -71,7 +71,7 @@ Before `qa-smoke-prod.yml` triggers, the following must be true:
 - [ ] `env.readOnly === true` in config
 - [ ] All forbidden specialists listed in `forbiddenSpecialists[]`
 - [ ] No `--force` flag on any specialist invocation
-- [ ] Mailpit adapter disabled (no email test infrastructure in prod)
+- [ ] Messaging specialist forbidden (`messaging` in `forbiddenSpecialists`; no messaging test infrastructure in prod)
 - [ ] No DB snapshot or migration steps in the workflow
 
 ---
@@ -95,7 +95,7 @@ Before `qa-smoke-prod.yml` triggers, the following must be true:
 
 Each environment has its own:
 - Supabase project (separate URL + anon key)
-- Mailpit instance (`testing` only — staging uses real SMTP to a test inbox)
+- Messaging stub and provider development tenant (`development` only; `testing`, `staging` and `production` forbid the messaging specialist)
 - Ephemeral database snapshot (testing: restored from staging snapshot per PR)
 
 Secrets for each environment are prefixed by environment (see [secrets/README.md](../secrets/README.md)).
