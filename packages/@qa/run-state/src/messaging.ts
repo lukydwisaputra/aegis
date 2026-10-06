@@ -3,7 +3,10 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileS
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { appendChained } from "@qa/event-bus";
-import { ADAPTERS, DEFAULT_FAKE_RECIPIENTS, adapterFor, apiPrefix, fakeRecipientProblem, type MessagingContract, type MessagingPlan } from "@qa/messaging";
+import type { Readable } from "node:stream";
+import {
+  ADAPTERS, DEFAULT_FAKE_RECIPIENTS, adapterFor, apiPrefix, fakeRecipientProblem, readVerdict, type MessagingContract, type MessagingPlan,
+} from "@qa/messaging";
 import { parse as parseYaml } from "yaml";
 import { readRunConfig } from "./config.js";
 import { RunStateError } from "./errors.js";
@@ -123,6 +126,19 @@ function envNames(root: string, runId: string, cfg: MessagingConfig): EnvNames {
   return { baseUrl: baseUrl!, token: token!, source: cfg.env.baseUrl !== null || cfg.env.token !== null ? "config" : "profile" };
 }
 
+/** The API prefix of the run's fetched contract; "" before the contract is fetched (the stub answers with and without it). */
+function contractPrefix(root: string, runId: string): string {
+  const file = messagingPaths(root, runId).contract;
+  if (!existsSync(file)) return "";
+  return apiPrefix(obj(obj(JSON.parse(readFileSync(file, "utf-8")))["openapi"]));
+}
+
+/** The value the target's base-URL variable takes so the app talks to the local stub. */
+const stubBaseUrl = (cfg: MessagingConfig, prefix: string): string => `http://127.0.0.1:${cfg.stubPort}${prefix}`;
+
+/** What `exec` puts under the target's own key variable: never the real key (C1). */
+export const STUB_KEY_PLACEHOLDER = "stub-placeholder-not-a-key";
+
 /** Builds runs/<id>/messaging/plan.json from the adapter, the config, the profile and the fetched contract. Holds no secret. */
 export function buildPlan(root: string, runId: string): MessagingPlan {
   const cfg = configOf(root);
@@ -139,7 +155,7 @@ export function buildPlan(root: string, runId: string): MessagingPlan {
     fakeRecipients: cfg.fakeRecipients,
     env: { baseUrl: names.baseUrl, token: names.token },
     prefix,
-    wiringLine: `${names.baseUrl}=http://127.0.0.1:${cfg.stubPort}${prefix}`,
+    wiringLine: `${names.baseUrl}=${stubBaseUrl(cfg, prefix)}`,
     operations: adapter.operations,
     recipientFields: [...adapter.recipientFields],
     staticChecklist: [...adapter.staticChecklist],
@@ -170,7 +186,11 @@ function assertDevelopment(root: string, runId: string): void {
   if (env !== "development") bad(`the messaging specialist runs only in the development environment (this run: ${env})`);
 }
 
-/** Variables `aegis messaging exec` injects, and whether a key was found. Values never leave this process except to the child. */
+/**
+ * Variables `aegis messaging exec` injects, and whether a key was found. The target's own variables get only the stub
+ * wiring (a target launched by the command, e.g. a Playwright webServer, talks to the stub); the real base URL and key
+ * travel only under the neutral names the helper reads. Values never leave this process except to the child.
+ */
 export function messagingEnv(root: string, runId: string, env: NodeJS.ProcessEnv = process.env): { vars: Record<string, string>; key: "present" | "absent"; cwd: string } {
   assertDevelopment(root, runId);
   const cfg = configOf(root);
@@ -179,28 +199,95 @@ export function messagingEnv(root: string, runId: string, env: NodeJS.ProcessEnv
   const base = env[names.baseUrl] || file[names.baseUrl];
   const key = env[names.token] || file[names.token];
   const p = messagingPaths(root, runId);
-  const vars: Record<string, string> = { AEGIS_MESSAGING_PLAN: p.plan, AEGIS_MESSAGING_CONTRACT: p.contract };
-  if (base) Object.assign(vars, { [names.baseUrl]: base, AEGIS_MESSAGING_BASE_URL: base });
-  if (key) Object.assign(vars, { [names.token]: key, AEGIS_MESSAGING_KEY: key });
-  return { vars, key: base && key ? "present" : "absent", cwd: resolve(root, readRunConfig(root).targetProjectRoot) };
+  const vars: Record<string, string> = {
+    AEGIS_MESSAGING_PLAN: p.plan,
+    AEGIS_MESSAGING_CONTRACT: p.contract,
+    [names.baseUrl]: stubBaseUrl(cfg, contractPrefix(root, runId)),
+    [names.token]: STUB_KEY_PLACEHOLDER,
+  };
+  const present = Boolean(base && key);
+  if (present) Object.assign(vars, { AEGIS_MESSAGING_BASE_URL: base, AEGIS_MESSAGING_KEY: key });
+  return { vars, key: present ? "present" : "absent", cwd: resolve(root, readRunConfig(root).targetProjectRoot) };
 }
 
-/** Runs `cmd` in the target root with the messaging variables injected; resolves the child's exit code. */
-export function execWithMessaging(root: string, runId: string, cmd: string[]): Promise<{ exitCode: number; key: "present" | "absent" }> {
-  if (cmd.length === 0) bad("messaging exec needs a command after --");
-  const { vars, key, cwd } = messagingEnv(root, runId);
-  return new Promise((done, fail) => {
-    const child = spawn(cmd[0]!, cmd.slice(1), { cwd, env: { ...process.env, ...vars }, stdio: "inherit" });
-    child.on("error", (e) => fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`)));
-    child.on("exit", (code) => done({ exitCode: code ?? 1, key }));
+/** Replaces the key value and anything matching the adapter's key pattern with [redacted]. */
+function redactor(secret: string | undefined, pattern: RegExp): (text: string) => string {
+  const re = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  return (text) => {
+    const out = secret !== undefined && secret.length >= 4 ? text.split(secret).join("[redacted]") : text;
+    return out.replace(re, "[redacted]");
+  };
+}
+
+/** Copies a child stream to `to` line by line through `redact`, so a key split across chunks is still caught. */
+function pipeRedacted(from: Readable, to: NodeJS.WriteStream, redact: (text: string) => string): Promise<void> {
+  let buf = "";
+  from.setEncoding("utf-8");
+  from.on("data", (chunk: string) => {
+    buf += chunk;
+    const cut = Math.max(buf.lastIndexOf("\n"), buf.lastIndexOf("\r"));
+    if (cut >= 0) {
+      to.write(redact(buf.slice(0, cut + 1)));
+      buf = buf.slice(cut + 1);
+    } else if (buf.length > 65_536) {
+      to.write(redact(buf.slice(0, -256)));
+      buf = buf.slice(-256);
+    }
   });
+  return new Promise((done) => {
+    from.on("end", () => {
+      if (buf !== "") to.write(redact(buf));
+      done();
+    });
+  });
+}
+
+export interface ExecResult {
+  exitCode: number;
+  key: "present" | "absent";
+  /** The preflight verdict the run's live sends reached; null when nothing was sent live. */
+  preflight: "simulated" | "live" | "undecided" | null;
+}
+
+/**
+ * Runs `cmd` in the target root with the messaging variables injected and a fresh preflight verdict file
+ * (AEGIS_MESSAGING_PREFLIGHT) shared by every live send of the run; the child's output is redacted. After the child
+ * exits, records messaging.live-preflight from the verdict, when there is one. Resolves the child's exit code.
+ */
+export async function execWithMessaging(root: string, runId: string, caller: string, cmd: string[], env: NodeJS.ProcessEnv = process.env): Promise<ExecResult> {
+  if (cmd.length === 0) bad("messaging exec needs a command after --");
+  const { vars, key, cwd } = messagingEnv(root, runId, env);
+  const cfg = configOf(root);
+  const p = messagingPaths(root, runId);
+  mkdirSync(p.dir, { recursive: true });
+  const verdictFile = join(p.dir, `preflight-${new Date().toISOString().replace(/[:.]/g, "-")}-${process.pid}.json`);
+  writeFileSync(verdictFile, "{}\n");
+  const redact = redactor(vars["AEGIS_MESSAGING_KEY"], adapterFor(cfg.adapter).keyPattern);
+  const exitCode = await new Promise<number>((done, fail) => {
+    const child = spawn(cmd[0]!, cmd.slice(1), { cwd, env: { ...env, ...vars, AEGIS_MESSAGING_PREFLIGHT: verdictFile }, stdio: ["inherit", "pipe", "pipe"] });
+    const piped = Promise.all([pipeRedacted(child.stdout!, process.stdout, redact), pipeRedacted(child.stderr!, process.stderr, redact)]);
+    child.on("error", (e) => fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`)));
+    child.on("close", (code) => void piped.then(() => done(code ?? 1)));
+  });
+  const verdict = readVerdict(verdictFile);
+  if (verdict !== null) {
+    await appendChained(
+      { type: "messaging.live-preflight", ts: new Date().toISOString(), runId, adapter: cfg.adapter, simulated: verdict.verdict === "simulated" },
+      busPath(root, runId),
+      { emittedBy: caller, runId }
+    );
+  }
+  return { exitCode, key, preflight: verdict?.verdict ?? null };
 }
 
 export interface MessagingCheck {
   contract: { present: boolean; sha: string | null };
   stubPort: { port: number; free: boolean };
+  /** Present only when both the base URL and the key resolve, exactly as `exec` decides. */
   key: "present" | "absent";
   envNames: EnvNames | null;
+  /** `<baseUrlEnv>=<stub URL>`: how to launch the target at the stub; no API prefix until the contract is fetched; null when the names are unknown. */
+  wiringLine: string | null;
 }
 
 const portFree = (port: number): Promise<boolean> =>
@@ -220,18 +307,19 @@ export async function checkMessaging(root: string, runId: string, env: NodeJS.Pr
   try {
     names = envNames(root, runId, cfg);
     const file = secretsFile(root);
-    key = env[names.token] || file[names.token] ? "present" : "absent";
+    key = (env[names.baseUrl] || file[names.baseUrl]) && (env[names.token] || file[names.token]) ? "present" : "absent";
   } catch {
     names = null;
   }
-  return { contract: { present: sha !== null, sha }, stubPort: { port: cfg.stubPort, free: await portFree(cfg.stubPort) }, key, envNames: names };
+  const wiringLine = names === null ? null : `${names.baseUrl}=${stubBaseUrl(cfg, contractPrefix(root, runId))}`;
+  return { contract: { present: sha !== null, sha }, stubPort: { port: cfg.stubPort, free: await portFree(cfg.stubPort) }, key, envNames: names, wiringLine };
 }
 
 const MAX_SCAN_BYTES = 5 * 1024 * 1024;
-export type SkipReason = "missing" | "too-large" | "unreadable";
+export type SkipReason = "missing" | "too-large" | "unreadable" | "symlink";
 export interface SkippedFile { file: string; reason: SkipReason }
 
-/** Collects the regular files under p; a symlink is ignored, anything not scanned is listed in `skipped`. */
+/** Collects the regular files under p; anything not scanned, a symlink included, is listed in `skipped`. */
 function walk(p: string, files: string[], skipped: SkippedFile[]): void {
   let st;
   try {
@@ -240,11 +328,14 @@ function walk(p: string, files: string[], skipped: SkippedFile[]): void {
     skipped.push({ file: p, reason: (e as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : "unreadable" });
     return;
   }
-  if (st.isSymbolicLink()) return;
+  if (st.isSymbolicLink()) {
+    skipped.push({ file: p, reason: "symlink" });
+    return;
+  }
   if (st.isDirectory()) {
     let entries: string[];
     try {
-      entries = readdirSync(p);
+      entries = readdirSync(p).sort();
     } catch {
       skipped.push({ file: p, reason: "unreadable" });
       return;
@@ -260,7 +351,7 @@ export interface ScanResult {
   hits: Array<{ file: string; line: number; kind: "key-pattern" | "key-value" }>;
   /** Files actually read. */
   scanned: number;
-  /** Paths not scanned and why: a clean result is only clean for what was scanned. */
+  /** Paths not scanned and why (a symlink is never followed: scan its target explicitly); a clean result is only clean for what was scanned. */
   skipped: SkippedFile[];
 }
 

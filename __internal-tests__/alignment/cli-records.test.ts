@@ -45,6 +45,7 @@ const ENTRY: Record<string, string> = {
   'gate.auto-decide': 'autoDecideGate',
   'escalation.decide': 'decideEscalation',
   'messaging.fetch-contract': 'fetchContract',
+  'messaging.exec': 'execWithMessaging',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

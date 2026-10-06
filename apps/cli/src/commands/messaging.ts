@@ -49,13 +49,13 @@ export function messagingCommand(): Command {
 
   messaging
     .command("exec")
-    .description("Run a command in the target root with the plan, contract and (when found) the live key injected")
+    .description("Run a command in the target root with the stub wiring, plan, contract, preflight file and (when found) the live key injected; output redacted")
     .option("--run <runId>", "run id (default: the active run)")
     .argument("<command...>", "the command, after --")
     .action(action(async (cmd: string[], o: { run?: string }) => {
       const ctx = context();
       assertCallerAllowed(ctx.caller, "messaging.exec");
-      const r = await execWithMessaging(ctx.root, runIdFor(ctx, o.run), cmd);
+      const r = await execWithMessaging(ctx.root, runIdFor(ctx, o.run), ctx.caller, cmd);
       process.exitCode = r.exitCode;
       return r;
     }));

@@ -32,11 +32,11 @@ describe('messaging vocabulary (NEW-07)', () => {
     expect(MessagingProfileSchema.safeParse({ provider: 'none', baseUrlEnv: null, tokenEnv: null, extra: 1 }).success).toBe(false);
   });
 
-  it('declares the two messaging events; the CLI records the contract fetch itself', () => {
+  it('declares the two messaging events; the CLI records both itself', () => {
     const base = { ts: '2026-10-06T00:00:00.000Z', runId: 'RUN-20261006-001' };
     expect(AegisEventUnionSchema.safeParse({ ...base, type: 'messaging.contract-fetched', adapter: 'commshub', sha: 'abc' }).success).toBe(true);
     expect(AegisEventUnionSchema.safeParse({ ...base, type: 'messaging.live-preflight', adapter: 'commshub', simulated: true }).success).toBe(true);
     expect(CLI_RECORDED_TYPES.has('messaging.contract-fetched')).toBe(true);
-    expect(CLI_RECORDED_TYPES.has('messaging.live-preflight')).toBe(false);
+    expect(CLI_RECORDED_TYPES.has('messaging.live-preflight')).toBe(true);
   });
 });

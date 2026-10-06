@@ -18,6 +18,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "gate.auto-decide": ["gate.auto-decided", "integrity.violation", "run.blocked"],
   "escalation.decide": ["escalation.decided"],
   "messaging.fetch-contract": ["messaging.contract-fetched"],
+  "messaging.exec": ["messaging.live-preflight"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {
