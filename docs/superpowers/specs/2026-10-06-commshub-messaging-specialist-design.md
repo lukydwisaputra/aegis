@@ -136,21 +136,34 @@ Added:
 ```
 Generic keys sit at the top of `messaging`; only adapter-specific keys sit under the adapter's id.
 `env.*` `null` means "use the names the scanner detected"; a project whose client reads unusual names
-sets them here. `fakeRecipients` must be undeliverable: the default phone is in Singapore's unassigned
-`+65 0` range; a project in another country sets an unassigned number of its own. The helper refuses a
-phone that is not E.164 and an email whose domain is not `example.com`, `example.org`, `example.net` or
-ends in `.invalid`/`.test` (RFC 2606), so a typo cannot turn into a real recipient.
+sets them here. `fakeRecipients` must be undeliverable. A phone must be E.164 and inside one of the
+fictional ranges of `FICTIONAL_PHONE_RANGES` (adapters section of the helper, so the core names no
+country): Singapore `+650xxxxxxx` (unassigned leading 0; the default `+6500000000` is one), North America
+`+1NXX55501xx` (555-0100..0199), UK `+447700900xxx` (Ofcom drama range), Australia `+61491570xxx` (ACMA
+fiction range). Any other E.164 number may be a real mobile and is refused, with the allowed ranges named.
+An email's domain must be `example.com`, `example.org`, `example.net` or end in `.invalid`/`.test`
+(RFC 2606), so a typo cannot turn into a real recipient (PR #18 review item 1).
 `environments.{testing,staging,production}.forbiddenSpecialists` gain `"messaging"` (production already
 forbids `"email"`, renamed). `DEFAULT_ENVIRONMENT_SPECIALISTS` in `packages/@qa/contracts/src/specialists.ts`
-matches.
+matches. `"email"` stays a deprecated alias of `messaging` in `specialistShortName`
+(`DEPRECATED_SPECIALIST_ALIASES`), so an unmigrated list is no config error and still forbids the messaging
+specialist (item 2).
 
 `packages/@qa/run-state/src/config.ts`: `assertMailpitAdapter` → `assertMessagingConfig`: absent block is
 fine; `adapter` not in `ADAPTERS` (`@qa/messaging`), a non-integer `stubPort`, a `fakeRecipients` value the
 helper would refuse, or the adapter's block missing its required keys (CommsHub: `contract.repo`/
 `path`/`ref`) → `RunStateError("invalid-input", …)`. A leftover `emailAdapter` key → `invalid-input`
-naming the replacement, so a stale config is refused rather than ignored.
+"aegis.config.json#emailAdapter was removed (NEW-07): run \`aegis reconfigure --messaging commshub\` to
+migrate", so a stale config is refused rather than ignored.
 
 CLI `init` and `reconfigure`: `--email <adapter>` → `--messaging <adapter>` with `choices` read from `ADAPTERS` (today `["commshub"]`).
+Both write the block from one function, `defaultMessagingConfig(adapter)` (`@qa/run-state`).
+`reconfigure --messaging <adapter>` is the migration (`migrateToMessaging`, items 3+4): it removes
+`emailAdapter`, `ports.mailpit` and `environments.*.ephemeralProvisioning.mailpitPerInstance`, renames
+`"email"` → `"messaging"` in every `allowedSpecialists`/`forbiddenSpecialists`, writes the existing
+`messaging` block merged over the defaults with the adapter set, and validates with
+`assertMessagingConfig` before writing. `reconfigure` without `--messaging` (e.g. `--project-name` alone)
+does not migrate and refuses a stale config with the message above.
 
 ### 4.3 `@qa/messaging` package (vendored helper)
 
@@ -167,9 +180,9 @@ helpers. The file has two parts: a provider-neutral core, and the adapter object
 | `startStub({port, contract})` | Rejects `stub port {port} busy` when the port is taken (final review I1). HTTP server on `127.0.0.1:port` serving every operation the adapter declares, at the paths and prefix the contract's `servers`/`paths` give. Requests are validated against the contract's JSON schema by a built-in validator covering `type`, `required`, `enum`, `pattern`, `format: email/date-time`, `additionalProperties: false`, `minItems`/`maxItems`, `oneOf`. Errors use the adapter's error envelope; successes a contract-shaped body; an internal stub error answers 500 `STUB_ERROR`. |
 | `stub.respondNext(kind)` | Forces the next answer: `400`, `429` (with `Retry-After`), `500`, `timeout`. |
 | `stub.recorded()` / `stub.reset()` | Requests seen: operation, method, path, headers (credential reduced to `<present>`), parsed body, validation result. |
-| `send(body)` / `readBack(id)` | Live calls through the adapter. Base URL and key are read from `process.env` under the names `aegis messaging exec` injected. |
+| `send(body)` / `readBack(id)` | Live calls through the adapter. Base URL and key are read from `process.env` under the names `aegis messaging exec` injected. Under `exec` (`AEGIS_MESSAGING_PREFLIGHT` set) `send()` refuses "run replay() first: the first live message must be the preflight" until `replay()` has stored a verdict (item 8); unset, it sends as before. |
 | `toFakeRecipient(body)` | Replaces every recipient field the adapter names with the configured fakes. `send` throws if a body still holds any other recipient, if a configured fake itself could reach a person (`fakeRecipientProblem`, final review I5), or if the run's stored preflight verdict is live or undecided. |
-| `replay(bodies)` | Replays recorded bodies through `toFakeRecipient` and `send` (idempotency key prefix `qa-replay-`). The first message is the preflight and carries one recipient (a body whose recipient list holds more is first sent trimmed to its first entry, then in full after a simulated verdict). Verdict: read-back not final (`problem`, `pending`, non-200) → `undecided`; final and the adapter's `isSimulated` false → `live`; else `simulated`. `live` and `undecided` throw `NotSimulatedError` (with `reason`) before any other send. Under `exec` (`AEGIS_MESSAGING_PREFLIGHT` set) the verdict `{verdict, messageId, adapter}` is written to that file and read by every later `replay()`/`send()` of the run: a stored `live`/`undecided` refuses at once, a stored `simulated` is not asked for again. Unset (unit tests), the latch is per call. |
+| `replay(bodies)` | Replays recorded bodies through `toFakeRecipient` and `send` (idempotency key prefix `qa-replay-`). The first message is the preflight and carries one recipient (a body whose recipient list holds more is first sent trimmed to its first entry, then in full after a simulated verdict). The read-back is polled until final or `dispatchTimeoutSeconds`: a 404 (just after the send), 429, 5xx or network error counts as pending and is polled again; only 401/403 end at once as `problem` (item 6). Verdict: read-back not final (`problem`, or still `pending` at the timeout) → `undecided`; final and the adapter's `isSimulated` false → `live`; else `simulated`. `live` and `undecided` throw `NotSimulatedError` (with `reason`) before any other send. Under `exec` (`AEGIS_MESSAGING_PREFLIGHT` set) the verdict `{verdict, messageId, adapter}` is written to that file and read by every later `replay()`/`send()` of the run: a stored `live`/`undecided` refuses at once, a stored `simulated` is not asked for again. Unset (unit tests), the latch is per call. |
 | `probeRegistered(id)` | The adapter's non-creating registration probe. |
 
 **`MessagingAdapter`** (one object per provider; CommsHub's is the only one):
@@ -389,9 +402,11 @@ provider it runs a CLI command that reads the adapter. Checklist:
 ## 7. Rollout
 
 1. PR `feat/commshub-messaging-specialist` → `main` of `lukydwisaputra/aegis`; owner review and merge.
-2. Each project clone (e.g. `renci-volunteer-management/aegis`) runs `git pull && pnpm install`, removes
-   `emailAdapter`/`ports.mailpit` from its own config if it diverged (the CLI refuses a stale key and
-   names the fix), and puts the key under the name `AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]`
+2. Each project clone (e.g. `renci-volunteer-management/aegis`) runs `git pull && pnpm install`, migrates
+   its own config if it still carries `emailAdapter`/`ports.mailpit` with
+   `AEGIS_AGENT=owner pnpm aegis reconfigure . --messaging commshub` (removes the Mailpit keys, renames
+   `"email"` in the specialist lists, writes a complete `messaging` block; the CLI refuses a stale config
+   until then and names this command), and puts the key under the name `AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]`
    prints (it needs an active run whose target profile names the env vars, or `messaging.env` names in
    the config), in the shell or `secrets/.env.development`.
 3. First real run: Renci, `development`, app launched at the stub (the `wiringLine` in `env-auth-report.md`,

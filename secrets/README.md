@@ -45,7 +45,7 @@ Aegis has no vault resolver. Agents read the values from the gitignored `secrets
 - `APP_BASE_URL`, `APP_API_URL`
 - `DATABASE_URL`, `DATABASE_PASSWORD`, etc.
 - `SUPABASE_*` (when target.platform === "supabase")
-- The target's messaging base URL and key, under the env names `aegis messaging check` prints (development only). Run it from this repo as `AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]`: it needs an active run (or `--run`) whose target profile names the env vars, or `messaging.env.baseUrl`/`messaging.env.token` in `aegis.config.json`, and prints presence only, never a value
+- The target's messaging base URL and key, under the env names `aegis messaging check` prints (development only). Run it from this repo as `AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]`: it needs an active run (or `--run`) whose target profile names the env vars, or `messaging.env.baseUrl`/`messaging.env.token` in `aegis.config.json`, and prints presence only, never a value. A config from before the messaging specialist (`emailAdapter` and the old email-inbox ports) is refused until it is migrated with `AEGIS_AGENT=owner pnpm aegis reconfigure . --messaging commshub`
 - `GITHUB_TOKEN`
 - `LINEAR_API_KEY` / `JIRA_API_TOKEN` / `CLICKUP_API_TOKEN` (optional)
 - `SENTRY_DSN` (optional)
