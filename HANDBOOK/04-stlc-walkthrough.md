@@ -141,6 +141,8 @@ test.afterEach(async () => {
 
 This keeps state clean between runs and is the single biggest source of flake reduction.
 
+**A cycle with messaging launches the target at the stub.** When `target-profile.json#hasMessagingIntegration` is true, `qa-environment-engineer` runs `aegis messaging check` and writes its `wiringLine` (for example `<BASE_URL_VAR>=http://127.0.0.1:4010/api/v1`) into `env-auth-report.md`. Before the messaging tests run, either launch the target with that line, or let Playwright's `webServer` launch it under `aegis messaging exec`, which sets the same wiring and a placeholder key under the target's own variable names, with `reuseExistingServer` off for that run so an already-running server pointed at the real provider is not reused. The owner can run the same check: `AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]`. As a safety net, every flow the messaging specialist triggers uses the configured fake recipients (`aegis.config.json#messaging.fakeRecipients`), so a target that is not pointed at the stub can still only ever reach a fake recipient.
+
 ---
 
 ### 4.7 Phase 6 — Execution

@@ -16,7 +16,7 @@ function tracked(): string[] {
 }
 const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8');
 const section = (md: string, heading: string): string => new RegExp(`\\n## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`).exec(md)![1]!;
-interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string }>; config: string[] }
+interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string; via?: string }>; config: string[] }
 const contractOf = (md: string): Contract => parse(/## Contract \(machine-checked\)\s*```yaml\n([\s\S]*?)```/.exec(md)![1]!) as Contract;
 const paths = (xs: Array<string | { path: string }>): string[] => xs.map((x) => (typeof x === 'string' ? x : x.path));
 
@@ -115,6 +115,25 @@ describe('the messaging specialist detects, no-ops, and stays project-agnostic (
     expect(paths(c.reads).some((x) => x.startsWith('secrets/'))).toBe(false);
     expect(paths(c.writes)).toContain('{tests}/qa/messaging/{flow}.messaging.spec.ts');
     expect(c.emits.map((e) => e.event)).toEqual(expect.arrayContaining(['specialist.no-op', 'execution.blocked', 'messaging.live-preflight']));
+    // C2: exec records the preflight itself; the agent never appends it.
+    expect(c.emits.find((e) => e.event === 'messaging.live-preflight')!.via).toBe('cli:messaging.exec');
+  });
+
+  it('runs the stub layer once, on one browser, from the run context path, with fake-recipient test data (I1, I3, M4)', () => {
+    const process = section(md(), 'Process');
+    expect(process).toContain('aegis messaging exec -- npx playwright test <QA tests>/messaging --project=<one qa project> --workers=1 --retries=0');
+    expect(process).not.toContain('npx playwright test tests/qa/messaging');
+    expect(process).toContain('`runs/{runId}/messaging/plan.json#fakeRecipients`');
+    expect(section(md(), 'Your Role')).toContain('the task claim and `aegis messaging exec` refuse outside development');
+    const checklist = section(read(SPV), 'Review Checklist');
+    expect(checklist).toContain('A stub-layer spec that triggers a flow with any other recipient = requested-changes');
+  });
+
+  it('an undecided preflight is a blocker, not a live tenant (I4); a skipped symlink is not clean (I6)', () => {
+    const process = section(md(), 'Process');
+    expect(process).toContain('simulation could not be confirmed (<detail>)');
+    expect(process).toContain('a skipped symlink is not clean: scan its target path explicitly');
+    expect(section(read(SPV), 'Review Checklist')).toContain('a skipped symlink is not clean: scan its target path explicitly');
   });
 
   it('the reviewer checks the preflight, the fakes and the secret scan', () => {
@@ -146,7 +165,8 @@ describe('the messaging specialist detects, no-ops, and stays project-agnostic (
     const process = section(md(), 'Process');
     expect(process).toContain('the adapter, the contract repo, path, ref and sha (from `runs/{runId}/messaging/contract.json`)');
     expect(section(read(SPV), 'Review Checklist')).toContain('the contract repo, path, ref and sha');
-    expect(process).toContain('emit `messaging.live-preflight { adapter, simulated: true }` once `replay()` returns; when it throws `NotSimulatedError`, emit `messaging.live-preflight { adapter, simulated: false }` before recording the Sev1');
+    expect(process).toContain('`aegis messaging exec` records `messaging.live-preflight { adapter, simulated }` itself from that verdict after the run; you never append it');
+    expect(section(read(SPV), 'Review Checklist')).toContain('`messaging.live-preflight`, recorded by the CLI\'s messaging exec command');
   });
 
   it('only the CLI writes the vendored helper', () => {
@@ -225,5 +245,13 @@ describe('Mailpit is gone (NEW-07)', () => {
   });
   it('the environment engineer checks messaging setup only when the profile shows an integration', () => {
     expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain('If `target-profile.json#hasMessagingIntegration` is true: run `aegis messaging check`');
+    // I3: the wiring line reaches the owner through the env report.
+    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain('write the check\'s `wiringLine` into `env-auth-report.md`');
+    expect(read('HANDBOOK/04-stlc-walkthrough.md')).toContain('`reuseExistingServer` off');
+  });
+  it('the owner can run the messaging check the docs tell them to run (I2)', () => {
+    const line = 'AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]';
+    expect(read('secrets/README.md')).toContain(line);
+    expect(read('docs/superpowers/specs/2026-10-06-commshub-messaging-specialist-design.md')).toContain(line);
   });
 });
