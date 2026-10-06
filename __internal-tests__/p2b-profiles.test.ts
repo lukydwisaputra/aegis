@@ -206,15 +206,15 @@ describe('the email specialist detects, no-ops, and reads the inbox through its 
 });
 
 describe('designer, routing and reviewers act on the same profile flags (AUD-051)', () => {
-  it('routeTestCase sends an Email TC to the email specialist and a Realtime TC to the realtime specialist', () => {
-    expect(routeTestCase({ testType: ['E2E'], testTechnique: ['Email'] })).toEqual(['qa-ui-specialist', 'qa-email-specialist']);
+  it('routeTestCase sends a Messaging TC to the messaging specialist and a Realtime TC to the realtime specialist', () => {
+    expect(routeTestCase({ testType: ['E2E'], testTechnique: ['Messaging'] })).toEqual(['qa-ui-specialist', 'qa-messaging-specialist']);
     expect(routeTestCase({ testType: ['API'], testTechnique: ['Realtime'] })).toEqual(['qa-api-specialist', 'qa-realtime-specialist']);
   });
 
-  it('a TC without the Email or Realtime technique routes to neither specialist', () => {
+  it('a TC without the Messaging or Realtime technique routes to neither specialist', () => {
     const routed = routeTestCase({ testType: ['E2E'], testTechnique: ['Flow'] });
     expect(routed).toEqual(['qa-ui-specialist']);
-    expect(routed).not.toContain('qa-email-specialist');
+    expect(routed).not.toContain('qa-messaging-specialist');
     expect(routed).not.toContain('qa-realtime-specialist');
   });
 

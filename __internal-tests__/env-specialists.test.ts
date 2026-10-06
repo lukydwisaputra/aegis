@@ -15,8 +15,8 @@ describe('specialist short names and environments (AUD-036/037/038)', () => {
       expect({ allowedSpecialists: config.environments[env].allowedSpecialists, forbiddenSpecialists: config.environments[env].forbiddenSpecialists }).toEqual(lists);
     expect(checkEnvironmentSpecialists(config.environments)).toEqual([]);
   });
-  it('production is read-only and forbids email (AUD-038)', () =>
-    expect(config.environments.production).toMatchObject({ readOnly: true, mutating: false, forbiddenSpecialists: expect.arrayContaining(['email']) }));
+  it('production is read-only and forbids messaging (AUD-038)', () =>
+    expect(config.environments.production).toMatchObject({ readOnly: true, mutating: false, forbiddenSpecialists: expect.arrayContaining(['messaging']) }));
   it('flags unknown names, "*" or a mutating specialist on a read-only env, and "*" in forbidden', () => {
     expect(checkEnvironmentSpecialists({
       testing: { allowedSpecialists: ['functional'] },

@@ -40,7 +40,7 @@ export const TestTypeSchema = z.enum([
   "Security", "Database", "Performance", "Compatibility", "Usability",
 ]);
 export const TestTechniqueSchema = z.enum([
-  "Unit", "Accessibility", "Email", "Realtime", "FeatureFlag",
+  "Unit", "Accessibility", "Messaging", "Realtime", "FeatureFlag",
   "Regression", "Smoke", "Exploratory", "Visual", "Contract",
   "Flow", "Load", "Migration",
   "BoundaryValue", "EquivalencePartition", "StateTransition", "DecisionTable", "Pairwise",

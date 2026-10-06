@@ -50,13 +50,13 @@ routing:
   byTechnique:
     Unit: qa-unit-specialist
     Accessibility: qa-accessibility-specialist
-    Email: qa-email-specialist
+    Messaging: qa-messaging-specialist
     Realtime: qa-realtime-specialist
     FeatureFlag: qa-feature-flag-specialist
     Exploratory: qa-exploratory-specialist
   designerEmits:
     testType: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]
-    testTechnique: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
+    testTechnique: [Unit, Accessibility, Messaging, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
   techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
 spvPairs:
   qa-compliance-iso25010: qa-compliance-spv
@@ -74,7 +74,7 @@ envSpecialists:
   responsive: qa-responsive-specialist
   exploratory: qa-exploratory-specialist
   accessibility: qa-accessibility-specialist
-  email: qa-email-specialist
+  messaging: qa-messaging-specialist
   realtime: qa-realtime-specialist
   feature-flag: qa-feature-flag-specialist
   unit: qa-unit-specialist

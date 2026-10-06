@@ -51,7 +51,7 @@ const SPVS = [
   "qa-orchestrator-spv", "qa-dev-test-reviewer-spv", "qa-requirements-analyst-spv", "qa-environment-engineer-spv",
   "qa-web-explorer-spv", "qa-test-planner-spv", "qa-test-designer-spv", "qa-test-executor-spv", "qa-defect-manager-spv",
   "qa-closure-reporter-spv", "qa-executive-reporter-spv", "qa-accessibility-specialist-spv", "qa-api-specialist-spv",
-  "qa-database-specialist-spv", "qa-email-specialist-spv", "qa-exploratory-specialist-spv", "qa-feature-flag-specialist-spv",
+  "qa-database-specialist-spv", "qa-messaging-specialist-spv", "qa-exploratory-specialist-spv", "qa-feature-flag-specialist-spv",
   "qa-performance-specialist-spv", "qa-realtime-specialist-spv", "qa-responsive-specialist-spv", "qa-security-specialist-spv",
   "qa-ui-specialist-spv", "qa-unit-specialist-spv", "qa-compliance-spv",
 ] as const;
@@ -90,7 +90,7 @@ export const ROLES: readonly Role[] = [
   specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),
   specialist("api", ["{testsDir}/api/**", "{testsDir}/contract/**"]),
   specialist("database", ["{testsDir}/integration/**"]),
-  specialist("email", ["{testsDir}/email/**", "{testsDir}/support/mailpit.ts"]),
+  specialist("messaging", ["{testsDir}/messaging/**"]),
   specialist("exploratory", ["{run}/reports/exploratory/**", "{run}/defect-candidates/**", "{run}/evidence/exploratory/**"]),
   specialist("feature-flag", ["{testsDir}/specs/**/flags.spec.ts"]),
   specialist("performance", ["{testsDir}/perf/**"]),

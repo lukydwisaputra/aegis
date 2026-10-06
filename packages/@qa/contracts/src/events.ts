@@ -644,6 +644,18 @@ export const SpecialistNoOpEventSchema = EventBase.extend({
   reason: z.string(),
 });
 
+export const MessagingContractFetchedEventSchema = EventBase.extend({
+  type: z.literal("messaging.contract-fetched"),
+  adapter: z.string().min(1),
+  sha: z.string().min(1),
+});
+
+export const MessagingLivePreflightEventSchema = EventBase.extend({
+  type: z.literal("messaging.live-preflight"),
+  adapter: z.string().min(1),
+  simulated: z.boolean(),
+});
+
 export const SpecialistStartedEventSchema = EventBase.extend({
   type: z.literal("specialist.started"),
   specialistName: z.string(),
@@ -1743,6 +1755,8 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   SpecialistDispatchedEventSchema,
   SpecialistFailedEventSchema,
   SpecialistNoOpEventSchema,
+  MessagingContractFetchedEventSchema,
+  MessagingLivePreflightEventSchema,
   SpecialistStartedEventSchema,
   AmbiguityFlaggedEventSchema,
   CoverageUpdatedEventSchema,

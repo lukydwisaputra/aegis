@@ -33,7 +33,7 @@ it('ROUTE', () => {
         byType: { Functional: 'qa-ui-specialist', API: 'qa-api-specialist' },
         byTechnique: { Accessibility: 'qa-ui-specialist' },
         designerEmits: { testType: ['Functional', 'Smoke', 'Security'], testTechnique: ['BVA', 'Accessibility', 'BoundaryValue'] },
-        techniqueWithoutSpecialist: ['BoundaryValue', 'EquivalencePartition', 'StateTransition', 'DecisionTable', 'Pairwise', 'Regression', 'Smoke', 'Unit', 'Email', 'Realtime', 'FeatureFlag', 'Exploratory', 'Contract', 'E2E', 'Load', 'Migration'],
+        techniqueWithoutSpecialist: ['BoundaryValue', 'EquivalencePartition', 'StateTransition', 'DecisionTable', 'Pairwise', 'Regression', 'Smoke', 'Unit', 'Messaging', 'Realtime', 'FeatureFlag', 'Exploratory', 'Contract', 'E2E', 'Load', 'Migration'],
       },
     },
   });

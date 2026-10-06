@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MessagingProfileSchema } from "./messaging.js";
 export const PackageManagerSchema = z.enum(["pnpm", "npm", "yarn", "bun"]);
 const S = z.string().min(1);
 const N = z.number().int().nonnegative();
@@ -36,8 +37,9 @@ export const TargetProfileSchema = TargetProfileCoreSchema.extend({
   hasRealtimeFeatures: z.boolean(), hasFeatureFlags: z.boolean(), featureFlagProvider: z.string().nullable().optional(),
   // P2b (AUD-055): personal data decides whether GDPR and PDPA apply; each signal is "<file>:<field-or-dependency>" or "hasAuth".
   hasPersonalData: z.boolean(), personalDataSignals: z.array(S),
-  // P2b (AUD-051): a mail library, an SMTP_*/MAIL_* env var name, or Supabase auth; false makes the email specialist a no-op.
-  hasEmailFlows: z.boolean(),
+  // NEW-07: a messaging provider the target calls (adapter detection hints, @qa/messaging); false makes the messaging specialist a no-op.
+  hasMessagingIntegration: z.boolean(),
+  messaging: MessagingProfileSchema,
 }).strict();
 export type TargetProfile = z.infer<typeof TargetProfileSchema>;
 export type TargetProfileCore = z.infer<typeof TargetProfileCoreSchema>;

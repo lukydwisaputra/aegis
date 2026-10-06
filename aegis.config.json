@@ -39,6 +39,7 @@
         "mailpitPerInstance": true
       },
       "allowedSpecialists": ["*"],
+      "forbiddenSpecialists": ["messaging"],
       "purpose": "PR gate; /qa-smoke 10-min budget; isolated per PR"
     },
     "staging": {
@@ -46,6 +47,7 @@
       "mode": "automated",
       "mutating": true,
       "allowedSpecialists": ["*"],
+      "forbiddenSpecialists": ["messaging"],
       "purpose": "Full cycle on main-branch merges; nightly regression; final pre-production validation"
     },
     "production": {
@@ -55,7 +57,7 @@
       "readOnly": true,
       "branch": "main",
       "allowedSpecialists": ["ui", "api"],
-      "forbiddenSpecialists": ["database", "performance", "security", "email", "feature-flag"],
+      "forbiddenSpecialists": ["database", "performance", "security", "messaging", "feature-flag"],
       "purpose": "Read-only synthetic monitoring; critical-path smoke"
     }
   },
