@@ -32,8 +32,8 @@ describe('assertMessagingConfig', () => {
     expect(c).toMatchObject({ adapter: 'commshub', stubPort: 4010, dispatchTimeoutSeconds: 90, fakeRecipients: { email: 'qa-probe@example.com', phone: '+6500000000' }, env: { baseUrl: null, token: null } });
     expect(assertMessagingConfig({})).toBeNull();
   });
-  it('refuses a leftover emailAdapter key and names the replacement', () => {
-    expect(() => assertMessagingConfig({ emailAdapter: 'mailpit' })).toThrow(/emailAdapter was removed.*messaging\.adapter/);
+  it('refuses a leftover emailAdapter key and names the migration command', () => {
+    expect(() => assertMessagingConfig({ emailAdapter: 'mailpit' })).toThrow('aegis.config.json#emailAdapter was removed (NEW-07): run `aegis reconfigure --messaging commshub` to migrate');
   });
   it('refuses an unknown adapter, a bad port, a deliverable fake and a missing adapter key', () => {
     expect(() => assertMessagingConfig({ messaging: { ...BLOCK, adapter: 'mailgun' } })).toThrow(/unknown messaging adapter "mailgun"/);

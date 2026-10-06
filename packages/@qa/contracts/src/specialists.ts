@@ -9,9 +9,15 @@ export const SPECIALISTS = {
 } as const satisfies Record<string, { agent: string; mutates: boolean }>;
 export type SpecialistShortName = keyof typeof SPECIALISTS;
 const SHORT_NAMES = Object.keys(SPECIALISTS) as SpecialistShortName[];
-/** The short name for a short name or an agent name; null when neither. */
+/**
+ * Deprecated short names still read from older configs, and the specialist each now means. "email" (the old email
+ * specialist) became messaging in NEW-07; `aegis reconfigure --messaging <adapter>` rewrites it.
+ */
+export const DEPRECATED_SPECIALIST_ALIASES: Readonly<Record<string, SpecialistShortName>> = { email: "messaging" };
+/** The short name for a short name, a deprecated alias or an agent name; null when none. */
 export function specialistShortName(name: string): SpecialistShortName | null {
   if (Object.prototype.hasOwnProperty.call(SPECIALISTS, name)) return name as SpecialistShortName;
+  if (Object.prototype.hasOwnProperty.call(DEPRECATED_SPECIALIST_ALIASES, name)) return DEPRECATED_SPECIALIST_ALIASES[name]!;
   return SHORT_NAMES.find((k) => SPECIALISTS[k].agent === name) ?? null;
 }
 export interface EnvironmentSpecialistConfig {

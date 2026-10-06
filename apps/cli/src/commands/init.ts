@@ -4,8 +4,8 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from "node
 import { execSync } from "node:child_process";
 import pc from "picocolors";
 import { DEFAULT_ENVIRONMENT_SPECIALISTS } from "@qa/contracts";
-import { ADAPTERS, DEFAULT_FAKE_RECIPIENTS } from "@qa/messaging";
-import { RunStateError } from "@qa/run-state";
+import { ADAPTERS } from "@qa/messaging";
+import { RunStateError, defaultMessagingConfig } from "@qa/run-state";
 import { action } from "./_io.js";
 
 export function initCommand(): Command {
@@ -165,14 +165,7 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
     shareKnowledge: false,
     shareBooks: false,
     packageManager: detected,
-    messaging: {
-      adapter: opts.messaging,
-      stubPort: 4010,
-      dispatchTimeoutSeconds: 90,
-      fakeRecipients: { ...DEFAULT_FAKE_RECIPIENTS },
-      env: { baseUrl: null, token: null },
-      commshub: { contract: { repo: "WerkDone-Pte-Ltd/wd-commhub", path: "docs/08-commhub-events-api.yaml", ref: "development" } },
-    },
+    messaging: defaultMessagingConfig(opts.messaging),
     compliance: opts.compliance.split(","),
     parallelism: { maxSpecialists: 4 },
     intake: { sources: [] },

@@ -137,6 +137,22 @@ describe('locks (CO-04)', () => {
   expect(fs.existsSync(missing)).toBe(false);
 });
 
+(stale ? it.skip : it)('the built CLI migrates a config still carrying emailAdapter with reconfigure --messaging commshub (PR #18 items 3+4)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-reconf-'));
+  try {
+    const cfg = path.join(dir, 'aegis.config.json');
+    fs.writeFileSync(cfg, JSON.stringify({ emailAdapter: 'mailpit', ports: { dashboard: 3030, mailpit: { smtp: 1025, http: 8025 } }, dashboard: { projectName: 'Old' } }, null, 2) + '\n');
+    const r = spawnSync(process.execPath, [CLI, 'reconfigure', dir, '--messaging', 'commshub'], { cwd: os.tmpdir(), encoding: 'utf-8' });
+    expect(r.status).toBe(0);
+    const after = JSON.parse(fs.readFileSync(cfg, 'utf-8'));
+    expect(after).not.toHaveProperty('emailAdapter');
+    expect(after.ports).toEqual({ dashboard: 3030 });
+    expect(after.messaging).toMatchObject({ adapter: 'commshub', stubPort: 4010, dispatchTimeoutSeconds: 90, env: { baseUrl: null, token: null } });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 (stale ? it.skip : it)('reconfigure refuses a config still carrying emailAdapter, and --messaging commshub repairs it once it is removed (NEW-07)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-reconf-'));
   try {
@@ -149,7 +165,7 @@ describe('locks (CO-04)', () => {
     expect(refused.status).toBe(2);
     expect(JSON.parse(refused.stderr)).toEqual({
       error: 'invalid-input',
-      message: 'aegis.config.json#emailAdapter was removed (NEW-07): delete it and configure messaging.adapter instead',
+      message: 'aegis.config.json#emailAdapter was removed (NEW-07): run `aegis reconfigure --messaging commshub` to migrate',
     });
     expect(fs.readFileSync(cfg, 'utf-8')).toBe(before);
     // The owner deletes the stale key; the command then rewrites the file with the adapter set.

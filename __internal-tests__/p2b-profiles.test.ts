@@ -236,7 +236,11 @@ describe('Mailpit is gone (NEW-07)', () => {
   it('no agent, skill, CLI source or config names Mailpit', () => {
     const files = tracked().filter((f) => /^(\.claude\/|apps\/cli\/src\/|packages\/@qa\/[^/]+\/src\/|aegis\.config\.json)/.test(f));
     expect(files.length).toBeGreaterThan(50);
-    expect(files.filter((f) => /mailpit/i.test(read(f)))).toEqual([]);
+    // PR #18 items 3+4: the config migration must name the retired keys it removes; that one declaration is the only exception.
+    const MIGRATION = 'packages/@qa/run-state/src/messaging.ts';
+    const LEGACY_KEYS = 'export const PRE_NEW07_EMAIL_KEYS = { adapter: "emailAdapter", port: "mailpit", perInstance: "mailpitPerInstance" } as const;';
+    expect(read(MIGRATION).split(LEGACY_KEYS)).toHaveLength(2);
+    expect(files.filter((f) => /mailpit/i.test(f === MIGRATION ? read(f).replace(LEGACY_KEYS, '') : read(f)))).toEqual([]);
   });
   it('no environment doc, handbook chapter, secrets README or CLAUDE.md names Mailpit', () => {
     const files = tracked().filter((f) => /^(docs\/D\d|HANDBOOK\/|secrets\/README|CLAUDE\.md)/.test(f));

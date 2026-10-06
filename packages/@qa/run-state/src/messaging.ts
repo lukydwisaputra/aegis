@@ -33,7 +33,7 @@ const dig = (o: Record<string, unknown>, dotted: string): unknown => dotted.spli
 
 /** Validates aegis.config.json#messaging; null when the block is absent. A leftover emailAdapter is refused. */
 export function assertMessagingConfig(raw: Record<string, unknown>): MessagingConfig | null {
-  if ("emailAdapter" in raw) bad("aegis.config.json#emailAdapter was removed (NEW-07): delete it and configure messaging.adapter instead");
+  if ("emailAdapter" in raw) bad("aegis.config.json#emailAdapter was removed (NEW-07): run `aegis reconfigure --messaging commshub` to migrate");
   if (raw["messaging"] === undefined) return null;
   const m = obj(raw["messaging"]);
   const adapter = String(m["adapter"]);
@@ -67,6 +67,67 @@ export function assertMessagingConfig(raw: Record<string, unknown>): MessagingCo
     env: { baseUrl: name("baseUrl"), token: name("token") },
     adapterBlock,
   };
+}
+
+/** Each adapter's default aegis.config.json#messaging.<adapter> block, as `aegis init` writes it. */
+const ADAPTER_CONFIG_DEFAULTS: Readonly<Record<string, Record<string, unknown>>> = {
+  commshub: { contract: { repo: "WerkDone-Pte-Ltd/wd-commhub", path: "docs/08-commhub-events-api.yaml", ref: "development" } },
+};
+
+/** The complete aegis.config.json#messaging block `aegis init` writes for `adapter`; reconfigure merges over it. */
+export function defaultMessagingConfig(adapter: string): Record<string, unknown> {
+  if (!(adapter in ADAPTERS)) bad(`unknown messaging adapter "${adapter}"; known: ${Object.keys(ADAPTERS).join(", ")}`);
+  const block = ADAPTER_CONFIG_DEFAULTS[adapter] ?? bad(`messaging adapter "${adapter}" has no default config block`);
+  return {
+    adapter,
+    stubPort: 4010,
+    dispatchTimeoutSeconds: 90,
+    fakeRecipients: { ...DEFAULT_FAKE_RECIPIENTS },
+    env: { baseUrl: null, token: null },
+    [adapter]: structuredClone(block),
+  };
+}
+
+const isPlain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+/** `over` merged into a copy of `base`, plain objects key by key; any other value of `over` wins. */
+function mergeOver(base: Record<string, unknown>, over: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = structuredClone(base);
+  for (const [k, v] of Object.entries(over)) out[k] = isPlain(v) && isPlain(out[k]) ? mergeOver(out[k] as Record<string, unknown>, v) : structuredClone(v);
+  return out;
+}
+
+/**
+ * The keys of the pre-NEW-07 email inbox that migrateToMessaging removes: emailAdapter, ports.<port>, and
+ * environments.*.ephemeralProvisioning.<perInstance>. The only place the retired inbox is still named.
+ */
+export const PRE_NEW07_EMAIL_KEYS = { adapter: "emailAdapter", port: "mailpit", perInstance: "mailpitPerInstance" } as const;
+
+/**
+ * The pre-NEW-07 to NEW-07 migration `aegis reconfigure --messaging <adapter>` runs: a copy of `config` without the
+ * PRE_NEW07_EMAIL_KEYS, with "email" renamed to "messaging" in every specialist list, and with a complete messaging
+ * block (the existing one merged over the defaults, the adapter set). The result is validated; an invalid one is
+ * refused, never written.
+ */
+export function migrateToMessaging(config: Record<string, unknown>, adapter: string): Record<string, unknown> {
+  const messaging = { ...mergeOver(defaultMessagingConfig(adapter), obj(config["messaging"])), adapter };
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(config)) {
+    if (k === PRE_NEW07_EMAIL_KEYS.adapter) {
+      if (!("messaging" in config)) out["messaging"] = messaging;
+    } else out[k] = k === "messaging" ? messaging : structuredClone(v);
+  }
+  if (!("messaging" in out)) out["messaging"] = messaging;
+  if (isPlain(out["ports"])) delete out["ports"][PRE_NEW07_EMAIL_KEYS.port];
+  for (const env of Object.values(obj(out["environments"]))) {
+    if (!isPlain(env)) continue;
+    if (isPlain(env["ephemeralProvisioning"])) delete env["ephemeralProvisioning"][PRE_NEW07_EMAIL_KEYS.perInstance];
+    for (const field of ["allowedSpecialists", "forbiddenSpecialists"] as const) {
+      const list = env[field];
+      if (Array.isArray(list)) env[field] = [...new Set(list.map((s) => (s === "email" ? "messaging" : s)))];
+    }
+  }
+  assertMessagingConfig(out);
+  return out;
 }
 
 export function messagingPaths(root: string, runId: string): { dir: string; contract: string; plan: string } {

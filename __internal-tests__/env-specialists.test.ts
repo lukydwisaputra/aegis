@@ -33,3 +33,21 @@ describe('specialist short names and environments (AUD-036/037/038)', () => {
   it('specialistShortName accepts short and agent names only', () =>
     expect(['qa-feature-flag-specialist', 'performance', 'perf', 'toString'].map(specialistShortName)).toEqual(['feature-flag', 'performance', null, null]));
 });
+
+describe('"email" is a deprecated alias of messaging (PR #18 item 2)', () => {
+  const { envVerdict } = require('@qa/path-guard');
+  it('resolves to messaging, so a pre-NEW-07 list is no config error', () => {
+    expect(specialistShortName('email')).toBe('messaging');
+    expect(checkEnvironmentSpecialists({
+      testing: { allowedSpecialists: ['*'], forbiddenSpecialists: ['email'] },
+      production: { readOnly: true, mutating: false, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['database', 'performance', 'security', 'email', 'feature-flag'] },
+    })).toEqual([]);
+  });
+  it('forbiddenSpecialists ["email"] forbids the messaging specialist', () => {
+    const policy = { mutating: true, allowedSpecialists: ['*'], forbiddenSpecialists: ['email'] };
+    expect(envVerdict('qa-messaging-specialist', 'execution', 'testing', policy)).toEqual({
+      allowed: false, reason: 'Env safety: specialist "qa-messaging-specialist" is forbidden in environment "testing".',
+    });
+    expect(envVerdict('qa-messaging-specialist', 'execution', 'development', { mutating: true, allowedSpecialists: ['email'] })).toEqual({ allowed: true });
+  });
+});

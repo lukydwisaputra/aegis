@@ -84,8 +84,12 @@ const FRAMEWORK_DIRS = ["packages", "apps", ".claude"] as const;
 /** Framework paths are never agent-writable, wherever they sit (another worktree under /tmp, a sandbox copy): m9. */
 const FRAMEWORK_SEGMENTS = /(^|\/)packages\/@qa(\/|$)|(^|\/)\.claude(\/|$)/;
 const DEPENDENCY_FILES: ReadonlySet<string> = new Set(["package.json", "pnpm-lock.yaml", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lockb", "bun.lock"]);
-/** The CLI-only names of CLI_ONLY_RUN_GLOBS (and runs/.active), as text, for targets the parser cannot resolve. */
-const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|(^|\/)messaging\/|\.active\b|\.lock\b/;
+/**
+ * The CLI-only names of CLI_ONLY_RUN_GLOBS (and runs/.active), as text, for targets the parser cannot resolve. messaging/
+ * is also the messaging specialist's {testsDir}/messaging/, so it counts only under a run-shaped path: runs/<anything>/,
+ * or a shell variable whose name holds RUN ($RUN_DIR/messaging/, ${AEGIS_RUN}/messaging/).
+ */
+const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|runs\/[^/\s"']*\/messaging\/|\$\{?\w*RUN\w*\}?\/messaging\/|\.active\b|\.lock\b/;
 /** Commands that remove (or, for mv, move away) the paths they name. git-rm is git rm, git clean and git reset --hard. */
 const REMOVE_OPS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "git-rm", "git-mv", "git-clean-x"]);
 /** Git write targets: a directory among them stands for its whole subtree. */
