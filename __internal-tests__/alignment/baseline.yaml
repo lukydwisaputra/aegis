@@ -493,9 +493,9 @@ entries:
   - key: "SKILL:qa-run-specialist:qa-database-specialist:direct-dispatch"
     ids: [AUD-012]
     note: "execution skill dispatches qa-database-specialist directly"
-  - key: "SKILL:qa-run-specialist:qa-email-specialist:direct-dispatch"
+  - key: "SKILL:qa-run-specialist:qa-messaging-specialist:direct-dispatch"
     ids: [AUD-012]
-    note: "execution skill dispatches qa-email-specialist directly"
+    note: "execution skill dispatches qa-messaging-specialist directly"
   - key: "SKILL:qa-run-specialist:qa-exploratory-specialist:direct-dispatch"
     ids: [AUD-012]
     note: "execution skill dispatches qa-exploratory-specialist directly"
