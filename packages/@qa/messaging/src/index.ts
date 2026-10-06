@@ -1,5 +1,5 @@
-// @qa/messaging (NEW-07): provider-neutral messaging test helper. `aegis helpers vendor` copies this file to
-// <testsDir>/support/messaging.ts; it imports Node built-ins only. Specs run under `aegis messaging exec`, which sets
+// Messaging helper (NEW-07): provider-neutral messaging test helper. The QA CLI's `helpers vendor` copies this file to
+// <testsDir>/support/messaging.ts; it imports Node built-ins only. Specs run under the CLI's `messaging exec`, which sets
 // AEGIS_MESSAGING_PLAN, AEGIS_MESSAGING_CONTRACT and, when a key is available, AEGIS_MESSAGING_BASE_URL/_KEY.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -36,7 +36,7 @@ export interface MessagingAdapter {
   id: string;
   label: string;
   operations: { send: Operation; readBack: Operation };
-  /** Keys the adapter's block in aegis.config.json#messaging.<id> must carry, dotted. */
+  /** Keys the adapter's block in the config's messaging.<id> must carry, dotted. */
   requiredConfig: readonly string[];
   contractSource(block: Record<string, unknown>): { repo: string; path: string; ref: string };
   authHeader(key: string): [string, string];
@@ -157,7 +157,7 @@ export function requestSchema(openapi: JsonSchema, op: Operation): JsonSchema | 
 }
 
 const readJson = <T>(file: string | undefined, what: string): T => {
-  if (file === undefined || file === "") throw new Error(`${what} path unknown: run the spec through \`aegis messaging exec\``);
+  if (file === undefined || file === "") throw new Error(`${what} path unknown: run the spec through the CLI's \`messaging exec\``);
   return JSON.parse(readFileSync(file, "utf-8")) as T;
 };
 export const loadContract = (file = process.env["AEGIS_MESSAGING_CONTRACT"]): MessagingContract => readJson(file, "contract");
@@ -326,7 +326,7 @@ export function liveUrl(base: string, prefix: string, path: string): string {
 function liveEnv(): { base: string; key: string } {
   const base = process.env["AEGIS_MESSAGING_BASE_URL"];
   const key = process.env["AEGIS_MESSAGING_KEY"];
-  if (!base || !key) throw new Error("live layer not configured: no base URL or key (run through `aegis messaging exec`)");
+  if (!base || !key) throw new Error("live layer not configured: no base URL or key (run through the CLI's `messaging exec`)");
   return { base, key };
 }
 
@@ -415,7 +415,7 @@ export async function replay(bodies: unknown[], o: LiveCtx & { stamp?: string } 
   let preflightDone = false;
   for (const [i, raw] of bodies.entries()) {
     const body = toFakeRecipient(raw, plan, adapter);
-    const r = await send(body, { ...o, plan, idempotencyKey: `aegis-replay-${stamp}-${i}` });
+    const r = await send(body, { ...o, plan, idempotencyKey: `qa-replay-${stamp}-${i}` });
     const eventId = adapter.eventIdOf(body);
     if (r.messageIds.length === 0) {
       out.push({ eventId, status: r.status, messageIds: [], state: "rejected", simulated: null, detail: r.body });
@@ -436,8 +436,8 @@ export async function replay(bodies: unknown[], o: LiveCtx & { stamp?: string } 
 
 // ── adapters ──
 
-/** Defaults for aegis.config.json#messaging.fakeRecipients (country-specific, so outside the core). */
-export const DEFAULT_FAKE_RECIPIENTS = { email: "aegis-probe@example.com", phone: "+6500000000" } as const;
+/** Defaults for the config's messaging.fakeRecipients (country-specific, so outside the core). */
+export const DEFAULT_FAKE_RECIPIENTS = { email: "qa-probe@example.com", phone: "+6500000000" } as const;
 
 const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {});
 

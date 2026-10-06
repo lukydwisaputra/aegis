@@ -308,6 +308,9 @@ importers:
       '@qa/ids':
         specifier: workspace:*
         version: link:../ids
+      '@qa/messaging':
+        specifier: workspace:*
+        version: link:../messaging
       '@qa/path-guard':
         specifier: workspace:*
         version: link:../path-guard

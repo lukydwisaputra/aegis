@@ -33,7 +33,12 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "gate.auto-decide": "gate auto-decide --gate G2 [--run <id>]",
   "run.complete": "run complete [--run <id>]",
   "escalation.decide": "escalation decide --task <id> --decision retry|accept-with-risk|abort --reason <text> [--run <id>]",
-  "helpers.vendor": "helpers vendor --helpers test-helpers[,supabase]",
+  "helpers.vendor": "helpers vendor --helpers test-helpers[,supabase,messaging]",
+  "messaging.fetch-contract": "messaging fetch-contract [--run <id>]",
+  "messaging.plan": "messaging plan [--run <id>]",
+  "messaging.check": "messaging check [--run <id>]",
+  "messaging.scan-secrets": "messaging scan-secrets --paths <paths...> [--run <id>]",
+  "messaging.exec": "messaging exec [--run <id>] -- <command...>",
 };
 
 /** NEW-06 (P2 spec §4.12, T10): the one framework-defect instruction every qa-* agent gets. */

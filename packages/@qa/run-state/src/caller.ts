@@ -30,6 +30,11 @@ export const CLI_COMMANDS = [
   "run.complete",
   "escalation.decide",
   "helpers.vendor",
+  "messaging.fetch-contract",
+  "messaging.plan",
+  "messaging.check",
+  "messaging.scan-secrets",
+  "messaging.exec",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -72,7 +77,14 @@ export const ORCHESTRATOR = "qa-orchestrator";
 export const ORCHESTRATOR_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["phase.start", "phase.complete", "gate.open", "gate.auto-decide", "run.complete"]);
 
 // Agent-only commands that one named agent runs (P2 spec §4.11.3): the environment engineer copies the QA helpers in Env-auth.
-export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>> = { "helpers.vendor": "qa-environment-engineer" };
+// NEW-07: the messaging specialist owns its contract, plan and key; the environment engineer checks the setup.
+export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>> = {
+  "helpers.vendor": "qa-environment-engineer",
+  "messaging.fetch-contract": "qa-messaging-specialist",
+  "messaging.plan": "qa-messaging-specialist",
+  "messaging.exec": "qa-messaging-specialist",
+  "messaging.check": "qa-environment-engineer",
+};
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller === OWNER && !OWNER_COMMANDS.has(command)) {

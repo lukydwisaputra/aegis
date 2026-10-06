@@ -161,12 +161,12 @@ describe('compliance relevance at the CLI', () => {
     expect(s.phases.compliance).toMatchObject({ status: 'not-applicable', reason: 'aegis.config.json#compliance is empty' });
   });
 
-  it('run create refuses an email adapter other than mailpit', async () => {
+  it('run create refuses a leftover emailAdapter key (NEW-07)', async () => {
     const cfg = path.join(t.root, 'aegis.config.json');
-    fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), emailAdapter: 'gmail' }));
+    fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), emailAdapter: 'mailpit' }));
     await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).rejects.toMatchObject({
       code: 'invalid-input',
-      message: 'aegis.config.json#emailAdapter must be mailpit (the only supported inbox), found gmail',
+      message: expect.stringMatching(/emailAdapter was removed/),
     });
   });
 

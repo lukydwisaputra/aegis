@@ -4,7 +4,7 @@ import { loadGuardContext, within } from "@qa/path-guard";
 import { RunStateError } from "./errors.js";
 
 /** The packages `aegis helpers vendor` copies into the target's QA tests (P2 spec §4.11.3, AUD-054). */
-export const VENDORED_HELPERS = ["test-helpers", "supabase"] as const;
+export const VENDORED_HELPERS = ["test-helpers", "supabase", "messaging"] as const;
 export type VendoredHelper = (typeof VENDORED_HELPERS)[number];
 
 export interface VendorResult {

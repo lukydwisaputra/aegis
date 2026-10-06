@@ -20,6 +20,7 @@
     "@qa/contracts": "workspace:*",
     "@qa/event-bus": "workspace:*",
     "@qa/ids": "workspace:*",
+    "@qa/messaging": "workspace:*",
     "@qa/path-guard": "workspace:*",
     "@qa/taskmaster-client": "workspace:*",
     "proper-lockfile": "^4.1.2",

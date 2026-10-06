@@ -38,7 +38,7 @@ describe('validate', () => {
 
 describe('fake recipients', () => {
   it('refuses anything that could be delivered', () => {
-    expect(fakeRecipientProblem('email', 'aegis-probe@example.com')).toBeNull();
+    expect(fakeRecipientProblem('email', 'qa-probe@example.com')).toBeNull();
     expect(fakeRecipientProblem('email', 'qa@corp.invalid')).toBeNull();
     expect(fakeRecipientProblem('email', 'someone@gmail.com')).toMatch(/reserved/);
     expect(fakeRecipientProblem('phone', '+6500000000')).toBeNull();
@@ -47,7 +47,7 @@ describe('fake recipients', () => {
   it('toFakeRecipient swaps single and batch recipients and keeps the rest', () => {
     const out = toFakeRecipient({ event_id: 'e', recipient_phone: '+6591234567', recipients: [{ recipient_external_id: 'r', recipient_email: 'a@b.co' }] }, plan(), adapter) as any;
     expect(out.recipient_phone).toBe('+6500000000');
-    expect(out.recipients[0]).toEqual({ recipient_external_id: 'r', recipient_email: 'aegis-probe@example.com' });
+    expect(out.recipients[0]).toEqual({ recipient_external_id: 'r', recipient_email: 'qa-probe@example.com' });
     expect(out.event_id).toBe('e');
   });
 });
@@ -147,7 +147,7 @@ describe('live replay (a stub stands in for the provider)', () => {
       await withEnv(`${stub.url}/api/v1`, async () => {
         const out = await replay([{ event_id: 'a', recipient_email: 'real@corp.com', template_variables: { x: '1' } }], { plan: plan() });
         expect(out[0]).toMatchObject({ eventId: 'a', state: 'done', simulated: true });
-        expect((stub.recorded()[0]!.body as any).recipient_email).toBe('aegis-probe@example.com');
+        expect((stub.recorded()[0]!.body as any).recipient_email).toBe('qa-probe@example.com');
       });
     } finally { await stub.stop(); }
   });
