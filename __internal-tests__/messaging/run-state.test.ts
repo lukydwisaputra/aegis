@@ -76,6 +76,12 @@ describe('fetch-contract and plan', () => {
     expect(buildPlan(root, RUN).env).toEqual({ baseUrl: 'MY_URL', token: 'MY_KEY' });
   });
 
+  it('an invalid env name in the profile counts as unknown', async () => {
+    const root = sandbox({ provider: 'commshub', baseUrlEnv: 'bad-name', tokenEnv: 'A_KEY' });
+    await fetchContract(root, RUN, 'qa-messaging-specialist', fakeGh(FIXTURE.openapi));
+    expect(() => buildPlan(root, RUN)).toThrow(/messaging\.env\.baseUrl and messaging\.env\.token/);
+  });
+
   it('a failed fetch writes nothing', async () => {
     const root = sandbox({ provider: 'commshub', baseUrlEnv: 'A_URL', tokenEnv: 'A_KEY' });
     await expect(fetchContract(root, RUN, 'qa-messaging-specialist', () => { throw Object.assign(new Error('x'), { stderr: 'Could not resolve host\nmore' }); }))
@@ -113,7 +119,44 @@ describe('exec env, check and scan-secrets', () => {
       { file: path.join(dir, 'a.json'), line: 2, kind: 'key-pattern' },
       { file: path.join(dir, 'b.txt'), line: 3, kind: 'key-value' },
     ]);
+    expect(r.scanned).toBe(2);
+    expect(r.skipped).toEqual([]);
     expect(JSON.stringify(r)).not.toMatch(/chk_leaked|secret-value/);
+  });
+  it('scan-secrets lists a missing path and an oversized file as skipped, never silently', () => {
+    const root = sandbox({ provider: 'commshub', baseUrlEnv: 'A_URL', tokenEnv: 'A_KEY' });
+    const dir = path.join(root, 'out');
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'small.txt'), 'clean\n');
+    fs.writeFileSync(path.join(dir, 'big.har'), Buffer.alloc(5 * 1024 * 1024 + 1, 'a'));
+    fs.symlinkSync(dir, path.join(dir, 'loop'));
+    const r = scanSecrets(root, RUN, [dir, path.join(root, 'nope')], {});
+    expect(r.hits).toEqual([]);
+    expect(r.scanned).toBe(1);
+    expect(r.skipped).toEqual([
+      { file: path.join(dir, 'big.har'), reason: 'too-large' },
+      { file: path.join(root, 'nope'), reason: 'missing' },
+    ]);
+  });
+});
+
+describe('secrets file parsing', () => {
+  it('trims, unquotes, drops inline comments, skips comment and blank lines, handles CRLF, and treats empty as absent', () => {
+    const root = sandbox({ provider: 'commshub', baseUrlEnv: 'A_URL', tokenEnv: 'A_KEY' });
+    fs.mkdirSync(path.join(root, 'secrets'));
+    const file = path.join(root, 'secrets', ['.env', 'development'].join('.'));
+    const write = (lines: string[]) => fs.writeFileSync(file, lines.join('\r\n') + '\r\n');
+    write(['# comment', '', 'export A_URL=https://x.test/api/v1 # the dev tenant', 'A_KEY="chk_abcdefghij"   ', 'OTHER=1']);
+    let env = messagingEnv(root, RUN, {});
+    expect(env.key).toBe('present');
+    expect(env.vars).toMatchObject({ A_URL: 'https://x.test/api/v1', AEGIS_MESSAGING_BASE_URL: 'https://x.test/api/v1', A_KEY: 'chk_abcdefghij', AEGIS_MESSAGING_KEY: 'chk_abcdefghij' });
+    write(["A_URL='https://y.test/api/v1'", 'A_KEY=chk_abcdefghij # note']);
+    env = messagingEnv(root, RUN, {});
+    expect(env.vars).toMatchObject({ A_URL: 'https://y.test/api/v1', A_KEY: 'chk_abcdefghij' });
+    write(['A_URL=https://y.test/api/v1', 'A_KEY=', '# A_KEY=commented']);
+    env = messagingEnv(root, RUN, {});
+    expect(env.key).toBe('absent');
+    expect(env.vars).not.toHaveProperty('AEGIS_MESSAGING_KEY');
   });
 });
 

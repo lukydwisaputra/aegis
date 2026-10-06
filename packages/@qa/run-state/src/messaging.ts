@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { appendChained } from "@qa/event-bus";
@@ -116,8 +116,9 @@ function envNames(root: string, runId: string, cfg: MessagingConfig): EnvNames {
   } catch {
     // an unreadable profile leaves the names unknown
   }
-  const baseUrl = cfg.env.baseUrl ?? (profile["baseUrlEnv"] as string | null | undefined) ?? null;
-  const token = cfg.env.token ?? (profile["tokenEnv"] as string | null | undefined) ?? null;
+  const valid = (v: unknown): string | null => (typeof v === "string" && ENV_NAME.test(v) ? v : null);
+  const baseUrl = cfg.env.baseUrl ?? valid(profile["baseUrlEnv"]);
+  const token = cfg.env.token ?? valid(profile["tokenEnv"]);
   if (baseUrl === null || token === null) bad("messaging env names unknown: the profile detected none; set aegis.config.json#messaging.env.baseUrl and messaging.env.token");
   return { baseUrl: baseUrl!, token: token!, source: cfg.env.baseUrl !== null || cfg.env.token !== null ? "config" : "profile" };
 }
@@ -154,8 +155,12 @@ function secretsFile(root: string): Record<string, string> {
   if (!existsSync(file)) return {};
   const out: Record<string, string> = {};
   for (const line of readFileSync(file, "utf-8").split(/\r?\n/)) {
-    const m = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
-    if (m !== null) out[m[1]!] = m[2]!.replace(/^(['"])(.*)\1$/, "$2");
+    if (/^\s*(#|$)/.test(line)) continue;
+    const m = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=(.*)$/.exec(line);
+    if (m === null) continue;
+    const raw = m[2]!.trim();
+    const quoted = /^(['"])(.*?)\1(?:\s+#.*)?$/.exec(raw);
+    out[m[1]!] = quoted !== null ? quoted[2]! : raw.replace(/\s+#.*$/, "").trim();
   }
   return out;
 }
@@ -222,15 +227,45 @@ export async function checkMessaging(root: string, runId: string, env: NodeJS.Pr
   return { contract: { present: sha !== null, sha }, stubPort: { port: cfg.stubPort, free: await portFree(cfg.stubPort) }, key, envNames: names };
 }
 
-function walk(p: string, out: string[]): void {
-  const st = statSync(p);
+const MAX_SCAN_BYTES = 5 * 1024 * 1024;
+export type SkipReason = "missing" | "too-large" | "unreadable";
+export interface SkippedFile { file: string; reason: SkipReason }
+
+/** Collects the regular files under p; a symlink is ignored, anything not scanned is listed in `skipped`. */
+function walk(p: string, files: string[], skipped: SkippedFile[]): void {
+  let st;
+  try {
+    st = lstatSync(p);
+  } catch (e) {
+    skipped.push({ file: p, reason: (e as NodeJS.ErrnoException).code === "ENOENT" ? "missing" : "unreadable" });
+    return;
+  }
+  if (st.isSymbolicLink()) return;
   if (st.isDirectory()) {
-    for (const e of readdirSync(p)) if (e !== "node_modules" && e !== ".git") walk(join(p, e), out);
-  } else if (st.isFile() && st.size <= 5 * 1024 * 1024) out.push(p);
+    let entries: string[];
+    try {
+      entries = readdirSync(p);
+    } catch {
+      skipped.push({ file: p, reason: "unreadable" });
+      return;
+    }
+    for (const e of entries) if (e !== "node_modules" && e !== ".git") walk(join(p, e), files, skipped);
+  } else if (st.isFile()) {
+    if (st.size > MAX_SCAN_BYTES) skipped.push({ file: p, reason: "too-large" });
+    else files.push(p);
+  }
+}
+
+export interface ScanResult {
+  hits: Array<{ file: string; line: number; kind: "key-pattern" | "key-value" }>;
+  /** Files actually read. */
+  scanned: number;
+  /** Paths not scanned and why: a clean result is only clean for what was scanned. */
+  skipped: SkippedFile[];
 }
 
 /** file:line of every key-pattern or key-value occurrence under `paths`; the match itself is never returned. */
-export function scanSecrets(root: string, runId: string, paths: string[], env: NodeJS.ProcessEnv = process.env): { hits: Array<{ file: string; line: number; kind: "key-pattern" | "key-value" }> } {
+export function scanSecrets(root: string, runId: string, paths: string[], env: NodeJS.ProcessEnv = process.env): ScanResult {
   const cfg = configOf(root);
   const pattern = adapterFor(cfg.adapter).keyPattern;
   let value: string | undefined;
@@ -241,13 +276,23 @@ export function scanSecrets(root: string, runId: string, paths: string[], env: N
     value = undefined;
   }
   const files: string[] = [];
-  for (const p of paths) if (existsSync(p)) walk(resolve(p), files);
-  const hits: Array<{ file: string; line: number; kind: "key-pattern" | "key-value" }> = [];
+  const skipped: SkippedFile[] = [];
+  for (const p of paths) walk(resolve(p), files, skipped);
+  const hits: ScanResult["hits"] = [];
+  let scanned = 0;
   for (const file of files.sort()) {
-    readFileSync(file, "utf-8").split("\n").forEach((text, i) => {
-      if (pattern.test(text)) hits.push({ file, line: i + 1, kind: "key-pattern" });
-      else if (value !== undefined && value.length >= 8 && text.includes(value)) hits.push({ file, line: i + 1, kind: "key-value" });
+    let text: string;
+    try {
+      text = readFileSync(file, "utf-8");
+    } catch {
+      skipped.push({ file, reason: "unreadable" });
+      continue;
+    }
+    scanned++;
+    text.split("\n").forEach((line, i) => {
+      if (pattern.test(line)) hits.push({ file, line: i + 1, kind: "key-pattern" });
+      else if (value !== undefined && value.length >= 8 && line.includes(value)) hits.push({ file, line: i + 1, kind: "key-value" });
     });
   }
-  return { hits };
+  return { hits, scanned, skipped };
 }
