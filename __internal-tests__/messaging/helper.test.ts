@@ -217,3 +217,167 @@ describe('project-agnostic core (D10)', () => {
     expect(adapterFor('commshub').detectionHints).toMatch(/COMMSHUB_/);
   });
 });
+
+// ── final-review fixes (C2, M1, I1, I4, I5) ──
+
+/** A provider stand-in whose read-back answer the test chooses; counts every message-creating POST. */
+async function fakeProvider(readBack: { status: number; body: unknown }) {
+  const posts: any[] = [];
+  const server = http.createServer((req, res) => {
+    let raw = ''; req.on('data', (c) => (raw += c)); req.on('end', () => {
+      if (req.method === 'POST') {
+        const b = JSON.parse(raw);
+        posts.push(b);
+        const n = Array.isArray(b.recipients) ? b.recipients.length : 1;
+        res.writeHead(201, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ scheduled: Array.from({ length: n }, (_, i) => ({ message_id: `m${posts.length}-${i}` })) }));
+      }
+      res.writeHead(readBack.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(readBack.body));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const port = (server.address() as { port: number }).port;
+  return { url: `http://127.0.0.1:${port}/api/v1`, posts, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
+}
+
+const LIVE = { status: 200, body: { status: 'sent', simulated: false, delivery_log: [{ provider_code: 'whatsapp_cloud' }] } };
+const SIMULATED = { status: 200, body: { status: 'sent', simulated: true, delivery_log: [{ provider_code: 'simulated' }] } };
+
+describe('stub port', () => {
+  it('a second stub on a busy port rejects naming the port, instead of crashing the process (I1)', async () => {
+    const first = await startStub({ plan: plan(), contract });
+    const port = Number(new URL(first.url).port);
+    try {
+      await expect(startStub({ plan: plan(), contract, port })).rejects.toThrow(`stub port ${port} busy`);
+    } finally { await first.stop(); }
+  });
+});
+
+describe('send validates the configured fakes themselves (I5)', () => {
+  it('refuses a deliverable fake email or a non-E.164 fake phone even when the body holds exactly that fake', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    const keep = { ...process.env };
+    process.env.AEGIS_MESSAGING_BASE_URL = provider.url; process.env.AEGIS_MESSAGING_KEY = 'chk_livekeylivekey';
+    try {
+      const badEmail = plan({ fakeRecipients: { email: 'someone@gmail.com', phone: '+6500000000' } });
+      await expect(send({ event_id: 'e', recipient_email: 'someone@gmail.com' }, { plan: badEmail })).rejects.toThrow(/reserved domain/);
+      const badPhone = plan({ fakeRecipients: { email: 'qa-probe@example.com', phone: '6500000000' } });
+      await expect(send({ event_id: 'e', recipient_phone: '6500000000' }, { plan: badPhone })).rejects.toThrow(/E\.164/);
+      expect(provider.posts).toHaveLength(0);
+    } finally { process.env = keep; await provider.close(); }
+  });
+});
+
+describe('preflight verdict (C2, M1, I4)', () => {
+  const tmp = () => fs.mkdtempSync(path.join(require('os').tmpdir(), 'aegis-preflight-'));
+  const withLive = async (url: string, verdictFile: string | null, fn: () => Promise<void>) => {
+    const keep = { ...process.env };
+    process.env.AEGIS_MESSAGING_BASE_URL = url; process.env.AEGIS_MESSAGING_KEY = 'chk_livekeylivekey';
+    if (verdictFile === null) delete process.env.AEGIS_MESSAGING_PREFLIGHT; else process.env.AEGIS_MESSAGING_PREFLIGHT = verdictFile;
+    try { await fn(); } finally { process.env = keep; }
+  };
+  const body = (id: string) => ({ event_id: id, recipient_email: 'x@corp.co' });
+
+  it('a live verdict stops every later send across replay() calls: exactly one message-creating POST', async () => {
+    const provider = await fakeProvider(LIVE);
+    const file = path.join(tmp(), 'preflight.json');
+    fs.writeFileSync(file, '{}');
+    try {
+      await withLive(provider.url, file, async () => {
+        const first = await replay([body('a'), body('b')], { plan: plan() }).then(() => null, (e) => e);
+        expect(first).toBeInstanceOf(NotSimulatedError);
+        expect(first.reason).toBe('live');
+        const second = await replay([body('c')], { plan: plan() }).then(() => null, (e) => e);
+        expect(second).toBeInstanceOf(NotSimulatedError);
+        expect(second.reason).toBe('live');
+        await expect(send(toFakeRecipient(body('d'), plan(), adapter), { plan: plan() })).rejects.toBeInstanceOf(NotSimulatedError);
+      });
+      expect(provider.posts).toHaveLength(1);
+      expect(JSON.parse(fs.readFileSync(file, 'utf-8'))).toEqual({ verdict: 'live', messageId: 'm1-0', adapter: 'commshub' });
+    } finally { await provider.close(); }
+  });
+
+  it('a simulated verdict is written once and later replay() calls send without a second preflight', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    const file = path.join(tmp(), 'preflight.json');
+    try {
+      await withLive(provider.url, file, async () => {
+        await replay([body('a')], { plan: plan() });
+        expect(JSON.parse(fs.readFileSync(file, 'utf-8'))).toEqual({ verdict: 'simulated', messageId: 'm1-0', adapter: 'commshub' });
+        const out = await replay([body('b')], { plan: plan() });
+        expect(out[0]).toMatchObject({ eventId: 'b', simulated: true });
+      });
+      expect(provider.posts).toHaveLength(2);
+    } finally { await provider.close(); }
+  });
+
+  it('a stored undecided verdict refuses before anything is sent', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    const file = path.join(tmp(), 'preflight.json');
+    fs.writeFileSync(file, JSON.stringify({ verdict: 'undecided', messageId: 'm0', adapter: 'commshub' }));
+    try {
+      await withLive(provider.url, file, async () => {
+        const e = await replay([body('a')], { plan: plan() }).then(() => null, (x) => x);
+        expect(e).toBeInstanceOf(NotSimulatedError);
+        expect(e).toMatchObject({ reason: 'undecided', messageId: 'm0' });
+      });
+      expect(provider.posts).toHaveLength(0);
+    } finally { await provider.close(); }
+  });
+
+  it('a read-back that is not done is undecided, never live (I4)', async () => {
+    for (const readBack of [
+      { status: 500, body: { code: 'INTERNAL_ERROR' } },
+      { status: 200, body: { status: 'failed', simulated: true, delivery_log: [{ provider_code: 'simulated' }] } },
+    ]) {
+      const provider = await fakeProvider(readBack);
+      const file = path.join(tmp(), 'preflight.json');
+      try {
+        await withLive(provider.url, file, async () => {
+          const e = await replay([body('a'), body('b')], { plan: plan() }).then(() => null, (x) => x);
+          expect(e).toBeInstanceOf(NotSimulatedError);
+          expect(e.reason).toBe('undecided');
+          expect(e.message).toMatch(/could not be confirmed/);
+        });
+        expect(provider.posts).toHaveLength(1);
+        expect(JSON.parse(fs.readFileSync(file, 'utf-8')).verdict).toBe('undecided');
+      } finally { await provider.close(); }
+    }
+  });
+
+  it('a done read-back that is not simulated is live (I4)', async () => {
+    const provider = await fakeProvider(LIVE);
+    try {
+      await withLive(provider.url, null, async () => {
+        const e = await replay([body('a')], { plan: plan() }).then(() => null, (x) => x);
+        expect(e).toMatchObject({ reason: 'live' });
+        expect(e.message).toMatch(/not simulated/);
+      });
+    } finally { await provider.close(); }
+  });
+
+  it('the preflight carries exactly one recipient; the full batch follows a simulated verdict (M1)', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    try {
+      await withLive(provider.url, null, async () => {
+        const batch = { event_id: 'b', recipients: [{ recipient_external_id: 'r1', recipient_email: 'a@corp.co' }, { recipient_external_id: 'r2', recipient_email: 'b@corp.co' }, { recipient_external_id: 'r3', recipient_email: 'c@corp.co' }] };
+        const out = await replay([batch], { plan: plan() });
+        expect(out.map((r) => r.simulated)).toEqual([true, true, true, true]);
+      });
+      expect(provider.posts.map((p) => p.recipients.length)).toEqual([1, 3]);
+      expect(provider.posts[0].recipients[0]).toEqual({ recipient_external_id: 'r1', recipient_email: 'qa-probe@example.com' });
+    } finally { await provider.close(); }
+  });
+
+  it('a live verdict on a one-recipient preflight never sends the batch (M1)', async () => {
+    const provider = await fakeProvider(LIVE);
+    try {
+      await withLive(provider.url, null, async () => {
+        const batch = { event_id: 'b', recipients: [{ recipient_email: 'a@corp.co' }, { recipient_email: 'b@corp.co' }] };
+        await expect(replay([batch], { plan: plan() })).rejects.toBeInstanceOf(NotSimulatedError);
+      });
+      expect(provider.posts.map((p) => p.recipients.length)).toEqual([1]);
+    } finally { await provider.close(); }
+  });
+});

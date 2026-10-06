@@ -1,8 +1,9 @@
 // Messaging helper (NEW-07): provider-neutral messaging test helper. The QA CLI's `helpers vendor` copies this file to
 // <testsDir>/support/messaging.ts; it imports Node built-ins only. Specs run under the CLI's `messaging exec`, which sets
-// AEGIS_MESSAGING_PLAN, AEGIS_MESSAGING_CONTRACT and, when a key is available, AEGIS_MESSAGING_BASE_URL/_KEY.
+// AEGIS_MESSAGING_PLAN, AEGIS_MESSAGING_CONTRACT, AEGIS_MESSAGING_PREFLIGHT (the run's preflight verdict file) and, when a
+// key is available, AEGIS_MESSAGING_BASE_URL/_KEY.
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 // ── core ──
@@ -299,7 +300,12 @@ export async function startStub(opts: { plan?: MessagingPlan; contract?: Messagi
       reply(res, 500, adapter.errorBody("STUB_ERROR", message));
     });
   });
-  await new Promise<void>((resolve) => server.listen(opts.port ?? plan.stubPort, "127.0.0.1", resolve));
+  const wanted = opts.port ?? plan.stubPort;
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", (e: NodeJS.ErrnoException) =>
+      reject(new Error(e.code === "EADDRINUSE" ? `stub port ${wanted} busy` : `stub port ${wanted} unavailable: ${e.message}`)));
+    server.listen(wanted, "127.0.0.1", () => resolve());
+  });
   const port = (server.address() as { port: number }).port;
   return {
     url: `http://127.0.0.1:${port}`,
@@ -355,7 +361,12 @@ async function call(method: string, url: string, key: string, adapter: Messaging
 /** POST one body to the provider. Refuses any body whose recipients are not the plan's fakes. */
 export async function send(body: Record<string, unknown>, o: LiveCtx & { idempotencyKey?: string } = {}): Promise<{ status: number; body: unknown; messageIds: string[] }> {
   const { plan, adapter } = ctxOf(o);
+  for (const kind of ["email", "phone"] as const) {
+    const problem = fakeRecipientProblem(kind, plan.fakeRecipients[kind]);
+    if (problem !== null) throw new Error(`refusing to send: the configured fake ${kind} could reach a person: ${problem}`);
+  }
   assertOnlyFakes(body, plan, adapter);
+  refuseAfterVerdict(readVerdict());
   const { base, key } = liveEnv();
   const r = await call("POST", liveUrl(base, plan.prefix, adapter.operations.send.path), key, adapter, body, o.idempotencyKey ? { "idempotency-key": o.idempotencyKey } : {});
   return { ...r, messageIds: r.status < 300 ? adapter.messageIds(r.body) : [] };
@@ -388,11 +399,68 @@ export async function probeRegistered(eventId: string, o: LiveCtx = {}): Promise
   return adapter.probeResult(r.status, r.body);
 }
 
+export type PreflightOutcome = "simulated" | "live" | "undecided";
+
 export class NotSimulatedError extends Error {
-  constructor(readonly messageId: string, readonly reason: "live" | "undecided") {
-    super(`provider tenant is not simulated (${reason}): message ${messageId}`);
+  constructor(readonly messageId: string, readonly reason: "live" | "undecided", readonly detail?: string) {
+    super(
+      reason === "live"
+        ? `provider tenant is not simulated (live): message ${messageId}`
+        : `simulation could not be confirmed (undecided${detail === undefined ? "" : `: ${detail}`}): message ${messageId}`
+    );
     this.name = "NotSimulatedError";
   }
+}
+
+/** The verdict of the first live message of one `messaging exec` run, shared by every replay() and send() in it. */
+export interface PreflightVerdict { verdict: PreflightOutcome; messageId: string; adapter: string }
+
+const verdictFile = (): string | undefined => process.env["AEGIS_MESSAGING_PREFLIGHT"] || undefined;
+
+/** The stored verdict; null when there is no verdict file or no verdict yet. An unreadable verdict counts as undecided. */
+export function readVerdict(file = verdictFile()): PreflightVerdict | null {
+  if (file === undefined) return null;
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf-8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    return { verdict: "undecided", messageId: "", adapter: "" };
+  }
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return { verdict: "undecided", messageId: "", adapter: "" };
+  }
+  const o = v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  if (o["verdict"] === undefined || o["verdict"] === null) return null;
+  const verdict: PreflightOutcome = o["verdict"] === "simulated" || o["verdict"] === "live" ? o["verdict"] : "undecided";
+  return { verdict, messageId: String(o["messageId"] ?? ""), adapter: String(o["adapter"] ?? "") };
+}
+
+function writeVerdict(file: string, v: PreflightVerdict): void {
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(v) + "\n");
+  renameSync(tmp, file);
+}
+
+function refuseAfterVerdict(v: PreflightVerdict | null): void {
+  if (v !== null && v.verdict !== "simulated") throw new NotSimulatedError(v.messageId, v.verdict, "an earlier preflight in this run");
+}
+
+/** A copy of `body` whose recipient lists keep only their first entry; null when no list holds more than one. */
+function firstRecipientOnly(body: Record<string, unknown>, adapter: MessagingAdapter): Record<string, unknown> | null {
+  let copy: Record<string, unknown> | null = null;
+  for (const field of adapter.recipientFields) {
+    const list = /^(\w+)\[\]\./.exec(field)?.[1];
+    const v = list === undefined ? undefined : body[list];
+    if (list !== undefined && Array.isArray(v) && v.length > 1) {
+      copy ??= { ...body };
+      copy[list] = v.slice(0, 1);
+    }
+  }
+  return copy;
 }
 
 export interface ReplayResult {
@@ -405,31 +473,48 @@ export interface ReplayResult {
 }
 
 /**
- * Replays recorded bodies to the fake recipients. The first body that yields a message is the preflight: unless the
- * adapter judges it simulated, NotSimulatedError stops the replay before any other send.
+ * Replays recorded bodies to the fake recipients. The first message is the preflight and goes to one recipient: unless
+ * its read-back is final and the adapter judges it simulated, NotSimulatedError stops the replay before any other send.
+ * Under `messaging exec` (AEGIS_MESSAGING_PREFLIGHT set) the verdict is stored, so a live or undecided verdict also stops
+ * every later replay() and send() of the same run, and a simulated one is not asked for again.
  */
 export async function replay(bodies: unknown[], o: LiveCtx & { stamp?: string } = {}): Promise<ReplayResult[]> {
   const { plan, adapter } = ctxOf(o);
   const stamp = o.stamp ?? String(Date.now());
+  const file = verdictFile();
+  const stored = readVerdict(file);
+  refuseAfterVerdict(stored);
+  let preflightDone = stored !== null;
   const out: ReplayResult[] = [];
-  let preflightDone = false;
-  for (const [i, raw] of bodies.entries()) {
-    const body = toFakeRecipient(raw, plan, adapter);
-    const r = await send(body, { ...o, plan, idempotencyKey: `qa-replay-${stamp}-${i}` });
-    const eventId = adapter.eventIdOf(body);
+
+  const judge = (id: string, final: { state: FinalState; body: unknown }): void => {
+    const verdict: PreflightOutcome = final.state !== "done" ? "undecided" : adapter.isSimulated(final.body) ? "simulated" : "live";
+    if (file !== undefined) writeVerdict(file, { verdict, messageId: id, adapter: adapter.id });
+    if (verdict !== "simulated") throw new NotSimulatedError(id, verdict, verdict === "undecided" ? `read-back ended ${final.state}` : undefined);
+    preflightDone = true;
+  };
+  /** Sends one body and settles its messages; false when the provider created none. */
+  const sendAndSettle = async (body: Record<string, unknown>, idempotencyKey: string, eventId: string): Promise<boolean> => {
+    const r = await send(body, { ...o, plan, idempotencyKey });
     if (r.messageIds.length === 0) {
       out.push({ eventId, status: r.status, messageIds: [], state: "rejected", simulated: null, detail: r.body });
-      continue;
+      return false;
     }
     for (const id of r.messageIds) {
       const final = await waitFinal(id, plan.dispatchTimeoutSeconds, { ...o, plan });
+      if (!preflightDone) judge(id, final);
       const simulated = final.state === "pending" ? null : adapter.isSimulated(final.body);
-      if (!preflightDone) {
-        if (simulated !== true) throw new NotSimulatedError(id, simulated === null ? "undecided" : "live");
-        preflightDone = true;
-      }
       out.push({ eventId, status: r.status, messageIds: r.messageIds, state: final.state, simulated, detail: final.body });
     }
+    return true;
+  };
+
+  for (const [i, raw] of bodies.entries()) {
+    const body = toFakeRecipient(raw, plan, adapter);
+    const eventId = adapter.eventIdOf(body);
+    const single = preflightDone ? null : firstRecipientOnly(body, adapter);
+    if (single !== null && !(await sendAndSettle(single, `qa-replay-${stamp}-${i}-preflight`, eventId))) continue;
+    await sendAndSettle(body, `qa-replay-${stamp}-${i}`, eventId);
   }
   return out;
 }
