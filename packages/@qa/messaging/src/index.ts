@@ -88,6 +88,8 @@ export function validate(schema: JsonSchema, value: unknown, root: JsonSchema, p
   const errors: SchemaError[] = [];
   const fail = (message: string, at = path): void => { errors.push({ path: at, message }); };
   const passes = (s: JsonSchema): boolean => validate(s, value, root, path).length === 0;
+  // OpenAPI 3.0 nullable: null is valid before any composition keyword is tried.
+  if (value === null && schema["nullable"] === true) return errors;
   for (const s of (schema["allOf"] as JsonSchema[] | undefined) ?? []) errors.push(...validate(s, value, root, path));
   const anyOf = schema["anyOf"] as JsonSchema[] | undefined;
   if (anyOf !== undefined && !anyOf.some(passes)) fail("matches no anyOf branch");
@@ -97,7 +99,6 @@ export function validate(schema: JsonSchema, value: unknown, root: JsonSchema, p
     if (n !== 1) fail(`matches ${n} oneOf branches, expected 1`);
   }
   if (schema["not"] !== undefined && passes(schema["not"] as JsonSchema)) fail("matches a forbidden schema");
-  if (value === null && schema["nullable"] === true) return errors;
   if (schema["type"] !== undefined) {
     const types = Array.isArray(schema["type"]) ? (schema["type"] as string[]) : [schema["type"] as string];
     if (!types.some((t) => typeMatches(t, value))) {
@@ -169,10 +170,18 @@ export const loadPlan = (file = process.env["AEGIS_MESSAGING_PLAN"]): MessagingP
 const RESERVED_EMAIL = /@(example\.(com|org|net)|[^@\s]+\.(invalid|test|example))$/i;
 const E164 = /^\+[1-9]\d{6,14}$/;
 
-/** Why a fake recipient could reach a person; null when it is safe (RFC 2606 domain, E.164 phone). */
-export function fakeRecipientProblem(kind: "email" | "phone", value: string): string | null {
+/** A numbering range no subscriber can hold (unassigned or reserved for fiction); the list itself is country data. */
+export interface PhoneRange { region: string; range: string; pattern: RegExp }
+
+/**
+ * Why a fake recipient could reach a person; null when it is safe: an RFC 2606 email domain, or an E.164 phone inside one
+ * of `phoneRanges` (by default the fictional ranges of the adapters section). Any other E.164 number may be a real mobile.
+ */
+export function fakeRecipientProblem(kind: "email" | "phone", value: string, phoneRanges: readonly PhoneRange[] = FICTIONAL_PHONE_RANGES): string | null {
   if (kind === "email") return RESERVED_EMAIL.test(value) ? null : `${value} is not on a reserved domain (example.com/.org/.net, .invalid, .test, .example)`;
-  return E164.test(value) ? null : `${value} is not an E.164 number`;
+  if (!E164.test(value)) return `${value} is not an E.164 number`;
+  if (phoneRanges.some((r) => r.pattern.test(value))) return null;
+  return `${value} is not in a fictional phone range and could be a real number; use one of: ${phoneRanges.map((r) => `${r.region} ${r.range}`).join(", ")}`;
 }
 
 const kindOf = (field: string): "email" | "phone" => (/mail/i.test(field) ? "email" : "phone");
@@ -358,8 +367,25 @@ async function call(method: string, url: string, key: string, adapter: Messaging
   }
 }
 
-/** POST one body to the provider. Refuses any body whose recipients are not the plan's fakes. */
-export async function send(body: Record<string, unknown>, o: LiveCtx & { idempotencyKey?: string } = {}): Promise<{ status: number; body: unknown; messageIds: string[] }> {
+type SendResult = { status: number; body: unknown; messageIds: string[] };
+
+/**
+ * POST one body to the provider. Refuses any body whose recipients are not the plan's fakes. Under `messaging exec`
+ * (AEGIS_MESSAGING_PREFLIGHT set) it also refuses until replay() has stored the run's preflight verdict: the first live
+ * message of a run is always replay()'s one-recipient preflight.
+ */
+export async function send(body: Record<string, unknown>, o: LiveCtx & { idempotencyKey?: string } = {}): Promise<SendResult> {
+  const file = verdictFile();
+  if (file !== undefined) {
+    const v = readVerdict(file);
+    refuseAfterVerdict(v);
+    if (v === null) throw new Error("run replay() first: the first live message must be the preflight");
+  }
+  return sendLive(body, o);
+}
+
+/** send() without the preflight-first rule: replay() uses it to send the preflight itself. */
+async function sendLive(body: Record<string, unknown>, o: LiveCtx & { idempotencyKey?: string }): Promise<SendResult> {
   const { plan, adapter } = ctxOf(o);
   for (const kind of ["email", "phone"] as const) {
     const problem = fakeRecipientProblem(kind, plan.fakeRecipients[kind]);
@@ -379,15 +405,24 @@ export async function readBack(id: string, o: LiveCtx = {}): Promise<{ status: n
   return call("GET", liveUrl(base, plan.prefix, path), key, adapter);
 }
 
-/** Polls a message until the adapter calls it final, or the timeout passes ("pending"). */
+/**
+ * Polls a message until the adapter calls it final, or the timeout passes ("pending"). A read-back that fails for a
+ * reason that can pass (404 just after the send, 429, 5xx, a network error) counts as pending and is polled again; only
+ * 401/403 end at once as "problem", since a bad credential does not fix itself.
+ */
 export async function waitFinal(id: string, timeoutSeconds: number, o: LiveCtx = {}): Promise<{ state: FinalState; body: unknown }> {
   const { adapter } = ctxOf(o);
   const until = Date.now() + timeoutSeconds * 1000;
   for (;;) {
-    const r = await readBack(id, o);
-    const state = r.status === 200 ? adapter.finalState(r.body) : "problem";
+    let r: { status: number; body: unknown };
+    try {
+      r = await readBack(id, o);
+    } catch (e) {
+      r = { status: 0, body: { error: e instanceof Error ? e.message : String(e) } };
+    }
+    const state: FinalState = r.status === 200 ? adapter.finalState(r.body) : r.status === 401 || r.status === 403 ? "problem" : "pending";
     if (state !== "pending" || Date.now() >= until) return { state, body: r.body };
-    await sleep(2000);
+    await sleep(Math.max(0, Math.min(2000, until - Date.now())));
   }
 }
 
@@ -495,7 +530,7 @@ export async function replay(bodies: unknown[], o: LiveCtx & { stamp?: string } 
   };
   /** Sends one body and settles its messages; false when the provider created none. */
   const sendAndSettle = async (body: Record<string, unknown>, idempotencyKey: string, eventId: string): Promise<boolean> => {
-    const r = await send(body, { ...o, plan, idempotencyKey });
+    const r = await sendLive(body, { ...o, plan, idempotencyKey });
     if (r.messageIds.length === 0) {
       out.push({ eventId, status: r.status, messageIds: [], state: "rejected", simulated: null, detail: r.body });
       return false;
@@ -520,6 +555,18 @@ export async function replay(bodies: unknown[], o: LiveCtx & { stamp?: string } 
 }
 
 // ── adapters ──
+
+/**
+ * Phone ranges no subscriber can hold, the only ones a fake phone may use (country data, so outside the core):
+ * Singapore numbers with an unassigned leading 0, the North American 555-0100..0199 fiction range, Ofcom's UK drama range
+ * and ACMA's Australian fiction range.
+ */
+export const FICTIONAL_PHONE_RANGES: readonly PhoneRange[] = [
+  { region: "Singapore", range: "+650xxxxxxx", pattern: /^\+650\d{7}$/ },
+  { region: "North America", range: "+1NXX55501xx", pattern: /^\+1\d{3}55501\d{2}$/ },
+  { region: "UK", range: "+447700900xxx", pattern: /^\+447700900\d{3}$/ },
+  { region: "Australia", range: "+61491570xxx", pattern: /^\+61491570\d{3}$/ },
+];
 
 /** Defaults for the config's messaging.fakeRecipients (country-specific, so outside the core). */
 export const DEFAULT_FAKE_RECIPIENTS = { email: "qa-probe@example.com", phone: "+6500000000" } as const;
@@ -565,7 +612,8 @@ const COMMSHUB: MessagingAdapter = {
     scheduled: ids.map((message_id) => ({ event_id: b["event_id"], message_id, scheduled_at: new Date().toISOString(), status: "scheduled" })),
   }),
   stubReadBack: (id, b) => {
-    const channel = b["recipient_email"] !== undefined ? "email" : "sms";
+    const first = Array.isArray(b["recipients"]) && b["recipients"].length > 0 ? rec(b["recipients"][0]) : b;
+    const channel = first["recipient_email"] !== undefined ? "email" : "sms";
     return {
       message_id: id, event_id: b["event_id"], status: "sent", skip_reason: null, channels_allowed: [channel], simulated: true,
       delivery_log: [{ id: randomUUID(), channel, provider_code: "simulated", provider_message_id: `SIM-${id}`, status: "sent", error_code: null, error_message: null }],

@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import {
-  ADAPTERS, DEFAULT_FAKE_RECIPIENTS, NotSimulatedError, adapterFor, assertOnlyFakes, apiPrefix, fakeRecipientProblem, liveUrl,
-  probeRegistered, replay, requestSchema, send, startStub, toFakeRecipient, validate,
+  ADAPTERS, DEFAULT_FAKE_RECIPIENTS, FICTIONAL_PHONE_RANGES, NotSimulatedError, adapterFor, assertOnlyFakes, apiPrefix, fakeRecipientProblem, liveUrl,
+  probeRegistered, replay, requestSchema, send, startStub, toFakeRecipient, validate, waitFinal,
   type MessagingContract, type MessagingPlan,
 } from '@qa/messaging';
 
@@ -335,7 +335,8 @@ describe('preflight verdict (C2, M1, I4)', () => {
       const file = path.join(tmp(), 'preflight.json');
       try {
         await withLive(provider.url, file, async () => {
-          const e = await replay([body('a'), body('b')], { plan: plan() }).then(() => null, (x) => x);
+          // A 500 is polled until the timeout (PR #18 item 6), so keep the timeout short.
+          const e = await replay([body('a'), body('b')], { plan: plan({ dispatchTimeoutSeconds: 1 }) }).then(() => null, (x) => x);
           expect(e).toBeInstanceOf(NotSimulatedError);
           expect(e.reason).toBe('undecided');
           expect(e.message).toMatch(/could not be confirmed/);
@@ -379,5 +380,194 @@ describe('preflight verdict (C2, M1, I4)', () => {
       });
       expect(provider.posts.map((p) => p.recipients.length)).toEqual([1]);
     } finally { await provider.close(); }
+  });
+});
+
+// ── PR #18 review fixes (items 1, 6, 8, 9, 10) ──
+
+describe('fake phone must sit in a fictional range (PR #18 item 1)', () => {
+  it('refuses a real-looking E.164 mobile and names the allowed ranges', () => {
+    const problem = fakeRecipientProblem('phone', '+6591234567');
+    expect(problem).toMatch(/fictional/);
+    for (const range of FICTIONAL_PHONE_RANGES) expect(problem).toContain(range.range);
+    expect(fakeRecipientProblem('phone', '+65012345678')).toMatch(/fictional/);
+    expect(fakeRecipientProblem('phone', '+12025550200')).toMatch(/fictional/);
+  });
+  it('accepts each fictional range, and the default fake phone is one of them', () => {
+    for (const phone of ['+6500000000', '+6501234567', '+12025550123', '+12025550199', '+447700900123', '+61491570156']) {
+      expect({ phone, problem: fakeRecipientProblem('phone', phone) }).toEqual({ phone, problem: null });
+    }
+    expect(fakeRecipientProblem('phone', DEFAULT_FAKE_RECIPIENTS.phone)).toBeNull();
+    expect(FICTIONAL_PHONE_RANGES.map((r) => r.region)).toEqual(['Singapore', 'North America', 'UK', 'Australia']);
+  });
+  it('send refuses a plan whose fake phone is a real-looking mobile, before anything is sent', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    const keep = { ...process.env };
+    process.env.AEGIS_MESSAGING_BASE_URL = provider.url; process.env.AEGIS_MESSAGING_KEY = 'chk_livekeylivekey';
+    delete process.env.AEGIS_MESSAGING_PREFLIGHT;
+    try {
+      const real = plan({ fakeRecipients: { email: 'qa-probe@example.com', phone: '+6591234567' } });
+      await expect(send({ event_id: 'e', recipient_phone: '+6591234567' }, { plan: real })).rejects.toThrow(/fictional/);
+      expect(provider.posts).toHaveLength(0);
+    } finally { process.env = keep; await provider.close(); }
+  });
+});
+
+/** A provider stand-in whose read-back answers follow `script` (the last one repeats); 'drop' destroys the socket. */
+async function scriptedProvider(script: Array<{ status: number; body: unknown } | 'drop'>) {
+  const posts: any[] = [];
+  let reads = 0;
+  const server = http.createServer((req, res) => {
+    let raw = ''; req.on('data', (c) => (raw += c)); req.on('end', () => {
+      if (req.method === 'POST') {
+        posts.push(JSON.parse(raw));
+        res.writeHead(201, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ scheduled: [{ message_id: `m${posts.length}` }] }));
+      }
+      const step = script[Math.min(reads, script.length - 1)]!;
+      reads += 1;
+      if (step === 'drop') return req.socket.destroy();
+      res.writeHead(step.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(step.body));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const port = (server.address() as { port: number }).port;
+  return {
+    url: `http://127.0.0.1:${port}/api/v1`, posts, reads: () => reads,
+    close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }),
+  };
+}
+
+describe('read-back polling (PR #18 item 6)', () => {
+  const withProvider = async (url: string, verdictFile: string | null, fn: () => Promise<void>) => {
+    const keep = { ...process.env };
+    process.env.AEGIS_MESSAGING_BASE_URL = url; process.env.AEGIS_MESSAGING_KEY = 'chk_livekeylivekey';
+    if (verdictFile === null) delete process.env.AEGIS_MESSAGING_PREFLIGHT; else process.env.AEGIS_MESSAGING_PREFLIGHT = verdictFile;
+    try { await fn(); } finally { process.env = keep; }
+  };
+
+  it('a 404 right after the send is pending: polling continues to a simulated done', async () => {
+    const provider = await scriptedProvider([{ status: 404, body: { code: 'NOT_FOUND' } }, SIMULATED]);
+    const file = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'aegis-poll-')), 'preflight.json');
+    try {
+      await withProvider(provider.url, file, async () => {
+        const out = await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan() });
+        expect(out[0]).toMatchObject({ state: 'done', simulated: true });
+      });
+      expect(provider.reads()).toBe(2);
+      expect(JSON.parse(fs.readFileSync(file, 'utf-8')).verdict).toBe('simulated');
+    } finally { await provider.close(); }
+  });
+
+  it('a 5xx or a dropped connection is pending too, not a final problem', async () => {
+    for (const first of [{ status: 503, body: { code: 'UNAVAILABLE' } }, 'drop'] as const) {
+      const provider = await scriptedProvider([first, SIMULATED]);
+      try {
+        await withProvider(provider.url, null, async () => {
+          expect(await waitFinal('m1', 5, { plan: plan() })).toMatchObject({ state: 'done' });
+        });
+        expect(provider.reads()).toBe(2);
+      } finally { await provider.close(); }
+    }
+  });
+
+  it('a read-back that never settles ends pending at the timeout, and the preflight is undecided', async () => {
+    const provider = await scriptedProvider([{ status: 404, body: { code: 'NOT_FOUND' } }]);
+    try {
+      await withProvider(provider.url, null, async () => {
+        expect(await waitFinal('m1', 1, { plan: plan() })).toMatchObject({ state: 'pending' });
+        const e = await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan({ dispatchTimeoutSeconds: 1 }) }).then(() => null, (x) => x);
+        expect(e).toBeInstanceOf(NotSimulatedError);
+        expect(e.reason).toBe('undecided');
+      });
+    } finally { await provider.close(); }
+  });
+
+  it('401 and 403 are final: undecided at once, no polling', async () => {
+    for (const status of [401, 403]) {
+      const provider = await scriptedProvider([{ status, body: { code: 'UNAUTHORIZED' } }, SIMULATED]);
+      try {
+        await withProvider(provider.url, null, async () => {
+          const started = Date.now();
+          const e = await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan() }).then(() => null, (x) => x);
+          expect(e).toBeInstanceOf(NotSimulatedError);
+          expect(e.reason).toBe('undecided');
+          expect(e.message).toMatch(/read-back ended problem/);
+          expect(Date.now() - started).toBeLessThan(1500);
+        });
+        expect(provider.reads()).toBe(1);
+      } finally { await provider.close(); }
+    }
+  });
+});
+
+describe('send() under messaging exec needs the preflight first (PR #18 item 8)', () => {
+  const body = { event_id: 'e', recipient_email: 'qa-probe@example.com' };
+  const withEnv = async (url: string, verdictFile: string | null, fn: () => Promise<void>) => {
+    const keep = { ...process.env };
+    process.env.AEGIS_MESSAGING_BASE_URL = url; process.env.AEGIS_MESSAGING_KEY = 'chk_livekeylivekey';
+    if (verdictFile === null) delete process.env.AEGIS_MESSAGING_PREFLIGHT; else process.env.AEGIS_MESSAGING_PREFLIGHT = verdictFile;
+    try { await fn(); } finally { process.env = keep; }
+  };
+
+  it('refuses while the run has no verdict yet, and nothing reaches the provider', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'aegis-send-'));
+    try {
+      for (const file of [path.join(dir, 'fresh.json'), path.join(dir, 'missing.json')]) {
+        if (file.endsWith('fresh.json')) fs.writeFileSync(file, '{}\n');
+        await withEnv(provider.url, file, async () => {
+          await expect(send(body, { plan: plan() })).rejects.toThrow('run replay() first: the first live message must be the preflight');
+        });
+      }
+      expect(provider.posts).toHaveLength(0);
+    } finally { await provider.close(); }
+  });
+
+  it('after replay() stores a simulated verdict, send() goes through', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    const file = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'aegis-send-')), 'preflight.json');
+    fs.writeFileSync(file, '{}\n');
+    try {
+      await withEnv(provider.url, file, async () => {
+        await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan() });
+        expect((await send(body, { plan: plan() })).status).toBe(201);
+      });
+      expect(provider.posts).toHaveLength(2);
+    } finally { await provider.close(); }
+  });
+
+  it('without AEGIS_MESSAGING_PREFLIGHT send() behaves as before', async () => {
+    const provider = await fakeProvider(SIMULATED);
+    try {
+      await withEnv(provider.url, null, async () => {
+        expect(await send(body, { plan: plan() })).toMatchObject({ status: 201, messageIds: ['m1-0'] });
+      });
+      expect(provider.posts).toHaveLength(1);
+    } finally { await provider.close(); }
+  });
+});
+
+describe('nullable before composition keywords (PR #18 item 9)', () => {
+  it('null passes a nullable schema whose allOf/anyOf/oneOf reference an object', () => {
+    const root = { components: { schemas: { X: { type: 'object', required: ['a'] } } } };
+    const ref = { $ref: '#/components/schemas/X' };
+    for (const key of ['allOf', 'anyOf', 'oneOf']) {
+      expect({ key, errors: validate({ nullable: true, [key]: [ref] }, null, root) }).toEqual({ key, errors: [] });
+      expect(validate({ [key]: [ref] }, null, root).length).toBeGreaterThan(0);
+    }
+    expect(validate({ nullable: true, allOf: [ref] }, {}, root).length).toBeGreaterThan(0);
+  });
+});
+
+describe('stub read-back channel (PR #18 item 10)', () => {
+  it('takes the channel from the first recipient, top-level or recipients[0]', () => {
+    const channel = (b: Record<string, unknown>) => (adapter.stubReadBack('m', b) as any).delivery_log[0].channel;
+    expect(channel({ event_id: 'e', recipient_email: 'a@example.com' })).toBe('email');
+    expect(channel({ event_id: 'e', recipient_phone: '+6500000000' })).toBe('sms');
+    expect(channel({ event_id: 'e', recipients: [{ recipient_external_id: 'r', recipient_email: 'a@example.com' }] })).toBe('email');
+    expect(channel({ event_id: 'e', recipients: [{ recipient_external_id: 'r', recipient_phone: '+6500000000' }] })).toBe('sms');
+    expect((adapter.stubReadBack('m', { event_id: 'e', recipients: [{ recipient_email: 'a@example.com' }] }) as any).channels_allowed).toEqual(['email']);
   });
 });
