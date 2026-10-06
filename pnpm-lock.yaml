@@ -243,6 +243,8 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
 
+  packages/@qa/messaging: {}
+
   packages/@qa/metrics:
     dependencies:
       '@qa/contracts':

@@ -1,0 +1,53 @@
+{
+  "adapter": "commshub",
+  "repo": "WerkDone-Pte-Ltd/wd-commhub",
+  "path": "docs/08-commhub-events-api.yaml",
+  "ref": "development",
+  "sha": "fixture-418f357",
+  "fetchedAt": "2026-10-06T00:00:00.000Z",
+  "openapi": {
+    "openapi": "3.1.0",
+    "servers": [{ "url": "https://commhub.dev.werkdone.com/api/v1" }],
+    "paths": {
+      "/events": {
+        "post": {
+          "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FireEvent" } } } }
+        }
+      },
+      "/events/{message_id}": { "get": {} }
+    },
+    "components": {
+      "schemas": {
+        "Variables": { "type": "object", "additionalProperties": { "type": "string" } },
+        "Recipient": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["recipient_external_id"],
+          "properties": {
+            "recipient_external_id": { "type": "string", "minLength": 1 },
+            "recipient_email": { "type": "string", "format": "email" },
+            "recipient_phone": { "type": "string", "pattern": "^\\+[1-9]\\d{6,14}$" },
+            "template_variables": { "$ref": "#/components/schemas/Variables" }
+          }
+        },
+        "FireEvent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_id"],
+          "properties": {
+            "event_id": { "type": "string", "minLength": 1 },
+            "occurs_at": { "type": "string", "format": "date-time" },
+            "timezone": { "type": "string" },
+            "external_id": { "type": "string" },
+            "recipient_external_id": { "type": "string" },
+            "recipient_email": { "type": "string", "format": "email" },
+            "recipient_phone": { "type": "string", "pattern": "^\\+[1-9]\\d{6,14}$" },
+            "template_variables": { "$ref": "#/components/schemas/Variables" },
+            "attachments": { "type": "array" },
+            "recipients": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "$ref": "#/components/schemas/Recipient" } }
+          }
+        }
+      }
+    }
+  }
+}
