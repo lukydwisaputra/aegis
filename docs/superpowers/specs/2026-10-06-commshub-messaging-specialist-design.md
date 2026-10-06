@@ -56,7 +56,7 @@ at 418f357:
 | D5 | **Local only.** The specialist runs in `development`; `testing`, `staging` and `production` forbid it. | Owner |
 | D6 | The live key comes from the process environment, then `secrets/.env.development`, under the target's own env names; agents never see it (§4.4). | Owner |
 | D7 | **Live replays what the stub recorded**, it does not need the app re-pointed. The app is launched once, at the stub; every request it sends is recorded; the live layer replays each recorded body against CommsHub dev with the recipient swapped for a fake one. One run covers all three layers. *(Refines the "per-run stub or live mode" discussed in chat: that needed a relaunch of the target between layers, which Aegis does not own.)* | Design, for owner review |
-| D8 | Live sends go only to the configured fake recipients (`messaging.fakeRecipients`; defaults `aegis-probe@example.com`, `+6500000000`). The helper refuses any other recipient and any fake that could be deliverable (§4.2). | Design |
+| D8 | Live sends go only to the configured fake recipients (`messaging.fakeRecipients`; defaults `qa-probe@example.com`, `+6500000000`). The helper refuses any other recipient and any fake that could be deliverable (§4.2). | Design |
 | D9 | Every live batch starts with one preflight send that must come back `simulated: true`; `false` stops the run with a Sev1 finding. | Design, from the Renci incident |
 | D10 | **Project-agnostic.** No project name, env var name, event id, URL prefix, country or key format is written into an agent, the SPV or the helper. Each comes from the target profile (detected) or `aegis.config.json` (overridable). Renci is only the first target. | Owner, 2026-10-06 |
 | D11 | **Provider behind an adapter.** `@qa/messaging` defines a `MessagingAdapter` interface; CommsHub is its only implementation. A future provider is a new adapter object plus an `adapter` config value, with no agent or SPV rewrite. Other adapters are not built now. | Owner (D10), YAGNI on the rest |
@@ -77,7 +77,7 @@ today; the scanner records it (§4.1) so the gap is visible, not silent.
 | Client files and call sites | `lib/integrations/commshub/*` | static layer, recorded in the work report | none |
 | Event ids, variables, channels | `renci.*` / slec's ids | static layer + live registration probe | none |
 | Flows that send | OTP, onboarding, broadcast | static layer + requirements | none |
-| Fake recipients | `aegis-probe@example.com`, `+6500000000` | config defaults | `messaging.fakeRecipients` |
+| Fake recipients | `qa-probe@example.com`, `+6500000000` | config defaults | `messaging.fakeRecipients` |
 | Key format to redact | `chk_…` | adapter (`keyPattern`) | none |
 | Simulation check | `simulated: true` | adapter (`isSimulated`) | none |
 
@@ -86,7 +86,7 @@ today; the scanner records it (§4.1) so the gap is visible, not silent.
 ```
                  ┌──────────────── static ────────────────┐
  aegis messaging │ gh → {contract.repo}@{ref}:{contract.path} │──► runs/{id}/messaging/contract.json
- contract fetch  └────────────────────────────────────────┘        (adapter, sha, fetchedAt, openapi)
+ fetch-contract └────────────────────────────────────────┘        (adapter, sha, fetchedAt, openapi)
                                    │
  target app ── {baseUrlEnv}=http://127.0.0.1:{stubPort}{prefix?} ──► stub (tests/qa/support/messaging.ts)
    ▲  flows triggered by specs                                          validates vs contract, records
@@ -107,8 +107,8 @@ today; the scanner records it (§4.1) so the gap is visible, not silent.
   (required), plus a `messaging` object (strict):
   `{ provider: "commshub" | "direct-mail" | "none", baseUrlEnv: string | null, tokenEnv: string | null }`.
 - `qa-context-scanner` step 19 is rewritten around **detection hints owned by each adapter**, not names
-  written into the scanner. `MESSAGING_ADAPTERS` in `packages/@qa/contracts` lists, per adapter, its
-  hints; the scanner prose says "match the hints in that table" and the table is printed into the H4
+  written into the scanner. `MESSAGING_PROVIDERS` in `packages/@qa/contracts` lists the provider ids and `ADAPTERS` in
+  `@qa/messaging` holds, per adapter, its hints; the scanner prose says "match the hints in that table" and the table is printed into the H4
   context. CommsHub's hints: env var names matching `COMMSHUB_*` or `COMMHUB_*`; a host matching
   `commhub.*`; a POST to a path ending `/events` built from such a variable. When one matches,
   `provider` is the adapter id, `hasMessagingIntegration` is true, and `baseUrlEnv`/`tokenEnv` are the
@@ -126,7 +126,7 @@ Added:
   "adapter": "commshub",
   "stubPort": 4010,
   "dispatchTimeoutSeconds": 90,
-  "fakeRecipients": { "email": "aegis-probe@example.com", "phone": "+6500000000" },
+  "fakeRecipients": { "email": "qa-probe@example.com", "phone": "+6500000000" },
   "env": { "baseUrl": null, "token": null },
   "commshub": {
     "contract": { "repo": "WerkDone-Pte-Ltd/wd-commhub", "path": "docs/08-commhub-events-api.yaml", "ref": "development" }
@@ -144,12 +144,12 @@ forbids `"email"`, renamed). `DEFAULT_ENVIRONMENT_SPECIALISTS` in `packages/@qa/
 matches.
 
 `packages/@qa/run-state/src/config.ts`: `assertMailpitAdapter` → `assertMessagingConfig`: absent block is
-fine; `adapter` not in `MESSAGING_ADAPTERS`, a non-integer `stubPort`, a `fakeRecipients` value the
+fine; `adapter` not in `ADAPTERS` (`@qa/messaging`), a non-integer `stubPort`, a `fakeRecipients` value the
 helper would refuse, or the adapter's block missing its required keys (CommsHub: `contract.repo`/
 `path`/`ref`) → `RunStateError("invalid-input", …)`. A leftover `emailAdapter` key → `invalid-input`
 naming the replacement, so a stale config is refused rather than ignored.
 
-CLI `init` and `reconfigure`: `--email <adapter>` → `--messaging <adapter>` with `choices` read from `MESSAGING_ADAPTERS` (today `["commshub"]`).
+CLI `init` and `reconfigure`: `--email <adapter>` → `--messaging <adapter>` with `choices` read from `ADAPTERS` (today `["commshub"]`).
 
 ### 4.3 `@qa/messaging` package (vendored helper)
 
@@ -163,12 +163,12 @@ helpers. The file has two parts: a provider-neutral core, and the adapter object
 | Export | Does |
 |---|---|
 | `loadContract(path)` | Reads `runs/{id}/messaging/contract.json`; returns `{adapter, openapi}`. |
-| `startStub({port, contract})` | HTTP server on `127.0.0.1:port` serving every operation the adapter declares, at the paths and prefix the contract's `servers`/`paths` give. Requests are validated against the contract's JSON schema by a built-in validator covering `type`, `required`, `enum`, `pattern`, `format: email/date-time`, `additionalProperties: false`, `minItems`/`maxItems`, `oneOf`. Errors use the adapter's error envelope; successes a contract-shaped body. |
+| `startStub({port, contract})` | HTTP server on `127.0.0.1:port` serving every operation the adapter declares, at the paths and prefix the contract's `servers`/`paths` give. Requests are validated against the contract's JSON schema by a built-in validator covering `type`, `required`, `enum`, `pattern`, `format: email/date-time`, `additionalProperties: false`, `minItems`/`maxItems`, `oneOf`. Errors use the adapter's error envelope; successes a contract-shaped body; an internal stub error answers 500 `STUB_ERROR`. |
 | `stub.respondNext(kind)` | Forces the next answer: `400`, `429` (with `Retry-After`), `500`, `timeout`. |
 | `stub.recorded()` / `stub.reset()` | Requests seen: operation, method, path, headers (credential reduced to `<present>`), parsed body, validation result. |
 | `send(body)` / `readBack(id)` | Live calls through the adapter. Base URL and key are read from `process.env` under the names `aegis messaging exec` injected. |
 | `toFakeRecipient(body)` | Replaces every recipient field the adapter names with the configured fakes. `send` throws if a body still holds any other recipient. |
-| `preflight()` | One `send` + `readBack` poll; throws unless the adapter's `isSimulated` is true. |
+| `replay(bodies)` | Replays recorded bodies through `toFakeRecipient` and `send` (idempotency key prefix `qa-replay-`). The first body that yields a message is the preflight: it throws `NotSimulatedError` unless the adapter's `isSimulated` is true, before any other send. |
 | `probeRegistered(id)` | The adapter's non-creating registration probe. |
 
 **`MessagingAdapter`** (one object per provider; CommsHub's is the only one):
@@ -192,7 +192,8 @@ helpers. The file has two parts: a provider-neutral core, and the adapter object
 Every command reads the adapter from config and the env names from config, then the target profile
 (§2.1). None names a provider or a variable in its own code path outside the adapter object.
 
-- `aegis messaging contract fetch --run <id>`: fetches the adapter's contract (CommsHub: `gh api
+- Commands are `<group>.<verb>`, so `fetch-contract` is one word (not `contract fetch`).
+- `aegis messaging fetch-contract --run <id>`: fetches the adapter's contract (CommsHub: `gh api
   repos/{repo}/contents/{path}?ref={ref}`), converts YAML → JSON with `yaml` (already a dependency of
   `@qa/run-state`, which the CLI imports), writes `runs/{runId}/messaging/contract.json` with `{adapter,
   repo, path, ref, sha, fetchedAt, openapi}`, and appends `messaging.contract-fetched {adapter, sha}`.
@@ -213,8 +214,8 @@ Every command reads the adapter from config and the env names from config, then 
   present|absent`, `env names: <baseUrlEnv>/<tokenEnv> (detected|config)`. Used by the environment
   engineer.
 - `aegis messaging scan-secrets --run <id> <paths…>`: greps the paths for the adapter's `keyPattern`
-  and for the resolved key value itself; prints only `file:line` hits, never the match. Used by the
-  specialist before submitting and by the SPV.
+  and for the resolved key value itself; prints only `file:line` hits, never the match, and returns `{hits, scanned, skipped}`; a non-empty `skipped` (missing,
+  unreadable or too-large files) is not a clean scan. Used by the specialist before submitting and by the SPV.
 
 ### 4.5 `qa-messaging-specialist`
 
@@ -227,7 +228,7 @@ Process:
 1. Profile gate: only a readable `hasMessagingIntegration: false` permits `specialist.no-op`; missing or
    invalid → `execution.blocked`, release `failed`. A `messaging.provider` with no adapter →
    `execution.blocked` "no adapter for <provider>".
-2. `aegis messaging contract fetch`, then `aegis messaging plan`. Failure → `execution.blocked`.
+2. `aegis messaging fetch-contract`, then `aegis messaging plan`. Failure → `execution.blocked`.
 3. **Static layer.** Find the target's messaging client and every call site (start from the files that
    read `baseUrlEnv`/`tokenEnv`). Check each item of the plan's static checklist, citing file:line and
    the contract field. Provider-neutral items, always: send and read-back paths match the contract with
@@ -249,11 +250,12 @@ Process:
    nothing to the stub within 30 s, `execution.blocked` "target not pointed at the stub" with the plan's
    wiring line.
 6. **Live layer**, via `aegis messaging exec`. Key absent → live recorded "not run: no key"; static and
-   stub results stand. Otherwise: `preflight()` (stop on not-simulated, Sev1); `probeRegistered` for
+   stub results stand. Otherwise: `probeRegistered` for
    every event id from step 3 (unregistered → finding per id; channel vs the recipient field the code
-   sends → finding on mismatch); then replay each recorded body through `toFakeRecipient` and `send`,
-   poll `readBack` up to `dispatchTimeoutSeconds` and judge it with the adapter's `finalState` and
-   `isSimulated`. Honour `Retry-After` on 429.
+   sends → finding on mismatch; it creates nothing, so it runs before the preflight); then `replay()` the
+   recorded bodies, whose first message is the preflight (stop on not-simulated, Sev1; the specialist emits
+   `messaging.live-preflight` with `simulated: true|false`); each message is polled with `readBack` up to
+   `dispatchTimeoutSeconds` and judged with the adapter's `finalState` and `isSimulated`. Honour `Retry-After` on 429.
 7. `aegis messaging scan-secrets` over the work report draft, evidence and specs; any hit is fixed
    before submitting. Results per TC to `runs/{runId}/cases/{TC-ID}-result.json`; the work report lists
    adapter, contract sha, env names in force, layers run/not-run with reasons, every live message id.
@@ -291,7 +293,7 @@ provider it runs a CLI command that reads the adapter. Checklist:
   message (an OTP, a link, a notification, a broadcast, a digest).
 - `qa-test-executor` + its SPV: route line `Messaging → qa-messaging-specialist`; `dispatches` updated.
 - `TestTechniqueSchema`, `TEST_ROUTING.byTechnique`, `SPECIALISTS` (`messaging: {agent, mutates: true}`),
-  `MESSAGING_ADAPTERS` (new, `packages/@qa/contracts`), `pipeline.yaml` (`routing.byTechnique`,
+  `MESSAGING_PROVIDERS` (new, `packages/@qa/contracts`) and `ADAPTERS` (`@qa/messaging`), `pipeline.yaml` (`routing.byTechnique`,
   `designerEmits`, `envSpecialists`, the `reviewedBy.none` escape renamed), `model-policy.yaml`, role
   table row + `SPVS`, `forbidden-strings.ts` pattern.
 - `agent-memory/qa-email-specialist/` → `agent-memory/qa-messaging-specialist/` (empty lessons).
@@ -303,7 +305,7 @@ provider it runs a CLI command that reads the adapter. Checklist:
   `aegis messaging check` prints"). The README lists `.env.*.example` templates that do not exist in the
   repo; this slice adds `secrets/.env.development.example` with commented examples for CommsHub and no values.
 - HANDBOOK gains a short "Adding a messaging adapter" section: implement `MessagingAdapter`, add its id
-  and hints to `MESSAGING_ADAPTERS`, add its config block validation, add unit tests; no agent edit.
+  and hints to `ADAPTERS`, add its config block validation, add unit tests; no agent edit.
 
 ## 5. Error handling
 
@@ -328,14 +330,14 @@ provider it runs a CLI command that reads the adapter. Checklist:
   against fixtures cut from the real OpenAPI; strict-key refusal; recording redacts the credential;
   `respondNext` kinds; `toFakeRecipient` and the `send` refusal; fake-recipient validation (non-E.164,
   non-reserved domain refused); CommsHub adapter `probeRegistered`, `finalState`, `isSimulated`
-  mapping; `preflight` throws when not simulated; nothing prints the key (spy on stdout/stderr).
-- CLI: `messaging contract fetch` with a stubbed `gh` (success, network failure, bad YAML, sha
+  mapping; `replay` throws when the preflight is not simulated; nothing prints the key (spy on stdout/stderr).
+- CLI: `messaging fetch-contract` with a stubbed `gh` (success, network failure, bad YAML, sha
   recorded, nothing written on failure); `messaging exec` injects and never prints, refuses outside
   `development`; `messaging check`; `messaging plan` output per adapter; `messaging scan-secrets`
   reports file:line and never the match.
 - **Project-agnostic guard** (D10): a test fails if `qa-messaging-specialist.md`, its SPV or the core
   part of `@qa/messaging` contains a provider name, a `COMMSHUB_`/`COMMHUB_` name, `chk_`, a phone number
-  or a project name; the only allowed place is the adapter objects and `MESSAGING_ADAPTERS`.
+  or a project name; the only allowed place is the adapter objects and `ADAPTERS`.
 - **Second-target fixture**: the scanner/plan tests run against two fixture targets with different env
   names (Renci-style `COMMSHUB_BASE_URL`/`COMMSHUB_SERVICE_TOKEN`, slec-style
   `COMMHUB_API_URL`/`COMMHUB_API_KEY`) and assert the detected names, the wiring line and `exec`'s
