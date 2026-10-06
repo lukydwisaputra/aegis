@@ -47,9 +47,9 @@ describe('the helper sources run in any target (T7)', () => {
         fs.writeFileSync(file, js);
         const r = spawnSync(process.execPath, ['-e', 'const m = require(process.argv[1]); process.stdout.write(Object.keys(m).sort().join(","))', file], { cwd: dir, encoding: 'utf-8' });
         expect({ helper: n, status: r.status, stderr: r.stderr }).toEqual({ helper: n, status: 0, stderr: '' });
-        expect(r.stdout.split(',')).toContain(n === 'supabase' ? 'forgeRoleJwt' : 'sanitizeHar');
+        expect(r.stdout.split(',')).toContain(({ supabase: 'forgeRoleJwt', messaging: 'startStub' } as Record<string, string>)[n] ?? 'sanitizeHar');
       }
-      expect(fs.readdirSync(dir).sort()).toEqual(['supabase.js', 'test-helpers.js']);
+      expect(fs.readdirSync(dir).sort()).toEqual(['messaging.js', 'supabase.js', 'test-helpers.js']);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -101,12 +101,12 @@ describe('vendorHelpers (spec §4.11.3)', () => {
   const file = (n: string) => path.join(t.support, `${n}.ts`);
 
   it('writes each helper verbatim under one header line, then reports unchanged', () => {
-    expect(vendorHelpers(t.root, ['test-helpers', 'supabase'])).toEqual({ written: [file('test-helpers'), file('supabase')], unchanged: [], drift: [] });
+    expect(vendorHelpers(t.root, ['test-helpers', 'supabase', 'messaging'])).toEqual({ written: [file('test-helpers'), file('supabase'), file('messaging')], unchanged: [], drift: [] });
     for (const n of VENDORED_HELPERS) {
       expect(vendoredHeader(n, version(n))).toBe(`// Vendored QA helper ${n} ${version(n)}. Regenerated each cycle; do not edit.`);
       expect(fs.readFileSync(file(n), 'utf-8')).toBe(`${vendoredHeader(n, version(n))}\n${source(n)}`);
     }
-    expect(vendorHelpers(t.root, ['test-helpers', 'supabase'])).toEqual({ written: [], unchanged: [file('test-helpers'), file('supabase')], drift: [] });
+    expect(vendorHelpers(t.root, ['test-helpers', 'supabase', 'messaging'])).toEqual({ written: [], unchanged: [file('test-helpers'), file('supabase'), file('messaging')], drift: [] });
   });
 
   it('overwrites a hand-edited copy and reports it as drift', () => {

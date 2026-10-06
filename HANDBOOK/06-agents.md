@@ -47,7 +47,7 @@ The Orchestrator is always active.
 | `qa-security-specialist` | Sonnet | OWASP-aligned security test cases |
 | `qa-accessibility-specialist` | Sonnet | WCAG 2.2 accessibility test cases |
 | `qa-performance-specialist` | Sonnet | k6 performance scripts |
-| `qa-email-specialist` | Sonnet | Email flow test cases (Mailpit) |
+| `qa-messaging-specialist` | Sonnet | Messaging-integration test cases (contract, stub, simulated provider dev) |
 | `qa-exploratory-specialist` | Sonnet | Exploratory charters (Playwright MCP, runs first) |
 | `qa-database-specialist` | Sonnet | Database / data-integrity test cases |
 | `qa-responsive-specialist` | Sonnet | Responsive / viewport test cases |
@@ -57,6 +57,12 @@ The Orchestrator is always active.
 | `qa-rtm-builder` | Haiku | RTM JSON/CSV updates |
 | `qa-closure-reporter` | Sonnet | `closure.md` + `closure.json` |
 | `qa-executive-reporter` | Opus | Three executive PDFs |
+
+---
+
+#### Adding a messaging adapter
+
+Implement a `MessagingAdapter` object in the adapters section of `packages/@qa/messaging/src/index.ts`, add it to `ADAPTERS`, add its id to `MESSAGING_PROVIDERS` in `packages/@qa/contracts/src/messaging.ts`, list its required config keys in `requiredConfig`, and add unit tests beside `__internal-tests__/messaging/helper.test.ts`. No agent or SPV changes.
 
 ---
 
@@ -84,7 +90,7 @@ SPV names follow the pattern `qa-{worker-name}-spv` — each SPV mirrors the wor
 | `qa-security-specialist-spv` | Security test cases | 88 |
 | `qa-accessibility-specialist-spv` | Accessibility test cases | 88 |
 | `qa-performance-specialist-spv` | Performance test cases | 82 |
-| `qa-email-specialist-spv` | Email test cases | 80 |
+| `qa-messaging-specialist-spv` | Messaging test cases | 80 |
 | `qa-exploratory-specialist-spv` | Exploratory charters | 78 |
 | `qa-database-specialist-spv` | Database test cases | 85 |
 | `qa-responsive-specialist-spv` | Responsive test cases | 82 |

@@ -26,7 +26,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 
 - `runs/{runId}/plan.json` — scope=data: test plan (environment requirements section)
 - `target-profile.json` — detected stack, framework, auth method, monorepo apps
-- `aegis/aegis.config.json` — environment config, ports, emailAdapter
+- `aegis/aegis.config.json` — environment config, ports, messaging
 - `aegis/test-data/credentials/` — role credential files (read-only; never log values)
 - `runs/{runId}/cases/*.json` — scope=data: approved test cases (which factories and seed data they need)
 - `agent-memory/qa-environment-engineer/lessons.md`
@@ -72,7 +72,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
    - On a Supabase target, `global-setup.ts` forges each role's JWT with `forgeRoleJwt` from `tests/qa/support/supabase.ts` (copied in step 3b)
    - Credentials sourced from `aegis/test-data/credentials/{role}.env.local` (never hardcoded, never logged)
 
-3b. **Copy the shared QA helpers (scope=auth).** Run `AEGIS_AGENT=qa-environment-engineer pnpm aegis helpers vendor --helpers test-helpers`, adding `,supabase` (`--helpers test-helpers,supabase`) when target-profile.json `platform` is `supabase`. The CLI writes `tests/qa/support/test-helpers.ts` (and `tests/qa/support/supabase.ts`) itself; you never write or edit them, and every spec imports them from there. A path in the command's `drift` list was edited by hand or copied from an older version, and is now overwritten: record each one in your work report's `uncertainties[]` (impact `low`). A refusal (`invalid-input`: a symlinked, non-regular, unreadable or read-only copy, a missing target root, an unsafe tests dir) is not retried: the specs cannot import the helpers, so set `health` to FAILED in step 8, name the refusal in your work report, submit it, and release your task with `--result failed`.
+3b. **Copy the shared QA helpers (scope=auth).** Run `AEGIS_AGENT=qa-environment-engineer pnpm aegis helpers vendor --helpers test-helpers`, adding `,supabase` (`--helpers test-helpers,supabase`) when target-profile.json `platform` is `supabase` and `,messaging` (`--helpers test-helpers,messaging`) when target-profile.json `hasMessagingIntegration` is true. The CLI writes `tests/qa/support/test-helpers.ts` (and `tests/qa/support/supabase.ts`, `tests/qa/support/messaging.ts`) itself; you never write or edit them, and every spec imports them from there. A path in the command's `drift` list was edited by hand or copied from an older version, and is now overwritten: record each one in your work report's `uncertainties[]` (impact `low`). A refusal (`invalid-input`: a symlinked, non-regular, unreadable or read-only copy, a missing target root, an unsafe tests dir) is not retried: the specs cannot import the helpers, so set `health` to FAILED in step 8, name the refusal in your work report, submit it, and release your task with `--result failed`.
 
 4. **Generate test data factories (scope=data).** For each entity type inferred from requirements + target schema (user, order, document, etc.):
    - Create `tests/qa/factories/{entity}.factory.ts`
@@ -84,7 +84,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 5. **Wire environment variables.** For each environment in scope:
    - Verify `aegis/secrets/.env.{env}` exists (gitignored; non-example only)
    - If Supabase: verify SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY are set
-   - If `target-profile.json#hasEmailFlows` is true: verify the Mailpit inbox answers at `MAILPIT_URL` (default `http://localhost:{ports.mailpit.http}`) — `GET /api/v1/messages` must return HTTP 200; emit `env.setup-failed` if not. Mailpit is the only inbox (`emailAdapter` is always `mailpit`).
+   - If `target-profile.json#hasMessagingIntegration` is true: run `aegis messaging check`; a busy `stubPort` = emit `env.setup-failed`; a missing contract or key is reported in your env report, not a failure. Then write the check's `wiringLine` into `env-auth-report.md` with this instruction for the owner: launch the target with that line for the messaging cycle, or let Playwright's `webServer` launch it inside the messaging specialist's exec run (which sets the same wiring) with `reuseExistingServer` off for that run. Before the messaging specialist fetches the contract the line carries no API prefix (the stub answers with and without it); a `null` `wiringLine` means the env names are unknown: report it so the owner sets the env names in the config's `messaging.env` block. Outside the `development` environment, where the messaging specialist is forbidden, skip this check.
    - Emit `env.setup-failed` with specific missing vars if any are absent
 
 6. **Install Playwright Agent CLI.** Run `npm install -g @playwright/cli@latest` then `playwright-cli install --skills` to install the Playwright Agent CLI and its skills. This tool is used by `qa-web-explorer` and `qa-exploratory-specialist` for browser automation via shell commands. If the install fails, emit `env.setup-failed` — discovery and exploratory phases cannot run without it. Record the installed version in the env-auth-report.
@@ -188,13 +188,13 @@ emits:
   - {event: credentials.missing, via: append}
   - {event: test.config-written, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append, helpers.vendor]
+cli: [task.claim, work-report.submit, task.release, event.append, helpers.vendor, messaging.check]
 runs: [npm, playwright-cli]
 dispatches: []
 config:
   - aegis.config.json#browsers
   - aegis.config.json#playwright.headed
   - aegis.config.json#target.supabase.rolesToTest
-  - aegis.config.json#emailAdapter
+  - aegis.config.json#messaging.stubPort
   - aegis.config.json#ports
 ```

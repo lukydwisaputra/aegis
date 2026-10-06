@@ -22,7 +22,7 @@ Accepts all the same scope flags as `/qa-start` — see that skill for details.
 | `--env` | `testing` | Target environment (affects env-setup task count) |
 | `--scope` | *(none)* | Narrow to a specific feature |
 | `--type` | `Functional,Security` | Test types to simulate (TestTypeSchema values: Functional, UI, Integration, API, Security, Database, Performance, Compatibility, Usability) |
-| `--technique` | *(none)* | Test techniques to include (TestTechniqueSchema values: Unit, Accessibility, Email, Realtime, FeatureFlag, Regression, Smoke, Exploratory, BoundaryValue, etc.) |
+| `--technique` | *(none)* | Test techniques to include (TestTechniqueSchema values: Unit, Accessibility, Messaging, Realtime, FeatureFlag, Regression, Smoke, Exploratory, BoundaryValue, etc.) |
 | `--apps` | `all` | Apps to include in simulation |
 
 ## Behaviour

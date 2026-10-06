@@ -30,6 +30,11 @@ export const CLI_COMMANDS = [
   "run.complete",
   "escalation.decide",
   "helpers.vendor",
+  "messaging.fetch-contract",
+  "messaging.plan",
+  "messaging.check",
+  "messaging.scan-secrets",
+  "messaging.exec",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -45,6 +50,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "integrity.repair-tail",
   "gate.decide",
   "escalation.decide",
+  // NEW-07: read-only, presence only — the owner checks where to put the messaging key.
+  "messaging.check",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -72,7 +79,14 @@ export const ORCHESTRATOR = "qa-orchestrator";
 export const ORCHESTRATOR_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>(["phase.start", "phase.complete", "gate.open", "gate.auto-decide", "run.complete"]);
 
 // Agent-only commands that one named agent runs (P2 spec §4.11.3): the environment engineer copies the QA helpers in Env-auth.
-export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>> = { "helpers.vendor": "qa-environment-engineer" };
+// NEW-07: the messaging specialist owns its contract, plan and key; the environment engineer checks the setup.
+export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>> = {
+  "helpers.vendor": "qa-environment-engineer",
+  "messaging.fetch-contract": "qa-messaging-specialist",
+  "messaging.plan": "qa-messaging-specialist",
+  "messaging.exec": "qa-messaging-specialist",
+  "messaging.check": "qa-environment-engineer",
+};
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller === OWNER && !OWNER_COMMANDS.has(command)) {
@@ -93,7 +107,7 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
 // Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
 export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity.", "escalation."];
 // cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself.
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused"]);
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

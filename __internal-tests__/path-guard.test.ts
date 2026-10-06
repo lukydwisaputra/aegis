@@ -98,10 +98,10 @@ describe('assertEnvSafe() canonical names (AUD-036/037)', () => {
   const safe = (env: string, specialist: string, mutates = false) => reason(() => assertEnvSafe(env, { mutates, specialist }, aegisRoot));
   beforeEach(() => {
     fs.writeFileSync(path.join(aegisRoot, 'aegis.config.json'), JSON.stringify({ environments: {
-      production: { mutating: false, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['qa-email-specialist'] }, testing: { allowedSpecialists: ['*'] } } }));
+      production: { mutating: false, allowedSpecialists: ['ui', 'api'], forbiddenSpecialists: ['qa-messaging-specialist'] }, testing: { allowedSpecialists: ['*'] } } }));
   });
   it('normalises agent and short names on both sides', () =>
-    expect([safe('production', 'qa-ui-specialist'), safe('production', 'api'), safe('production', 'email')]).toEqual(['ok', 'ok', 'specialist-blocked']));
+    expect([safe('production', 'qa-ui-specialist'), safe('production', 'api'), safe('production', 'messaging')]).toEqual(['ok', 'ok', 'specialist-blocked']));
   it('refuses a specialist missing from allowedSpecialists; "*" allows all', () =>
     expect([safe('production', 'qa-accessibility-specialist'), safe('testing', 'qa-performance-specialist', true)]).toEqual(['specialist-blocked', 'ok']));
   it('treats mutating: false as read-only', () => expect(safe('production', 'ui', true)).toBe('env-read-only'));

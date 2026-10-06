@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { ADAPTERS } from "@qa/messaging";
 import { appendLedger, CLI_ONLY_RUN_GLOBS, envVerdict, loadGuardContext, roleOf } from "@qa/path-guard";
 import { AGENT_ID, assertCallerAllowed, CLI_COMMANDS, type CliCommand } from "./caller.js";
 import { readActiveRun } from "./paths.js";
@@ -33,8 +34,16 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "gate.auto-decide": "gate auto-decide --gate G2 [--run <id>]",
   "run.complete": "run complete [--run <id>]",
   "escalation.decide": "escalation decide --task <id> --decision retry|accept-with-risk|abort --reason <text> [--run <id>]",
-  "helpers.vendor": "helpers vendor --helpers test-helpers[,supabase]",
+  "helpers.vendor": "helpers vendor --helpers test-helpers[,supabase,messaging]",
+  "messaging.fetch-contract": "messaging fetch-contract [--run <id>]",
+  "messaging.plan": "messaging plan [--run <id>]",
+  "messaging.check": "messaging check [--run <id>]",
+  "messaging.scan-secrets": "messaging scan-secrets <paths...> [--run <id>]",
+  "messaging.exec": "messaging exec [--run <id>] -- <command...>",
 };
+
+/** NEW-07: each messaging adapter with the hints that identify it in a target, so the scanner never hard-codes a provider. */
+export const MESSAGING_ADAPTERS_LINE = `- Messaging adapters: ${Object.values(ADAPTERS).map((a) => `${a.id} (${a.detectionHints})`).join("; ")}.`;
 
 /** NEW-06 (P2 spec §4.12, T10): the one framework-defect instruction every qa-* agent gets. */
 export const FRAMEWORK_DEFECT_LINE =
@@ -100,6 +109,7 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
   lines.push(FRAMEWORK_DEFECT_LINE);
   lines.push(`- Prefix every CLI call exactly as shown; the hook denies a missing or different AEGIS_AGENT. Commands you may run:`);
   for (const cmd of allowedFor(agentType)) lines.push(`  - \`${prefix} ${CLI_USAGE[cmd]}\``);
+  lines.push(MESSAGING_ADAPTERS_LINE);
   return lines.join("\n");
 }
 

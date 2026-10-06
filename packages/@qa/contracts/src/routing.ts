@@ -10,7 +10,7 @@ export const TEST_ROUTING = {
   },
   byTechnique: {
     Unit: "qa-unit-specialist", Accessibility: "qa-accessibility-specialist",
-    Email: "qa-email-specialist", Realtime: "qa-realtime-specialist",
+    Messaging: "qa-messaging-specialist", Realtime: "qa-realtime-specialist",
     FeatureFlag: "qa-feature-flag-specialist", Exploratory: "qa-exploratory-specialist",
   },
   documentationOnly: ["BoundaryValue", "EquivalencePartition", "StateTransition", "DecisionTable", "Pairwise",

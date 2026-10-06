@@ -60,6 +60,9 @@ importers:
       '@qa/ids':
         specifier: workspace:*
         version: link:../../packages/@qa/ids
+      '@qa/messaging':
+        specifier: workspace:*
+        version: link:../../packages/@qa/messaging
       '@qa/run-state':
         specifier: workspace:*
         version: link:../../packages/@qa/run-state
@@ -243,6 +246,8 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
 
+  packages/@qa/messaging: {}
+
   packages/@qa/metrics:
     dependencies:
       '@qa/contracts':
@@ -306,6 +311,9 @@ importers:
       '@qa/ids':
         specifier: workspace:*
         version: link:../ids
+      '@qa/messaging':
+        specifier: workspace:*
+        version: link:../messaging
       '@qa/path-guard':
         specifier: workspace:*
         version: link:../path-guard

@@ -93,7 +93,7 @@ export const PROFILE = {
   hasFeatureFlags: false,
   hasPersonalData: false,
   personalDataSignals: [] as string[],
-  hasEmailFlows: false,
+  hasMessagingIntegration: false, messaging: { provider: 'none', baseUrlEnv: null, tokenEnv: null },
   sourceInventory: {},
 };
 

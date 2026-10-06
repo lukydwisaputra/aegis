@@ -50,13 +50,13 @@ routing:
   byTechnique:
     Unit: qa-unit-specialist
     Accessibility: qa-accessibility-specialist
-    Email: qa-email-specialist
+    Messaging: qa-messaging-specialist
     Realtime: qa-realtime-specialist
     FeatureFlag: qa-feature-flag-specialist
     Exploratory: qa-exploratory-specialist
   designerEmits:
     testType: [Functional, UI, E2E, API, Integration, Performance, Security, Database, Compatibility, Usability]
-    testTechnique: [Unit, Accessibility, Email, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
+    testTechnique: [Unit, Accessibility, Messaging, Realtime, FeatureFlag, Exploratory, BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
   techniqueWithoutSpecialist: [BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow, Visual, Contract, Load, Migration]
 spvPairs:
   qa-compliance-iso25010: qa-compliance-spv
@@ -74,7 +74,7 @@ envSpecialists:
   responsive: qa-responsive-specialist
   exploratory: qa-exploratory-specialist
   accessibility: qa-accessibility-specialist
-  email: qa-email-specialist
+  messaging: qa-messaging-specialist
   realtime: qa-realtime-specialist
   feature-flag: qa-feature-flag-specialist
   unit: qa-unit-specialist
@@ -89,8 +89,10 @@ sources:
     - "{run}/intake/**"
     - "{run}/integrity/**"
     - "{run}/hooks/**"
+    - "{run}/messaging/**"
     - "{tests}/qa/support/test-helpers.ts"
     - "{tests}/qa/support/supabase.ts"
+    - "{tests}/qa/support/messaging.ts"
   owner: []
   target:
     - "{target}/**"
@@ -138,7 +140,6 @@ escapes:
   - {unit: qa-defect-manager-spv, field: optional, value: "{run}/defect-candidates/*.json", reason: "qa-defect-manager-spv.md:22 candidates exist only when a session found a suspect"}
   - {unit: qa-defect-manager-spv, field: optional, value: "{run}/dev-test-review.json", reason: "qa-defect-manager-spv.md:23 read when the Dev-test-review phase ran"}
   - {unit: qa-dev-test-reviewer-spv, field: reviewedBy.none, reason: "SPVs are not reviewed (spec §4.5)"}
-  - {unit: qa-email-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-environment-engineer-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/technical-report.pdf", reason: "qa-executive-reporter.md:40 Deliverable 1, final human-facing PDF"}
   - {unit: qa-executive-reporter, field: terminal, value: "{run}/reports/executive/signoff.pdf", reason: "qa-executive-reporter.md:41 Deliverable 2, final human-facing PDF"}
@@ -148,6 +149,7 @@ escapes:
   - {unit: qa-export, field: optional, value: "config/integrations.yaml", reason: "SKILL.md:25 tracker credentials from environment variables or config/integrations.yaml"}
   - {unit: qa-feature-flag-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-help, field: optional, value: "config/commands.yaml", reason: "SKILL.md:20 a static embedded list is used if the file is absent"}
+  - {unit: qa-messaging-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-metrics-collector, field: reviewedBy.none, reason: "runs without a task; no work report to review"}
   - {unit: qa-metrics-collector, field: optional, value: "{run}/reports/unit-coverage.json", reason: "qa-metrics-collector.md:44 code coverage from the unit specialist's unit-coverage.json (if it exists)"}
   - {unit: qa-orchestrator-spv, field: reviewedBy.none, reason: "not stated in prose"}

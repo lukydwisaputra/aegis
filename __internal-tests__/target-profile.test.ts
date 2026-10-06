@@ -1,5 +1,5 @@
 import * as fs from 'fs'; import * as path from 'path';
-import { ScanWarningEventSchema, TargetProfileCoreSchema, TargetProfileSchema } from '@qa/contracts';
+import { MESSAGING_PROVIDERS, ScanWarningEventSchema, TargetProfileCoreSchema, TargetProfileSchema } from '@qa/contracts';
 import { PROFILE, TS } from './helpers/pipeline';
 const md = fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', 'crosscutting', 'qa-context-scanner.md'), 'utf-8');
 const example = JSON.parse(/```jsonc\n([\s\S]*?)\n```/.exec(md)![1]!);
@@ -68,7 +68,7 @@ describe('TargetProfileSchema (AUD-031)', () => {
   });
   it('every required field is in the pipeline PROFILE fixture and the prose example (a new field updates both)', () => {
     const required = Object.entries(TargetProfileSchema.shape).filter(([, s]) => !s.isOptional()).map(([k]) => k);
-    expect(required).toEqual(expect.arrayContaining(['hasPersonalData', 'personalDataSignals', 'hasEmailFlows']));
+    expect(required).toEqual(expect.arrayContaining(['hasPersonalData', 'personalDataSignals', 'hasMessagingIntegration']));
     for (const key of required) {
       expect(PROFILE).toHaveProperty(key);
       expect(example).toHaveProperty(key);
@@ -80,25 +80,38 @@ describe('TargetProfileSchema (AUD-031)', () => {
     for (const f of ['email', 'phone', 'nric', 'date_of_birth', 'ip_address']) expect(CHECKLIST).toContain('`' + f + '`');
     expect(CHECKLIST).toMatch(/When in doubt, record `true`/);
     expect(CHECKLIST).toMatch(/`hasPersonalData` is `false` only when you found no signal, and then `personalDataSignals` is empty/);
-    expect(CHECKLIST).toMatch(/Record `hasEmailFlows` \(`true` or `false`\)/);
-    for (const lib of ['nodemailer', 'resend', '@sendgrid/mail', 'postmark', 'mailgun.js', '@aws-sdk/client-ses']) expect(CHECKLIST).toContain('`' + lib + '`');
-    expect(CHECKLIST).toMatch(/`platform` is `"supabase"` and `hasAuth` is `true`/);
+  });
+  it('step 19 records the messaging integration from the adapters\' hints, never from names in the prose (NEW-07)', () => {
+    const step = CHECKLIST.split('\n').find((l) => l.startsWith('19. **Messaging integration.**'))!;
+    expect(step).toBeDefined();
+    expect(step).toContain('the messaging adapters line of the CLI cheat-sheet');
+    expect(step).toContain('set `messaging.provider` to its id, `hasMessagingIntegration` to true, and `messaging.baseUrlEnv` / `messaging.tokenEnv` to the env names the client reads');
+    expect(step).toMatch(/set `messaging\.provider` to `direct-mail` and `hasMessagingIntegration` to false\. Otherwise `none` and false, with both env names null\./);
+    expect(step).toContain('When `hasMessagingIntegration` is false, the messaging specialist reports a no-op.');
+    // The adapter ids come first, then the two non-adapters the step names in schema order.
+    expect(MESSAGING_PROVIDERS).toEqual(['commshub', 'direct-mail', 'none']);
+    expect(step.indexOf('`direct-mail`')).toBeGreaterThan(0);
+    expect(step.indexOf('`none`')).toBeGreaterThan(step.indexOf('`direct-mail`'));
+    // Provider names and env patterns belong to the adapter (H4 cheat-sheet), not to the scanner prose (D10).
+    expect(step).not.toMatch(/commshub|COMMS?HUB_|commhub/i);
+    // Supabase auth mail is not a messaging integration any more.
+    expect(CHECKLIST).not.toMatch(/hasEmailFlows|Supabase auth sends confirmation mail/);
   });
   it('the strict schema refuses a profile missing a P2b field or carrying a wrong value', () => {
-    for (const key of ['hasPersonalData', 'personalDataSignals', 'hasEmailFlows']) {
+    for (const key of ['hasPersonalData', 'personalDataSignals', 'hasMessagingIntegration']) {
       const { [key]: _gone, ...rest } = example;
       expect(TargetProfileSchema.safeParse(rest).success).toBe(false);
     }
     expect(TargetProfileSchema.safeParse({ ...example, hasPersonalData: 'yes' }).success).toBe(false);
     expect(TargetProfileSchema.safeParse({ ...example, personalDataSignals: [''] }).success).toBe(false);
-    expect(TargetProfileSchema.safeParse({ ...example, hasEmailFlows: 'yes' }).success).toBe(false);
+    expect(TargetProfileSchema.safeParse({ ...example, hasMessagingIntegration: 'yes' }).success).toBe(false);
   });
   it('the full detection term lists stay in the checklist (deleting any term fails)', () => {
     const personalTerms = ['email', 'phone', 'telephone', 'tel', 'mobile', 'name', 'username', 'surname', 'first_name', 'last_name', 'full_name', 'given_name', 'family_name', 'address', 'street', 'city', 'zip', 'postcode', 'postal', 'dob', 'date_of_birth', 'birth', 'nric', 'fin', 'passport', 'national_id', 'tax_id', 'ssn', 'gender', 'password', 'ip_address'];
     const analytics = ['posthog-js', 'mixpanel-browser', '@segment/analytics-next', '@amplitude/analytics-browser', '@hubspot/api-client', '@vercel/analytics', 'react-ga4', 'hotjar', 'intercom', '@sentry/*'];
     const authPackages = ['next-auth', '@auth/*', '@supabase/auth-js', '@auth0/*', '@clerk/*', 'firebase/auth', 'passport', 'lucia', 'better-auth', '@supabase/supabase-js', '@supabase/ssr'];
-    const emailEnv = ['*EMAIL*', '*SMTP*', '*MAIL*', 'RESEND_*', 'SENDGRID_*', 'POSTMARK_*', 'MAILGUN_*'];
-    const emailDeps = ['nodemailer', 'resend', '@sendgrid/mail', '@sendgrid/*', 'postmark', 'mailgun.js', 'mailgun-js', '@react-email/*', '@aws-sdk/client-ses'];
+    const mailEnv = ['*SMTP*', '*MAIL*', 'RESEND_*', 'SENDGRID_*', 'POSTMARK_*', 'MAILGUN_*'];
+    const mailDeps = ['nodemailer', 'resend', '@sendgrid/mail', '@sendgrid/*', 'postmark', 'mailgun.js', 'mailgun-js', '@react-email/*', '@aws-sdk/client-ses'];
     // Each list is checked against its own sentence: a term deleted from its list fails even if it appears elsewhere.
     const segment = (from: string, to: string): string[] => {
       const start = CHECKLIST.indexOf(from);
@@ -110,8 +123,8 @@ describe('TargetProfileSchema (AUD-031)', () => {
     expect(segment('Terms: ', ' Match by token')).toEqual(expect.arrayContaining(personalTerms));
     expect(segment('monitoring dependency is present, by presence alone: ', '\n')).toEqual(expect.arrayContaining(analytics));
     expect(segment('Check for these auth packages: ', 'Custom auth routes')).toEqual(expect.arrayContaining(authPackages));
-    expect(segment('a name matching ', 'is in `envVarNames`')).toEqual(expect.arrayContaining(emailEnv));
-    expect(segment('depends on a mail library (', ');')).toEqual(expect.arrayContaining(emailDeps));
+    expect(segment('an env name matching ', ' is found')).toEqual(expect.arrayContaining(mailEnv));
+    expect(segment('but a mail library (', ') or an env name')).toEqual(expect.arrayContaining(mailDeps));
     expect(CHECKLIST).toMatch(/Match by token/);
     expect(CHECKLIST).toContain('Plurals count: a token equal to a term followed by `s` or `es` also matches (`emails`, `phones`, `addresses`).');
     expect(CHECKLIST).toMatch(/`final`, `find` and `hotel` do not match/);

@@ -4,15 +4,16 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from "node
 import { execSync } from "node:child_process";
 import pc from "picocolors";
 import { DEFAULT_ENVIRONMENT_SPECIALISTS } from "@qa/contracts";
-import { RunStateError } from "@qa/run-state";
+import { ADAPTERS } from "@qa/messaging";
+import { RunStateError, defaultMessagingConfig } from "@qa/run-state";
 import { action } from "./_io.js";
 
 export function initCommand(): Command {
   return new Command("init")
     .description("Initialise Aegis inside an existing project directory")
     .argument("[target]", "path to target project root", ".")
-    // AUD-051 (T4): Mailpit is the only inbox; any other adapter is refused as invalid-input.
-    .addOption(new Option("--email <adapter>", "email inbox adapter (mailpit only)").choices(["mailpit"]).default("mailpit"))
+    // NEW-07: the messaging provider adapter; an unknown adapter is refused as invalid-input.
+    .addOption(new Option("--messaging <adapter>", "messaging provider adapter").choices(Object.keys(ADAPTERS)).default("commshub"))
     .option(
       "--compliance <list>",
       "comma-separated compliance modules",
@@ -99,7 +100,7 @@ export function initCommand(): Command {
 }
 
 interface InitOptions {
-  email: string;
+  messaging: string;
   compliance: string;
   testsDir?: string;
   skipTaskmaster?: boolean;
@@ -164,14 +165,13 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
     shareKnowledge: false,
     shareBooks: false,
     packageManager: detected,
-    emailAdapter: opts.email,
+    messaging: defaultMessagingConfig(opts.messaging),
     compliance: opts.compliance.split(","),
     parallelism: { maxSpecialists: 4 },
     intake: { sources: [] },
     ports: {
       dashboard: 3030,
       dashboardApi: 3031,
-      mailpit: { smtp: 1025, http: 8025 },
       storybook: 6006,
     },
     dashboard: {

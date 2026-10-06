@@ -73,7 +73,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
    **By `testTechnique`** (secondary routing — dispatched in addition to the primary specialist when the technique requires a dedicated specialist):
    - `Unit` → qa-unit-specialist
    - `Accessibility` → qa-accessibility-specialist
-   - `Email` → qa-email-specialist
+   - `Messaging` → qa-messaging-specialist
    - `Realtime` → qa-realtime-specialist
    - `FeatureFlag` → qa-feature-flag-specialist
    - `Exploratory` → qa-exploratory-specialist
@@ -236,7 +236,7 @@ dispatches:
   - qa-responsive-specialist
   - qa-unit-specialist
   - qa-accessibility-specialist
-  - qa-email-specialist
+  - qa-messaging-specialist
   - qa-realtime-specialist
   - qa-feature-flag-specialist
   - qa-exploratory-specialist-spv
@@ -248,7 +248,7 @@ dispatches:
   - qa-responsive-specialist-spv
   - qa-unit-specialist-spv
   - qa-accessibility-specialist-spv
-  - qa-email-specialist-spv
+  - qa-messaging-specialist-spv
   - qa-realtime-specialist-spv
   - qa-feature-flag-specialist-spv
 config:

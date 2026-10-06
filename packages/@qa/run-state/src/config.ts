@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { COMPLIANCE_REGULATIONS, isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
+import { assertMessagingConfig, type MessagingConfig } from "./messaging.js";
 
 export interface AegisSettings {
   maxSpecialists: number;
@@ -40,6 +41,8 @@ export interface RunConfig {
   compliance: string[];
   preCycleHealthCheck: boolean;
   intakeSources: string[];
+  /** NEW-07: aegis.config.json#messaging, null when absent. */
+  messaging: MessagingConfig | null;
 }
 
 function stringList(value: unknown, key: string): string[] {
@@ -48,13 +51,6 @@ function stringList(value: unknown, key: string): string[] {
     throw new RunStateError("invalid-input", `aegis.config.json#${key} must be a list of strings`);
   }
   return value as string[];
-}
-
-/** AUD-051 (T4): Mailpit is the only supported inbox. An absent key is fine; any other value is refused. */
-export function assertMailpitAdapter(value: unknown): void {
-  if (value !== undefined && value !== "mailpit") {
-    throw new RunStateError("invalid-input", `aegis.config.json#emailAdapter must be mailpit (the only supported inbox), found ${typeof value === "string" ? value : JSON.stringify(value)}`);
-  }
 }
 
 export function readRunConfig(root: string): RunConfig {
@@ -73,11 +69,12 @@ export function readRunConfig(root: string): RunConfig {
   if (unknown.length > 0) {
     throw new RunStateError("invalid-input", `aegis.config.json#compliance lists unknown regulation(s) ${unknown.join(", ")}; known: ${COMPLIANCE_REGULATIONS.join(", ")}`);
   }
-  assertMailpitAdapter(raw["emailAdapter"]);
+  const messaging = assertMessagingConfig(raw);
   return {
     targetProjectRoot: typeof raw["targetProjectRoot"] === "string" ? raw["targetProjectRoot"] : "..",
     compliance,
     preCycleHealthCheck: raw["preCycleHealthCheck"] === true,
     intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
+    messaging,
   };
 }

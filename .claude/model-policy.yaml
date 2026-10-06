@@ -48,7 +48,7 @@ assignments:
     - qa-security-specialist
     - qa-accessibility-specialist
     - qa-exploratory-specialist
-    - qa-email-specialist
+    - qa-messaging-specialist
     - qa-web-explorer
     - qa-database-specialist
     - qa-realtime-specialist
@@ -79,7 +79,7 @@ assignments:
     - qa-security-specialist-spv
     - qa-accessibility-specialist-spv
     - qa-exploratory-specialist-spv
-    - qa-email-specialist-spv
+    - qa-messaging-specialist-spv
     - qa-web-explorer-spv
     - qa-database-specialist-spv
     - qa-realtime-specialist-spv

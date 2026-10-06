@@ -121,6 +121,9 @@ After stabilizing: address the root cause, bump to a new version, run through th
 | `SCHEMA_REJECTED` | Artifact JSON failed Zod validation | Fix the failing field per error message |
 | `LESSON_CONFLICT` | New lesson contradicts existing one | Run `/qa-promote --type=lesson` to resolve |
 | `BUDGET_EXHAUSTED` | Token/cost budget exceeded | Run `/qa-dry-run` to estimate before next cycle |
+| `aegis.config.json#emailAdapter was removed (NEW-07)` | The config predates the messaging specialist (the old email-inbox keys are still present); every run command and the hooks refuse it | From this repo: `AEGIS_AGENT=owner pnpm aegis reconfigure . --messaging commshub` (see below) |
+
+**Migrating a pre-messaging config.** `aegis reconfigure <aegis-dir> --messaging <adapter>` is the migration off the old email inbox. It removes `emailAdapter`, the inbox port under `ports` and the per-instance inbox flag under every `environments.*.ephemeralProvisioning`, renames `"email"` to `"messaging"` in every `allowedSpecialists`/`forbiddenSpecialists` list, and writes a complete `messaging` block: the existing block, if any, merged over the defaults `aegis init` writes (adapter, `stubPort` 4010, `dispatchTimeoutSeconds` 90, the fictional `fakeRecipients`, `env` names `null`, the adapter's contract source). The result is validated before it is written; an invalid one is refused and the file is left as it was. `reconfigure --project-name` alone does not migrate: on a stale config it refuses with the same message. Until the config is migrated, an old `"email"` in a specialist list is still read as `messaging`, so the environment rules keep working.
 
 ## 15.12 Where to file bugs / propose changes
 

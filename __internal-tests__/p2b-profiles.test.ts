@@ -1,7 +1,6 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as ts from 'typescript';
 import { parse } from 'yaml';
 import { checkBrandExposure, routeTestCase } from '@qa/contracts';
 import { roleWritable } from '@qa/path-guard';
@@ -17,7 +16,7 @@ function tracked(): string[] {
 }
 const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8');
 const section = (md: string, heading: string): string => new RegExp(`\\n## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`).exec(md)![1]!;
-interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string }>; config: string[] }
+interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string; via?: string }>; config: string[] }
 const contractOf = (md: string): Contract => parse(/## Contract \(machine-checked\)\s*```yaml\n([\s\S]*?)```/.exec(md)![1]!) as Contract;
 const paths = (xs: Array<string | { path: string }>): string[] => xs.map((x) => (typeof x === 'string' ? x : x.path));
 
@@ -91,136 +90,107 @@ describe('compliance relevance is stated where it is acted on (AUD-055)', () => 
   });
 });
 
-describe('the email specialist detects, no-ops, and reads the inbox through its Mailpit helper (AUD-051, T4)', () => {
-  const FILE = '.claude/agents/tier2-specialist/qa-email-specialist.md';
+describe('the messaging specialist detects, no-ops, and stays project-agnostic (NEW-07)', () => {
+  const FILE = '.claude/agents/tier2-specialist/qa-messaging-specialist.md';
+  const SPV = '.claude/agents/spv/qa-messaging-specialist-spv.md';
   const md = (): string => read(FILE);
 
-  it('reports a no-op exactly when the profile shows no email flows, and never over an unreachable inbox', () => {
+  it('reports a no-op exactly when the profile shows no messaging integration', () => {
     const process = section(md(), 'Process');
-    expect(process).toMatch(/1\. \*\*Check for email flows\.\*\* Read `runs\/\{runId\}\/target-profile\.json#hasEmailFlows`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`[^\n]*release the task `done`[^\n]*missing, unreadable or schema-invalid[^\n]*emit `execution\.blocked`[^\n]*release the task `failed`/);
-    expect(section(md(), 'Quality Standards \\(SPV rejects if violated\\)')).toContain('A `specialist.no-op` without a readable `hasEmailFlows: false`');
-    expect(process).toMatch(/3\. \*\*Check that the inbox answers\.\*\*[^\n]*emit `execution\.blocked`[^\n]*release the task `failed`[^\n]*never a no-op/);
-    expect(section(md(), 'Your Role')).toContain('Never report a no-op while `hasEmailFlows` is true.');
+    expect(process).toMatch(/1\. \*\*Check for a messaging integration\.\*\* Read `runs\/\{runId\}\/target-profile\.json#hasMessagingIntegration`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`[^\n]*release the task `done`[^\n]*missing, unreadable or schema-invalid, or `hasMessagingIntegration` is not a boolean, emit `execution\.blocked`[^\n]*release the task `failed`/);
+    expect(section(md(), 'Quality Standards \\(SPV rejects if violated\\)')).toContain('A `specialist.no-op` without a readable `hasMessagingIntegration: false`');
+    expect(section(md(), 'Quality Standards \\(SPV rejects if violated\\)').split('\n').filter((l) => /no-op/.test(l))).toHaveLength(1);
+    expect(section(md(), 'Your Role')).toContain('Never report a no-op while `hasMessagingIntegration` is true.');
   });
 
-  it('names no Gmail adapter, no @qa/email-adapters and no secrets file', () => {
-    expect(md()).not.toMatch(/gmail/i);
-    expect(md()).not.toMatch(/@qa\/email-adapters|\bEmailAdapter\b|secrets\/\.env/);
-    const escapes = (parse(read('.claude/pipeline.yaml')) as { escapes: Array<{ unit: string; field: string }> }).escapes;
-    expect(escapes.filter((e) => e.unit === 'qa-email-specialist' && e.field === 'optional')).toEqual([]);
+  it('worker and reviewer name no provider, env var, key format, country or project (D10)', () => {
+    for (const f of [FILE, SPV]) expect(read(f)).not.toMatch(/commshub|COMMS?HUB_|chk_|\+65|renci|slec|mailpit|gmail/i);
   });
 
-  it('its contract reads the profile, writes the helper, and emits the no-op and the block', () => {
+  it('drives every provider detail through the CLI', () => {
+    const process = section(md(), 'Process');
+    for (const cmd of ['aegis messaging fetch-contract', 'aegis messaging plan', 'aegis messaging exec', 'aegis messaging scan-secrets']) expect(process).toContain(cmd);
     const c = contractOf(md());
-    expect(paths(c.reads)).toContain('{run}/target-profile.json');
-    expect(paths(c.reads).some((p) => p.startsWith('secrets/'))).toBe(false);
-    expect(paths(c.writes)).toContain('{tests}/qa/support/mailpit.ts');
-    expect(c.emits.map((e) => e.event)).toEqual(expect.arrayContaining(['specialist.no-op', 'execution.blocked']));
+    expect(paths(c.reads)).toEqual(expect.arrayContaining(['{run}/target-profile.json', '{run}/messaging/plan.json', '{run}/messaging/contract.json']));
+    expect(paths(c.reads).some((x) => x.startsWith('secrets/'))).toBe(false);
+    expect(paths(c.writes)).toContain('{tests}/qa/messaging/{flow}.messaging.spec.ts');
+    expect(c.emits.map((e) => e.event)).toEqual(expect.arrayContaining(['specialist.no-op', 'execution.blocked', 'messaging.live-preflight']));
+    // C2: exec records the preflight itself; the agent never appends it.
+    expect(c.emits.find((e) => e.event === 'messaging.live-preflight')!.via).toBe('cli:messaging.exec');
   });
 
-  it('only the email specialist may write the helper (path-guard role table)', () => {
-    const p = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261003-001' };
-    expect(roleWritable('qa-email-specialist', '/r/tests/qa/support/mailpit.ts', p)).toBe(true);
-    for (const other of ['qa-ui-specialist', 'qa-api-specialist', 'qa-environment-engineer']) {
-      expect(roleWritable(other, '/r/tests/qa/support/mailpit.ts', p)).toBe(false);
-    }
+  it('runs the stub layer once, on one browser, from the run context path, with fake-recipient test data (I1, I3, M4)', () => {
+    const process = section(md(), 'Process');
+    expect(process).toContain('aegis messaging exec -- npx playwright test <QA tests>/messaging --project=<one qa project> --workers=1 --retries=0');
+    expect(process).not.toContain('npx playwright test tests/qa/messaging');
+    expect(process).toContain('`runs/{runId}/messaging/plan.json#fakeRecipients`');
+    expect(section(md(), 'Your Role')).toContain('the task claim and `aegis messaging exec` refuse outside development');
+    const checklist = section(read(SPV), 'Review Checklist');
+    expect(checklist).toContain('A stub-layer spec that triggers a flow with any other recipient = requested-changes');
   });
 
-  describe('the helper in the prose works against the Mailpit HTTP API', () => {
-    type Call = { url: string; method: string };
-    const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+  it('an undecided preflight is a blocker, not a live tenant (I4); a skipped symlink is not clean (I6)', () => {
+    const process = section(md(), 'Process');
+    expect(process).toContain('simulation could not be confirmed (<detail>)');
+    expect(process).toContain('a skipped symlink is not clean: scan its target path explicitly');
+    expect(section(read(SPV), 'Review Checklist')).toContain('a skipped symlink is not clean: scan its target path explicitly');
+  });
 
-    type Init = { method: string; signal: AbortSignal };
-    function loadHelper(
-      fetchStub: (url: string, init: Init) => Promise<unknown>,
-      env: Record<string, string> = {},
-      abortSignal: { timeout(ms: number): AbortSignal } = AbortSignal,
-    ) {
-      const code = /```ts\n([\s\S]*?)\n```/.exec(section(md(), 'Mailpit helper'))![1]!;
-      const js = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-      const mod = { exports: {} as Record<string, (...args: never[]) => Promise<unknown>> };
-      new Function('exports', 'module', 'fetch', 'process', 'AbortSignal', js)(mod.exports, mod, fetchStub, { env }, abortSignal);
-      return { code, api: mod.exports as unknown as {
-        purgeAll(): Promise<void>;
-        listMessages(): Promise<Array<{ ID: string; Subject: string }>>;
-        getMessage(id: string): Promise<{ ID: string; Text: string }>;
-        waitForEmail(p: (m: { ID: string; Subject: string }) => boolean, timeoutMs?: number): Promise<{ ID: string; Text: string }>;
-      } };
-    }
+  it('the reviewer checks the preflight, the fakes and the secret scan', () => {
+    const checklist = section(read(SPV), 'Review Checklist');
+    expect(checklist).toContain('A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasMessagingIntegration` is `false`');
+    expect(checklist).toContain('aegis messaging scan-secrets');
+    expect(checklist).toContain('messaging.fakeRecipients');
+    expect(checklist).toMatch(/preflight/);
+    expect(paths(contractOf(read(SPV)).reads)).toEqual(expect.arrayContaining(['{run}/target-profile.json', '{run}/messaging/plan.json']));
+  });
 
-    it('imports nothing, is brand-clean, and defaults to the configured Mailpit http port', () => {
-      const { code } = loadHelper(async () => response({}));
-      expect(code).not.toMatch(/^\s*import\s|require\(/m);
-      // The helper is copied into the target's tests: it must not name the framework or an agent.
-      expect(checkBrandExposure(code)).toBeNull();
-      expect(code).toContain('const DEFAULT_URL = "http://localhost:8025"; // QA config ports.mailpit.http');
-      const port = (JSON.parse(read('aegis.config.json')) as { ports: { mailpit: { http: number } } }).ports.mailpit.http;
-      expect(code).toContain(`const DEFAULT_URL = "http://localhost:${port}";`);
-    });
+  it('worker and reviewer scan absolute paths and treat a skipped path as unclean', () => {
+    const skippedRule = 'A scan whose `skipped` list is not empty is not clean: rescan with the correct paths; a `too-large` file is reported as an uncertainty in the work report';
+    const process = section(md(), 'Process');
+    expect(process).toContain(skippedRule);
+    expect(process).toContain('every path absolute');
+    expect(process).toContain('the Paths line of your run context');
+    // A relative tests path resolves against the framework root, not the target, and is skipped as missing.
+    expect(md()).not.toMatch(/scan-secrets` over `tests\/qa|scan-secrets tests\/qa/);
+    const item7 = section(read(SPV), 'Review Checklist').split('\n').find((l) => l.startsWith('7. '))!;
+    expect(item7).toContain(skippedRule);
+    expect(item7).toContain('the Paths line of your run context');
+    for (const p of ['runs/{runId}/reports/work/qa-messaging-specialist*.json', 'runs/{runId}/cases/*-result.json', 'runs/{runId}/evidence/TC-*']) expect(item7).toContain(p);
+    expect(read(SPV)).not.toMatch(/scan-secrets` over `tests\/qa|scan-secrets tests\/qa/);
+    expect(paths(contractOf(read(SPV)).reads)).toEqual(expect.arrayContaining(['{run}/cases/{TC-ID}-result.json', '{run}/evidence/TC-*/**']));
+  });
 
-    it('purges, lists and fetches through the three Mailpit endpoints, honouring MAILPIT_URL', async () => {
-      const calls: Call[] = [];
-      const { api } = loadHelper(async (url, init) => {
-        calls.push({ url, method: init.method });
-        return response(url.endsWith('/api/v1/messages') ? { messages: [{ ID: 'a b', Subject: 'Hi' }] } : { ID: 'a b', Text: 'body' });
-      }, { MAILPIT_URL: 'http://mail.test:9000/' });
-      await api.purgeAll();
-      expect(await api.listMessages()).toEqual([{ ID: 'a b', Subject: 'Hi' }]);
-      expect(await api.getMessage('a b')).toEqual({ ID: 'a b', Text: 'body' });
-      expect(calls).toEqual([
-        { url: 'http://mail.test:9000/api/v1/messages', method: 'DELETE' },
-        { url: 'http://mail.test:9000/api/v1/messages', method: 'GET' },
-        { url: 'http://mail.test:9000/api/v1/message/a%20b', method: 'GET' },
-      ]);
-    });
+  it('the worker report names everything the reviewer checks, and the preflight is recorded both ways', () => {
+    const process = section(md(), 'Process');
+    expect(process).toContain('the adapter, the contract repo, path, ref and sha (from `runs/{runId}/messaging/contract.json`)');
+    expect(section(read(SPV), 'Review Checklist')).toContain('the contract repo, path, ref and sha');
+    expect(process).toContain('`aegis messaging exec` records `messaging.live-preflight { adapter, simulated }` itself from that verdict after the run; you never append it');
+    expect(section(read(SPV), 'Review Checklist')).toContain('`messaging.live-preflight`, recorded by the CLI\'s messaging exec command');
+  });
 
-    it('waitForEmail polls until a message matches, then returns the full message', async () => {
-      let lists = 0;
-      const { api } = loadHelper(async (url) => {
-        if (url.endsWith('/api/v1/messages')) return response({ messages: lists++ === 0 ? [] : [{ ID: 'm1', Subject: 'Welcome' }] });
-        return response({ ID: 'm1', Text: 'Confirm your account' });
-      });
-      await expect(api.waitForEmail((m) => m.Subject === 'Welcome', 5_000)).resolves.toEqual({ ID: 'm1', Text: 'Confirm your account' });
-      expect(lists).toBe(2);
-    });
-
-    it('waitForEmail rejects after its timeout, and a non-2xx answer is an error, not an empty inbox', async () => {
-      const { api } = loadHelper(async () => response({ messages: [] }));
-      await expect(api.waitForEmail(() => false, 50)).rejects.toThrow('no matching email within 50 ms');
-      const down = loadHelper(async () => response({}, 503)).api;
-      await expect(down.listMessages()).rejects.toThrow('Mailpit GET /api/v1/messages failed: HTTP 503');
-    });
-
-    it('every request carries a 10 s timeout, so a hung inbox makes waitForEmail reject instead of hang', async () => {
-      const asked: number[] = [];
-      // The stub honours the abort signal like the real fetch; the injected timeout fires after 20 ms instead of 10 s.
-      const hung = (_url: string, init: Init) =>
-        new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(new Error('The operation was aborted due to timeout'))));
-      const { api } = loadHelper(hung, {}, { timeout: (ms: number) => (asked.push(ms), AbortSignal.timeout(20)) });
-      const started = Date.now();
-      await expect(api.waitForEmail(() => true, 60_000)).rejects.toThrow('Mailpit GET /api/v1/messages failed: The operation was aborted due to timeout');
-      expect(Date.now() - started).toBeLessThan(2_000);
-      expect(asked).toEqual([10_000]);
-    });
+  it('only the CLI writes the vendored helper', () => {
+    const p = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261006-001' };
+    for (const a of ['qa-messaging-specialist', 'qa-ui-specialist', 'qa-environment-engineer']) expect(roleWritable(a, '/r/tests/qa/support/messaging.ts', p)).toBe(false);
   });
 });
 
 describe('designer, routing and reviewers act on the same profile flags (AUD-051)', () => {
-  it('routeTestCase sends an Email TC to the email specialist and a Realtime TC to the realtime specialist', () => {
-    expect(routeTestCase({ testType: ['E2E'], testTechnique: ['Email'] })).toEqual(['qa-ui-specialist', 'qa-email-specialist']);
+  it('routeTestCase sends a Messaging TC to the messaging specialist and a Realtime TC to the realtime specialist', () => {
+    expect(routeTestCase({ testType: ['E2E'], testTechnique: ['Messaging'] })).toEqual(['qa-ui-specialist', 'qa-messaging-specialist']);
     expect(routeTestCase({ testType: ['API'], testTechnique: ['Realtime'] })).toEqual(['qa-api-specialist', 'qa-realtime-specialist']);
   });
 
-  it('a TC without the Email or Realtime technique routes to neither specialist', () => {
+  it('a TC without the Messaging or Realtime technique routes to neither specialist', () => {
     const routed = routeTestCase({ testType: ['E2E'], testTechnique: ['Flow'] });
     expect(routed).toEqual(['qa-ui-specialist']);
-    expect(routed).not.toContain('qa-email-specialist');
+    expect(routed).not.toContain('qa-messaging-specialist');
     expect(routed).not.toContain('qa-realtime-specialist');
   });
 
-  it('the designer tags Email only when the profile shows email flows', () => {
+  it('the designer tags Messaging only when the profile shows a messaging integration', () => {
     expect(read('.claude/agents/tier1-phase/qa-test-designer.md')).toContain(
-      '`Email` when target-profile.json `hasEmailFlows` is true and the requirement sends mail (sign-up confirmation, password reset, invitation, notification)',
+      '`Messaging` when target-profile.json `hasMessagingIntegration` is true and the requirement sends a message (an OTP, a link, a notification, a broadcast, a digest)',
     );
   });
 
@@ -229,16 +199,17 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
     expect(realtimeMd).not.toMatch(/If no WS or SSE detected|does not detect any real-time|when no real-time features detected|detected WebSocket\/SSE routes/);
     expect(section(realtimeMd, 'Your Role')).toMatch(/If `target-profile\.json#hasRealtimeFeatures` is false[^\n]*emit `specialist\.no-op`/);
     expect(section(realtimeMd, 'Process')).toMatch(/`runs\/\{runId\}\/target-profile\.json#hasRealtimeFeatures`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`/);
-    const emailMd = read('.claude/agents/tier2-specialist/qa-email-specialist.md');
-    expect(section(emailMd, 'Process')).toMatch(/`runs\/\{runId\}\/target-profile\.json#hasEmailFlows`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`/);
+    const messagingMd = read('.claude/agents/tier2-specialist/qa-messaging-specialist.md');
+    expect(section(messagingMd, 'Your Role')).toMatch(/If `target-profile\.json#hasMessagingIntegration` is false[^\n]*emit `specialist\.no-op`/);
+    expect(section(messagingMd, 'Process')).toMatch(/`runs\/\{runId\}\/target-profile\.json#hasMessagingIntegration`\. Only the literal boolean `false` in a readable profile permits a no-op: emit `specialist\.no-op`/);
   });
 
   it('both workers never no-op over a true flag, and block (failed release) on a missing or unreadable profile', () => {
     const realtimeMd = read('.claude/agents/tier2-specialist/qa-realtime-specialist.md');
-    const emailMd = read('.claude/agents/tier2-specialist/qa-email-specialist.md');
+    const messagingMd = read('.claude/agents/tier2-specialist/qa-messaging-specialist.md');
     expect(section(realtimeMd, 'Your Role')).toContain('Never report a no-op while `hasRealtimeFeatures` is true.');
-    expect(section(emailMd, 'Your Role')).toContain('Never report a no-op while `hasEmailFlows` is true.');
-    for (const [md, flag] of [[realtimeMd, 'hasRealtimeFeatures'], [emailMd, 'hasEmailFlows']] as const) {
+    expect(section(messagingMd, 'Your Role')).toContain('Never report a no-op while `hasMessagingIntegration` is true.');
+    for (const [md, flag] of [[realtimeMd, 'hasRealtimeFeatures'], [messagingMd, 'hasMessagingIntegration']] as const) {
       expect(section(md, 'Process')).toMatch(/missing, unreadable or schema-invalid, or `\w+` is not a boolean, emit `execution\.blocked`[^\n]*release the task `failed`/);
       expect(section(md, 'Quality Standards \\(SPV rejects if violated\\)')).toContain(`A \`specialist.no-op\` without a readable \`${flag}: false\``);
       // One no-op rule per worker, not two bullets with overlapping meaning.
@@ -247,32 +218,9 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
     }
   });
 
-  it('worker and reviewer state one recipient rule, and the worker records the Mailpit URL it used', () => {
-    const rule = '`qa_`, `test_` or `e2e_` prefixed addresses, or `qa+*@example.com` / `test+*@example.com` aliases, all captured by Mailpit; never a real external recipient';
-    expect(section(read('.claude/agents/tier2-specialist/qa-email-specialist.md'), 'Process')).toContain(rule);
-    expect(section(read('.claude/agents/spv/qa-email-specialist-spv.md'), 'Review Checklist')).toContain(rule);
-    expect(read('.claude/agents/tier2-specialist/qa-email-specialist.md')).toContain('Record the Mailpit URL your specs used');
-  });
-
-  it('both SPVs judge a no-op by the same field, and the email SPV checks the helper and the adapter', () => {
-    const emailSpv = read('.claude/agents/spv/qa-email-specialist-spv.md');
-    const checklist = section(emailSpv, 'Review Checklist');
-    expect(checklist).toContain('10. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasEmailFlows` is `false`; a missing or unreadable profile, or `true`, = requested-changes.');
-    expect(checklist).toContain('11. **Inbox URL matches config.** `DEFAULT_URL` in `tests/qa/support/mailpit.ts` equals `http://localhost:` plus the port in `aegis.config.json#ports.mailpit.http`.');
-    expect(checklist).toContain('is recorded in the work report');
-    expect(checklist).toContain("A `MAILPIT_URL` named in the work report must be the run environment's Mailpit address; otherwise requested-changes.");
-    expect(checklist).toContain('An existing helper whose port had drifted is updated by the worker');
-    expect(section(read('.claude/agents/tier2-specialist/qa-email-specialist.md'), 'Process')).toContain(
-      "if the existing helper's `DEFAULT_URL` port differs from `aegis.config.json#ports.mailpit.http`, update that line and say so in your work report",
-    );
-    expect(checklist).toContain('asserted valid, HTTP 200');
-    expect(contractOf(emailSpv).config).toEqual(expect.arrayContaining(['aegis.config.json#ports.mailpit.http']));
-    expect(checklist).toContain('1. **Inbox through the helper.** Specs reach the inbox only through `tests/qa/support/mailpit.ts`: no raw SMTP or `nodemailer`, and no Mailpit REST call in a spec body. A violation = requested-changes.');
-    expect(checklist).toContain('5. **Adapter matches config.** `aegis.config.json#emailAdapter` is `mailpit`, the only supported inbox.');
-    expect(checklist).toContain('Each test calls `purgeAll()` from the helper in `beforeEach`.');
-    expect(emailSpv).not.toMatch(/gmail/i);
-    expect(emailSpv).not.toMatch(/@qa\/email-adapters|\bEmailAdapter\b|adapter\.purgeAll/);
-    expect(paths(contractOf(emailSpv).reads)).toEqual(expect.arrayContaining(['{run}/target-profile.json', '{tests}/qa/support/mailpit.ts']));
+  it('both SPVs judge a no-op by the same field', () => {
+    const messagingChecklist = section(read('.claude/agents/spv/qa-messaging-specialist-spv.md'), 'Review Checklist');
+    expect(messagingChecklist).toContain('a missing or unreadable profile, or `true`, = requested-changes');
     const realtimeSpvMd = read('.claude/agents/spv/qa-realtime-specialist-spv.md');
     expect(section(realtimeSpvMd, 'Review Checklist')).toContain(
       'A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasRealtimeFeatures` is `false`',
@@ -284,25 +232,30 @@ describe('designer, routing and reviewers act on the same profile flags (AUD-051
   });
 });
 
-describe('Mailpit is the only inbox (AUD-051, T4)', () => {
-  it('no Gmail adapter remains in the email pair, the environment engineer, the CLI or the environment docs', () => {
-    const files = [
-      '.claude/agents/tier2-specialist/qa-email-specialist.md',
-      '.claude/agents/spv/qa-email-specialist-spv.md',
-      '.claude/agents/tier1-phase/qa-environment-engineer.md',
-      'apps/cli/src/commands/init.ts',
-      'apps/cli/src/commands/reconfigure.ts',
-      'docs/D12-environments-overview.md',
-      'secrets/README.md',
-    ];
-    expect(files.filter((f) => /gmail/i.test(read(f)))).toEqual([]);
-    expect(read('docs/D12-environments-overview.md')).toContain('| Email testing | ✓ (Mailpit) | ✓ (per-PR Mailpit) | ✓ (Mailpit; needs `MAILPIT_URL` set) | ✗ |');
-    expect(JSON.parse(read('aegis.config.json')).emailAdapter).toBe('mailpit');
+describe('Mailpit is gone (NEW-07)', () => {
+  it('no agent, skill, CLI source or config names Mailpit', () => {
+    const files = tracked().filter((f) => /^(\.claude\/|apps\/cli\/src\/|packages\/@qa\/[^/]+\/src\/|aegis\.config\.json)/.test(f));
+    expect(files.length).toBeGreaterThan(50);
+    // PR #18 items 3+4: the config migration must name the retired keys it removes; that one declaration is the only exception.
+    const MIGRATION = 'packages/@qa/run-state/src/messaging.ts';
+    const LEGACY_KEYS = 'export const PRE_NEW07_EMAIL_KEYS = { adapter: "emailAdapter", port: "mailpit", perInstance: "mailpitPerInstance" } as const;';
+    expect(read(MIGRATION).split(LEGACY_KEYS)).toHaveLength(2);
+    expect(files.filter((f) => /mailpit/i.test(f === MIGRATION ? read(f).replace(LEGACY_KEYS, '') : read(f)))).toEqual([]);
   });
-
-  it('the environment engineer checks the inbox only when the profile shows email flows', () => {
-    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain(
-      'If `target-profile.json#hasEmailFlows` is true: verify the Mailpit inbox answers at `MAILPIT_URL` (default `http://localhost:{ports.mailpit.http}`)',
-    );
+  it('no environment doc, handbook chapter, secrets README or CLAUDE.md names Mailpit', () => {
+    const files = tracked().filter((f) => /^(docs\/D\d|HANDBOOK\/|secrets\/README|CLAUDE\.md)/.test(f));
+    expect(files.filter((f) => /mailpit/i.test(read(f)))).toEqual([]);
+    expect(read('docs/D12-environments-overview.md')).toContain('| Messaging testing | ✓ (stub + provider dev) | ✗ | ✗ | ✗ |');
+  });
+  it('the environment engineer checks messaging setup only when the profile shows an integration', () => {
+    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain('If `target-profile.json#hasMessagingIntegration` is true: run `aegis messaging check`');
+    // I3: the wiring line reaches the owner through the env report.
+    expect(read('.claude/agents/tier1-phase/qa-environment-engineer.md')).toContain('write the check\'s `wiringLine` into `env-auth-report.md`');
+    expect(read('HANDBOOK/04-stlc-walkthrough.md')).toContain('`reuseExistingServer` off');
+  });
+  it('the owner can run the messaging check the docs tell them to run (I2)', () => {
+    const line = 'AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]';
+    expect(read('secrets/README.md')).toContain(line);
+    expect(read('docs/superpowers/specs/2026-10-06-commshub-messaging-specialist-design.md')).toContain(line);
   });
 });

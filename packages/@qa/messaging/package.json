@@ -1,0 +1,12 @@
+{
+  "name": "@qa/messaging",
+  "version": "1.0.0",
+  "description": "Provider-neutral messaging test helper: contract validator, recording stub, simulated live replay (NEW-07)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } },
+  "scripts": { "build": "tsc", "dev": "tsc --watch" },
+  "dependencies": {},
+  "devDependencies": {}
+}

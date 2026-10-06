@@ -35,7 +35,7 @@ Nothing in this framework is invoked from the terminal directly (except `pnpm in
 The framework covers the following concerns:
 
 1. **Planning** — requirement ingestion, risk analysis, test strategy, RTM skeleton
-2. **Design** — test case authoring across all test types (Functional, UI, Integration, API, Security, Database, Performance, Compatibility, Usability) and techniques (Unit, Accessibility, Email, Realtime, FeatureFlag, Regression, Exploratory, and others)
+2. **Design** — test case authoring across all test types (Functional, UI, Integration, API, Security, Database, Performance, Compatibility, Usability) and techniques (Unit, Accessibility, Messaging, Realtime, FeatureFlag, Regression, Exploratory, and others)
 3. **Execution** — autonomous test runs against dev / testing / staging / production environments
 4. **Defect management** — structured defect reports with severity/priority, deduplication, and a triage gate
 5. **Compliance review** — parallel ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, and PDPA checks
@@ -64,7 +64,7 @@ The system uses a tiered agent hierarchy:
 
 - **Orchestrator** (`qa-orchestrator`) — a single director agent that receives commands, plans work, and dispatches to lower tiers
 - **Tier-1 phase agents** — nine agents that own each STLC phase: `qa-dev-test-reviewer`, `qa-requirements-analyst`, `qa-test-planner`, `qa-test-designer`, `qa-environment-engineer`, `qa-test-executor`, `qa-defect-manager`, `qa-closure-reporter`, `qa-executive-reporter`
-- **Tier-2 specialists** — thirteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-email-specialist`, `qa-web-explorer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-email-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
+- **Tier-2 specialists** — thirteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-messaging-specialist`, `qa-web-explorer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-messaging-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
 - **SPVs (Supervisors)** — reviewer agents that audit work produced by workers and return scored feedback: one per reviewed worker, except `qa-compliance-spv`, which reviews all six compliance agents
 - **Compliance agents** — six agents, one per regulation, running in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`. GDPR and PDPA run only when the target profile shows personal data, and the phase is not-applicable when no listed regulation applies
 - **Cross-cutting agents** — three agents: the context scanner, the curator (self-improvement) and the metrics collector

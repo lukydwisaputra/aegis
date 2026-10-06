@@ -24,7 +24,7 @@ export const STAKEHOLDER_FORBIDDEN_PATTERNS: RegExp[] = [
   /qa-security-specialist/,
   /qa-accessibility-specialist/,
   /qa-exploratory-specialist/,
-  /qa-email-specialist/,
+  /qa-messaging-specialist/,
   /qa-web-explorer/,
   /qa-ui-designer/,
   /qa-database-specialist/,

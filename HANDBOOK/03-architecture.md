@@ -89,7 +89,7 @@ Specialist workers execute concrete tasks. Domain specialists:
 | `qa-security-specialist` | Security test cases (OWASP-aligned) |
 | `qa-accessibility-specialist` | Accessibility test cases (WCAG 2.2) |
 | `qa-performance-specialist` | Performance test cases (k6 scripts) |
-| `qa-email-specialist` | Email flow test cases (Mailpit) |
+| `qa-messaging-specialist` | Messaging-integration test cases (contract, stub, simulated provider dev) |
 | `qa-exploratory-specialist` | Exploratory charters (Playwright MCP) |
 | `qa-database-specialist` | Database / data-integrity test cases |
 | `qa-responsive-specialist` | Responsive / viewport test cases |

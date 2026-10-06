@@ -16,7 +16,7 @@ Dispatches one specialist testing agent in isolation, bypassing the full STLC or
 ## Key flags
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--specialist` | *(required)* | Specialist type: `api`, `ui`, `unit`, `performance`, `security`, `accessibility`, `exploratory`, `email`, `database`, `realtime`, `feature-flag`, `responsive`. Primary specialists (`api`, `ui`, `performance`, `security`, `exploratory`, `database`, `responsive`) are auto-dispatched by `testType`. Technique specialists (`unit`, `accessibility`, `email`, `realtime`, `feature-flag`) are auto-dispatched by `testTechnique`. Use this command to invoke any specialist directly, bypassing the cycle. |
+| `--specialist` | *(required)* | Specialist type: `api`, `ui`, `unit`, `performance`, `security`, `accessibility`, `exploratory`, `messaging`, `database`, `realtime`, `feature-flag`, `responsive`. Primary specialists (`api`, `ui`, `performance`, `security`, `exploratory`, `database`, `responsive`) are auto-dispatched by `testType`. Technique specialists (`unit`, `accessibility`, `messaging`, `realtime`, `feature-flag`) are auto-dispatched by `testTechnique`. Use this command to invoke any specialist directly, bypassing the cycle. |
 | `--target` | *(none)* | Feature, module, or file path to focus the specialist on |
 
 ## Behaviour
@@ -57,7 +57,7 @@ emits:
 awaits: []
 cli: []
 runs: []
-dispatches: [qa-api-specialist, qa-ui-specialist, qa-unit-specialist, qa-performance-specialist, qa-security-specialist, qa-accessibility-specialist, qa-exploratory-specialist, qa-email-specialist, qa-database-specialist, qa-realtime-specialist, qa-feature-flag-specialist, qa-responsive-specialist]
+dispatches: [qa-api-specialist, qa-ui-specialist, qa-unit-specialist, qa-performance-specialist, qa-security-specialist, qa-accessibility-specialist, qa-exploratory-specialist, qa-messaging-specialist, qa-database-specialist, qa-realtime-specialist, qa-feature-flag-specialist, qa-responsive-specialist]
 config:
   - config/model-policy.yaml
 ```

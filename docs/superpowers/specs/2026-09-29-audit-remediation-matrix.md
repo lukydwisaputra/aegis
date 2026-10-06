@@ -181,6 +181,7 @@ Severity: authz leak = Sev1 (gate-blocking, CWE-639, WSTG-ATHZ-04); integer ID w
 | NEW-04 | Main thread is a router to Aegis commands | P0c | in-spec |
 | NEW-05 | Retest / defect re-verify commands with automatic rollup + closure regeneration | P0c | in-spec |
 | NEW-06 | Framework-defect proposals from curator when a command is broken/missing | P2 | fixed — P2c for the P2 part (agents append framework.defect-suspected, told once by the H4 run context; the CLI records a qa-* agent's invalid-input or internal refusal as cli.refused, scrubbed before anything is recorded: argv fragments, JSON leaves and resolved paths are stripped and credential and token patterns applied; the curator groups both into runs/{id}/pending-promotions/framework-defect-<slug>.json, FrameworkDefectProposalSchema, never applied). Showing them in /qa-promote waits on AUD-059 (P3); until then the owner reads the curator's summary.md. Carry to P0c: the cli.refused caller is unauthenticated until CLI identity binding |
+| NEW-07 | Provider-neutral messaging specialist replaces Mailpit email testing; CommsHub is the first adapter (static contract check, local recording stub, simulated replay on the provider's dev) | NEW-07 | fixed — feat/commshub-messaging-specialist (agents, @qa/messaging, aegis messaging CLI); first real run pending (Renci, development) |
 
 ## Carry-overs from P0b-1 (to be closed by the named slice)
 

@@ -1,4 +1,4 @@
-# Lessons — qa-email-specialist
+# Lessons — qa-messaging-specialist
 
 _Last updated: 2026-05-24T00:00:00.000Z · 0 active entries_
 

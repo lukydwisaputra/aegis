@@ -141,6 +141,8 @@ test.afterEach(async () => {
 
 This keeps state clean between runs and is the single biggest source of flake reduction.
 
+**A cycle with messaging launches the target at the stub.** When `target-profile.json#hasMessagingIntegration` is true, `qa-environment-engineer` runs `aegis messaging check` and writes its `wiringLine` (for example `<BASE_URL_VAR>=http://127.0.0.1:4010/api/v1`) into `env-auth-report.md`. Before the messaging tests run, either launch the target with that line, or let Playwright's `webServer` launch it under `aegis messaging exec`, which sets the same wiring and a placeholder key under the target's own variable names, with `reuseExistingServer` off for that run so an already-running server pointed at the real provider is not reused. The owner can run the same check: `AEGIS_AGENT=owner pnpm aegis messaging check [--run <id>]`. As a safety net, every flow the messaging specialist triggers uses the configured fake recipients (`aegis.config.json#messaging.fakeRecipients`), so a target that is not pointed at the stub can still only ever reach a fake recipient.
+
 ---
 
 ### 4.7 Phase 6 — Execution
@@ -154,7 +156,7 @@ This keeps state clean between runs and is the single biggest source of flake re
 - Suspected defects → `runs/<RUN-ID>/defect-candidates/` (`proposedType: EXP`, traced by the session id), with evidence under `runs/<RUN-ID>/evidence/exploratory/{session-id}/`; `qa-defect-manager` confirms each candidate's origin in Triage before it becomes an `EXP` defect
 - The sandbox directory is then **deleted**.
 
-**Sandbox-first is now mandatory for scripted specialists too.** What was previously exploratory-only now applies to every scripted, spec-writing specialist. Before `qa-ui-specialist`, `qa-api-specialist`, `qa-database-specialist`, `qa-accessibility-specialist`, `qa-responsive-specialist`, `qa-realtime-specialist`, `qa-email-specialist`, or `qa-performance-specialist` commits a final spec under `tests/qa/**`, it must first prototype the approach in `sandbox/{date}-{slug}/` and emit a `sandbox.explored` event linking the scratch artifact to the spec it produced. The paired SPV rejects any committed spec with no matching `sandbox.explored` event. A legitimate no-op run (nothing to test, nothing committed) is exempt.
+**Sandbox-first is now mandatory for scripted specialists too.** What was previously exploratory-only now applies to every scripted, spec-writing specialist. Before `qa-ui-specialist`, `qa-api-specialist`, `qa-database-specialist`, `qa-accessibility-specialist`, `qa-responsive-specialist`, `qa-realtime-specialist`, `qa-messaging-specialist`, or `qa-performance-specialist` commits a final spec under `tests/qa/**`, it must first prototype the approach in `sandbox/{date}-{slug}/` and emit a `sandbox.explored` event linking the scratch artifact to the spec it produced. The paired SPV rejects any committed spec with no matching `sandbox.explored` event. A legitimate no-op run (nothing to test, nothing committed) is exempt.
 
 **Results location.** Execution writes a run-level summary to `runs/<RUN-ID>/execution-summary.{md,json}`, and per-test-case evidence (screenshots, video, traces) to `runs/<RUN-ID>/evidence/{TC-ID}/`. (The old `runs/<RUN-ID>/results/` and `artifacts/evidence/` paths are gone.)
 
