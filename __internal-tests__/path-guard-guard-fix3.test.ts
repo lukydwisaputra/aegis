@@ -202,6 +202,7 @@ describe('item 5: find is denied only from runs/-holding, run or CLI-only start 
     ['-P -O3 -D tree before the start point', 'find -P -O3 -D tree /repo/aegis -name x -delete', '/repo/tests/qa', false],
     ['a run directory, -delete', 'find /repo/aegis/runs/RUN-20261002-001 -name x -delete', ROOT, false],
     ['a CLI-only directory, -delete', 'find /repo/aegis/runs/RUN-20261002-001/gates -delete', ROOT, false],
+    ['the messaging CLI-only directory, -delete (NEW-07)', 'find /repo/aegis/runs/RUN-20261002-001/messaging -delete', ROOT, false],
     ['a directory above a CLI-only one, -delete', 'find /repo/aegis/runs/RUN-20261002-001/reports -name x -delete', ROOT, false],
     ['-exec sh', 'find /repo/aegis/runs -exec sh -c "true" \\;', ROOT, false],
     ['-exec through a launcher', 'find /repo/aegis/runs -exec env rm {} \\;', ROOT, false],

@@ -85,7 +85,7 @@ const FRAMEWORK_DIRS = ["packages", "apps", ".claude"] as const;
 const FRAMEWORK_SEGMENTS = /(^|\/)packages\/@qa(\/|$)|(^|\/)\.claude(\/|$)/;
 const DEPENDENCY_FILES: ReadonlySet<string> = new Set(["package.json", "pnpm-lock.yaml", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lockb", "bun.lock"]);
 /** The CLI-only names of CLI_ONLY_RUN_GLOBS (and runs/.active), as text, for targets the parser cannot resolve. */
-const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|\.active\b|\.lock\b/;
+const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|(^|\/)messaging\/|\.active\b|\.lock\b/;
 /** Commands that remove (or, for mv, move away) the paths they name. git-rm is git rm, git clean and git reset --hard. */
 const REMOVE_OPS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "git-rm", "git-mv", "git-clean-x"]);
 /** Git write targets: a directory among them stands for its whole subtree. */
@@ -120,7 +120,7 @@ const RUNNER_CONFIG_VAR = /^(npm|pnpm|yarn|bun)_config_/i;
 /** Commands that remove the files they name (item 5: a find action running one can remove CLI-only files). */
 const REMOVERS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "shred", "truncate"]);
 /** Fixed CLI-only directories inside a run: a find starting at one of their ancestors reaches them (item 5). */
-const CLI_ONLY_RUN_DIRS: readonly string[] = ["gates", "reports/work", "reports/review", "reports/.locks", "taskmaster", "intake", "hooks", "integrity"];
+const CLI_ONLY_RUN_DIRS: readonly string[] = ["gates", "reports/work", "reports/review", "reports/.locks", "taskmaster", "intake", "hooks", "integrity", "messaging"];
 
 type Caller = { kind: "main" } | { kind: "qa"; agent: string } | { kind: "other"; agent: string };
 type PathVerdict = { deny: string } | { warn: LegacyWrite } | null;
@@ -269,7 +269,7 @@ function globReachesPrefix(pattern: string, path: string): boolean {
 /** Samples of every CLI-only place inside a run, for matching a glob against (rule c). */
 const CLI_ONLY_SAMPLES: readonly string[] = [
   "events.jsonl", "run.json", "x.lock", "gates/x", "reports/work/x", "reports/review/x", "reports/.locks/x", "taskmaster/x",
-  "intake/x", "hooks/x", "integrity/x",
+  "intake/x", "hooks/x", "integrity/x", "messaging/x",
 ];
 
 /** m1 (and rule c for patterns): a glob that may expand onto runs/, one of its ancestors, a run directory or a CLI-only file. */

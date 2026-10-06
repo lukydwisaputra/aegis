@@ -153,7 +153,7 @@ export function matchGlob(pattern: string, path: string): boolean {
  */
 export const CLI_ONLY_RUN_GLOBS: readonly string[] = [
   "events.jsonl", "run.json", "**/*.lock", "**/*.lock/**", "gates/**", "reports/work/**", "reports/review/**",
-  "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**",
+  "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**", "messaging/**",
 ];
 
 /** Is `absPath` (canonical) runs/.active, or a CLI-only file inside any run directory under `aegisRoot`? */

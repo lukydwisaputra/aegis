@@ -40,6 +40,12 @@ describe('decide: H1 rules (spec §4.2)', () => {
     // carry (f): integrity/** is CLI-only
     ['agent writes integrity/ (carry f)', write(`${RUN_DIR}/integrity/torn-tail.1.bin`, 'x', 'qa-orchestrator'), false, /written only by the aegis CLI/],
     ['main removes integrity/ (carry f)', bash(`rm -rf runs/${RUN}/integrity`), false, /written only by the aegis CLI/],
+    // NEW-07: messaging/** (contract.json, plan.json) is CLI-only
+    ['agent writes messaging/contract.json (NEW-07)', write(`${RUN_DIR}/messaging/contract.json`, '{}', 'qa-messaging-specialist'), false, /written only by the aegis CLI/],
+    ['agent writes messaging/plan.json (NEW-07)', write(`${RUN_DIR}/messaging/plan.json`, '{}', 'qa-orchestrator'), false, /written only by the aegis CLI/],
+    ['main writes messaging/contract.json (NEW-07)', write(`${RUN_DIR}/messaging/contract.json`), false, /written only by the aegis CLI/],
+    ['main removes messaging/ (NEW-07)', bash(`rm -rf runs/${RUN}/messaging`), false, /written only by the aegis CLI/],
+    ['agent redirects into messaging/contract.json (NEW-07)', bash(`echo '{}' > runs/${RUN}/messaging/contract.json`, 'qa-messaging-specialist'), false, /written only by the aegis CLI/],
     // carry (b): CLI-only runs before the role check, and *.lock matches at any depth
     ['nested lock inside an evidence tree the role covers (carry b)', write(`${RUN_DIR}/evidence/TC-x1/a/b.lock`, '', 'qa-ui-specialist'), false, /written only by the aegis CLI/],
     ['a lock inside a proper-lockfile lock directory (carry b)', write(`${RUN_DIR}/run.lock.lock/x`, '', 'qa-ui-specialist'), false, /written only by the aegis CLI/],
@@ -198,6 +204,7 @@ describe('decide: H1 rollout for the legacy skills (decision 24)', () => {
     expect(decide(write(`${RUN_DIR}/events.jsonl`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
     expect(decide(write(`${RUN_DIR}/intake/prd.md`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
     expect(decide(write(`${RUN_DIR}/integrity/torn-tail.1.bin`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
+    expect(decide(write(`${RUN_DIR}/messaging/contract.json`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
     // qa-record-manual's evidence/** does not reach a nested CLI-only lock (carry b).
     expect(decide(write(`${RUN_DIR}/evidence/TC-x1/a/b.lock`), ctx, deps)).toMatchObject({ allow: false, reason: expect.stringMatching(/written only by the aegis CLI/) });
   });
