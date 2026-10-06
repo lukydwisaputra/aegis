@@ -126,6 +126,29 @@ describe('the messaging specialist detects, no-ops, and stays project-agnostic (
     expect(paths(contractOf(read(SPV)).reads)).toEqual(expect.arrayContaining(['{run}/target-profile.json', '{run}/messaging/plan.json']));
   });
 
+  it('worker and reviewer scan absolute paths and treat a skipped path as unclean', () => {
+    const skippedRule = 'A scan whose `skipped` list is not empty is not clean: rescan with the correct paths; a `too-large` file is reported as an uncertainty in the work report';
+    const process = section(md(), 'Process');
+    expect(process).toContain(skippedRule);
+    expect(process).toContain('every path absolute');
+    expect(process).toContain('the Paths line of your run context');
+    // A relative tests path resolves against the framework root, not the target, and is skipped as missing.
+    expect(md()).not.toMatch(/scan-secrets` over `tests\/qa|scan-secrets tests\/qa/);
+    const item7 = section(read(SPV), 'Review Checklist').split('\n').find((l) => l.startsWith('7. '))!;
+    expect(item7).toContain(skippedRule);
+    expect(item7).toContain('the Paths line of your run context');
+    for (const p of ['runs/{runId}/reports/work/qa-messaging-specialist*.json', 'runs/{runId}/cases/*-result.json', 'runs/{runId}/evidence/TC-*']) expect(item7).toContain(p);
+    expect(read(SPV)).not.toMatch(/scan-secrets` over `tests\/qa|scan-secrets tests\/qa/);
+    expect(paths(contractOf(read(SPV)).reads)).toEqual(expect.arrayContaining(['{run}/cases/{TC-ID}-result.json', '{run}/evidence/TC-*/**']));
+  });
+
+  it('the worker report names everything the reviewer checks, and the preflight is recorded both ways', () => {
+    const process = section(md(), 'Process');
+    expect(process).toContain('the adapter, the contract repo, path, ref and sha (from `runs/{runId}/messaging/contract.json`)');
+    expect(section(read(SPV), 'Review Checklist')).toContain('the contract repo, path, ref and sha');
+    expect(process).toContain('emit `messaging.live-preflight { adapter, simulated: true }` once `replay()` returns; when it throws `NotSimulatedError`, emit `messaging.live-preflight { adapter, simulated: false }` before recording the Sev1');
+  });
+
   it('only the CLI writes the vendored helper', () => {
     const p = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261006-001' };
     for (const a of ['qa-messaging-specialist', 'qa-ui-specialist', 'qa-environment-engineer']) expect(roleWritable(a, '/r/tests/qa/support/messaging.ts', p)).toBe(false);

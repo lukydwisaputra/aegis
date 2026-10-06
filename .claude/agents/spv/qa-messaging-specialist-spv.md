@@ -22,6 +22,7 @@ You review messaging test results from `qa-messaging-specialist`. You verify tha
 - `runs/{runId}/messaging/plan.json` — the plan the worker ran: env names, static checklist, fake recipients
 - `runs/{runId}/messaging/contract.json` — the provider contract and its sha
 - Messaging test files at `tests/qa/messaging/**`
+- `runs/{runId}/cases/{TC-ID}-result.json` and `runs/{runId}/evidence/TC-*/**` — the worker's per-TC results and evidence, for the secret scan
 - `aegis/aegis.config.json` — `messaging.fakeRecipients`, and the environments whose `forbiddenSpecialists` name the specialist (`aegis.config.json#environments.production.forbiddenSpecialists`, and the testing and staging lists)
 - `runs/{runId}/events.jsonl` — the preflight and sandbox events
 - `agent-memory/qa-messaging-specialist/lessons.md`
@@ -34,7 +35,7 @@ You review messaging test results from `qa-messaging-specialist`. You verify tha
 4. **Failure handling covered.** Specs force 400, 429, 500 and a timeout and assert the app's behaviour for each; a missing kind = requested-changes.
 5. **Simulated preflight first.** In `events.jsonl` a `messaging.live-preflight` with `simulated: true` precedes every other live result; a live result after `simulated: false`, or none recorded while live results exist = requested-changes.
 6. **Fake recipients only.** Every live recipient is one of `aegis.config.json#messaging.fakeRecipients`; any other = requested-changes.
-7. **No secret anywhere.** Run `aegis messaging scan-secrets` over `tests/qa/messaging`, the result files and the evidence directories; any hit = requested-changes.
+7. **No secret anywhere.** Run `aegis messaging scan-secrets` over the submitted work reports `runs/{runId}/reports/work/qa-messaging-specialist*.json`, the result files `runs/{runId}/cases/*-result.json`, the evidence directories `runs/{runId}/evidence/TC-*` that exist, and the specs directory `<QA tests>/messaging`, every path absolute: `<QA tests>` and the run directory are the absolute paths on the Paths line of your run context (a relative specs path is skipped as missing). A scan whose `skipped` list is not empty is not clean: rescan with the correct paths; a `too-large` file is reported as an uncertainty in the work report. Any hit = requested-changes; a non-empty `skipped` list after the rescan, other than a `too-large` file the work report explains, = requested-changes.
 8. **Development only.** The run's environment is `development`; any other = requested-changes.
 9. **No-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasMessagingIntegration` is `false`; a missing or unreadable profile, or `true`, = requested-changes.
 10. **Not run is not passed.** A layer that did not run is reported "not run" with its reason; reporting it passed = requested-changes.
@@ -72,6 +73,8 @@ reads:
   - "{tests}/qa/messaging/**"
   - "aegis.config.json"
   - "{run}/events.jsonl"
+  - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/evidence/TC-*/**"
   - "agent-memory/qa-messaging-specialist/lessons.md"
 writes: []
 emits:
