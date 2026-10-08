@@ -931,3 +931,106 @@ describe('the sign-off version names the tested build', () => {
     expect(versionOf({})).toContain('Version:\nunversioned');
   });
 });
+
+describe('the sign-off residual risk source order', () => {
+  const GATE = FULL_RUN['gates/gate-3-decision.json'];
+  const risk = (riskId: string, title: string, score: string, extra: Record<string, unknown> = {}) => ({
+    riskId, title, originalLikelihoodImpactScore: score, mitigationStatus: 'Partially tested', residualExposure: 'Some exposure remains.', ...extra,
+  });
+  const THREE = [
+    risk('RISK-A-001', 'Login can be bypassed by a stale session', '5 x 5 = 25 (Critical)'),
+    risk('RISK-B-002', 'Booking confirmations may arrive late', '3 x 4 = 12 (High)'),
+    risk('RISK-C-003', 'Several optional settings are unset after migration', 'Not scored this cycle, surfaced by the compliance review'),
+  ];
+  const signoff = (files: Record<string, unknown>, extra: string[] = []) => {
+    const { root, runDir } = fixture({ 'gates/gate-3-decision.json': GATE, ...files });
+    const r = run(SCRIPT.signoff, root, extra);
+    // The PDF text layer splits a bracket from the word after it ("[ Critical]"): close it up before comparing.
+    return { r, text: r.status === 0 ? flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).replace(/\[ /g, '[') : '' };
+  };
+
+  it('prints closure.json residualRiskSummary when the risk register holds no residual data: count, the acknowledge sentence and each risk with its severity', () => {
+    const { r, text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: THREE }, 'risk-register.json': { risks: [] } });
+    expect(r.status).toBe(0);
+    expect(text).toContain('3 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 1 of them rated Critical.');
+    expect(text).toContain('- [Critical] Login can be bypassed by a stale session');
+    expect(text).toContain('- [High] Booking confirmations may arrive late');
+    expect(text).toContain('- Several optional settings are unset after migration');
+    expect(text).not.toContain('No residual risk recorded');
+    expect(text.indexOf('Login can be bypassed')).toBeLessThan(text.indexOf('Booking confirmations'));
+  });
+
+  it('uses the same path with no risk register at all, and states a singular count and no Critical clause when none is rated Critical', () => {
+    const { text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [THREE[1]] } });
+    expect(text).toContain('1 residual risk remains after testing and is recorded here for the product owner to acknowledge before closure.');
+    expect(text).not.toContain('rated Critical');
+    expect(text).not.toContain('not available (no risk register');
+  });
+
+  it('prefers a plain-language sentence on the risk, and a severity field, over the title and the score', () => {
+    const { text } = signoff({
+      'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [risk('RISK-A-001', 'RLS gap', '5 x 5 = 25 (Critical)', { plain: 'People may see records of another group.', severity: 'High' })] },
+    });
+    expect(text).toContain('- [High] People may see records of another group.');
+    expect(text).not.toContain('RLS gap');
+    expect(text).not.toContain('rated Critical');
+  });
+
+  it('keeps the risk register first: its residualSummary string, then its residual array, both before the closure', () => {
+    const closure = { 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: THREE } };
+    const a = signoff({ ...closure, 'risk-register.json': { residualSummary: 'Two risks were accepted by the owner.' } });
+    expect(a.text).toContain('Two risks were accepted by the owner.');
+    expect(a.text).not.toContain('3 residual risks remain');
+    const b = signoff({ ...closure, 'risk-register.json': { residual: [{}, {}] } });
+    expect(b.text).toContain('2 residual risks accepted by the product owner');
+    expect(b.text).not.toContain('3 residual risks remain');
+  });
+
+  it('prints No residual risk recorded only when no source holds a risk, and the no-register note when there is nothing at all', () => {
+    expect(signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [] }, 'risk-register.json': { risks: [] } }).text).toContain('No residual risk recorded');
+    expect(signoff({ 'reports/closure/closure.json': { metrics: {} }, 'risk-register.json': { risks: [] } }).text).toContain('No residual risk recorded');
+    expect(signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: 'none' } }).text).toContain('Residual risk: not available (no risk register in this run)');
+    expect(signoff({ 'reports/closure/closure.json': { metrics: {} } }).text).toContain('Residual risk: not available (no risk register in this run)');
+  });
+
+  it('skips a row that is not an object or has no title, and counts only the rows it prints', () => {
+    const { text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [THREE[0], null, 'x', { riskId: 'RISK-Z' }] } });
+    expect(text).toContain('1 residual risk remains');
+  });
+
+  it('still runs the tone-check on the closure risks: jargon is rewritten, and the decision is still validated', () => {
+    const jargon = { 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [risk('RISK-A-001', 'Search is slow: p95 latency 900ms for most users', '3 x 3 = 9 (Medium)')] } };
+    const ok = signoff(jargon);
+    expect(ok.r.status).toBe(0);
+    expect(ok.text).toContain('the slowest 5% of requests take 900ms');
+    expect(ok.text).not.toContain('p95');
+    expect(JSON.parse(ok.r.stdout).jargonRewriteCount).toBeGreaterThanOrEqual(1);
+    expect(signoff(jargon, ['--max-jargon-survivors=-1']).r.status).toBe(8);
+    const { root } = fixture({ ...jargon, 'gates/gate-3-decision.json': { ...GATE, decision: 'GO' } });
+    expect(run(SCRIPT.signoff, root).status).toBe(4);
+  });
+
+  it('the skill and the reporter say where residual risk comes from and forbid bypassing the skill', () => {
+    const skill = read('.claude/skills/_qa-report-signoff-pdf/SKILL.md');
+    expect(skill).toContain('`reports/closure/closure.json#residualRiskSummary`');
+    expect(skill).toContain('Only when no source holds a risk does it print "No residual risk recorded"');
+    expect(read('.claude/agents/tier1-phase/qa-executive-reporter.md')).toContain('never call the renderer directly to get around it, because that skips the tone-check and the decision validation');
+    expect(read('.claude/agents/tier1-phase/qa-closure-reporter.md')).toContain('`residualRiskSummary`, an array with one object per risk');
+  });
+
+  const REAL = process.env.AEGIS_REAL_RUN_DIR;
+  const realClosure = REAL !== undefined && REAL !== '' ? path.join(REAL, 'reports', 'closure', 'closure.json') : '';
+  (realClosure !== '' && fs.existsSync(realClosure) ? it : it.skip)('renders the real closure shape (AEGIS_REAL_RUN_DIR): every risk with its severity, the Critical count from the scores', () => {
+    const closure = JSON.parse(fs.readFileSync(realClosure, 'utf-8')) as { residualRiskSummary: Array<{ originalLikelihoodImpactScore: string }> };
+    const n = closure.residualRiskSummary.length;
+    const critical = closure.residualRiskSummary.filter((x) => /\(Critical\)/.test(x.originalLikelihoodImpactScore)).length;
+    const { r, text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: closure.residualRiskSummary }, 'risk-register.json': { risks: [] } });
+    // Real titles are technical: the tone-check may refuse them (exit 8) until the closure carries plain sentences; either way never the empty state.
+    expect([0, 8]).toContain(r.status);
+    if (r.status === 0) {
+      expect(text).toContain(`${n} residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, ${critical} of them rated Critical.`);
+      expect(text).not.toContain('No residual risk recorded');
+      console.log(text.slice(text.indexOf('RESIDUAL RISK'), text.indexOf('Signatories')));
+    }
+  });
+});
