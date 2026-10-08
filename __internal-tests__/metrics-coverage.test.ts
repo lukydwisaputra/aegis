@@ -93,6 +93,38 @@ describe('computeCoverage: test execution coverage', () => {
     expect(computeCoverage(dir).testExecutionCoverage).toBe(50);
   });
 
+  it('a TC whose viewports all have results is executed even when one failed or was partial, but a blocked viewport is not', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003'),
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-001', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-001', { status: 'fail' }, 'mobile'), // all present, one failed: executed
+        result('TC-RSP-002', { status: 'partial' }, 'desktop'),
+        result('TC-RSP-002', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-002', { status: 'pass' }, 'mobile'), // partial: executed
+        result('TC-RSP-003', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-003', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-003', { status: 'blocked' }, 'mobile'), // blocked: not executed
+      ]),
+    });
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(66.7);
+  });
+
+  it('reads the plain-file synonyms noop (executed, neutral) and skip (not executed)', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003'),
+      ...Object.fromEntries([
+        result('TC-AUTH-001', { status: 'noop' }),
+        result('TC-AUTH-002', { status: 'skip' }),
+        result('TC-AUTH-003', { status: 'no-op' }),
+      ]),
+    });
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(66.7);
+  });
+
   it('ignores a result whose test case was never designed, and a result with no determinable status', () => {
     const dir = runWith({
       ...rtm,
