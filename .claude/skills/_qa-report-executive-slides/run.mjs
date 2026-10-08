@@ -52,8 +52,8 @@ const deckPath = inRun(args.deck ?? "reports/executive/executive-deck.json");
 const out = inRun(args.out ?? "reports/executive/executive-deck.pdf");
 
 const maxJargonRaw = args["max-jargon-survivors"] ?? "0";
-if (!/^\d+$/.test(maxJargonRaw)) {
-  console.error(`ERROR: --max-jargon-survivors must be a non-negative integer, got "${maxJargonRaw}"`);
+if (!/^-?\d+$/.test(maxJargonRaw)) {
+  console.error(`ERROR: --max-jargon-survivors must be an integer, got "${maxJargonRaw}"`);
   process.exit(2);
 }
 const maxJargonSurvivors = Number.parseInt(maxJargonRaw, 10);

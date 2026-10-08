@@ -26,7 +26,7 @@ The skill is a thin orchestrator. It pulls the decision from `gate-3-decision.js
 | `--run` | required | Run ID whose artefacts to render |
 | `--out` | `reports/executive/signoff.pdf` | Output path; a relative path is relative to the run directory |
 | `--version` | from `plan.json#version` or `"unversioned"` | Product version under attestation |
-| `--max-jargon-survivors` | 0 | Fail (exit 8) if more than N jargon terms remain after rewrite; N is a non-negative integer, anything else exits 2 |
+| `--max-jargon-survivors` | 0 | Fail (exit 8) if more than N jargon terms remain after rewrite; N is an integer, anything else exits 2 |
 
 ## Inputs (read from `runs/{run}/`)
 

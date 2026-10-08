@@ -26,7 +26,7 @@ This skill is distinct from the other two in one important way: **it enforces a 
 | `--run` | required | Run ID whose artefacts to render |
 | `--deck` | `reports/executive/executive-deck.json` | The deck content; a relative path is relative to the run directory |
 | `--out` | `reports/executive/executive-deck.pdf` | Output path; a relative path is relative to the run directory |
-| `--max-jargon-survivors` | `0` | Fail if more than N jargon terms remain after rewrite; N is a non-negative integer, anything else exits 2 |
+| `--max-jargon-survivors` | `0` | Fail if more than N jargon terms remain after rewrite; N is an integer, anything else exits 2 |
 
 ## Inputs
 

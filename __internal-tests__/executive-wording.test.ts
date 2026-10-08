@@ -94,6 +94,7 @@ describe('numbers are computed and carry their base', () => {
     expect(numbers).toContain('Every count of open defects, and every percentage or fraction');
     expect(numbers).toContain('the `defectMetrics` field `confirmedOpen` of `closure.json`, else the open records in `defects/*.json`');
     expect(numbers).toContain('states the total and every per-severity count');
+    expect(numbers).toContain('else from the open records when they sum to the total; when neither does, state the total and say the severity breakdown is not available');
   });
 
   it('the SPV recomputes counts, not only percentages, from the files it is given', () => {
@@ -137,6 +138,15 @@ describe('numbers are computed and carry their base', () => {
     expect(process).toContain('record the skill\'s `jargonRewriteCount` in the work report');
     expect(process).toContain('append `jargon.flagged` with source `signoff` only for a sentence you rewrote yourself');
     expect(process).not.toContain('record each rewrite as `jargon.flagged`');
+  });
+
+  it('the jargon.flagged event entry matches Process step 3: for the sign-off only sentences the agent rewrote itself', () => {
+    const rep = read(REPORTER);
+    const events = rep.slice(rep.indexOf('## Events You Emit'), rep.indexOf('## Concurrency'));
+    const entry = events.slice(events.indexOf('- `jargon.flagged`'), events.indexOf('- `tone.check-failed`'));
+    expect(entry).toContain('one per sentence you rewrote yourself; for the sign-off only those');
+    expect(entry).toContain('`jargonRewriteCount` in the work report');
+    expect(rep).not.toContain('one per sentence rewritten by tone-check');
   });
 
   it('the SPV checks numbers against the run files', () => {
@@ -270,6 +280,10 @@ describe('/qa-reissue is discoverable and its follow-ups are named', () => {
     const push = '`/qa-push-reports --project=<name> --force`';
     expect(read('.claude/skills/qa-reissue/SKILL.md')).toContain(push);
     expect(read('HANDBOOK/13-mechanics.md')).toContain(push);
+    for (const doc of ['.claude/skills/qa-reissue/SKILL.md', 'HANDBOOK/13-mechanics.md']) {
+      expect(read(doc)).toContain('`--force` re-exports every run of that project (one export each)');
+      expect(read(doc)).toContain('`scripts/export-run.sh --project <name> --run <runId> --source <QA folder>/<name>/aegis/runs`');
+    }
     expect(read('.claude/skills/qa-regenerate-report/SKILL.md')).toContain('To regenerate the executive reports of a completed run, use `/qa-reissue --phase=executive` instead');
   });
 });
