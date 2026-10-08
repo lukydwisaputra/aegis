@@ -144,7 +144,7 @@ describe('technical report (Deliverable 1)', () => {
     expect(text).toContain('Pass Rate\n88.9%');
     expect(text).toContain('Requirements Coverage\n92.5%');
     expect(text).toContain('Open Defects\n3');
-    expect(text).toContain('Closed Defects\n2');
+    expect(text).toContain('Closed Defects\n0'); // the run holds one record, not closed: closed is read from the records, not total minus open
   });
 
   it('sums the cost from token-usage.jsonl and the cycle time from cycle-time.json', () => {
@@ -767,5 +767,49 @@ describe('the technical report after a reissue', () => {
     });
     expect(run(SCRIPT.technical, listed.root).status).toBe(0);
     expect(pdfText(path.join(listed.runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Requirements Coverage\n80.0%');
+  });
+});
+
+describe('the technical report takes check counts from coverage.json and closed defects from the records', () => {
+  const COUNTS = { designed: 100, attempted: 98, passed: 61, failed: 5, partial: 1, blocked: 31, skipped: 0, unknown: 0, notAttempted: 2 };
+  const defectRec = (id: string, status: string) => [`defects/${id}.json`, { id, title: 't', severity: { code: 'Sev3', name: 'Major' }, status: { code: status } }] as const;
+  const records = Object.fromEntries([
+    ...Array.from({ length: 3 }, (_, i) => defectRec(`DEF-00${i + 1}-AUTH-UI`, 'Triaged')),
+    ...Array.from({ length: 2 }, (_, i) => defectRec(`DEF-00${i + 4}-AUTH-UI`, 'Closed')),
+    defectRec('DEF-006-AUTH-UI', 'Flagged-for-owner'),
+  ]);
+  const base = {
+    // closure.json carries the executor's roll-up, which counts the partial case as a pass and drops it from the total
+    'reports/closure/closure.json': { metrics: { passed: 62, failed: 5, blocked: 31 }, defectMetrics: { totalLogged: 6, confirmedOpen: 3 } },
+    ...records,
+  };
+
+  it('Total Tests is the attempted count (98, partial included) and passed, failed, blocked come from counts, not closure.json', () => {
+    const { root, runDir } = fixture({ ...base, 'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts: COUNTS } });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Total Tests\n98');
+    expect(text).toContain('Passed\n61');
+    expect(text).toContain('Failed\n5');
+    expect(text).toContain('Blocked\n31');
+    expect(text).toContain('Skipped\n0');
+  });
+
+  it('falls back to closure.json when coverage.json has no counts or is noData', () => {
+    for (const cov of [{ requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0 }, { noData: true, requirementsCoverage: 0, counts: { ...COUNTS, designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, notAttempted: 0 } }]) {
+      const { root, runDir } = fixture({ ...base, 'reports/metrics/coverage.json': cov });
+      expect(run(SCRIPT.technical, root).status).toBe(0);
+      const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+      expect(text).toContain('Total Tests\n98');
+      expect(text).toContain('Passed\n62');
+    }
+  });
+
+  it('Closed Defects counts only closed records: a flagged-for-owner record is neither open nor closed', () => {
+    const { root, runDir } = fixture({ ...base, 'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts: COUNTS } });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Open Defects\n3');
+    expect(text).toContain('Closed Defects\n2');
   });
 });

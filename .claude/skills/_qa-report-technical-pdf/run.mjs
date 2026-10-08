@@ -136,13 +136,26 @@ const hasData = (doc) => doc !== null && !(typeof doc === "object" && !Array.isA
 
 const m = closure.metrics ?? {};
 const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[key]));
-const passed = metric("passed");
-const failed = metric("failed");
-const blocked = metric("blocked");
-const totalTests = passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 
-// Open/closed defects: the resolver the sign-off uses too — closure.json#defectMetrics first, then the
-// defect records' status codes (DefectSchema `status.code`; Closed, Verified, Resolved, Won't Fix, … are closed).
+// Check counts: the counts object of the collector's coverage.json is computed from the case files and wins over
+// closure.json#metrics, which copies the executor's roll-up (that roll-up counts a partial case as a pass). A coverage.json
+// holding "noData": true, or one without a complete counts object, falls back to closure.json.
+const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
+const rollupCounts =
+  hasData(coverageDoc) && coverageDoc.counts !== null && typeof coverageDoc.counts === "object" && COUNT_KEYS.every((k) => num(coverageDoc.counts[k]) !== null)
+    ? coverageDoc.counts
+    : null;
+// Total Tests is every check that has a result (the attempted count, partial included). The report's table has no partial cell, so
+// a partial or unknown case is in the total only.
+const passed = rollupCounts ? rollupCounts.passed : metric("passed");
+const failed = rollupCounts ? rollupCounts.failed : metric("failed");
+const blocked = rollupCounts ? rollupCounts.blocked : metric("blocked");
+const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
+const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
+
+// Open/closed defects: the resolver the sign-off uses too. Open is closure.json#defectMetrics first, then the defect records'
+// status codes (DefectSchema `status.code`); closed is the records with a closed status (Closed, Verified, Resolved,
+// Won't Fix, …), never a record flagged for the owner, and total minus open only when the run has no records.
 const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closure, defects);
 
 // Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
@@ -196,7 +209,7 @@ const spec = {
     passed,
     failed,
     blocked,
-    skipped: metric("skipped"),
+    skipped: skippedCount,
     passRate: metric("passRate"),
     coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,
