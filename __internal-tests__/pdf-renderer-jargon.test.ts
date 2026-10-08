@@ -33,4 +33,24 @@ function tone(texts: string[]): Array<{ rewritten: string; found: string[] }> {
     expect(input.rewritten).toBe('The INPUT field accepts text; user interaction speed is slow');
     expect(mixed.rewritten).toBe('average time to recover from an incident, average time to detect an issue, server response time and time until first content appears are tracked');
   });
+
+  it('rewrites plural acronyms to the same text as the singular, and the tone check sees them', () => {
+    const [cves, lcps, rtms, cve, lcp, rtm] = tone(['3 CVEs found', '2 LCPs', 'RTMs', '3 CVE found', '2 LCP', 'RTM']) as Array<{ rewritten: string; found: string[] }>;
+    expect(cves!.rewritten).toBe('3 known security vulnerability found');
+    expect(cves!.rewritten).toBe(cve!.rewritten);
+    expect(cves!.found).toEqual(['CVEs']);
+    expect(lcps!.rewritten).toBe('2 page load time');
+    expect(lcps!.rewritten).toBe(lcp!.rewritten);
+    expect(lcps!.found).toEqual(['LCPs']);
+    expect(rtms!.rewritten).toBe('test coverage map');
+    expect(rtms!.rewritten).toBe(rtm!.rewritten);
+    expect(rtms!.found).toEqual(['RTMs']);
+  });
+
+  it('rewrites CFR, DORA and CVSS, and leaves words that merely contain them', () => {
+    const [r, plain] = tone(['CFR and DORA and CVSS 7.5', 'The cfrdora crvssx lorem']) as Array<{ rewritten: string; found: string[] }>;
+    expect(r!.rewritten).toBe('percentage of deploys that cause incidents and industry deployment performance and security severity score 7.5');
+    expect(plain!.rewritten).toBe('The cfrdora crvssx lorem');
+    expect(plain!.found).toEqual([]);
+  });
 });
