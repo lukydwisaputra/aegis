@@ -14,10 +14,13 @@ describe('slide 1 states what was tested, what was not, and the open items', () 
 
   it('the reporter is told the three parts and given a model sentence without a release judgement', () => {
     expect(slide1).toContain('what was tested, what could not be tested, and the open items');
-    expect(slide1).toContain('Of 100 designed checks, 98 were attempted: 61 passed, 5 failed, 1 passed in part and 31 were blocked; 2 were not attempted. 4 defects remain open: 1 Critical, 2 Major, 1 Minor.');
+    expect(slide1).toContain('Of 100 designed checks, 98 were attempted: 61 passed, 1 partly passed, 5 failed and 31 were blocked; 2 were not attempted. 4 defects remain open: 1 Critical, 2 Major, 1 Minor.');
     expect(slide1).not.toMatch(/planned (tests|checks)/);
     for (const banned of ['blocking', 'release-blocking', 'blocker', 'go-live ready', 'ready to release']) expect(slide1).toContain(`"${banned}"`);
     expect(slide1).toContain('One or two sentences carrying three parts');
+    expect(slide1).toContain('"Of N designed checks, M were attempted: P passed, X partly passed, F failed and B were blocked; K were not attempted."');
+    expect(slide1).toContain('the checks that were not attempted are never listed inside the colon list of the attempted ones');
+    expect(slide1).toContain('designed is attempted plus not attempted, and attempted is passed plus partial plus failed plus blocked plus skipped plus unknown');
     expect(slide1).toContain('no judgement about release readiness');
   });
 
@@ -309,7 +312,7 @@ describe('check counts have one source of truth: the counts of coverage.json', (
   });
 
   it('the split of the uncovered checks uses the closure report\'s exact figures, with no hedge word on any count', () => {
-    expect(source).toContain("uses its exact figures: the categories sum exactly");
+    expect(source).toContain('categories sum exactly to the number of uncovered checks (blocked plus not attempted)');
     expect(source).toContain('no "around", "about" or "roughly" goes before any count');
     expect(body(rep)).not.toContain('round it to context');
     expect(body(rep)).not.toContain('"about 150 tests"');
@@ -373,13 +376,21 @@ describe('counts and pass rate: review fixes', () => {
     expect(inputs).not.toContain('the execution counts check 13 recomputes from');
   });
 
-  it('the split of the uncovered checks is built from every row, sums to the number of uncovered checks, and keeps an unclassified row as other', () => {
+  it('the split of the uncovered checks comes only from the by-cause counts of coverage.json, never classified by hand', () => {
     const source = wording.slice(wording.indexOf('**Source of truth for counts.**'));
     for (const text of [source, check13]) {
-      expect(text).toContain("every row of the closure report's table of uncovered test cases");
+      expect(text).toContain('`byCause` counts of the `uncovered` object of `reports/metrics/coverage.json`');
+      expect(text).toContain('environment limits');
+      expect(text).toContain('testing-side gaps');
+      expect(text).toContain('requirement gap');
+      expect(text).toContain('not attempted');
       expect(text).toContain('sum exactly to the number of uncovered checks (blocked plus not attempted)');
-      expect(text).toContain('a row that fits no category is reported as "other", never dropped');
     }
+    expect(source).toContain("Never classify a row of the closure's table of uncovered test cases yourself");
+    expect(source).toContain('Of the 33 checks that gave no verdict, 16 were limited by the test environment, 14 by testing-side gaps and 1 by a requirement gap; 2 were not attempted.');
+    expect(source).not.toContain('is built from every row');
+    expect(check13).toContain('Any classification made by hand');
+    expect(check13).toContain("the closure's explicit `cause` on a row, when it has one, equals the `cause` of that id in the `uncovered` rows of `coverage.json`");
   });
 
   it('executed and attempted are related in the reporter and in the collector', () => {
@@ -412,5 +423,20 @@ describe('counts and pass rate: review fixes', () => {
     const inputs = rep.slice(rep.indexOf('## Inputs'), rep.indexOf('## ', rep.indexOf('## Inputs') + 3));
     expect(inputs).toContain('the executor roll-up and timings only; counts of checks come from the `counts` object of `reports/metrics/coverage.json`');
     expect(inputs).not.toContain('executed, passed, failed and blocked counts of the cycle');
+  });
+});
+
+describe('closure side of the by-cause split', () => {
+  it('the closure reporter says cause and uncoveredByCause are optional and must equal coverage.json', () => {
+    const t = read('.claude/agents/tier1-phase/qa-closure-reporter.md');
+    expect(t).toContain('Each row MAY also carry `cause`: `environment`, `qa-side`, `requirement-gap` or `not-attempted`');
+    expect(t).toContain('The closure MAY also carry `uncoveredByCause`');
+    expect(t).toContain('Neither is required (closures written before they existed lack them)');
+    expect(t).toContain('it must equal what that command computed, row by row and count by count');
+  });
+  it('its SPV rejects a cause or count that differs from coverage.json and accepts their absence', () => {
+    const t = read('.claude/agents/spv/qa-closure-reporter-spv.md');
+    expect(t).toContain('absent is fine');
+    expect(t).toContain("`uncoveredByCause` must equal its `byCause` counts");
   });
 });
