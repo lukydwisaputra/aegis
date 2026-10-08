@@ -813,3 +813,33 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Closed Defects\n2');
   });
 });
+
+describe('the sign-off version names the tested build', () => {
+  const SHA = 'f171552e86702b1eebc562b1ed051add4773de00';
+  const discovery = { 'discovery-report.json': { target: { baseUrl: 'http://127.0.0.1:3002', commit: SHA, branch: 'development' } } };
+  const versionOf = (files: Record<string, unknown>, extra: string[] = []): string => {
+    const { root, runDir } = fixture({ ...FULL_RUN, ...files });
+    expect(run(SCRIPT.signoff, root, extra).status).toBe(0);
+    return pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
+  };
+
+  it('derives dev-<short commit> from the explorer\'s recorded target commit and the run environment', () => {
+    expect(versionOf({ ...discovery, 'run.json': { runId: RUN, environment: 'development' } })).toContain('Version:\ndev-f171552');
+  });
+
+  it('prints the short commit alone when the run records no environment, and a non-hex commit is not a version', () => {
+    expect(versionOf(discovery)).toContain('Version:\nf171552');
+    expect(versionOf({ 'discovery-report.json': { target: { commit: 'not-a-sha' } } })).toContain('Version:\nunversioned');
+  });
+
+  it('an explicit --version wins, then plan.json version, then closure.json version, all before the commit', () => {
+    const withRun = { ...discovery, 'run.json': { runId: RUN, environment: 'development' } };
+    expect(versionOf(withRun, ['--version=2.4.0'])).toContain('Version:\n2.4.0');
+    expect(versionOf({ ...withRun, 'plan.json': { scope: 's', version: '3.0.1' } })).toContain('Version:\n3.0.1');
+    expect(versionOf({ ...withRun, 'reports/closure/closure.json': { ...FULL_RUN['reports/closure/closure.json'], version: '1.2.3' } })).toContain('Version:\n1.2.3');
+  });
+
+  it('reads unversioned only when nothing records the build', () => {
+    expect(versionOf({})).toContain('Version:\nunversioned');
+  });
+});

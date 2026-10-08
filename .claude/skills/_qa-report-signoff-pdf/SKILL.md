@@ -25,7 +25,7 @@ The skill is a thin orchestrator. It pulls the decision from `gate-3-decision.js
 |------|---------|-------------|
 | `--run` | required | Run ID whose artefacts to render |
 | `--out` | `reports/executive/signoff.pdf` | Output path; a relative path is relative to the run directory |
-| `--version` | from `plan.json#version` or `"unversioned"` | Product version under attestation |
+| `--version` | from `plan.json` version, else `closure.json` version, else the tested build, else `"unversioned"` | Product version under attestation. The tested build is the commit recorded in `discovery-report.json` (target commit), shortened to 7 characters and prefixed with the run's environment (`dev-f171552`); an explicit `--version` wins |
 | `--max-jargon-survivors` | 0 | Fail (exit 8) if more than N jargon terms remain after rewrite; N is an integer, anything else exits 2 |
 
 ## Inputs (read from `runs/{run}/`)
@@ -102,6 +102,10 @@ reads:
   - "{run}/reports/compliance/*.json"
   - "{run}/risk-register.json"
   - "{run}/plan.json"
+  - path: "{run}/discovery-report.json"
+    optional: true
+  - path: "{run}/run.json"
+    optional: true
 writes:
   - "{run}/reports/executive/signoff.pdf"
 emits:
