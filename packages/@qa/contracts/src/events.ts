@@ -569,6 +569,13 @@ export const RunResumedEventSchema = EventBase.extend({
   taskId: z.string().optional(),
 });
 
+export const RunReissuedEventSchema = EventBase.extend({
+  type: z.literal("run.reissued"),
+  runId: RunIdSchema,
+  phase: PhaseIdSchema,
+  reason: z.string().min(1),
+});
+
 export const RunStopRequestedEventSchema = EventBase.extend({
   type: z.literal("run.stop.requested"),
   runId: RunIdSchema,
@@ -1745,6 +1752,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RunPhaseFailedEventSchema,
   RunPromotionFailedEventSchema,
   RunResumedEventSchema,
+  RunReissuedEventSchema,
   RunStopRequestedEventSchema,
   BlockingDependencyEventSchema,
   ExecutionBlockedEventSchema,

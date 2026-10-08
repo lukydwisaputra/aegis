@@ -162,7 +162,7 @@ describe('config', () => {
 describe('reserved event types (F5, R2)', () => {
   it.each([
     'run.created', 'run.blocked', 'run.resumed', 'run.stop.requested', 'run.completed',
-    'run.phase.started', 'run.phase.completed', 'run.aborted',
+    'run.phase.started', 'run.phase.completed', 'run.aborted', 'run.reissued',
     'task.claimed', 'task.released', 'task.escalated', 'task.failed',
     'gate.approved', 'gate.opened',
     'review.passed', 'review.passed-with-notes', 'review.requested-changes',

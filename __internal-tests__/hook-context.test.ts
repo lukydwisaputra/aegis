@@ -48,6 +48,13 @@ describe('H4 run context (spec §4.2)', () => {
     expect(runContextFor(t.root, 'general-purpose', 'g1')).toBeNull();
   });
 
+  it('lists no run reissue command to any agent: it is owner-only', async () => {
+    await create();
+    for (const agent of ['qa-orchestrator', 'qa-executive-reporter']) {
+      expect(runContextFor(t.root, agent, 'r1')).not.toContain('run reissue');
+    }
+  });
+
   it('CLI_USAGE covers every CLI command', () => {
     expect(Object.keys(CLI_USAGE).sort()).toEqual([...CLI_COMMANDS].sort());
   });
