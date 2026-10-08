@@ -1,6 +1,27 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+/**
+ * Check counts computed from the case design files and case result files: one outcome per TC (its worst outcome, see
+ * testExecutionCoverage). passed + failed + partial + blocked + skipped + unknown = attempted; attempted + notAttempted = designed.
+ */
+export interface CoverageCounts {
+  /** TCs with a design file (cases/{TC-ID}.json). */
+  designed: number;
+  /** Designed TCs with at least one result file (a result whose TC has no design file is ignored). */
+  attempted: number;
+  /** Worst outcome pass or no-op. */
+  passed: number;
+  failed: number;
+  partial: number;
+  blocked: number;
+  skipped: number;
+  /** A result with no determinable status, or a scoped viewport with no result and nothing worse. */
+  unknown: number;
+  /** designed - attempted, never below 0. */
+  notAttempted: number;
+}
+
 export interface CoverageRollup {
   /** Rows of rtm.json with testStatus Covered / all rows, 0 to 100, one decimal. */
   requirementsCoverage: number;
@@ -14,6 +35,8 @@ export interface CoverageRollup {
   codeCoverage: number | null;
   /** Rows with testStatus Partial: not counted as covered. */
   partialRequirements: number;
+  /** Check counts, computed here and nowhere else: the one source for every count a report states. */
+  counts: CoverageCounts;
   noData?: true;
 }
 
@@ -92,7 +115,8 @@ export function computeCoverage(runDir: string): CoverageRollup {
   }
 
   if (rows === null || rows.length === 0 || scopeOf.size === 0) {
-    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, noData: true };
+    const none: CoverageCounts = { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
+    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: none, noData: true };
   }
 
   const results = new Map<string, Results>();
@@ -107,6 +131,7 @@ export function computeCoverage(runDir: string): CoverageRollup {
   }
 
   let executed = 0;
+  const counts: CoverageCounts = { designed: scopeOf.size, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
   for (const [id, scope] of scopeOf) {
     const entry = results.get(id);
     if (entry === undefined) continue;
@@ -120,7 +145,12 @@ export function computeCoverage(runDir: string): CoverageRollup {
       outcome = entry.plain ?? "unknown";
     }
     if (!NOT_EXECUTED.has(outcome)) executed++;
+    counts.attempted++;
+    if (outcome === "pass" || outcome === "no-op") counts.passed++;
+    else if (outcome === "fail") counts.failed++;
+    else counts[outcome]++;
   }
+  counts.notAttempted = Math.max(0, counts.designed - counts.attempted);
 
   const covered = rows.filter((r) => r?.testStatus === "Covered").length;
   const partial = rows.filter((r) => r?.testStatus === "Partial").length;
@@ -129,5 +159,6 @@ export function computeCoverage(runDir: string): CoverageRollup {
     testExecutionCoverage: percent(executed, scopeOf.size),
     codeCoverage: code,
     partialRequirements: partial,
+    counts,
   };
 }

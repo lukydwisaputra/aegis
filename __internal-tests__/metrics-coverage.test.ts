@@ -155,6 +155,66 @@ describe('computeCoverage: test execution coverage', () => {
   });
 });
 
+describe('computeCoverage: counts', () => {
+  const rtm = { 'rtm.json': { rows: rows(1, 0) } };
+  const sum = (c: { passed: number; failed: number; partial: number; blocked: number; skipped: number; unknown: number }) =>
+    c.passed + c.failed + c.partial + c.blocked + c.skipped + c.unknown;
+
+  it('counts one outcome per TC: results[] worst-of, synonyms, no-op as passed, a TC with no result as not attempted', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004', 'TC-AUTH-005', 'TC-AUTH-006', 'TC-AUTH-007', 'TC-AUTH-008', 'TC-AUTH-009', 'TC-AUTH-010'),
+      ...Object.fromEntries([
+        result('TC-AUTH-001', { status: 'pass' }),
+        result('TC-AUTH-002', { status: 'passed' }),
+        result('TC-AUTH-003', { status: 'blocked' }),
+        result('TC-AUTH-004', { status: 'failed' }),
+        result('TC-AUTH-005', { results: [{ status: 'pass' }, { status: 'no-op' }, { status: 'partial' }] }),
+        result('TC-AUTH-006', { results: [{ status: 'pass' }, { status: 'blocked' }] }),
+        result('TC-AUTH-007', { status: 'no-op' }),
+        result('TC-AUTH-008', { status: 'skip' }),
+        result('TC-AUTH-009', { note: 'no status' }),
+      ]),
+    });
+    const { counts } = computeCoverage(dir);
+    expect(counts).toEqual({ designed: 10, attempted: 9, passed: 3, failed: 1, partial: 1, blocked: 2, skipped: 1, unknown: 1, notAttempted: 1 });
+    expect(sum(counts)).toBe(counts.attempted);
+  });
+
+  it('per-viewport files win over a plain file; a missing scoped viewport makes the TC unknown unless a worse outcome exists', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003', 'TC-RSP-004'),
+      'cases/TC-RSP-003.json': { id: 'TC-RSP-003', viewportScope: 'desktop' },
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'blocked' }),
+        result('TC-RSP-001', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-001', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-001', { status: 'pass' }, 'mobile'),
+        result('TC-RSP-002', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-003', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-004', { status: 'partial' }, 'desktop'),
+      ]),
+    });
+    expect(computeCoverage(dir).counts).toEqual({ designed: 4, attempted: 4, passed: 2, failed: 0, partial: 1, blocked: 0, skipped: 0, unknown: 1, notAttempted: 0 });
+  });
+
+  it('a result with no design file is ignored, so attempted never exceeds designed', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-099', { status: 'pass' }), result('TC-AUTH-098', { status: 'fail' })]),
+    });
+    expect(computeCoverage(dir).counts).toEqual({ designed: 2, attempted: 1, passed: 1, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 1 });
+  });
+
+  // Set AEGIS_REAL_RUN_DIR to the reissued run's directory to run this against real data; unset or absent, it skips.
+  const REAL = process.env.AEGIS_REAL_RUN_DIR ?? '';
+  (REAL !== '' && fs.existsSync(path.join(REAL, 'cases')) ? it : it.skip)('the real reissued run: 100 designed, 98 attempted, 61 passed, 5 failed, 1 partial, 31 blocked, 2 not attempted', () => {
+    expect(computeCoverage(REAL).counts).toEqual({ designed: 100, attempted: 98, passed: 61, failed: 5, partial: 1, blocked: 31, skipped: 0, unknown: 0, notAttempted: 2 });
+  });
+});
+
 describe('computeCoverage: code coverage and noData', () => {
   const full = { 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001') };
 
@@ -173,6 +233,7 @@ describe('computeCoverage: code coverage and noData', () => {
   ])('flags noData with %s and zeros, never a computed 0 of 0', (_why, files) => {
     expect(computeCoverage(runWith({ ...files, 'reports/unit-coverage.json': { lines: 50 } }))).toEqual({
       requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: 50, partialRequirements: 0, noData: true,
+      counts: { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 },
     });
   });
 
@@ -203,6 +264,10 @@ describe('writeCoverage and aegis metrics coverage', () => {
       expect(out.path).toBe('reports/metrics/coverage.json');
       expect(JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8'))).toEqual(out.coverage);
       expect(out.coverage).toMatchObject({ requirementsCoverage: 75, partialRequirements: 1, testExecutionCoverage: 0 });
+      expect(out.coverage.counts).toEqual({ designed: 1, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 1 });
+      expect(Object.keys(JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8')))).toEqual(
+        ['requirementsCoverage', 'testExecutionCoverage', 'codeCoverage', 'partialRequirements', 'counts'],
+      );
     }
   });
 
