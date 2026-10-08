@@ -952,9 +952,9 @@ describe('the sign-off residual risk source order', () => {
   it('prints closure.json residualRiskSummary when the risk register holds no residual data: count, the acknowledge sentence and each risk with its severity', () => {
     const { r, text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: THREE }, 'risk-register.json': { risks: [] } });
     expect(r.status).toBe(0);
-    expect(text).toContain('3 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 1 of them rated Critical.');
-    expect(text).toContain('- [Critical] Login can be bypassed by a stale session');
-    expect(text).toContain('- [High] Booking confirmations may arrive late');
+    expect(text).toContain('3 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 1 of them originally rated Critical.');
+    expect(text).toContain('- [Originally Critical] Login can be bypassed by a stale session');
+    expect(text).toContain('- [Originally High] Booking confirmations may arrive late');
     expect(text).toContain('- Several optional settings are unset after migration');
     expect(text).not.toContain('No residual risk recorded');
     expect(text.indexOf('Login can be bypassed')).toBeLessThan(text.indexOf('Booking confirmations'));
@@ -964,6 +964,7 @@ describe('the sign-off residual risk source order', () => {
     const { text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [THREE[1]] } });
     expect(text).toContain('1 residual risk remains after testing and is recorded here for the product owner to acknowledge before closure.');
     expect(text).not.toContain('rated Critical');
+    expect(text).not.toContain('originally rated');
     expect(text).not.toContain('not available (no risk register');
   });
 
@@ -972,9 +973,9 @@ describe('the sign-off residual risk source order', () => {
       'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [risk('RISK-A-001', 'RLS gap', '5 x 5 = 25 (Critical)'), risk('RISK-B-002', 'Booking confirmations may arrive late', '3 x 4 = 12 (High)')] },
       'reports/executive/residual-risks.json': [{ riskId: 'RISK-A-001', plain: 'People may see records of another group.', rating: 'Low' }, { riskId: 'RISK-ZZZ', plain: 'Not in the closure.' }],
     });
-    expect(text).toContain('- [Critical] People may see records of another group.');
-    expect(text).toContain('- [High] Booking confirmations may arrive late');
-    expect(text).toContain('2 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 1 of them rated Critical.');
+    expect(text).toContain('- [Originally Critical] People may see records of another group.');
+    expect(text).toContain('- [Originally High] Booking confirmations may arrive late');
+    expect(text).toContain('2 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 1 of them originally rated Critical.');
     expect(text).not.toContain('RLS gap');
     expect(text).not.toContain('Not in the closure');
   });
@@ -986,7 +987,7 @@ describe('the sign-off residual risk source order', () => {
         'reports/executive/residual-risks.json': body,
       });
       expect(r.status).toBe(0);
-      expect(text).toContain('- [Critical] Login can be bypassed by a stale session');
+      expect(text).toContain('- [Originally Critical] Login can be bypassed by a stale session');
     }
   });
 
@@ -1001,10 +1002,10 @@ describe('the sign-off residual risk source order', () => {
         ],
       },
     });
-    expect(text).toContain('- [Low] First risk title');
-    expect(text).toContain('- [Medium] Second risk title');
-    expect(text).toContain('- [Critical] Third risk title');
-    expect(text).toContain('1 of them rated Critical');
+    expect(text).toContain('- [Originally Low] First risk title');
+    expect(text).toContain('- [Originally Medium] Second risk title');
+    expect(text).toContain('- [Originally Critical] Third risk title');
+    expect(text).toContain('1 of them originally rated Critical');
   });
 
   it('keeps the risk register first: its residualSummary string, then its residual array, both before the closure', () => {
@@ -1051,6 +1052,65 @@ describe('the sign-off residual risk source order', () => {
     expect(run(SCRIPT.signoff, root).status).toBe(4);
   });
 
+  it('labels every rating as the original one: "[Originally High]", never a bare bracketed rating', () => {
+    const { text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: THREE } });
+    expect(text).toContain('- [Originally Critical] Login can be bypassed by a stale session');
+    expect(text).toContain('- [Originally High] Booking confirmations may arrive late');
+    expect(text).not.toMatch(/- \[(Critical|High|Medium|Low)\]/);
+  });
+
+  it('the header counts the originally Critical risks: no clause for 0, "1 of them" for 1, "2 of them" for 2, and a singular risk count', () => {
+    const crit = (id: string) => risk(id, `Critical risk ${id}`, '5 x 5 = 25 (Critical)');
+    const high = (id: string) => risk(id, `High risk ${id}`, '3 x 4 = 12 (High)');
+    const head = (list: unknown[]) => signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: list } }).text;
+    const zero = head([high('R-1'), high('R-2')]);
+    expect(zero).toContain('2 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure.');
+    expect(zero).not.toContain('originally rated');
+    expect(head([crit('R-1'), high('R-2')])).toContain('2 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 1 of them originally rated Critical.');
+    expect(head([crit('R-1'), crit('R-2'), high('R-3')])).toContain('3 residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, 2 of them originally rated Critical.');
+    expect(head([crit('R-1')])).toContain('1 residual risk remains after testing and is recorded here for the product owner to acknowledge before closure, 1 of them originally rated Critical.');
+  });
+
+  it('a risk without a rating prints no bracket and no "Originally"', () => {
+    const { text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [THREE[2]] } });
+    expect(text).toContain('- Several optional settings are unset after migration');
+    expect(text).not.toContain('[Originally');
+    expect(text).not.toContain('originally rated');
+  });
+
+  it('an explicit rating field is the original rating too', () => {
+    const { text } = signoff({ 'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [risk('R-1', 'Explicit rating risk', 'Not scored', { rating: 'critical' })] } });
+    expect(text).toContain('- [Originally Critical] Explicit rating risk');
+    expect(text).toContain('1 of them originally rated Critical');
+  });
+
+  it('a duplicate riskId in residual-risks.json: the first entry wins, later ones are ignored, and one warning on stderr names the id', () => {
+    const { r, text } = signoff({
+      'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [risk('RISK-A-001', 'Closure title', '3 x 4 = 12 (High)')] },
+      'reports/executive/residual-risks.json': [{ riskId: 'RISK-A-001', plain: 'First sentence wins.' }, { riskId: 'RISK-A-001', plain: 'Second sentence is ignored.' }],
+    });
+    expect(r.status).toBe(0);
+    expect(text).toContain('- [Originally High] First sentence wins.');
+    expect(text).not.toContain('Second sentence is ignored');
+    const warnings = r.stderr.split('\n').filter((l: string) => l.includes('RISK-A-001'));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/duplicate/i);
+    const clean = signoff({
+      'reports/closure/closure.json': { metrics: {}, residualRiskSummary: [risk('RISK-A-001', 'Closure title', '3 x 4 = 12 (High)')] },
+      'reports/executive/residual-risks.json': [{ riskId: 'RISK-A-001', plain: 'Only sentence.' }],
+    });
+    expect(clean.r.stderr).not.toMatch(/duplicate/i);
+  });
+
+  it('the sign-off skill explains the original-rating bracket and lists residual-risks.json in its contract reads', () => {
+    const skill = read('.claude/skills/_qa-report-signoff-pdf/SKILL.md');
+    expect(skill).toContain('the bracket is the rating the risk had before testing, and the sentence beside it describes what remains');
+    expect(skill).toContain('`- [Originally Rating] text`');
+    expect(skill).toContain('first entry wins');
+    const contract = skill.slice(skill.indexOf('## Contract (machine-checked)'));
+    expect(contract).toContain('{run}/reports/executive/residual-risks.json');
+  });
+
   it('the skill and the reporter say where residual risk comes from and forbid bypassing the skill', () => {
     const skill = read('.claude/skills/_qa-report-signoff-pdf/SKILL.md');
     expect(skill).toContain('`reports/closure/closure.json#residualRiskSummary`');
@@ -1064,18 +1124,22 @@ describe('the sign-off residual risk source order', () => {
   const REAL = process.env.AEGIS_REAL_RUN_DIR;
   const realClosure = REAL !== undefined && REAL !== '' ? path.join(REAL, 'reports', 'closure', 'closure.json') : '';
   (realClosure !== '' && fs.existsSync(realClosure) ? it : it.skip)('renders the real closure shape (AEGIS_REAL_RUN_DIR) with exit 0 once the reporter wrote a plain sentence per risk', () => {
-    const closure = JSON.parse(fs.readFileSync(realClosure, 'utf-8')) as { residualRiskSummary: Array<{ riskId: string; originalLikelihoodImpactScore: string }> };
+    const closure = JSON.parse(fs.readFileSync(realClosure, 'utf-8')) as { residualRiskSummary: Array<{ riskId: string; originalLikelihoodImpactScore?: string }> };
     const n = closure.residualRiskSummary.length;
-    const critical = closure.residualRiskSummary.filter((x) => /\(Critical\)/.test(x.originalLikelihoodImpactScore)).length;
+    const critical = closure.residualRiskSummary.filter((x) => /\(Critical\)/.test(x.originalLikelihoodImpactScore ?? '')).length;
     const plain = closure.residualRiskSummary.map((x, i) => ({ riskId: x.riskId, plain: `Plain customer wording number ${i + 1}.` }));
     const { r, text } = signoff({
       'reports/closure/closure.json': { metrics: {}, residualRiskSummary: closure.residualRiskSummary }, 'risk-register.json': { risks: [] },
       'reports/executive/residual-risks.json': plain,
     });
     expect(r.status).toBe(0);
-    expect(text).toContain(`${n} residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, ${critical} of them rated Critical.`);
+    expect(text).toContain(`${n} residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, ${critical} of them originally rated Critical.`);
     expect(text).not.toContain('No residual risk recorded');
     for (const p of plain) expect(text).toContain(p.plain);
+    for (const [id, word] of [['RISK-ENG-005', 'High'], ['RISK-PLAT-010', 'Medium']] as const) {
+      const i = closure.residualRiskSummary.findIndex((x) => x.riskId === id);
+      if (i >= 0) expect(text).toContain(`- [Originally ${word}] ${plain[i]?.plain}`);
+    }
     console.log(text.slice(text.indexOf('RESIDUAL RISK'), text.indexOf('Signatories')));
   });
 });

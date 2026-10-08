@@ -140,15 +140,23 @@ const openDefectsSummary = summariseOpenDefects(resolveDefectFigures(closure, de
 // then closure.json#residualRiskSummary (an array of { riskId, title, originalLikelihoodImpactScore, mitigationStatus,
 // residualExposure, rating? } objects), and only then the empty state. The reporter's reports/executive/residual-risks.json
 // ([{ riskId, plain }]) supplies the customer-readable sentence of a risk by its riskId; the closure title prints only for a
-// risk with no entry there. The rating always comes from the closure row (rating, else severity, else the word in parentheses
-// at the end of its score).
+// risk with no entry there; for a riskId listed more than once the first entry wins, later ones are ignored and one warning
+// naming the id goes to stderr. The rating always comes from the closure row (rating, else severity, else the word in
+// parentheses at the end of its score) and is the ORIGINAL rating, the one the risk had before testing: it prints as
+// "[Originally High]" beside a sentence that describes what remains.
 const RISK_RATINGS = ["Critical", "High", "Medium", "Low"];
 const plainByRiskId = new Map();
+const duplicateRiskIds = new Set();
 try {
   const plainDoc = readJson(join(runDir, "reports", "executive", "residual-risks.json"));
   for (const e of Array.isArray(plainDoc) ? plainDoc : []) {
     if (e !== null && typeof e === "object" && typeof e.riskId === "string" && typeof e.plain === "string" && e.plain.trim() !== "") {
-      plainByRiskId.set(e.riskId, e.plain.trim());
+      if (plainByRiskId.has(e.riskId)) {
+        if (!duplicateRiskIds.has(e.riskId)) process.stderr.write(`warning: residual-risks.json lists riskId ${e.riskId} more than once; the first entry is used and later duplicates are ignored\n`);
+        duplicateRiskIds.add(e.riskId);
+      } else {
+        plainByRiskId.set(e.riskId, e.plain.trim());
+      }
     }
   }
 } catch {
@@ -170,8 +178,8 @@ function closureRisks(list) {
 function closureResidualRisk(risks) {
   const critical = risks.filter((r) => r.rating === "Critical").length;
   const n = risks.length;
-  const head = `${n} residual ${n === 1 ? "risk remains" : "risks remain"} after testing and ${n === 1 ? "is" : "are"} recorded here for the product owner to acknowledge before closure${critical > 0 ? `, ${critical} of them rated Critical` : ""}.`;
-  return [head, ...risks.map((r) => `- ${r.rating === undefined ? "" : `[${r.rating}] `}${r.text}`)].join("\n");
+  const head = `${n} residual ${n === 1 ? "risk remains" : "risks remain"} after testing and ${n === 1 ? "is" : "are"} recorded here for the product owner to acknowledge before closure${critical > 0 ? `, ${critical} of them originally rated Critical` : ""}.`;
+  return [head, ...risks.map((r) => `- ${r.rating === undefined ? "" : `[Originally ${r.rating}] `}${r.text}`)].join("\n");
 }
 const closureRiskRows = closureRisks(closure.residualRiskSummary);
 const residualRisk =
