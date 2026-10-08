@@ -367,7 +367,11 @@ export interface ReissueInput {
  * run.json#supersededAttempts and the tasks go back to pending, so only new work can pass the barrier again; the run goes back
  * to running with the phase pending. Gates, other phases and the event history are untouched.
  * Retryable: until the final run.json write and the run.reissued event both land, the run stays completed, so a failed call
- * can be repeated and ends with one event. Lock order: integrity.lock -> run.lock (verify), then run.lock -> task-file lock -> event-bus lock.
+ * can be repeated and ends with one event. An interrupted call can leave a completed run whose reissued-phase tasks are already
+ * pending or superseded; the retry converges (pending tasks are skipped, superseding is idempotent). If writeActiveRun fails after
+ * run.reissued is recorded, the run is already running but is not the active run, and no command resumes a running run (resume
+ * takes only stopped or blocked runs): the owner stops it (`aegis run stop --run <id> --reason ...`) and resumes it
+ * (`aegis run resume --run <id>`), which sets the active run again. Lock order: integrity.lock -> run.lock (verify), then run.lock -> task-file lock -> event-bus lock.
  */
 export async function reissueRun(root: string, runId: string, input: ReissueInput, caller: string): Promise<RunState> {
   assertCallerAllowed(caller, "run.reissue");

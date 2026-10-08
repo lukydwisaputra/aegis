@@ -111,7 +111,12 @@ if (!DECISIONS.has(decision)) {
   );
   process.exit(4);
 }
-const maxJargonSurvivors = Number.parseInt(args["max-jargon-survivors"] ?? "0", 10);
+const maxJargonRaw = args["max-jargon-survivors"] ?? "0";
+if (!/^\d+$/.test(maxJargonRaw)) {
+  console.error(`ERROR: --max-jargon-survivors must be a non-negative integer, got "${maxJargonRaw}"`);
+  process.exit(2);
+}
+const maxJargonSurvivors = Number.parseInt(maxJargonRaw, 10);
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 

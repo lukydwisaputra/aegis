@@ -16,6 +16,7 @@ _Top 10 commands. Print this, stick it somewhere._
 | `/qa-regression` | Regression-only run |
 | `/qa-rerun-failed` | Re-run only failed test cases |
 | `/qa-resume` | Continue an interrupted cycle |
+| `/qa-reissue --phase=executive --reason="..."` | Reopen the executive or curator phase of a completed run |
 
 ## Checking & fixing
 

@@ -225,7 +225,7 @@ A completed run is not final for its last two phases. `/qa-reissue --phase=execu
 3. `run.reissued` (run id, phase, reason) is recorded, and the run becomes the active run, because path-guard resolves the run folder through the active-run pointer.
 4. `/qa-reissue` dispatches the orchestrator, which starts the phase (after a metrics dispatch for Executive), reviews it as usual and closes the run again with `aegis run complete`: the log then holds a second `run.completed`.
 
-A reissue of a run that is not completed (a second one before the first finishes), of a phase that is not completed in the run (Executive in a smoke cycle), of a phase before Gate 3, or of a run whose log fails verification is refused. The reporter overwrites its PDFs in place: copy the current ones first when they must be compared.
+A reissue of a run that is not completed (a second one before the first finishes), of a phase that is not completed in the run (Executive in a smoke cycle), of a phase before Gate 3, or of a run whose log fails verification is refused. The reporter overwrites its PDFs in place: copy the current ones first when they must be compared. To republish the corrected reports to the collector repo, run `/qa-push-reports --project=<name> --force` (`<name>` is the project's directory name under the QA folder; `--force` re-exports that project's runs, and the collector keeps one entry per run id, so the corrected run replaces its earlier copy).
 
 ## 13.11 → Deep dives
 

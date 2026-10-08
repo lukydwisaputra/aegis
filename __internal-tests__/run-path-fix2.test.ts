@@ -33,7 +33,7 @@ describe('I1: a defect that traces to no requirement', () => {
   });
 });
 
-describe('I5: the sign-off verdict equals the mapped Gate 3 decision', () => {
+describe('I5: the sign-off banner equals the recorded Gate 3 decision', () => {
   it('the sign-off script passes the recorded decision through and maps nothing to GO / NO-GO / CONDITIONAL', () => {
     const src = read('.claude/skills/_qa-report-signoff-pdf/run.mjs');
     expect(src).toContain('const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);');

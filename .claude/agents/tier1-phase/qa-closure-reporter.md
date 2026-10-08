@@ -59,10 +59,14 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
   },
   "defectMetrics": {
     "totalLogged": 16,
-    "confirmedOpen": 14                 // the index publishes OPEN, not logged
+    "confirmedOpen": 14,                // the index publishes OPEN, not logged
+    "confirmedDefectsBySeverity": { "Sev1": 0, "Sev2": 2, "Sev3": 7, "Sev4": 4, "Sev5": 1 }
+                                        // the confirmed open defects by severity code; the five counts sum to `confirmedOpen`
   }
 }
 ```
+
+`confirmedDefectsBySeverity` is an object with the five keys `Sev1` to `Sev5`, each the count of confirmed open defects of that severity (0 when none). The sign-off and the executive deck take their per-severity open counts from it: when the run has flagged-for-owner open questions, the open records outnumber the confirmed open defects, and without this object the sign-off prints that the severity breakdown is not available.
 
 Two rules that matter more than they look:
 
@@ -123,6 +127,7 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
 - A metric neither reported nor stated as not available (listed in `unavailableMetrics` or backed by a `noData` file)
 - `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `closure.report-drafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
 - Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
+- `confirmedDefectsBySeverity` missing from `defectMetrics`, or its five counts do not sum to `confirmedOpen`
 - `closure.json` omits `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, or `defectMetrics.confirmedOpen` — see "closure.json keys the collector index reads". A run missing these still closes, but publishes em dashes in the collector index and blocks the next export
 - A `metrics` value is a nested object where the index expects a scalar (e.g. `passRate: { unconditional, inclBlockedDimension }`) — write the headline figure flat and put variants under distinct keys
 - Work report does not cite lessons applied

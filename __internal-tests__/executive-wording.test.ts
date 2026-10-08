@@ -134,7 +134,9 @@ describe('numbers are computed and carry their base', () => {
     const rep = read(REPORTER);
     const process = rep.slice(rep.indexOf('## Process'), rep.indexOf('## Quality Standards'));
     expect(process).toContain('Read `reports/metrics/coverage.json` as well.');
-    expect(process).toContain('record each rewrite as `jargon.flagged` with source `signoff`');
+    expect(process).toContain('record the skill\'s `jargonRewriteCount` in the work report');
+    expect(process).toContain('append `jargon.flagged` with source `signoff` only for a sentence you rewrote yourself');
+    expect(process).not.toContain('record each rewrite as `jargon.flagged`');
   });
 
   it('the SPV checks numbers against the run files', () => {
@@ -182,5 +184,92 @@ describe('the jargon list', () => {
     const rep = body(read(REPORTER));
     expect(rep).toContain('the same tone-check on the sign-off');
     expect(read(SPV)).toContain('the tone-check ran on the sign-off as well');
+  });
+});
+
+describe('the per-severity open-defect source is named for every agent that needs it', () => {
+  const CLOSURE_REPORTER = '.claude/agents/tier1-phase/qa-closure-reporter.md';
+  const CLOSURE_SPV = '.claude/agents/spv/qa-closure-reporter-spv.md';
+  const SIGNOFF_SKILL = '.claude/skills/_qa-report-signoff-pdf/SKILL.md';
+
+  it('the closure reporter writes the object in its key block, with Sev1 to Sev5 summing to confirmedOpen', () => {
+    const text = read(CLOSURE_REPORTER);
+    const block = text.slice(text.indexOf('### closure.json keys the collector index reads'), text.indexOf('Two rules that matter'));
+    expect(block).toMatch(/"confirmedDefectsBySeverity": \{ "Sev1": \d+, "Sev2": \d+, "Sev3": \d+, "Sev4": \d+, "Sev5": \d+ \}/);
+    expect(block).toContain('the five counts sum to `confirmedOpen`');
+    expect(block).toContain('sign-off and the executive deck take their per-severity open counts from it');
+  });
+
+  it('the closure reporter is rejected for omitting the field or for counts that do not sum to confirmedOpen', () => {
+    const text = read(CLOSURE_REPORTER);
+    const quality = text.slice(text.indexOf('## Quality Standards'), text.indexOf('## Task Protocol'));
+    expect(quality).toContain('`confirmedDefectsBySeverity` missing from `defectMetrics`, or its five counts do not sum to `confirmedOpen`');
+  });
+
+  it('the closure SPV checks the sum in its arithmetic check', () => {
+    const spv = read(CLOSURE_SPV);
+    const check3 = spv.slice(spv.indexOf('3. **Metrics arithmetic verification.**'), spv.indexOf('4. **Open questions section.**'));
+    expect(check3).toContain('the five counts of `confirmedDefectsBySeverity` in `defectMetrics` sum to `confirmedOpen`');
+    expect(check3).toMatch(/missing or does not sum[^\n]*requested-changes/);
+  });
+
+  it('the sign-off skill names the field as the per-severity source beside confirmedOpen', () => {
+    const skill = read(SIGNOFF_SKILL);
+    const behaviour = skill.slice(skill.indexOf('## Behaviour'), skill.indexOf('5. Read residual risk'));
+    expect(behaviour).toContain('the `confirmedDefectsBySeverity` field of the `defectMetrics` object in closure.json');
+    expect(behaviour).toContain('the per-severity source beside `confirmedOpen`');
+  });
+
+  it('the executive reporter names the field in its Numbers rule', () => {
+    const rep = read(REPORTER);
+    const numbers = rep.slice(rep.indexOf('**Numbers.**'), rep.indexOf('## Process'));
+    expect(numbers).toContain('the per-severity counts come from the `defectMetrics` field `confirmedDefectsBySeverity` of `closure.json`, beside `confirmedOpen`');
+  });
+
+  it('the executive SPV exempts the skill-printed "severity breakdown: not available" line as a closure-data note', () => {
+    const spv = read(SPV);
+    const check12 = spv.slice(spv.indexOf('12. **Severity words.**'), spv.indexOf('13. **Numbers.**'));
+    expect(check12).toContain('"N open defects; severity breakdown: not available"');
+    expect(check12).toMatch(/exempt[^\n]*closure-data note[^\n]*not a rejection of the reporter/);
+    const check13 = spv.slice(spv.indexOf('13. **Numbers.**'), spv.indexOf('## Verdict'));
+    expect(check13).toContain('`confirmedDefectsBySeverity`');
+  });
+});
+
+describe('the executive reporter\'s Inputs and Process match what its skills print and read', () => {
+  const rep = read(REPORTER);
+
+  it('keyFinding is one or two sentences, as Slide 1 says', () => {
+    const step4 = rep.slice(rep.indexOf('4. **Draft slide content.**'), rep.indexOf('5. **SPV pre-check.**'));
+    expect(step4).toContain('`keyFinding` (slide 1, one or two sentences)');
+    expect(step4).not.toContain('one sentence');
+  });
+
+  it('Inputs lists the execution summary the numbers rule and the contract read', () => {
+    const inputs = rep.slice(rep.indexOf('## Inputs'), rep.indexOf('## Outputs'));
+    expect(inputs).toContain('- `runs/{runId}/execution-summary.json`');
+  });
+});
+
+describe('the executive SPV description lists the wording and number checks', () => {
+  it('the frontmatter description names checks 12 and 13 beside the no-verdict rule', () => {
+    const description = read(SPV).split('\n').find((l) => l.startsWith('description:')) ?? '';
+    expect(description).toContain('no ship/no-ship verdict');
+    expect(description).toContain('severity-word and number checks (12 and 13)');
+  });
+});
+
+describe('/qa-reissue is discoverable and its follow-ups are named', () => {
+  it('the cheat sheet, the command reference and qa-help list it', () => {
+    expect(read('docs/D05-cheat-sheet.md')).toContain('| `/qa-reissue --phase=executive --reason="..."` | Reopen the executive or curator phase of a completed run |');
+    expect(read('docs/D05-commands-reference.md')).toContain('### /qa-reissue');
+    expect(read('.claude/skills/qa-help/SKILL.md')).toContain('always list `/qa-reissue` (reopen the executive or curator phase of a completed run)');
+  });
+
+  it('the reissue skill and the handbook name the collector republish, and regenerate-report points at /qa-reissue', () => {
+    const push = '`/qa-push-reports --project=<name> --force`';
+    expect(read('.claude/skills/qa-reissue/SKILL.md')).toContain(push);
+    expect(read('HANDBOOK/13-mechanics.md')).toContain(push);
+    expect(read('.claude/skills/qa-regenerate-report/SKILL.md')).toContain('To regenerate the executive reports of a completed run, use `/qa-reissue --phase=executive` instead');
   });
 });

@@ -275,6 +275,27 @@ describe('executive deck (Deliverable 3)', () => {
   });
 });
 
+describe('--max-jargon-survivors must be a non-negative integer', () => {
+  const { root } = fixture(FULL_RUN);
+  it.each([
+    ['sign-off', SCRIPT.signoff],
+    ['executive deck', SCRIPT.slides],
+  ])('the %s script exits 2 with a clear error on a value that is not a non-negative integer', (_name, script) => {
+    for (const bad of ['abc', '-1', '1.5', '', '2x']) {
+      const r = run(script, root, [`--max-jargon-survivors=${bad}`]);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('--max-jargon-survivors must be a non-negative integer');
+    }
+  });
+
+  it.each([
+    ['sign-off', SCRIPT.signoff],
+    ['executive deck', SCRIPT.slides],
+  ])('the %s script still accepts 0 and a larger integer', (_name, script) => {
+    for (const ok of ['0', '3']) expect(run(script, root, [`--max-jargon-survivors=${ok}`]).status).toBe(0);
+  });
+});
+
 // ─── Final fix wave: real defect records, one open-defect resolver, coverage noData, refusals ───────────
 
 /** A defect record shaped exactly like DefectSchema: severity and status are objects, not strings. */
@@ -708,11 +729,12 @@ describe('the sign-off tone-check (the deck\'s rule)', () => {
     expect(JSON.parse(r.stdout)).toMatchObject({ jargonSurvivors: 0 });
   });
 
-  it('fails closed with exit 8 and no PDF when more jargon survives than --max-jargon-survivors allows', () => {
-    // A rewrite that itself contains jargon cannot be produced by the shipped rules, so the threshold is exercised with -1.
+  it('fails closed with exit 2 and no PDF on a negative --max-jargon-survivors', () => {
+    // No shipped rewrite leaves jargon behind, so the exit-8 threshold has no real trigger; a negative threshold, once the
+    // way the test forced it, is now refused up front: nothing is rendered.
     const { root, runDir } = fixture({ 'reports/closure/closure.json': { metrics: {} }, 'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'] });
     const r = run(SCRIPT.signoff, root, ['--max-jargon-survivors=-1']);
-    expect(r.status).toBe(8);
+    expect(r.status).toBe(2);
     expect(fs.existsSync(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toBe(false);
   });
 });

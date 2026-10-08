@@ -62,6 +62,17 @@ Options:
   --run=RUN-...         Target run (default: most recent in-progress)
 ```
 
+### /qa-reissue
+
+Reopen the executive or curator phase of a completed run, so wrong executive artefacts can be regenerated without a new cycle. Earlier phases, the gate decisions and the event history stay as they are.
+
+```
+/qa-reissue --phase=<executive|curator> --reason="<why>" [options]
+
+Options:
+  --run=RUN-...         Run to reissue (default: active run; it must be completed)
+```
+
 ---
 
 ## Workflow commands
