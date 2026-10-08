@@ -90,8 +90,7 @@ reads:
   - "{run}/reports/closure/closure.json"
   - "{run}/execution-summary.json"
   - "{run}/reports/metrics/coverage.json"
-  - path: "{run}/cases/*-result.json"
-    optional: true
+  - "{run}/cases/*-result.json"
   - "{run}/defects/*.json"
   - "{run}/gates/gate-3-decision.json"
   - "agent-memory/qa-executive-reporter/lessons.md"

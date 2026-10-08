@@ -102,10 +102,8 @@ reads:
   - "{run}/reports/compliance/*.json"
   - "{run}/risk-register.json"
   - "{run}/plan.json"
-  - path: "{run}/discovery-report.json"
-    optional: true
-  - path: "{run}/run.json"
-    optional: true
+  - "{run}/discovery-report.json"
+  - "{run}/run.json"
 writes:
   - "{run}/reports/executive/signoff.pdf"
 emits:
