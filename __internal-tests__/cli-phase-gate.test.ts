@@ -32,3 +32,23 @@ function aegis(agent: string, ...args: string[]) {
   expect(aegis('owner', 'escalation', 'decide', '--task', 'T-1', '--decision', 'retry', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
   expect(fs.existsSync(path.join(t.root, 'runs'))).toBe(true);
 }, 60_000);
+
+(stale ? it.skip : it)('run reissue is an owner command of the built CLI: refused for an agent, reopens executive for the owner', () => {
+  const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'executive', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'out-of-order' } });
+  // Leave the run the way `aegis run complete` does: every phase done, every gate approved.
+  const file = path.join(t.root, 'runs', runId, 'run.json');
+  const s = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  for (const id of Object.keys(s.phases)) s.phases[id] = { status: 'completed' };
+  const approved = { status: 'approved', decisions: 1 };
+  fs.writeFileSync(file, JSON.stringify({ ...s, status: 'completed', gates: { G1: approved, G2: approved, G3: approved } }));
+  expect(aegis('qa-orchestrator', 'run', 'reissue', '--phase', 'executive', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'executive')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'closure-final', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  const ok = aegis('owner', 'run', 'reissue', '--phase', 'executive', '--reason', 'Wording fix');
+  expect(ok).toMatchObject({ status: 0, out: { status: 'running', next: { kind: 'start-phase', phase: 'executive' }, activeRun: runId, previousActiveRun: null } });
+  expect(aegis('owner', 'run', 'status').out.next).toEqual({ kind: 'start-phase', phase: 'executive' });
+  expect(aegis('owner', 'integrity', 'verify')).toMatchObject({ status: 0, out: { ok: true } });
+  const log = fs.readFileSync(path.join(t.root, 'runs', runId, 'events.jsonl'), 'utf-8').trim().split('\n');
+  expect(JSON.parse(log[log.length - 1]!)).toMatchObject({ type: 'run.reissued', phase: 'executive', reason: 'Wording fix', emittedBy: 'owner' });
+}, 60_000);
