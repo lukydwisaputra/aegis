@@ -64,3 +64,16 @@ describe('resolveDefectFigures: closed comes from the records, Flagged-for-owner
     expect(resolveDefectFigures({ defectMetrics: { confirmedOpen: 2 } }, [rec('Closed', 'Sev3'), {}, rec('Triaged', 'Sev3')])).toMatchObject({ open: 2, closed: 1 });
   });
 });
+
+describe('resolveDefectFigures: a run with an empty defects directory', () => {
+  it('has no open and no closed defects, whether or not the closure says totalLogged is 0', () => {
+    expect(resolveDefectFigures({}, [])).toMatchObject({ open: 0, closed: 0 });
+    expect(resolveDefectFigures({ defectMetrics: { totalLogged: 0 } }, [])).toMatchObject({ open: 0, closed: 0 });
+    expect(summary({}, [])).toBe('No open defects at sign-off.');
+    expect(summary({ defectMetrics: { totalLogged: 0 } }, [])).toBe('No open defects at sign-off.');
+  });
+
+  it('a run with no defects directory at all stays not available', () => {
+    expect(resolveDefectFigures({ defectMetrics: { totalLogged: 0 } }, null)).toMatchObject({ open: null, closed: null });
+  });
+});

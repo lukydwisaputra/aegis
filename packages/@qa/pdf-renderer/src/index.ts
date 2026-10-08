@@ -135,6 +135,8 @@ export interface TechnicalReportSpec {
     partial?: number | null;
     blocked: number | null;
     skipped: number | null;
+    /** Checks with a result whose outcome could not be determined; omitted by callers that do not know it, null prints "not available". */
+    undetermined?: number | null;
     passRate: number | null;
     coveragePercent: number | null;
     openDefects: number | null;
@@ -496,6 +498,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ...(spec.metrics.partial === undefined ? [] : [["Partial", formatCount(spec.metrics.partial)]]),
         ["Blocked", formatCount(spec.metrics.blocked)],
         ["Skipped", formatCount(spec.metrics.skipped)],
+        ...(spec.metrics.undetermined === undefined ? [] : [["Undetermined", formatCount(spec.metrics.undetermined)]]),
         ["Pass Rate", formatPercent(spec.metrics.passRate)],
         ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
         ["Open Defects", formatCount(spec.metrics.openDefects)],

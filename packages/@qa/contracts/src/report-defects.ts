@@ -92,12 +92,15 @@ export function resolveDefectFigures(closure: unknown, records: readonly unknown
   let open = num(dm?.["confirmedOpen"]);
   let closed: number | null = null;
   const haveRecords = statuses !== null && statuses.length > 0;
-  if (haveRecords) closed = statuses.filter((s) => s !== null && isClosedDefectStatus(s)).length;
+  const recordsClosed = statuses === null ? null : statuses.filter((s) => s !== null && isClosedDefectStatus(s)).length;
+  if (haveRecords) closed = recordsClosed;
   if (open !== null) {
     const total = num(dm?.["totalLogged"]);
     if (!haveRecords) closed = total !== null ? total - open : null;
-  } else if (haveRecords && statuses.every((s) => s !== null)) {
+  } else if (statuses !== null && statuses.every((s) => s !== null)) {
+    // Every record carries a status (vacuously so for an empty defects directory: no open and no closed defects).
     open = openRecords.length;
+    closed = recordsClosed;
   }
   const fromRecords: Record<string, number> = {};
   for (const r of openRecords) {

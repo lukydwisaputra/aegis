@@ -799,7 +799,7 @@ describe('the technical report takes check counts from coverage.json and closed 
   it('the cells read 98 / 61 / 5 / 1 / 31 in that order and the parts sum to the total; the pass rate is passed over attempted', () => {
     const { root, runDir } = fixture({
       ...base,
-      'reports/closure/closure.json': { metrics: { passed: 62, failed: 5, blocked: 31, passRate: 62.2 }, defectMetrics: { totalLogged: 6, confirmedOpen: 3 } },
+      'reports/closure/closure.json': { metrics: { passed: 62, failed: 5, blocked: 31, passRate: 63.3 }, defectMetrics: { totalLogged: 6, confirmedOpen: 3 } }, // the executor's roll-up counts the partial as a pass: 62 of 98
       'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts: COUNTS },
     });
     expect(run(SCRIPT.technical, root).status).toBe(0);
@@ -810,6 +810,7 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text.indexOf('Failed\n5')).toBeLessThan(text.indexOf('Partial\n1'));
     expect(text.indexOf('Partial\n1')).toBeLessThan(text.indexOf('Blocked\n31'));
     expect(text).toContain('Pass Rate\n62.2%');
+    expect(text).not.toContain('63.3%');
     expect(Math.round((1000 * cell('Passed')) / cell('Total Tests')) / 10).toBe(62.2);
   });
 
@@ -821,7 +822,50 @@ describe('the technical report takes check counts from coverage.json and closed 
       expect(text).toContain('Total Tests\n98');
       expect(text).toContain('Passed\n62');
       expect(text).toContain('Partial\nnot available');
+      expect(text).toContain('Undetermined\nnot available');
     }
+  });
+
+  it('an undetermined check has its own cell, so the cells still add up to the total', () => {
+    const counts = { ...COUNTS, attempted: 99, unknown: 1 };
+    const { root, runDir } = fixture({ ...base, 'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts } });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    const cell = (label: string): number => Number(new RegExp(`${label}\\n(\\d+)`).exec(text)?.[1]);
+    expect(cell('Undetermined')).toBe(1);
+    expect(['Passed', 'Failed', 'Partial', 'Blocked', 'Skipped', 'Undetermined'].map(cell).reduce((a, b) => a + b, 0)).toBe(cell('Total Tests'));
+  });
+
+  // Case files: 001 pass, 002 pass, 003 fail, 004 partial, 005 blocked, 006 designed with no result. attempted 5.
+  const caseFiles = {
+    'rtm.json': { rows: [{ requirementId: 'REQ-AUTH-01', testStatus: 'Covered' }] },
+    ...Object.fromEntries(['001', '002', '003', '004', '005', '006'].map((n) => [`cases/TC-AUTH-${n}.json`, { id: `TC-AUTH-${n}` }])),
+    'cases/TC-AUTH-001-result.json': { status: 'pass' }, 'cases/TC-AUTH-002-result.json': { status: 'pass' }, 'cases/TC-AUTH-003-result.json': { status: 'fail' },
+    'cases/TC-AUTH-004-result.json': { status: 'partial' }, 'cases/TC-AUTH-005-result.json': { status: 'blocked' },
+  };
+  const staleClosure = { 'reports/closure/closure.json': { metrics: { passed: 2, failed: 1, blocked: 1, passRate: 50 } } }; // no partial: closure total would be 4
+
+  it('a stale coverage.json with no counts key is recomputed from the case files, not read as closure passed + failed + blocked', () => {
+    const { root, runDir } = fixture({ ...caseFiles, ...staleClosure, 'reports/metrics/coverage.json': { requirementsCoverage: 100, testExecutionCoverage: 83.3, codeCoverage: null, partialRequirements: 0 } });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Total Tests\n5');
+    expect(text).toContain('Passed\n2');
+    expect(text).toContain('Partial\n1');
+    expect(text).toContain('Blocked\n1');
+    expect(text).toContain('Pass Rate\n40.0%');
+  });
+
+  it('with no coverage.json at all the counts are recomputed too; with no case files the closure figures stand, never zeros', () => {
+    const noFile = fixture({ ...caseFiles, ...staleClosure });
+    expect(run(SCRIPT.technical, noFile.root).status).toBe(0);
+    expect(pdfText(path.join(noFile.runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Total Tests\n5');
+    const noCases = fixture({ ...staleClosure });
+    expect(run(SCRIPT.technical, noCases.root).status).toBe(0);
+    const text = pdfText(path.join(noCases.runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Total Tests\n4');
+    expect(text).toContain('Pass Rate\n50.0%');
+    expect(text).toContain('Partial\nnot available');
   });
 
   it('Closed Defects counts only closed records: a flagged-for-owner record is neither open nor closed', () => {
@@ -858,12 +902,18 @@ describe('the sign-off version names the tested build', () => {
     expect(versionOf({ ...withRun, 'reports/closure/closure.json': { ...FULL_RUN['reports/closure/closure.json'], version: '1.2.3' } })).toContain('Version:\n1.2.3');
   });
 
-  const REAL = '/Users/lukydwisaputra/Desktop/QA/renci-volunteer-management/aegis/runs/RUN-20261006-001';
-  (fs.existsSync(path.join(REAL, 'discovery-report.json')) ? it : it.skip)('the real run derives dev-f1c1715 (first 7 characters of its full commit)', () => {
+  // Set AEGIS_REAL_RUN_DIR to a completed run's directory to run this against real data; unset or absent, it skips.
+  const REAL = process.env.AEGIS_REAL_RUN_DIR ?? '';
+  (REAL !== '' && fs.existsSync(path.join(REAL, 'discovery-report.json')) ? it : it.skip)('the real run derives dev-f1c1715 (first 7 characters of its full commit)', () => {
     const real = (rel: string): unknown => JSON.parse(fs.readFileSync(path.join(REAL, rel), 'utf-8'));
     const { root, runDir } = fixture({ ...FULL_RUN, 'plan.json': { scope: 's' }, 'discovery-report.json': real('discovery-report.json'), 'run.json': real('run.json') });
     expect(run(SCRIPT.signoff, root).status).toBe(0);
     expect(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toContain('Version:\ndev-f1c1715');
+  });
+
+  it('an environment name that is an Object property never prints a function', () => {
+    expect(versionOf({ ...discovery, 'run.json': { runId: RUN, environment: 'constructor' } })).toContain('Version:\nconstructor-f1c1715');
+    expect(versionOf({ ...discovery, 'run.json': { runId: RUN, environment: 'toString' } })).toContain('Version:\ntoString-f1c1715');
   });
 
   it('reads unversioned only when nothing records the build', () => {

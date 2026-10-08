@@ -208,8 +208,9 @@ describe('computeCoverage: counts', () => {
     expect(computeCoverage(dir).counts).toEqual({ designed: 2, attempted: 1, passed: 1, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 1 });
   });
 
-  const REAL = '/Users/lukydwisaputra/Desktop/QA/renci-volunteer-management/aegis/runs/RUN-20261006-001';
-  (fs.existsSync(path.join(REAL, 'cases')) ? it : it.skip)('the real reissued run: 100 designed, 98 attempted, 61 passed, 5 failed, 1 partial, 31 blocked, 2 not attempted', () => {
+  // Set AEGIS_REAL_RUN_DIR to the reissued run's directory to run this against real data; unset or absent, it skips.
+  const REAL = process.env.AEGIS_REAL_RUN_DIR ?? '';
+  (REAL !== '' && fs.existsSync(path.join(REAL, 'cases')) ? it : it.skip)('the real reissued run: 100 designed, 98 attempted, 61 passed, 5 failed, 1 partial, 31 blocked, 2 not attempted', () => {
     expect(computeCoverage(REAL).counts).toEqual({ designed: 100, attempted: 98, passed: 61, failed: 5, partial: 1, blocked: 31, skipped: 0, unknown: 0, notAttempted: 2 });
   });
 });

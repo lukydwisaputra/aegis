@@ -72,7 +72,7 @@ describe('M2: the closure SPV maps each metric to its source file', () => {
     expect(check2).toContain('`coverage.json` → requirementsCoverage, testExecutionCoverage');
     expect(check2).toContain('`defect-trend.json` → defectDensity, escapeRate, reopenRate, MTTD, MTTR');
     expect(check2).toContain('`effectiveness.json` → DRE');
-    expect(check2).toContain('`execution-summary.json` → passRate');
+    expect(check2).toContain('`coverage.json` → requirementsCoverage, testExecutionCoverage and passRate');
     expect(check2).toContain('`cases/*.json` → automationCoverage');
     expect(check2).toMatch(/excused only when its source file is listed in `closure\.json#unavailableMetrics` or holds `"noData": true`/);
   });

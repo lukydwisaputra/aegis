@@ -76,7 +76,7 @@ describe('severity words are the SEVERITY_MAP names', () => {
 describe('numbers are computed and carry their base', () => {
   it('the reporter computes from run files and states the base; two points is the limit for a word', () => {
     const text = body(read(REPORTER));
-    expect(text).toContain('every percentage or fraction, in narrative is computed from `closure.json`, `execution-summary.json` or `reports/metrics/coverage.json`');
+    expect(text).toContain('every percentage or fraction, in narrative is computed from `closure.json` or `reports/metrics/coverage.json`');
     expect(text).toContain('61 of 98 attempted');
     expect(text).toContain('within 2 points of the exact value');
     expect(text).toContain('Requirements coverage comes from `reports/metrics/coverage.json`');
@@ -309,8 +309,8 @@ describe('check counts have one source of truth: the counts of coverage.json', (
   });
 
   it('the split of the uncovered checks uses the closure report\'s exact figures, with no hedge word on any count', () => {
-    expect(source).toContain("uses the exact figures of the closure report's table of uncovered test cases");
-    expect(source).toContain('no "around", "about" or "roughly" before any count');
+    expect(source).toContain("uses its exact figures: the categories sum exactly");
+    expect(source).toContain('no "around", "about" or "roughly" goes before any count');
     expect(body(rep)).not.toContain('round it to context');
     expect(body(rep)).not.toContain('"about 150 tests"');
   });
@@ -343,5 +343,60 @@ describe('check counts have one source of truth: the counts of coverage.json', (
     const spv = read('.claude/agents/spv/qa-closure-reporter-spv.md');
     const check3 = spv.slice(spv.indexOf('3. **Metrics arithmetic verification.**'), spv.indexOf('4. **Open questions section.**'));
     expect(check3).toContain('`passed`, `failed` and `blocked` of `closure.json#metrics` and the Results summary counts must equal the same-named counts of `coverage.json`');
+  });
+});
+
+describe('counts and pass rate: review fixes', () => {
+  const rep = read(REPORTER);
+  const wording = rep.slice(rep.indexOf('## Wording Rules'), rep.indexOf('## Process'));
+  const numbersAndSource = wording.slice(wording.indexOf('**Numbers.**'));
+  const spv = read(SPV);
+  const check13 = spv.slice(spv.indexOf('13. **Numbers.**'), spv.indexOf('## Verdict'));
+  const EXECUTED = 'executed (`testExecutionCoverage`) means the check ran to a verdict: passed, failed or partial; attempted also includes blocked, skipped and undeterminable results';
+
+  it('the pass rate is passed over attempted from the counts, in the closure reporter and in its SPV check 2', () => {
+    const closure = read('.claude/agents/tier1-phase/qa-closure-reporter.md');
+    const step2 = closure.slice(closure.indexOf('2. **Read computed metrics.**'), closure.indexOf('3. **Write ISTQB closure sections.**'));
+    expect(step2).toContain('The headline `passRate` is the `passed` count divided by the `attempted` count of `coverage.json`, 100 ×, one decimal');
+    expect(step2).not.toContain('(e.g. a headline pass rate) from `execution-summary.json`');
+    const cspv = read('.claude/agents/spv/qa-closure-reporter-spv.md');
+    const check2 = cspv.slice(cspv.indexOf('2. **10 computed metrics present.**'), cspv.indexOf('3. **Metrics arithmetic'));
+    expect(check2).toContain('`coverage.json` → requirementsCoverage, testExecutionCoverage and passRate (the `passed` count over the `attempted` count)');
+    expect(check2).not.toContain('`execution-summary.json` → passRate');
+  });
+
+  it('the executive reporter and its SPV no longer list the executor roll-up beside coverage.json as a source of counts', () => {
+    expect(numbersAndSource).not.toMatch(/computed from `closure\.json`, `execution-summary\.json`/);
+    expect(check13).not.toContain('from `closure.json`, `execution-summary.json` and `reports/metrics/coverage.json`');
+    const inputs = spv.slice(spv.indexOf('## Inputs'), spv.indexOf('## Review Checklist'));
+    expect(inputs).toContain("the executor's roll-up, read only to explain a difference from `coverage.json`, whose counts win");
+    expect(inputs).not.toContain('the execution counts check 13 recomputes from');
+  });
+
+  it('the split of the uncovered checks is built from every row, sums to the number of uncovered checks, and keeps an unclassified row as other', () => {
+    const source = wording.slice(wording.indexOf('**Source of truth for counts.**'));
+    for (const text of [source, check13]) {
+      expect(text).toContain("every row of the closure report's table of uncovered test cases");
+      expect(text).toContain('sum exactly to the number of uncovered checks (blocked plus not attempted)');
+      expect(text).toContain('a row that fits no category is reported as "other", never dropped');
+    }
+  });
+
+  it('executed and attempted are related in the reporter and in the collector', () => {
+    const source = wording.slice(wording.indexOf('**Source of truth for counts.**'));
+    expect(source).toContain(EXECUTED);
+    const collector = read('.claude/agents/crosscutting/qa-metrics-collector.md');
+    const counts = collector.slice(collector.indexOf('- **Counts**'), collector.indexOf('Rollup: percentage per type.'));
+    expect(counts).toContain(EXECUTED);
+  });
+
+  it('the collector says no-op counts as a pass', () => {
+    const collector = read('.claude/agents/crosscutting/qa-metrics-collector.md');
+    const exec = collector.slice(collector.indexOf('- **Test execution coverage**'), collector.indexOf('- **Code coverage**'));
+    expect(exec).toContain('A TC is passed only when every one of its outcomes is a pass or a `no-op` (`no-op` counts as a pass, as in the `passed` count)');
+  });
+
+  it('the sign-off skill says closed counts come from the records on disk', () => {
+    expect(read('.claude/skills/_qa-report-signoff-pdf/SKILL.md')).toContain('Closed counts come from the defect records on disk, not from `totalLogged`');
   });
 });

@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 // file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
 const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
 const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
+const METRICS = new URL("../../../packages/@qa/metrics/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, "..", "..", "..");
@@ -115,6 +116,7 @@ async function load(url, what) {
 }
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
+const { computeCoverage } = await load(METRICS, "the coverage computation");
 const { checkBrandExposure, resolveDefectFigures, defectSeverityCode, defectStatusCode } = await load(
   CONTRACTS,
   "the brand check",
@@ -139,21 +141,31 @@ const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[k
 
 // Check counts: the counts object of the collector's coverage.json is computed from the case files and wins over
 // closure.json#metrics, which copies the executor's roll-up (that roll-up counts a partial case as a pass). A coverage.json
-// holding "noData": true, or one without a complete counts object, falls back to closure.json.
+// without a complete counts object (written before counts existed, or never written) is recomputed here from the case files,
+// read-only, by the same function the collector command runs. Only when that finds no data either do the closure figures stand,
+// and a zero is never printed as if it were real.
 const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
-const rollupCounts =
-  hasData(coverageDoc) && coverageDoc.counts !== null && typeof coverageDoc.counts === "object" && COUNT_KEYS.every((k) => num(coverageDoc.counts[k]) !== null)
-    ? coverageDoc.counts
-    : null;
-// Total Tests is every check that has a result (the attempted count). Partial has its own cell, so passed, failed, partial,
-// blocked and skipped add up to it (an undeterminable check is in the total only).
+const completeCounts = (c) => c !== null && typeof c === "object" && COUNT_KEYS.every((k) => num(c[k]) !== null);
+function resolveCounts() {
+  if (hasData(coverageDoc) && completeCounts(coverageDoc?.counts)) return coverageDoc.counts;
+  if (coverageDoc !== null && !hasData(coverageDoc)) return null;
+  const computed = computeCoverage(runDir);
+  return computed.noData === true || !completeCounts(computed.counts) ? null : computed.counts;
+}
+const rollupCounts = resolveCounts();
+// Total Tests is every check that has a result (the attempted count). Partial and Undetermined have their own cells, so passed,
+// failed, partial, blocked, skipped and undetermined add up to it.
 const passed = rollupCounts ? rollupCounts.passed : metric("passed");
 const failed = rollupCounts ? rollupCounts.failed : metric("failed");
 const blocked = rollupCounts ? rollupCounts.blocked : metric("blocked");
-// The partial cell reads "not available" without counts: closure.json has no partial figure the table can trust.
+// Partial and Undetermined read "not available" without counts: closure.json has no figure for them the table can trust.
 const partialCount = rollupCounts ? rollupCounts.partial : null;
+const undeterminedCount = rollupCounts ? rollupCounts.unknown : null;
 const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
 const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
+// With counts the pass rate is passed over attempted, one decimal, so it agrees with the Passed cell; closure's own rate (which a
+// roll-up counting a partial case as a pass can skew) is used only without counts.
+const passRate = rollupCounts ? (rollupCounts.attempted > 0 ? Math.round((1000 * rollupCounts.passed) / rollupCounts.attempted) / 10 : null) : metric("passRate");
 
 // Open/closed defects: the resolver the sign-off uses too. Open is closure.json#defectMetrics first, then the defect records'
 // status codes (DefectSchema `status.code`); closed is the records with a closed status (Closed, Verified, Resolved,
@@ -213,7 +225,8 @@ const spec = {
     partial: partialCount,
     blocked,
     skipped: skippedCount,
-    passRate: metric("passRate"),
+    undetermined: undeterminedCount,
+    passRate,
     coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,
     closedDefects,

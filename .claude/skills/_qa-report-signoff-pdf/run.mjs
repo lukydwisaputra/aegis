@@ -158,14 +158,14 @@ if (complianceReports.length > 0) signatoryRoles.push("Compliance Officer");
 const signoffDate = new Date().toISOString().slice(0, 10);
 const documentId = `SIGNOFF-${runId}-${signoffDate}`;
 // The tested build: the commit the web explorer recorded in discovery-report.json (target.commit), as the 7-character short
-// commit, prefixed with the run's environment when run.json records one (development reads "dev-f171552").
+// commit, prefixed with the run's environment when run.json records one (development reads "dev-f1c1715").
 const ENV_SHORT = { development: "dev", testing: "test", staging: "staging", production: "prod" };
 function testedBuild() {
   const commit = readJson(join(runDir, "discovery-report.json"))?.target?.commit;
   if (typeof commit !== "string" || !/^[0-9a-f]{7,40}$/i.test(commit.trim())) return null;
   const short = commit.trim().slice(0, 7).toLowerCase();
   const env = readJson(join(runDir, "run.json"))?.environment;
-  return typeof env === "string" && env.trim() !== "" ? `${ENV_SHORT[env] ?? env}-${short}` : short;
+  return typeof env === "string" && env.trim() !== "" ? `${Object.hasOwn(ENV_SHORT, env) ? ENV_SHORT[env] : env}-${short}` : short;
 }
 const version = args.version ?? plan.version ?? closure.version ?? testedBuild() ?? "unversioned";
 

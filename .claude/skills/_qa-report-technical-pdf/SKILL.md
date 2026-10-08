@@ -28,13 +28,13 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 
 ## Inputs (read from `runs/{run}/`)
 
-- `reports/closure/closure.json` — from its `metrics` object: `passed`, `failed`, `blocked` (total = passed + failed + blocked) and `skipped` when present, used only when `coverage.json` has no counts; `passRate` and `requirementsCoverage`; from its `defectMetrics` object: `confirmedOpen` and `totalLogged`; and `unavailableMetrics[]`
+- `reports/closure/closure.json` — from its `metrics` object: `passed`, `failed`, `blocked` (total = passed + failed + blocked) and `skipped` when present, and `passRate`, used only when no counts can be had; `requirementsCoverage`; from its `defectMetrics` object: `confirmedOpen` and `totalLogged`; and `unavailableMetrics[]`
 - `defects/*.json` — full defect list: `DefectSchema` records, printed as id, title, and the `code` of `severity` and of `status` (a plain string severity or status from an older run is read as is). Closed is the number of records whose status matches closed, verified, resolved, won't fix, duplicate, cannot reproduce or not a bug; a record flagged for the owner is neither closed nor open, and only a run with no records takes closed as `totalLogged` minus `confirmedOpen`. Open is `defectMetrics.confirmedOpen`, else the records not closed and not flagged. The sign-off skill counts open defects with the same resolver (`resolveDefectFigures` in `@qa/contracts`), so the two documents agree
 - `reports/compliance/*.json` — one gap report per relevant regulation (compliance section): `regulation`, `gaps[]`, and the regulation's covered list (`characteristicsCovered`, `articlesCovered`, `practicesCovered` or `sectionsCovered`); a report without `regulation` is listed under its file name
 - `plan.json` — scope (project name comes from `aegis.config.json#dashboard.projectName`)
 - `reports/metrics/token-usage.jsonl` — token cost in USD: the sum of `usdCost` over the rows that carry `agent`, `model` and `ts` (the collector writes rows only; a line without them is not summed)
 - `reports/metrics/cycle-time.json` — cycle time: `totalWallClockMs`, else the sum of the per-phase `durationMs`
-- `reports/metrics/coverage.json` — when it holds `"noData": true`, requirements coverage reads "not available" whatever `closure.json` says; otherwise its `requirementsCoverage` is printed in preference to the copy in `closure.json` (a reissued report re-reads a closure written earlier). Its `counts` object (computed from the case files) is the source of the check counts: Total Tests is `attempted` (every check with a result), and Passed, Failed, Partial, Blocked and Skipped are the counts of the same names, so the cells add up to the total (an undeterminable check is in the total only). Without `counts` (absent, incomplete or `noData`), the figures fall back to `closure.json` as above and Partial reads "not available"
+- `reports/metrics/coverage.json` — when it holds `"noData": true`, requirements coverage reads "not available" whatever `closure.json` says; otherwise its `requirementsCoverage` is printed in preference to the copy in `closure.json` (a reissued report re-reads a closure written earlier). Its `counts` object (computed from the case files) is the source of the check counts: Total Tests is `attempted` (every check with a result), and Passed, Failed, Partial, Blocked, Skipped and Undetermined are the counts of `passed`, `failed`, `partial`, `blocked`, `skipped` and `unknown`, so the cells add up to the total. Pass Rate is `passed` over `attempted`, one decimal, so it agrees with the Passed cell. A `coverage.json` without a complete `counts` object (written before counts existed, or absent) is recomputed by the script itself from `rtm.json` and the case and result files, read-only, with the collector's own function; only when that finds no data either do the figures fall back to `closure.json` as above, and Partial and Undetermined read "not available" (never a zero)
 
 ## Output
 
@@ -98,6 +98,8 @@ reads:
   - "{run}/reports/metrics/token-usage.jsonl"
   - "{run}/reports/metrics/cycle-time.json"
   - "{run}/reports/metrics/coverage.json"
+  - "{run}/rtm.json"
+  - "{run}/cases/*.json"
 writes:
   - "{run}/reports/executive/technical-report.pdf"
 emits:
