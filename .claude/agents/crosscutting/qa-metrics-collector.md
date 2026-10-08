@@ -113,7 +113,8 @@ reads:
   - "{run}/cases/*-result.json"
   - ".claude/model-policy.yaml"
 writes:
-  - "{run}/reports/metrics/token-usage.jsonl"
+  - path: "{run}/reports/metrics/token-usage.jsonl"
+    terminal: true
   - "{run}/reports/metrics/cycle-time.json"
   - "{run}/reports/metrics/coverage.json"
   - "{run}/reports/metrics/defect-trend.json"

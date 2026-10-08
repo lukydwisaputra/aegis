@@ -544,6 +544,8 @@ describe('the technical report no longer prints token cost or cycle time', () =>
     expect(renderer).not.toMatch(/tokenCostUsd|cycleTimeMs|Token Cost|Cycle Time/);
     const skill = read('.claude/skills/_qa-report-technical-pdf/SKILL.md');
     expect(skill).not.toMatch(/token-usage|cycle-time/);
+    const reporter = read('.claude/agents/tier1-phase/qa-executive-reporter.md');
+    expect(reporter).not.toMatch(/token-usage|token spend|cost in USD|Cycle metadata/);
   });
 });
 
