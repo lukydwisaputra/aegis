@@ -756,6 +756,9 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
             {
               style: {
                 ...baseStyles.body,
+                // flex: 1 gives the text the width left beside the status column, so a long criterion wraps inside the page
+                // instead of running past its right edge.
+                flex: 1,
                 color: criterion.met ? "#1a1a1a" : "#c0392b",
               },
             },
