@@ -20,7 +20,7 @@ export const JARGON_RULES: Array<{
   {
     pattern: /p95 latency (\d+)ms/gi,
     rewrite: (m) => {
-      const ms = m.match(/\d+/)?.[0];
+      const ms = m.match(/(\d+)ms/i)?.[1];
       return `the slowest 5% of requests take ${ms}ms`;
     },
   },
@@ -30,24 +30,24 @@ export const JARGON_RULES: Array<{
   },
   { pattern: /\bp95\b/gi, rewrite: () => "95th-percentile response time" },
   { pattern: /\bp99\b/gi, rewrite: () => "99th-percentile response time" },
-  { pattern: /LCP/g, rewrite: () => "page load time" },
-  { pattern: /INP/g, rewrite: () => "user interaction speed" },
-  { pattern: /CLS/g, rewrite: () => "visual layout stability" },
-  { pattern: /TTFB/g, rewrite: () => "server response time" },
-  { pattern: /FCP/g, rewrite: () => "time until first content appears" },
-  { pattern: /MTTR/g, rewrite: () => "average time to recover from an incident" },
-  { pattern: /MTTD/g, rewrite: () => "average time to detect an issue" },
-  { pattern: /DORA/gi, rewrite: () => "industry deployment performance" },
+  { pattern: /\bLCP\b/g, rewrite: () => "page load time" },
+  { pattern: /\bINP\b/g, rewrite: () => "user interaction speed" },
+  { pattern: /\bCLS\b/g, rewrite: () => "visual layout stability" },
+  { pattern: /\bTTFB\b/g, rewrite: () => "server response time" },
+  { pattern: /\bFCP\b/g, rewrite: () => "time until first content appears" },
+  { pattern: /\bMTTR\b/g, rewrite: () => "average time to recover from an incident" },
+  { pattern: /\bMTTD\b/g, rewrite: () => "average time to detect an issue" },
+  { pattern: /\bDORA\b/gi, rewrite: () => "industry deployment performance" },
   {
-    pattern: /CFR|change failure rate/gi,
+    pattern: /\bCFR\b|change failure rate/gi,
     rewrite: () => "percentage of deploys that cause incidents",
   },
   {
-    pattern: /DRE|defect removal efficiency/gi,
+    pattern: /\bDRE\b|defect removal efficiency/gi,
     rewrite: () => "percentage of bugs caught before release",
   },
   {
-    pattern: /RTM|requirements traceability matrix/gi,
+    pattern: /\bRTM\b|requirements traceability matrix/gi,
     rewrite: () => "test coverage map",
   },
   { pattern: /RBAC/gi, rewrite: () => "role-based access control" },
@@ -57,10 +57,10 @@ export const JARGON_RULES: Array<{
     rewrite: () => "version numbering",
   },
   { pattern: /\bAPI\b/g, rewrite: () => "application interface" },
-  { pattern: /CVE/g, rewrite: () => "known security vulnerability" },
-  { pattern: /CVSS/gi, rewrite: () => "security severity score" },
+  { pattern: /\bCVE\b/g, rewrite: () => "known security vulnerability" },
+  { pattern: /\bCVSS\b/gi, rewrite: () => "security severity score" },
   { pattern: /\baxe\b/gi, rewrite: () => "accessibility scanner" },
-  { pattern: /WCAG/g, rewrite: () => "accessibility standard" },
+  { pattern: /\bWCAG\b/g, rewrite: () => "accessibility standard" },
   { pattern: /ISO 25010/gi, rewrite: () => "software quality standard" },
   { pattern: /ISO 5055/gi, rewrite: () => "code quality standard" },
 ];

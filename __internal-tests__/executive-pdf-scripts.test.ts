@@ -70,6 +70,8 @@ function pdfText(file: string): string {
   return runs.join('\n');
 }
 
+const flat = (s: string): string => s.replace(/\s+/g, ' ');
+
 const FULL_RUN = {
   'plan.json': { scope: 'Authentication module' },
   'reports/closure/closure.json': {
@@ -335,23 +337,22 @@ describe('A1/A2: real DefectSchema records', () => {
     expect(text).not.toContain('[object Object]');
   });
 
-  it('the sign-off counts the same open defects and names the highest open severity by its code', () => {
+  it('the sign-off counts the same open defects and names them by severity name', () => {
     expect(sign.stderr).toBe('');
     expect(sign.status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
-    // The renderer breaks the line after the leading number into its own text run.
-    expect(text).toMatch(/(^|\n)2[^a-z0-9]*open defects; highest severity: Sev2/);
+    expect(flat(text)).toContain('2 open defects: 1 Critical, 1 Major');
     expect(text).not.toContain('[object Object]');
   });
 });
 
 describe('A2: the technical report and the sign-off agree on open defects', () => {
-  it('on FULL_RUN both take closure.json#defectMetrics.confirmedOpen first (3), not the one record', () => {
+  it('on FULL_RUN both take confirmedOpen first (3); the sign-off cannot break 3 down by severity from one record', () => {
     const { root, runDir } = fixture(FULL_RUN);
     expect(run(SCRIPT.technical, root).status).toBe(0);
     expect(run(SCRIPT.signoff, root).status).toBe(0);
     expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open Defects\n3');
-    expect(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toMatch(/(^|\n)3[^a-z0-9]*open defects; highest severity: Sev2/);
+    expect(flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('3 open defects; severity breakdown: not available');
   });
 
   it('with no defects/ and no defectMetrics the sign-off says "Open defects: not available", never "No open defects"', () => {
