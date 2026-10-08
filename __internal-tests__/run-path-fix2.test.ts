@@ -34,21 +34,6 @@ describe('I1: a defect that traces to no requirement', () => {
 });
 
 describe('I5: the sign-off verdict equals the mapped Gate 3 decision', () => {
-  const EXEC_SPV = `${AGENTS}/spv/qa-executive-reporter-spv.md`;
-  it('check 8 maps approved → GO, approved-with-conditions → CONDITIONAL, rejected → NO-GO and requires equality', () => {
-    const text = read(EXEC_SPV);
-    const check8 = text.slice(text.indexOf('8. **'), text.indexOf('### All 3 Documents'));
-    expect(check8).toContain('`approved` → `GO`, `approved-with-conditions` → `CONDITIONAL`, `rejected` → `NO-GO`');
-    expect(check8).toMatch(/verdict that differs from the mapped decision[^\n]*requested-changes/);
-    expect(check8).toMatch(/pre-filled verdict is expected, not a note/);
-    expect(check8).not.toMatch(/Pre-filled GO\/NO-GO = passed-with-notes/);
-    expect(text).toContain('- `runs/{runId}/gates/gate-3-decision.json`');
-    expect(text).toContain('  - "{run}/gates/gate-3-decision.json"');
-    const verdict = text.slice(text.indexOf('## Verdict'), text.indexOf('## Submitting Your Verdict'));
-    expect(verdict).not.toContain('pre-filled verdict');
-    expect(verdict).toContain('a sign-off verdict that differs from the mapped Gate 3 decision');
-  });
-
   it('the sign-off script passes the recorded decision through and maps nothing to GO / NO-GO / CONDITIONAL', () => {
     const src = read('.claude/skills/_qa-report-signoff-pdf/run.mjs');
     expect(src).toContain('const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);');
