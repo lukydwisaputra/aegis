@@ -399,4 +399,18 @@ describe('counts and pass rate: review fixes', () => {
   it('the sign-off skill says closed counts come from the records on disk', () => {
     expect(read('.claude/skills/_qa-report-signoff-pdf/SKILL.md')).toContain('Closed counts come from the defect records on disk, not from `totalLogged`');
   });
+
+  it('closure SPV check 2 excuses passRate exactly when coverage.json is excused, and automationCoverage never', () => {
+    const cspv = read('.claude/agents/spv/qa-closure-reporter-spv.md');
+    const check2 = cspv.slice(cspv.indexOf('2. **10 computed metrics present.**'), cspv.indexOf('3. **Metrics arithmetic'));
+    expect(check2).toContain('passRate is excused exactly when `coverage.json` is (listed in `closure.json#unavailableMetrics`, holding `"noData": true`, or an `attempted` count of 0)');
+    expect(check2).toContain('automationCoverage comes from run files, not a metric file, and is never excused that way');
+    expect(check2).not.toContain('passRate and automationCoverage come from run files');
+  });
+
+  it("the reporter's Inputs line sends counts to coverage.json and keeps execution-summary.json for the roll-up and timings", () => {
+    const inputs = rep.slice(rep.indexOf('## Inputs'), rep.indexOf('## ', rep.indexOf('## Inputs') + 3));
+    expect(inputs).toContain('the executor roll-up and timings only; counts of checks come from the `counts` object of `reports/metrics/coverage.json`');
+    expect(inputs).not.toContain('executed, passed, failed and blocked counts of the cycle');
+  });
 });

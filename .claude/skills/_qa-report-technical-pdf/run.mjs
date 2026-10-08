@@ -146,11 +146,15 @@ const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[k
 // and a zero is never printed as if it were real.
 const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
 const completeCounts = (c) => c !== null && typeof c === "object" && COUNT_KEYS.every((k) => num(c[k]) !== null);
+// When the script recomputes, the recomputed requirements coverage is used too: closure.json may carry a copy of 0.
+let recomputed = null;
 function resolveCounts() {
   if (hasData(coverageDoc) && completeCounts(coverageDoc?.counts)) return coverageDoc.counts;
   if (coverageDoc !== null && !hasData(coverageDoc)) return null;
   const computed = computeCoverage(runDir);
-  return computed.noData === true || !completeCounts(computed.counts) ? null : computed.counts;
+  if (computed.noData === true || !completeCounts(computed.counts)) return null;
+  recomputed = computed;
+  return computed.counts;
 }
 const rollupCounts = resolveCounts();
 // Total Tests is every check that has a result (the attempted count). Partial and Undetermined have their own cells, so passed,
@@ -176,7 +180,7 @@ const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closur
 const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
 // A figure the collector computed from the RTM wins over the copy in closure.json: a reissued executive phase re-reads a
 // closure.json written before the figure was right.
-const rollupCoverage = hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
+const rollupCoverage = recomputed !== null ? num(recomputed.requirementsCoverage) : hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
 
 // Cost: the sum of usdCost over the collector's token-usage rows — {agent, model, ..., usdCost, ts}. A rollup
 // (per agent, model or phase) is never a row, so a line without agent, model and ts is not summed.

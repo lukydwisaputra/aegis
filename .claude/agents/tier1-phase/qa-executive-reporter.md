@@ -23,7 +23,7 @@ You operate after Gate 3 (cycle approved for closure). Your three outputs are Cl
 
 - `runs/{runId}/reports/closure/closure.json` — closure metrics from qa-closure-reporter
 - `runs/{runId}/rtm.json` — requirements traceability matrix
-- `runs/{runId}/execution-summary.json` — executed, passed, failed and blocked counts of the cycle
+- `runs/{runId}/execution-summary.json` — the executor roll-up and timings only; counts of checks come from the `counts` object of `reports/metrics/coverage.json`
 - `runs/{runId}/defects/*.json` — every defect record (includes EXP-type exploratory defects; these have no parent TC — reference them by `charterSessionId` in report sections, never assume a `testCaseIds` link)
 - `runs/{runId}/cases/*.json` — every test case record
 - `runs/{runId}/events.jsonl` — full event timeline

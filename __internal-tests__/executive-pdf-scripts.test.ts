@@ -856,6 +856,17 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Pass Rate\n40.0%');
   });
 
+  it('with coverage.json absent or stale the requirements coverage is the recomputed figure, not a closure copy of 0', () => {
+    const rtmRows = [...Array.from({ length: 35 }, (_, i) => ({ requirementId: `REQ-AUTH-${i + 1}`, testStatus: 'Covered' })), ...Array.from({ length: 3 }, (_, i) => ({ requirementId: `REQ-AUTH-${i + 40}`, testStatus: 'Partial' }))];
+    const closure = { 'reports/closure/closure.json': { metrics: { passed: 2, failed: 1, blocked: 1, requirementsCoverage: 0 } } };
+    const absent = fixture({ ...caseFiles, 'rtm.json': { rows: rtmRows }, ...closure });
+    expect(run(SCRIPT.technical, absent.root).status).toBe(0);
+    expect(pdfText(path.join(absent.runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Requirements Coverage\n92.1%');
+    const stale = fixture({ ...caseFiles, 'rtm.json': { rows: rtmRows }, ...closure, 'reports/metrics/coverage.json': { requirementsCoverage: 50, testExecutionCoverage: 83.3, codeCoverage: null, partialRequirements: 3 } });
+    expect(run(SCRIPT.technical, stale.root).status).toBe(0);
+    expect(pdfText(path.join(stale.runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Requirements Coverage\n92.1%');
+  });
+
   it('with no coverage.json at all the counts are recomputed too; with no case files the closure figures stand, never zeros', () => {
     const noFile = fixture({ ...caseFiles, ...staleClosure });
     expect(run(SCRIPT.technical, noFile.root).status).toBe(0);
