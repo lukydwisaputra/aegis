@@ -8,7 +8,7 @@ export type RowCause = UncoveredCause | "other";
 
 export interface CauseRule {
   cause: KeywordCause;
-  /** Tested against the origin text of the closure's uncovered row (else the result file's note or blocker), case-insensitive. */
+  /** Tested against the result file's note or blocker first, else the origin text of the closure's uncovered row, case-insensitive. */
   pattern: RegExp;
   /** Shown in the row's via, so a reviewer sees which rule fired. */
   label: string;
@@ -48,7 +48,7 @@ export const CAUSE_RULES: readonly CauseRule[] = [
 export interface UncoveredRow {
   id: string;
   cause: RowCause;
-  /** How the cause was decided: "closure cause", "no result file", "keyword: <label>" (with " (closure origin)" when the text came from the closure's row), "no rule matched". */
+  /** How the cause was decided: "no result file", "keyword: <label>" (with " (closure origin)" when the text came from the closure's row), "viewport result missing", "no rule matched". */
   via: string;
 }
 
