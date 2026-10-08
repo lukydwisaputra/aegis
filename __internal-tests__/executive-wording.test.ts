@@ -538,3 +538,38 @@ describe('residual-risk sentences describe what remains, and the printed rating 
     expect(check12).toContain('the rating the risk had before testing');
   });
 });
+
+describe('residual-risk review fixes: closure rating is the original one, deck sentences, owner open items', () => {
+  const closureRep = read('.claude/agents/tier1-phase/qa-closure-reporter.md');
+  const rep = read(REPORTER);
+  const spv = read(SPV);
+  const check14 = spv.slice(spv.indexOf('14. **Residual risk wording.**'), spv.indexOf('## Verdict'));
+  const step3 = rep.slice(rep.indexOf('3. **Produce Deliverable 2**'), rep.indexOf('4. **Draft slide content.**'));
+  const skill = read('.claude/skills/_qa-report-signoff-pdf/SKILL.md');
+
+  it('the closure reporter states that rating, when present, is the rating before testing and never the residual level', () => {
+    const para = closureRep.slice(closureRep.indexOf('`closure.json` carries the residual risk summary'), closureRep.indexOf('`closure.json` carries the residual risk summary') + 1500);
+    expect(para).toContain('`rating`, when present, is the rating the risk had BEFORE testing');
+    expect(para).toContain('same scale as the word in parentheses at the end of the score');
+    expect(para).toContain('never the residual or current level');
+    expect(para).toContain("`severity` field is read as the same original rating");
+    expect(para).not.toContain('the closure\'s rating of a residual risk, not a defect severity');
+  });
+
+  it('the sign-off skill reads rating and the severity alias as the original rating, consistent with the closure reporter', () => {
+    expect(skill).toContain('its `rating` field, else `severity`');
+    expect(skill).toContain('an explicit `rating` is also read as the original rating');
+    expect(skill).toContain('`severity` is the same original rating under another name');
+  });
+
+  it('SPV check 14 applies the same consistency rule to the residualRisks sentences of the deck', () => {
+    expect(check14).toContain('The same rule applies to the `residualRisks` sentences of `executive-deck.json`');
+    expect(check14).toContain('no original rating presented as the current level, and consistent with the `residualExposure` and `mitigationStatus` of the closure row');
+  });
+
+  it('what the owner must do is stated as an open item for the owner, never as a release condition or verdict, in the reporter and in check 14', () => {
+    for (const text of [step3, check14]) {
+      expect(text).toContain('stated as an open item for the owner, never as a release condition or verdict');
+    }
+  });
+});

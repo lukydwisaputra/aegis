@@ -1133,7 +1133,8 @@ describe('the sign-off residual risk source order', () => {
       'reports/executive/residual-risks.json': plain,
     });
     expect(r.status).toBe(0);
-    expect(text).toContain(`${n} residual risks remain after testing and are recorded here for the product owner to acknowledge before closure, ${critical} of them originally rated Critical.`);
+    const head = `${n} residual ${n === 1 ? 'risk remains' : 'risks remain'} after testing and ${n === 1 ? 'is' : 'are'} recorded here for the product owner to acknowledge before closure${critical > 0 ? `, ${critical} of them originally rated Critical` : ''}.`;
+    expect(text).toContain(head);
     expect(text).not.toContain('No residual risk recorded');
     for (const p of plain) expect(text).toContain(p.plain);
     for (const [id, word] of [['RISK-ENG-005', 'High'], ['RISK-PLAT-010', 'Medium']] as const) {
@@ -1141,5 +1142,29 @@ describe('the sign-off residual risk source order', () => {
       if (i >= 0) expect(text).toContain(`- [Originally ${word}] ${plain[i]?.plain}`);
     }
     console.log(text.slice(text.indexOf('RESIDUAL RISK'), text.indexOf('Signatories')));
+  });
+});
+
+describe('the sign-off exit criteria stay inside the page', () => {
+  // Helvetica 10 pt: "W" is 9.44 pt wide, a space 2.78 pt, so a word of five W's plus its space is about 50 pt. The text cell is
+  // about 465 pt wide beside the 44 pt status column and its margin (content width 515 pt): 9 such words fit a line. A text cell
+  // with no flex width is laid out at the full 515 pt and prints 10 words per line, running past the right page edge.
+  it('a long criterion wraps inside the space beside the status column, with its full text present', () => {
+    const word = 'WWWWW';
+    const criterion = Array.from({ length: 60 }, () => word).join(' ');
+    const { root, runDir } = fixture({
+      'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+      'reports/closure/closure.json': { metrics: {}, exitCriteria: [{ criterion, met: false }] },
+    });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    const lines = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf')).split('\n').filter((l) => l.startsWith(word));
+    expect(lines.join(' ').split(' ').filter((w) => w === word)).toHaveLength(60);
+    expect(Math.max(...lines.map((l) => l.split(' ').length))).toBeLessThanOrEqual(9);
+  });
+
+  it('the renderer gives the criterion text a flexible width', () => {
+    const src = read('packages/@qa/pdf-renderer/src/index.ts');
+    const rows = src.slice(src.indexOf('...spec.exitCriteria.map('), src.indexOf('// Open defects summary'));
+    expect(rows).toContain('flex: 1');
   });
 });
