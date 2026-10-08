@@ -37,7 +37,7 @@ Effects, in this order so a failure is retryable:
 4. Final `commitRun`: `status: "running"`, `phases[phase] = {status: "pending"}`, `currentPhase: null`, `updatedAt`; then call `writeActiveRun(root, runId)` (as `resumeRun` does, `run.ts:303`), because `{run}` for path-guard resolves through `runs/.active`.
 5. Append `run.reissued {runId, phase, reason}` through `commitRun` (restore `prior` if the append fails).
 
-Untouched: the other phases, all gate decisions, `integrityCheckpoint`, `events.jsonl` history. After the phase completes again `nextStep` returns `complete-run`, and the orchestrator's `aegis run complete` records a second `run.completed`. For `curator` reissue, `executive` stays completed (`nextStep` takes the first pending phase).
+Untouched: the other phases, all gate decisions, `events.jsonl` history. The reissue does not reset `integrityCheckpoint` (the integrity verify that runs first may advance it, as it does for every phase and gate command). After the phase completes again `nextStep` returns `complete-run`, and the orchestrator's `aegis run complete` records a second `run.completed`. For `curator` reissue, `executive` stays completed (`nextStep` takes the first pending phase).
 
 ### 3.2 Event, registries and tests
 

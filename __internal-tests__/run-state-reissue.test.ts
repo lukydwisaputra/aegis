@@ -19,6 +19,14 @@ const events = () => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l) 
 const task = (id: string) => createTaskmasterClient(taskmasterDir(t.root, runId)).get(id);
 const runFile = () => path.join(runDir(t.root, runId), 'run.json');
 
+/** Everything a refusal must leave alone: the log bytes, every task, and run.json (set `ignoreCheckpoint` where a passing verify may advance integrityCheckpoint). */
+async function snapshot(ignoreCheckpoint: boolean): Promise<{ log: string; tasks: unknown; run: unknown }> {
+  const raw = fs.readFileSync(runFile(), 'utf8');
+  const { integrityCheckpoint: _checkpoint, ...rest } = JSON.parse(raw) as Record<string, unknown>;
+  const tasks = await createTaskmasterClient(taskmasterDir(t.root, runId)).list();
+  return { log: fs.readFileSync(busPath(t.root, runId), 'utf8'), tasks, run: ignoreCheckpoint ? rest : raw };
+}
+
 /** A full run driven through Executive and Curator (each with a reviewed task) to `completed`, as `aegis run complete` leaves it. */
 async function completedRun(): Promise<void> {
   t = makeAegisRoot();
@@ -159,13 +167,17 @@ describe('refusals', () => {
   it('refuses a second reissue before the first has completed', async () => {
     await completedRun();
     await reissueRun(t.root, runId, { phase: 'executive', reason: 'first' }, 'owner');
+    const before = await snapshot(true);
     await expect(reissueRun(t.root, runId, { phase: 'executive', reason: 'second' }, 'owner')).rejects.toMatchObject({ code: 'out-of-order', message: expect.stringMatching(/"running"/) });
+    expect(await snapshot(true)).toEqual(before);
     expect(events().filter((e) => e.type === 'run.reissued')).toHaveLength(1);
   });
 
   it('refuses a smoke run: executive is not-applicable there', async () => {
     await completedWithoutTasks('smoke');
+    const before = await snapshot(true);
     await expect(reissueRun(t.root, runId, { phase: 'executive', reason: 'x' }, 'owner')).rejects.toMatchObject({ code: 'out-of-order', message: expect.stringMatching(/not-applicable/) });
+    expect(await snapshot(true)).toEqual(before);
     expect(readRun(t.root, runId).status).toBe('completed');
   });
 
@@ -173,7 +185,9 @@ describe('refusals', () => {
     await completedRun();
     const bus = busPath(t.root, runId);
     fs.writeFileSync(bus, fs.readFileSync(bus, 'utf8').replace('"environment":"development"', '"environment":"production"'));
+    const before = await snapshot(false); // a failed verify writes no checkpoint: run.json is byte-identical
     await expect(reissueRun(t.root, runId, { phase: 'executive', reason: 'x' }, 'owner')).rejects.toMatchObject({ code: 'integrity-failed' });
+    expect(await snapshot(false)).toEqual(before);
     expect(readRun(t.root, runId).status).toBe('completed');
     expect(await task('T-executive-1')).toMatchObject({ status: 'done' });
   });
