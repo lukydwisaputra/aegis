@@ -216,7 +216,18 @@ If a lock file is stale but the task is still running (e.g., the agent is just s
 
 **Orphan run directory.** `aegis run create` appends `run.created` before it writes `run.json` and points `runs/.active` at the run. A crash in between leaves a `RUN-*` directory with no `run.json`: it is inert (no command treats it as a run, `runs/.active` still names the previous run, and the next `run create` takes a new id) and safe to delete.
 
-## 13.10 → Deep dives
+## 13.10 Reissuing the executive phase (`/qa-reissue`)
+
+A completed run is not final for its last two phases. `/qa-reissue --phase=executive --reason="..."` runs `aegis run reissue`, which only the owner can run. It accepts a completed run and a phase after Gate 3's phase (Executive or Curator); every earlier phase, all three gate decisions and the event history stay as they are.
+
+1. The CLI verifies the event log, then records every work-report attempt on the phase's tasks as superseded in `run.json`, so only new work passes the phase barrier.
+2. The phase's `done` or `failed` tasks go back to `pending`, the phase to `pending` and the run to `running`.
+3. `run.reissued` (run id, phase, reason) is recorded, and the run becomes the active run, because path-guard resolves the run folder through the active-run pointer.
+4. `/qa-reissue` dispatches the orchestrator, which starts the phase (after a metrics dispatch for Executive), reviews it as usual and closes the run again with `aegis run complete`: the log then holds a second `run.completed`.
+
+A reissue of a run that is not completed (a second one before the first finishes), of a phase that is not completed in the run (Executive in a smoke cycle), of a phase before Gate 3, or of a run whose log fails verification is refused. The reporter overwrites its PDFs in place: copy the current ones first when they must be compared.
+
+## 13.11 → Deep dives
 
 - [docs/D13-concurrency-and-locking.md](../docs/D13-concurrency-and-locking.md)
 - [docs/D13-event-bus-spec.md](../docs/D13-event-bus-spec.md)

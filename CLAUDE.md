@@ -56,6 +56,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 /qa-start --env=development --module=AUTH   # full STLC cycle
 /qa-smoke --env=testing                     # 10-min PR-gate cycle
 /qa-resume --run=RUN-...                    # continue interrupted cycle
+/qa-reissue --phase=executive --reason="..."   # reopen executive/curator of a completed run
 /qa-rerun-failed                            # re-run only failed TCs
 /qa-status --watch                          # live cycle view
 /qa-health                                  # system integrity check
