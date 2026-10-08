@@ -312,7 +312,7 @@ describe('check counts have one source of truth: the counts of coverage.json', (
   });
 
   it('the split of the uncovered checks uses the closure report\'s exact figures, with no hedge word on any count', () => {
-    expect(source).toContain('categories sum exactly to the number of uncovered checks (blocked plus not attempted)');
+    expect(source).toContain('categories sum exactly to the number of uncovered checks (blocked plus skipped plus undetermined plus not attempted)');
     expect(source).toContain('no "around", "about" or "roughly" goes before any count');
     expect(body(rep)).not.toContain('round it to context');
     expect(body(rep)).not.toContain('"about 150 tests"');
@@ -384,13 +384,16 @@ describe('counts and pass rate: review fixes', () => {
       expect(text).toContain('testing-side gaps');
       expect(text).toContain('requirement gap');
       expect(text).toContain('not attempted');
-      expect(text).toContain('sum exactly to the number of uncovered checks (blocked plus not attempted)');
+      expect(text).toContain('sum exactly to the number of uncovered checks (blocked plus skipped plus undetermined plus not attempted)');
+      expect(text).not.toContain('qaSide');
+      expect(text).not.toContain("closure's explicit `cause`");
     }
     expect(source).toContain("Never classify a row of the closure's table of uncovered test cases yourself");
-    expect(source).toContain('Of the 33 checks that gave no verdict, 16 were limited by the test environment, 14 by testing-side gaps and 1 by a requirement gap; 2 were not attempted.');
+    expect(source).toContain('Of the 33 checks that gave no verdict, 15 were limited by the test environment, 15 by testing-side gaps and 1 by a requirement gap; 2 were not attempted.');
     expect(source).not.toContain('is built from every row');
     expect(check13).toContain('Any classification made by hand');
-    expect(check13).toContain("the closure's explicit `cause` on a row, when it has one, equals the `cause` of that id in the `uncovered` rows of `coverage.json`");
+    expect(check13).toContain('a split read from the closure');
+    expect(check13).toContain('(environment, testingSide, requirementGap, notAttempted, and other named "other" when above zero)');
   });
 
   it('executed and attempted are related in the reporter and in the collector', () => {
@@ -427,16 +430,53 @@ describe('counts and pass rate: review fixes', () => {
 });
 
 describe('closure side of the by-cause split', () => {
-  it('the closure reporter says cause and uncoveredByCause are optional and must equal coverage.json', () => {
+  it('the closure reporter states no split by cause and no cause on a row', () => {
     const t = read('.claude/agents/tier1-phase/qa-closure-reporter.md');
-    expect(t).toContain('Each row MAY also carry `cause`: `environment`, `qa-side`, `requirement-gap` or `not-attempted`');
-    expect(t).toContain('The closure MAY also carry `uncoveredByCause`');
-    expect(t).toContain('Neither is required (closures written before they existed lack them)');
-    expect(t).toContain('it must equal what that command computed, row by row and count by count');
+    expect(t).toContain('The closure states no split of them by cause: no `cause` on a row and no total by cause.');
+    expect(t).toContain('stated only by the executive reports, from that file');
+    expect(t).not.toContain('uncoveredByCause');
+    expect(t).not.toContain('MAY also carry `cause`');
   });
-  it('its SPV rejects a cause or count that differs from coverage.json and accepts their absence', () => {
+  it('its SPV rejects a closure that carries a cause or a split', () => {
     const t = read('.claude/agents/spv/qa-closure-reporter-spv.md');
-    expect(t).toContain('absent is fine');
-    expect(t).toContain("`uncoveredByCause` must equal its `byCause` counts");
+    expect(t).toContain('3b. **No split by cause.**');
+    expect(t).toContain('no `cause` on a row of `uncoveredTestCases` and no `uncoveredByCause`');
+    expect(t).toContain('A closure that carries either = requested-changes.');
+  });
+});
+
+describe('residual-risk ratings and plain wording', () => {
+  const rep = read(REPORTER);
+  const spv = read(SPV);
+  const wording = rep.slice(rep.indexOf('## Wording Rules'), rep.indexOf('## Process'));
+  const check12 = spv.slice(spv.indexOf('12. **Severity words.**'), spv.indexOf('13. **Numbers.**'));
+
+  it('a residual-risk rating is exempt from the severity-word rule, in the reporter and in SPV check 12', () => {
+    for (const text of [wording, check12]) {
+      expect(text).toContain('A residual-risk rating (Critical, High, Medium or Low');
+      expect(text).toContain('is not a defect severity');
+    }
+  });
+
+  it('the reporter writes residual-risks.json with a plain sentence for every closure residual risk, before the sign-off skill', () => {
+    const step3 = rep.slice(rep.indexOf('3. **Produce Deliverable 2**'), rep.indexOf('4. **Draft slide content.**'));
+    expect(step3).toContain('by first writing `reports/executive/residual-risks.json`');
+    expect(step3).toContain('`{ "riskId": "...", "plain": "..." }` for EVERY risk of `residualRiskSummary` in `closure.json`');
+    expect(step3).toContain('no framework, tool or product-internals names, no internal paths, and no ticket, defect or requirement ids');
+    expect(step3.indexOf('residual-risks.json')).toBeLessThan(step3.indexOf('invoke the `_qa-report-signoff-pdf` skill'));
+    expect(rep).toContain('  - "{run}/reports/executive/residual-risks.json"');
+  });
+
+  it('SPV check 14 requires every closure residual risk id to be covered by plain wording', () => {
+    const check14 = spv.slice(spv.indexOf('14. **Residual risk wording.**'), spv.indexOf('## Verdict'));
+    expect(check14).toContain('Every `riskId` of `residualRiskSummary` in `closure.json` has an entry in `reports/executive/residual-risks.json`');
+    expect(check14).toContain('framework, tool or product-internals name');
+    expect(check14).toContain('= requested-changes');
+    expect(spv).toContain('  - "{run}/reports/executive/residual-risks.json"');
+  });
+
+  it('SPV inputs say coverage.json carries the counts and the by-cause split', () => {
+    const inputs = spv.slice(spv.indexOf('## Inputs'), spv.indexOf('## Review Checklist'));
+    expect(inputs).toContain('the `counts` of checks and the by-cause split of the uncovered checks');
   });
 });

@@ -35,23 +35,27 @@ function resultOutcome(doc: unknown): Outcome {
   return outcomeOf(o.status);
 }
 
-function hasBlockedEntry(doc: unknown): boolean {
-  const r = doc !== null && typeof doc === "object" ? (doc as { results?: unknown }).results : undefined;
-  return Array.isArray(r) && r.some((e) => outcomeOf((e as { status?: unknown } | null | undefined)?.status) === "blocked");
+const TEXT_KEYS = ["notes", "note", "blocker", "blockedReason", "reason"] as const;
+
+/** The free text one result object gives for why a check did not run. */
+function pick(o: unknown): string[] {
+  if (o === null || typeof o !== "object") return [];
+  return TEXT_KEYS.flatMap((k) => {
+    const v = (o as Record<string, unknown>)[k];
+    return typeof v === "string" && v.trim() !== "" ? [v.trim()] : [];
+  });
 }
 
-/** The free text a result file gives for why a check did not run: notes, blocker, reason, also on each results[] entry. */
-function resultTexts(doc: unknown): string[] {
+/**
+ * The text of a result file that gave no verdict: its top-level text plus the text of each results[] entry that itself gave
+ * none (blocked, skipped or undeterminable), never the text of a passing or failing entry. Empty for a file that gave a verdict.
+ */
+function noVerdictTexts(doc: unknown): string[] {
   if (doc === null || typeof doc !== "object") return [];
-  const pick = (o: unknown): string[] =>
-    o === null || typeof o !== "object"
-      ? []
-      : ["notes", "note", "blocker", "reason"].flatMap((k) => {
-          const v = (o as Record<string, unknown>)[k];
-          return typeof v === "string" && v.trim() !== "" ? [v.trim()] : [];
-        });
-  const r = (doc as { results?: unknown }).results;
-  return [...pick(doc), ...(Array.isArray(r) ? r.flatMap(pick) : [])];
+  const entries = Array.isArray((doc as { results?: unknown }).results) ? ((doc as { results: unknown[] }).results) : [];
+  const bad = entries.filter((e) => NOT_EXECUTED.has(outcomeOf((e as { status?: unknown } | null | undefined)?.status)));
+  if (!NOT_EXECUTED.has(resultOutcome(doc)) && bad.length === 0) return [];
+  return [...pick(doc), ...bad.flatMap(pick)];
 }
 
 export function readJson(file: string): unknown {
@@ -62,12 +66,14 @@ export function readJson(file: string): unknown {
   }
 }
 
-/** One designed check: its outcome (undefined when it has no result file) and the free text of its blocked result files. */
+/** One designed check: its outcome (undefined when it has no result file) and the free text of its no-verdict result files. */
 export interface CheckState {
   /** Worst outcome across result files and unreported scoped viewports; undefined = no result file. */
   outcome?: Outcome;
-  /** Notes and blocker text of the result files that were blocked (every result file's text when none was). */
+  /** Text (notes, note, blocker, blockedReason, reason) of the result files that gave no verdict; never of a passing entry. */
   texts: string[];
+  /** A scoped viewport has no result file (the check is then at best undeterminable). */
+  missingViewport: boolean;
 }
 
 /** Pure: the designed checks of the run's cases directory (cases/{TC-ID}.json) with what their result files say. */
@@ -81,17 +87,15 @@ export function scanChecks(runDir: string): Map<string, CheckState> {
     if (m !== null) scopeOf.set(m[1]!, (readJson(join(casesDir, f)) as { viewportScope?: unknown } | undefined)?.viewportScope);
   }
 
-  interface Results { plain?: Outcome; byViewport: Map<Viewport, Outcome>; blockedTexts: string[]; allTexts: string[] }
+  interface Results { plain?: Outcome; byViewport: Map<Viewport, Outcome>; texts: string[] }
   const results = new Map<string, Results>();
   for (const f of files) {
     const m = RESULT_FILE.exec(f);
     if (m === null || !scopeOf.has(m[1]!)) continue;
-    const entry = results.get(m[1]!) ?? { byViewport: new Map<Viewport, Outcome>(), blockedTexts: [], allTexts: [] };
+    const entry = results.get(m[1]!) ?? { byViewport: new Map<Viewport, Outcome>(), texts: [] };
     const doc = readJson(join(casesDir, f));
     const outcome = resultOutcome(doc);
-    const texts = resultTexts(doc);
-    entry.allTexts.push(...texts);
-    if (outcome === "blocked" || hasBlockedEntry(doc)) entry.blockedTexts.push(...texts);
+    entry.texts.push(...noVerdictTexts(doc));
     if (m[2] === undefined) entry.plain = outcome;
     else entry.byViewport.set(m[2] as Viewport, outcome);
     results.set(m[1]!, entry);
@@ -100,17 +104,18 @@ export function scanChecks(runDir: string): Map<string, CheckState> {
   const out = new Map<string, CheckState>();
   for (const [id, scope] of scopeOf) {
     const entry = results.get(id);
-    if (entry === undefined) { out.set(id, { texts: [] }); continue; }
+    if (entry === undefined) { out.set(id, { texts: [], missingViewport: false }); continue; }
     let outcome: Outcome;
+    let missingViewport = false;
     if (entry.byViewport.size > 0) {
       const required: readonly Viewport[] = VIEWPORTS.includes(scope as Viewport) ? [scope as Viewport] : VIEWPORTS;
       const all = [...entry.byViewport.values()];
-      for (const v of required) if (!entry.byViewport.has(v)) all.push("unknown");
+      for (const v of required) if (!entry.byViewport.has(v)) { all.push("unknown"); missingViewport = true; }
       outcome = worst(all);
     } else {
       outcome = entry.plain ?? "unknown";
     }
-    out.set(id, { outcome, texts: entry.blockedTexts.length > 0 ? entry.blockedTexts : entry.allTexts });
+    out.set(id, { outcome, texts: entry.texts, missingViewport });
   }
   return out;
 }

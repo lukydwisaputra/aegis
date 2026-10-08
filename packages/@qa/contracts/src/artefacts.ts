@@ -259,22 +259,9 @@ export const ClosureMetricsSchema = z.object({
 });
 export type ClosureMetrics = z.infer<typeof ClosureMetricsSchema>;
 
-// ─── Closure: uncovered test cases ───────────────────────────────────────────
+// ─── Uncovered checks ────────────────────────────────────────────────────────
 
-/** Why a check gave no verdict. One value per row; the by-cause counts of coverage.json are computed from these. */
-export const UNCOVERED_CAUSES = ["environment", "qa-side", "requirement-gap", "not-attempted"] as const;
+/** Why a check gave no verdict. Computed into coverage.json (uncovered) from the result files; no document supplies it. */
+export const UNCOVERED_CAUSES = ["environment", "testing-side", "requirement-gap", "not-attempted"] as const;
 export const UncoveredCauseSchema = z.enum(UNCOVERED_CAUSES);
 export type UncoveredCause = z.infer<typeof UncoveredCauseSchema>;
-
-/**
- * One row of closure.json#uncoveredTestCases. `cause` is optional (closures written before it existed lack it); when present it must
- * equal what `aegis metrics coverage` computed for that check. Unknown extra fields are kept.
- */
-export const UncoveredTestCaseRowSchema = z.object({
-  id: z.string(),
-  module: z.string().optional(),
-  status: z.string().optional(),
-  origin: z.string().optional(),
-  cause: UncoveredCauseSchema.optional(),
-}).passthrough();
-export type UncoveredTestCaseRow = z.infer<typeof UncoveredTestCaseRowSchema>;

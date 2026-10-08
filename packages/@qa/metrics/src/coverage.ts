@@ -94,6 +94,6 @@ export function computeCoverage(runDir: string): CoverageRollup {
     codeCoverage: code,
     partialRequirements: partial,
     counts,
-    uncovered: classifyUncovered(runDir),
+    uncovered: classifyUncovered(runDir, checks),
   };
 }

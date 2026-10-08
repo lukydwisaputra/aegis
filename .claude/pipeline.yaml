@@ -111,7 +111,6 @@ nonAgentNames:
   - qa-setup # Playwright setup project name (qa-environment-engineer.md, HANDBOOK/17:86)
   - qa-teardown # Playwright teardown project name (qa-environment-engineer.md, HANDBOOK/17:86)
   - qa-build-toc # pnpm script in package.json (CLAUDE.md:36 `pnpm qa-build-toc`), not the _qa-build-toc skill
-  - qa-side # value of the uncovered-check cause (environment, qa-side, requirement-gap, not-attempted) in coverage.json and closure.json, not an agent
   - qa-results # CI artifact name prefix (docs/D12-cicd-workflow.md:64 `qa-results-${{ github.run_id }}`)
 # pnpm scripts/bins run in the target repo by generated setup, not Aegis scripts
 externalScripts: [husky]
