@@ -22,3 +22,4 @@ export * from "./hook-context.js";
 export * from "./vendor.js";
 export * from "./messaging.js";
 export * from "./cli-refusal.js";
+export * from "./metrics-coverage.js";

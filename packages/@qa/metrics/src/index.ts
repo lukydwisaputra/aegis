@@ -284,3 +284,5 @@ function derivePhase(taskId: string): string {
   const match = taskId.match(/^(.+)-\d+$/);
   return match?.[1] ?? taskId;
 }
+
+export * from "./coverage.js";

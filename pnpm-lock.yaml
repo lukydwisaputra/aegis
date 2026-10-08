@@ -314,6 +314,9 @@ importers:
       '@qa/messaging':
         specifier: workspace:*
         version: link:../messaging
+      '@qa/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@qa/path-guard':
         specifier: workspace:*
         version: link:../path-guard

@@ -41,11 +41,12 @@ Output: `runs/{runId}/reports/metrics/cycle-time.json`, exactly `{ phases: [{ ph
 With no completed phase the file is `{ "phases": [], "totalWallClockMs": 0, "bottleneckPhase": null, "noData": true }`.
 
 ### Coverage
-- **Requirements coverage**: `requirementId`s covered by ≥1 TC / total `requirementId`s in plan.
-- **Test execution coverage**: TCs executed / TCs planned. Result files come in two layouts: `cases/{TC-ID}-result.json` and the responsive specialist's `cases/{TC-ID}-{viewport}-result.json`. A TC id matches `^TC-[A-Z]{2,8}-\d{3,}$`, a viewport is one of `desktop`, `tablet` or `mobile`, and a file name is parsed as the TC id, an optional `-{viewport}` and `-result.json`. A TC counts once, however many of its files exist. When both layouts exist for a TC, the per-viewport files win and the plain file is ignored. A TC with viewport files is executed, and passed, only when every viewport in its `viewportScope` (from `cases/{TC-ID}.json`; all three when absent) has a result and each is a pass; a viewport with no result file means the TC is not passed, never a viewport that is dropped.
-- **Code coverage**: from the unit specialist's `runs/{runId}/reports/unit-coverage.json`, if it exists; absent, the code-coverage figure is not available (no 0).
+Compute it with `AEGIS_AGENT=qa-metrics-collector pnpm aegis metrics coverage`: the command reads `rtm.json`, the case and result files and `reports/unit-coverage.json`, and writes `reports/metrics/coverage.json` itself. You never compute these figures by hand and never write that file yourself; the rules below say what the command does, so you can read its output.
+- **Requirements coverage**: the rows of `rtm.json` (a top-level array of rows, or an object whose `rows` is that array) whose `testStatus` is `Covered` / all rows, as a percentage with one decimal. A `Partial` row is not covered; the command counts those apart as `partialRequirements`.
+- **Test execution coverage**: TCs designed (`cases/{TC-ID}.json`) with a result file whose status is not `blocked` (a skipped result, or one with no determinable status, is not executed either) / TCs designed. A result file holding a `results[]` array counts as its worst sub-result. Result files come in two layouts: `cases/{TC-ID}-result.json` and the responsive specialist's `cases/{TC-ID}-{viewport}-result.json`. A TC id matches `^TC-[A-Z]{2,8}-\d{3,}$`, a viewport is one of `desktop`, `tablet` or `mobile`, and a file name is parsed as the TC id, an optional `-{viewport}` and `-result.json`. A TC counts once, however many of its files exist. When both layouts exist for a TC, the per-viewport files win and the plain file is ignored. A TC with viewport files is executed, and passed, only when every viewport in its `viewportScope` (from `cases/{TC-ID}.json`; all three when absent) has a result and each is a pass; a viewport with no result file means the TC is not passed, never a viewport that is dropped.
+- **Code coverage**: from the unit specialist's `runs/{runId}/reports/unit-coverage.json` (`lines`, else `statements`), if it exists; absent, the code-coverage figure is not available (no 0).
 Rollup: percentage per type.
-Output: `runs/{runId}/reports/metrics/coverage.json`, exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, noData? }`: percentages from 0 to 100 as plain numbers; `codeCoverage` is a number or null (null when `unit-coverage.json` is absent); `noData: true` only when there is no plan or case data to compute from. The closure reporter copies `requirementsCoverage` into `closure.json#metrics.requirementsCoverage`.
+Output: `runs/{runId}/reports/metrics/coverage.json`, exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, noData? }`: percentages from 0 to 100 as plain numbers; `codeCoverage` is a number or null (null when `unit-coverage.json` is absent); `noData: true` only when `rtm.json` or the case files are absent or empty. The closure reporter copies `requirementsCoverage` into `closure.json#metrics.requirementsCoverage`.
 
 ### Defect Metrics (from `defect.opened`, `defect.closed`, `defect.reopened` events)
 - Total opened, closed, reopened
@@ -72,7 +73,7 @@ Output: `runs/{runId}/reports/metrics/flaky.json`.
 You run only when dispatched, and only in the foreground: the orchestrator dispatches you immediately before Closure-draft and again immediately before Executive, and starts the phase when you return. You do not stay running between dispatches and you never wait for an event. Each dispatch:
 
 1. **Read everything again.** Each time, read `events.jsonl` from the beginning, then the case, result, defect and plan inputs and `reports/unit-coverage.json` when it exists. Earlier dispatches leave nothing you rely on: every figure is recomputed from these records, and only events already in the log count.
-2. **Write every metric file.** Write all seven files of "Metrics to Collect" to `runs/{runId}/reports/metrics/`, replacing the previous dispatch's files, each in its empty shape when it has no source data. A phase still running has no `completedAt` yet.
+2. **Write every metric file.** Write the six files of "Metrics to Collect" other than `coverage.json` to `runs/{runId}/reports/metrics/`, and run `AEGIS_AGENT=qa-metrics-collector pnpm aegis metrics coverage` for `coverage.json`: the command replaces that file and prints the figures it wrote. Every file replaces the previous dispatch's, in its empty shape when it has no source data. A phase still running has no `completedAt` yet.
 3. **Record the rollup.** Append one `metrics.phase-rollup` per completed phase that has none in the log yet (`phase` and its `durationMs` from `cycle-time.json`). On the dispatch before Executive, also append `metrics.cycle-complete` with `totalDurationMs` and `totalTokensUsed` so far; Executive and Curator come after it and are not in those totals.
 4. **Return.** Report the files written and any `metrics.parse-error` to the orchestrator. There is **no `MetricsFinalized` event** and no re-trigger: the closure reporter reads the files directly, and the curator, in the Curator phase, reads the rollups of the dispatch before Executive.
 
@@ -105,6 +106,7 @@ reads:
   - "{run}/cases/*.json"
   - "{run}/defects/*.json"
   - "{run}/plan.json"
+  - "{run}/rtm.json"
   - {path: "{run}/reports/unit-coverage.json", optional: true}
   - "{run}/cases/*-result.json"
   - ".claude/model-policy.yaml"
@@ -127,7 +129,7 @@ awaits:
   - defect.opened
   - defect.closed
   - defect.reopened
-cli: [event.append]
+cli: [event.append, metrics.coverage]
 runs: []
 dispatches: []
 config:

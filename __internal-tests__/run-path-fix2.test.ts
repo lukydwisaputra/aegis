@@ -72,7 +72,7 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     const text = read(COLLECTOR);
     const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
     expect(cov).toContain(
-      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, noData? }`',
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, noData? }`',
     );
     expect(cov).toMatch(/`codeCoverage` is a number or null/);
     expect(cov).toMatch(/percentages from 0 to 100/);

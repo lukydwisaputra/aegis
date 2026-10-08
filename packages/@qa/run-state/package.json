@@ -21,6 +21,7 @@
     "@qa/event-bus": "workspace:*",
     "@qa/ids": "workspace:*",
     "@qa/messaging": "workspace:*",
+    "@qa/metrics": "workspace:*",
     "@qa/path-guard": "workspace:*",
     "@qa/taskmaster-client": "workspace:*",
     "proper-lockfile": "^4.1.2",
