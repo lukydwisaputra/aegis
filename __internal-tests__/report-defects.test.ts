@@ -32,3 +32,35 @@ describe('openDefectsSummary prints severity names', () => {
     expect(summary({ defectMetrics: { confirmedOpen: 0, totalLogged: 2 } }, [])).toBe('No open defects at sign-off.');
   });
 });
+
+describe('resolveDefectFigures: closed comes from the records, Flagged-for-owner is neither open nor closed', () => {
+  it('the real run shape: 21 open + 7 closed + 2 flagged = 30 records gives open 21 and closed 7, not 9', () => {
+    const closure = { defectMetrics: { totalLogged: 30, confirmedOpen: 21 } };
+    const records = [
+      ...Array.from({ length: 21 }, () => rec('Triaged', 'Sev3')),
+      ...Array.from({ length: 7 }, () => rec('Closed', 'Sev3')),
+      ...Array.from({ length: 2 }, () => rec('Flagged-for-owner', 'Sev3')),
+    ];
+    expect(resolveDefectFigures(closure, records)).toMatchObject({ open: 21, closed: 7 });
+  });
+
+  it('without closure figures, a flagged record is neither open nor closed and its severity is not an open severity', () => {
+    const records = [rec('Triaged', 'Sev2'), rec('Flagged-for-owner', 'Sev1'), rec('Closed', 'Sev3'), rec('Verified', 'Sev4')];
+    expect(resolveDefectFigures({}, records)).toMatchObject({ open: 1, closed: 2, highestOpenSeverity: 'Sev2', openBySeverity: { Sev2: 1 } });
+  });
+
+  it('the open figure still honours confirmedOpen over the records', () => {
+    expect(resolveDefectFigures({ defectMetrics: { confirmedOpen: 5, totalLogged: 9 } }, [rec('Triaged', 'Sev3'), rec('Closed', 'Sev3')])).toMatchObject({ open: 5, closed: 1 });
+  });
+
+  it('with no records, closed is totalLogged minus confirmedOpen; with neither, null', () => {
+    expect(resolveDefectFigures({ defectMetrics: { confirmedOpen: 5, totalLogged: 9 } }, null)).toMatchObject({ open: 5, closed: 4 });
+    expect(resolveDefectFigures({ defectMetrics: { confirmedOpen: 5, totalLogged: 9 } }, [])).toMatchObject({ open: 5, closed: 4 });
+    expect(resolveDefectFigures({ defectMetrics: { confirmedOpen: 5 } }, null)).toMatchObject({ open: 5, closed: null });
+    expect(resolveDefectFigures({}, null)).toMatchObject({ open: null, closed: null });
+  });
+
+  it('a record with no status is not counted closed', () => {
+    expect(resolveDefectFigures({ defectMetrics: { confirmedOpen: 2 } }, [rec('Closed', 'Sev3'), {}, rec('Triaged', 'Sev3')])).toMatchObject({ open: 2, closed: 1 });
+  });
+});

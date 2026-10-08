@@ -11,6 +11,9 @@ import { SEVERITY_MAP } from "./severity.js";
 /** A status recording a resolution: anything matching it is closed, everything else is open. */
 export const CLOSED_DEFECT_STATUS = /closed|verified|resolved|won.?t.?fix|duplicate|cannot.?reproduce|not.?a.?bug/i;
 
+/** A status parking the record for the owner's decision: an open question, neither an open defect nor a closed one. */
+export const FLAGGED_DEFECT_STATUS = /flagged/i;
+
 const codeOf = (v: unknown): string | null => {
   if (typeof v === "string" && v.trim() !== "") return v;
   if (v !== null && typeof v === "object") {
@@ -34,6 +37,10 @@ export function defectSeverityCode(record: unknown): string | null {
 
 export function isClosedDefectStatus(code: string): boolean {
   return CLOSED_DEFECT_STATUS.test(code);
+}
+
+export function isFlaggedDefectStatus(code: string): boolean {
+  return FLAGGED_DEFECT_STATUS.test(code);
 }
 
 export interface DefectFigures {
@@ -61,8 +68,10 @@ function countsOf(v: unknown): Record<string, number> | null {
 }
 
 /**
- * Open/closed defects: `closure.defectMetrics.confirmedOpen` first (closed = totalLogged − open), then the
- * records' status codes when every record carries one. `records` null means the run has no `defects/`.
+ * Open/closed defects. Closed is the number of records with a closed status when the run has records (a record flagged for the
+ * owner is neither closed nor open), else totalLogged − confirmedOpen when the closure data has both. Open is
+ * `closure.defectMetrics.confirmedOpen` first, then the records' status codes when every record carries one.
+ * `records` null means the run has no `defects/`.
  */
 export function resolveDefectFigures(closure: unknown, records: readonly unknown[] | null): DefectFigures {
   const dm =
@@ -72,7 +81,7 @@ export function resolveDefectFigures(closure: unknown, records: readonly unknown
   const statuses = records === null ? null : records.map(defectStatusCode);
   const openRecords = (records ?? []).filter((_r, i) => {
     const s = statuses?.[i] ?? null;
-    return s === null || !isClosedDefectStatus(s);
+    return s === null || (!isClosedDefectStatus(s) && !isFlaggedDefectStatus(s));
   });
   const severities = openRecords
     .map(defectSeverityCode)
@@ -82,12 +91,13 @@ export function resolveDefectFigures(closure: unknown, records: readonly unknown
 
   let open = num(dm?.["confirmedOpen"]);
   let closed: number | null = null;
+  const haveRecords = statuses !== null && statuses.length > 0;
+  if (haveRecords) closed = statuses.filter((s) => s !== null && isClosedDefectStatus(s)).length;
   if (open !== null) {
     const total = num(dm?.["totalLogged"]);
-    closed = total !== null ? total - open : null;
-  } else if (statuses !== null && statuses.every((s) => s !== null)) {
-    closed = statuses.filter((s) => isClosedDefectStatus(s as string)).length;
-    open = statuses.length - closed;
+    if (!haveRecords) closed = total !== null ? total - open : null;
+  } else if (haveRecords && statuses.every((s) => s !== null)) {
+    open = openRecords.length;
   }
   const fromRecords: Record<string, number> = {};
   for (const r of openRecords) {
