@@ -145,11 +145,13 @@ const rollupCounts =
   hasData(coverageDoc) && coverageDoc.counts !== null && typeof coverageDoc.counts === "object" && COUNT_KEYS.every((k) => num(coverageDoc.counts[k]) !== null)
     ? coverageDoc.counts
     : null;
-// Total Tests is every check that has a result (the attempted count, partial included). The report's table has no partial cell, so
-// a partial or unknown case is in the total only.
+// Total Tests is every check that has a result (the attempted count). Partial has its own cell, so passed, failed, partial,
+// blocked and skipped add up to it (an undeterminable check is in the total only).
 const passed = rollupCounts ? rollupCounts.passed : metric("passed");
 const failed = rollupCounts ? rollupCounts.failed : metric("failed");
 const blocked = rollupCounts ? rollupCounts.blocked : metric("blocked");
+// The partial cell reads "not available" without counts: closure.json has no partial figure the table can trust.
+const partialCount = rollupCounts ? rollupCounts.partial : null;
 const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
 const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 
@@ -208,6 +210,7 @@ const spec = {
     totalTests,
     passed,
     failed,
+    partial: partialCount,
     blocked,
     skipped: skippedCount,
     passRate: metric("passRate"),

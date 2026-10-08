@@ -131,6 +131,8 @@ export interface TechnicalReportSpec {
     totalTests: number | null;
     passed: number | null;
     failed: number | null;
+    /** Checks that passed in part; omitted by callers that do not know it, null prints "not available". */
+    partial?: number | null;
     blocked: number | null;
     skipped: number | null;
     passRate: number | null;
@@ -491,6 +493,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ["Total Tests", formatCount(spec.metrics.totalTests)],
         ["Passed", formatCount(spec.metrics.passed)],
         ["Failed", formatCount(spec.metrics.failed)],
+        ...(spec.metrics.partial === undefined ? [] : [["Partial", formatCount(spec.metrics.partial)]]),
         ["Blocked", formatCount(spec.metrics.blocked)],
         ["Skipped", formatCount(spec.metrics.skipped)],
         ["Pass Rate", formatPercent(spec.metrics.passRate)],

@@ -791,8 +791,26 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Total Tests\n98');
     expect(text).toContain('Passed\n61');
     expect(text).toContain('Failed\n5');
+    expect(text).toContain('Partial\n1');
     expect(text).toContain('Blocked\n31');
     expect(text).toContain('Skipped\n0');
+  });
+
+  it('the cells read 98 / 61 / 5 / 1 / 31 in that order and the parts sum to the total; the pass rate is passed over attempted', () => {
+    const { root, runDir } = fixture({
+      ...base,
+      'reports/closure/closure.json': { metrics: { passed: 62, failed: 5, blocked: 31, passRate: 62.2 }, defectMetrics: { totalLogged: 6, confirmedOpen: 3 } },
+      'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts: COUNTS },
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    const cell = (label: string): number => Number(new RegExp(`${label}\\n(\\d+)`).exec(text)?.[1]);
+    expect(['Total Tests', 'Passed', 'Failed', 'Partial', 'Blocked'].map(cell)).toEqual([98, 61, 5, 1, 31]);
+    expect(cell('Passed') + cell('Failed') + cell('Partial') + cell('Blocked') + cell('Skipped')).toBe(cell('Total Tests'));
+    expect(text.indexOf('Failed\n5')).toBeLessThan(text.indexOf('Partial\n1'));
+    expect(text.indexOf('Partial\n1')).toBeLessThan(text.indexOf('Blocked\n31'));
+    expect(text).toContain('Pass Rate\n62.2%');
+    expect(Math.round((1000 * cell('Passed')) / cell('Total Tests')) / 10).toBe(62.2);
   });
 
   it('falls back to closure.json when coverage.json has no counts or is noData', () => {
@@ -802,6 +820,7 @@ describe('the technical report takes check counts from coverage.json and closed 
       const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
       expect(text).toContain('Total Tests\n98');
       expect(text).toContain('Passed\n62');
+      expect(text).toContain('Partial\nnot available');
     }
   });
 
@@ -815,7 +834,7 @@ describe('the technical report takes check counts from coverage.json and closed 
 });
 
 describe('the sign-off version names the tested build', () => {
-  const SHA = 'f171552e86702b1eebc562b1ed051add4773de00';
+  const SHA = 'f1c171552e86702b1eebc562b1ed051add4773de';
   const discovery = { 'discovery-report.json': { target: { baseUrl: 'http://127.0.0.1:3002', commit: SHA, branch: 'development' } } };
   const versionOf = (files: Record<string, unknown>, extra: string[] = []): string => {
     const { root, runDir } = fixture({ ...FULL_RUN, ...files });
@@ -824,11 +843,11 @@ describe('the sign-off version names the tested build', () => {
   };
 
   it('derives dev-<short commit> from the explorer\'s recorded target commit and the run environment', () => {
-    expect(versionOf({ ...discovery, 'run.json': { runId: RUN, environment: 'development' } })).toContain('Version:\ndev-f171552');
+    expect(versionOf({ ...discovery, 'run.json': { runId: RUN, environment: 'development' } })).toContain('Version:\ndev-f1c1715');
   });
 
   it('prints the short commit alone when the run records no environment, and a non-hex commit is not a version', () => {
-    expect(versionOf(discovery)).toContain('Version:\nf171552');
+    expect(versionOf(discovery)).toContain('Version:\nf1c1715');
     expect(versionOf({ 'discovery-report.json': { target: { commit: 'not-a-sha' } } })).toContain('Version:\nunversioned');
   });
 
@@ -837,6 +856,14 @@ describe('the sign-off version names the tested build', () => {
     expect(versionOf(withRun, ['--version=2.4.0'])).toContain('Version:\n2.4.0');
     expect(versionOf({ ...withRun, 'plan.json': { scope: 's', version: '3.0.1' } })).toContain('Version:\n3.0.1');
     expect(versionOf({ ...withRun, 'reports/closure/closure.json': { ...FULL_RUN['reports/closure/closure.json'], version: '1.2.3' } })).toContain('Version:\n1.2.3');
+  });
+
+  const REAL = '/Users/lukydwisaputra/Desktop/QA/renci-volunteer-management/aegis/runs/RUN-20261006-001';
+  (fs.existsSync(path.join(REAL, 'discovery-report.json')) ? it : it.skip)('the real run derives dev-f1c1715 (first 7 characters of its full commit)', () => {
+    const real = (rel: string): unknown => JSON.parse(fs.readFileSync(path.join(REAL, rel), 'utf-8'));
+    const { root, runDir } = fixture({ ...FULL_RUN, 'plan.json': { scope: 's' }, 'discovery-report.json': real('discovery-report.json'), 'run.json': real('run.json') });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toContain('Version:\ndev-f1c1715');
   });
 
   it('reads unversioned only when nothing records the build', () => {
