@@ -16,7 +16,13 @@ describe('slide 1 states what was tested, what was not, and the open items', () 
     expect(slide1).toContain('what was tested, what could not be tested, and the open items');
     expect(slide1).toContain('We ran 68 of 100 planned tests: 61 passed and 7 failed; 32 could not be run. 4 defects remain open: 1 Critical, 2 Major, 1 Minor.');
     for (const banned of ['blocking', 'release-blocking', 'blocker', 'go-live ready', 'ready to release']) expect(slide1).toContain(`"${banned}"`);
+    expect(slide1).toContain('One or two sentences carrying three parts');
     expect(slide1).toContain('no judgement about release readiness');
+  });
+
+  it('slide 1 bans the word blocker except as the severity label of a count, so an open Sev1 can be reported', () => {
+    expect(slide1).toContain('"blocker" (except as the severity label of a count, e.g. "1 Blocker defect")');
+    expect(slide1).toContain('each open count with its severity name');
   });
 
   it('the old model headline is gone from the reporter, the SPV and everything under .claude', () => {
@@ -31,6 +37,16 @@ describe('slide 1 states what was tested, what was not, and the open items', () 
     const check2 = spv.slice(spv.indexOf('2. **Slide 1'), spv.indexOf('4. **What/So-What/Now-What'));
     expect(check2).toContain('what was tested, what could not be tested, and the open items');
     expect(check2).toMatch(/release-blocking[^\n]*requested-changes/);
+    expect(check2).toContain('one or two complete sentences');
+  });
+
+  it('the SPV applies the release-readiness ban to every slide and the sign-off narrative, in check 3 and in the verdict', () => {
+    const spv = read(SPV);
+    const check3 = spv.slice(spv.indexOf('3. **'), spv.indexOf('4. **What/So-What/Now-What'));
+    expect(check3).toContain('on any slide or in the sign-off narrative');
+    const verdict = spv.slice(spv.indexOf('## Verdict'), spv.indexOf('## Submitting Your Verdict'));
+    expect(verdict).toContain('a release-readiness word on a slide or in the sign-off narrative');
+    expect(verdict).not.toContain('on slide 1');
   });
 
   it('the reporter lists the release-readiness wording among the things its SPV rejects', () => {
@@ -59,7 +75,7 @@ describe('severity words are the SEVERITY_MAP names', () => {
 describe('numbers are computed and carry their base', () => {
   it('the reporter computes from run files and states the base; two points is the limit for a word', () => {
     const text = body(read(REPORTER));
-    expect(text).toContain('percentage or fraction in narrative is computed from `closure.json`, `execution-summary.json` or `reports/metrics/coverage.json`');
+    expect(text).toContain('every percentage or fraction, in narrative is computed from `closure.json`, `execution-summary.json` or `reports/metrics/coverage.json`');
     expect(text).toContain('61 of 98 executed');
     expect(text).toContain('within 2 points of the exact value');
     expect(text).toContain('Requirements coverage comes from `reports/metrics/coverage.json`');
@@ -67,8 +83,51 @@ describe('numbers are computed and carry their base', () => {
 
   it('the old raw-count ban yields to the stated base', () => {
     const text = body(read(REPORTER));
-    expect(text).toContain('only as the stated base of a percentage or fraction');
+    expect(text).toContain('only as a part or the base of a stated whole ("61 of 98 executed", "68 of 100 planned tests")');
     expect(text).not.toContain('Never cite raw test counts');
+  });
+
+  it('open-defect counts come from the sign-off source and a sentence states the total and every per-severity count', () => {
+    const rep = read(REPORTER);
+    const wording = rep.slice(rep.indexOf('## Wording Rules'), rep.indexOf('## Process'));
+    const numbers = wording.slice(wording.indexOf('**Numbers.**'));
+    expect(numbers).toContain('Every count of open defects, and every percentage or fraction');
+    expect(numbers).toContain('the `defectMetrics` field `confirmedOpen` of `closure.json`, else the open records in `defects/*.json`');
+    expect(numbers).toContain('states the total and every per-severity count');
+  });
+
+  it('the SPV recomputes counts, not only percentages, from the files it is given', () => {
+    const spv = read(SPV);
+    const check13 = spv.slice(spv.indexOf('13. **Numbers.**'), spv.indexOf('## Verdict'));
+    expect(check13).toContain('Recompute every count, percentage and fraction');
+    expect(check13).toContain('the total and every per-severity count must match');
+    const check12 = spv.slice(spv.indexOf('12. **Severity words.**'), spv.indexOf('13. **Numbers.**'));
+    expect(check12).toContain('an open-defect total or per-severity count that does not match the files = requested-changes');
+  });
+
+  it('the SPV is given every file checks 12 and 13 read, in its Inputs and in its contract reads', () => {
+    const spv = read(SPV);
+    const inputs = spv.slice(spv.indexOf('## Inputs'), spv.indexOf('## Review Checklist'));
+    const reads = spv.slice(spv.indexOf('reads:'), spv.indexOf('writes: []'));
+    for (const f of ['reports/closure/closure.json', 'execution-summary.json', 'reports/metrics/coverage.json', 'defects/*.json']) {
+      expect(inputs).toContain('`runs/{runId}/' + f + '`');
+      expect(reads).toContain('"{run}/' + f + '"');
+    }
+  });
+
+  it('a severity synonym is defined by capitalisation, and bare codes in the skill-printed tables are exempt', () => {
+    for (const file of [REPORTER, SPV]) {
+      const text = body(read(file));
+      expect(text).toContain("any severity word other than the defect's severity-table name written with that name's capitalisation");
+      expect(text).toContain('"minor issues" for a Major defect is a synonym');
+    }
+    expect(body(read(SPV))).toContain("bare severity codes inside the technical report's tables, which the skill prints, are exempt");
+  });
+
+  it('the tone-check protocol heading covers the sign-off as well as the slides', () => {
+    const rep = read(REPORTER);
+    expect(rep).toContain('## Tone-Check Protocol (Slides and Sign-off)');
+    expect(rep).not.toContain('(Slides Only)');
   });
 
   it('the reporter reads the coverage file and tone-checks the sign-off in its Process', () => {
@@ -107,7 +166,7 @@ describe('the sign-off banner is the owner\'s recorded decision', () => {
     expect(spv).toContain('- `runs/{runId}/gates/gate-3-decision.json`');
     expect(spv).toContain('  - "{run}/gates/gate-3-decision.json"');
     const verdict = spv.slice(spv.indexOf('## Verdict'), spv.indexOf('## Submitting Your Verdict'));
-    expect(verdict).toContain('a sign-off banner that differs from the recorded Gate 3 decision, a release-readiness word on slide 1, a wrong severity word or a number that does not match the run files');
+    expect(verdict).toContain('a sign-off banner that differs from the recorded Gate 3 decision, a release-readiness word on a slide or in the sign-off narrative, a wrong severity word or a number that does not match the run files');
     expect(verdict).not.toContain('mapped Gate 3 decision');
   });
 });

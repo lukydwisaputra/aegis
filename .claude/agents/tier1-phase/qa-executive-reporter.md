@@ -92,7 +92,7 @@ Skill to invoke: `_qa-report-signoff-pdf`
 5-7 slides: 1 key finding + 2–4 supporting insights + 1 recommendations slide + 1 risk slide. Minto Pyramid Principle — punchline first.
 
 **Slide 1 — KEY FINDING:**
-One sentence with three parts in this order: what was tested, what could not be tested, and the open items (each open count with its severity name). It states findings; there is no judgement about release readiness, and none of the words "blocking", "release-blocking", "blocker", "go-live ready" or "ready to release". Example: "We ran 68 of 100 planned tests: 61 passed and 7 failed; 32 could not be run. 4 defects remain open: 1 Critical, 2 Major, 1 Minor." A "Recommended action" box at the bottom is permitted, framed as an evidence-based suggestion.
+One or two sentences carrying three parts in this order: what was tested, what could not be tested, and the open items (each open count with its severity name). It states findings; there is no judgement about release readiness, and none of the words "blocking", "release-blocking", "blocker" (except as the severity label of a count, e.g. "1 Blocker defect"), "go-live ready" or "ready to release". Example: "We ran 68 of 100 planned tests: 61 passed and 7 failed; 32 could not be run. 4 defects remain open: 1 Critical, 2 Major, 1 Minor." A "Recommended action" box at the bottom is permitted, framed as an evidence-based suggestion.
 
 **Next slides — 2–4 SUPPORTING INSIGHTS**, one slide each (What / So-What / Now-What per slide):
 - WHAT: the data point, visualised (chart, big number, table)
@@ -105,9 +105,9 @@ One sentence with three parts in this order: what was tested, what could not be 
 
 Skill to invoke: `_qa-report-executive-slides` (includes tone-check pass; it renders the deck file you write at Process step 4)
 
-## Tone-Check Protocol (Slides Only)
+## Tone-Check Protocol (Slides and Sign-off)
 
-Before rendering slides, run every sentence through the tone-check discipline:
+Before rendering slides, and again for the sign-off narrative, run every sentence through the tone-check discipline:
 
 **Banned technical terms** (rephrase, do not delete):
 - "p95/p99 latency" → "page loads in under X seconds for 99% of users"
@@ -118,7 +118,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 - "monorepo" → "unified codebase" (or drop)
 - "p75 CLS" → "page layout stability" with a plain-language threshold
 
-**Format rule:** Cite a raw test count ("147 test cases") only as the stated base of a percentage or fraction ("61 of 98 executed"); otherwise round it to context ("about 150 tests"). Never cite defect IDs (DEF-001-AUTH-UI → "an authentication defect").
+**Format rule:** Cite a raw test count ("147 test cases") only as a part or the base of a stated whole ("61 of 98 executed", "68 of 100 planned tests"); otherwise round it to context ("about 150 tests"). Never cite defect IDs (DEF-001-AUTH-UI → "an authentication defect").
 
 **Framing rule:** Start with the finding (What), then the business implication (So What), then the action (Now What). Never start with data or process.
 
@@ -136,9 +136,9 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 ## Wording Rules (all three documents)
 
-**Severity words.** A defect severity in prose is the name from the severity table, never a softer synonym ("moderate", "minor", "medium") and never a code alone: Sev1 Blocker, Sev2 Critical, Sev3 Major, Sev4 Minor, Sev5 Trivial. A sentence about open defects lists every open count by severity ("2 Critical, 1 Major"), not only the highest. `Blocker` is allowed only as the severity label of a count (`1 Blocker defect`); the words blocker, blocking and release-blocking never describe the release, a risk or a recommendation.
+**Severity words.** A defect severity in prose is the name from the severity table, never a softer synonym ("moderate", "minor", "medium") and never a code alone. A softer synonym is any severity word other than the defect's severity-table name written with that name's capitalisation: "Minor" is the name of Sev4, while "minor issues" for a Major defect is a synonym. The names are Sev1 Blocker, Sev2 Critical, Sev3 Major, Sev4 Minor, Sev5 Trivial. A sentence about open defects lists every open count by severity ("2 Critical, 1 Major"), not only the highest. `Blocker` is allowed only as the severity label of a count (`1 Blocker defect`); the words blocker, blocking and release-blocking never describe the release, a risk or a recommendation.
 
-**Numbers.** Every percentage or fraction in narrative is computed from `closure.json`, `execution-summary.json` or `reports/metrics/coverage.json` (100 × part ÷ base, rounded to at most one decimal) and states its base ("61 of 98 executed"). A word such as "two-thirds" is allowed only when it is within 2 points of the exact value; otherwise write the number. Requirements coverage comes from `reports/metrics/coverage.json`, which the metrics collector recomputes before this phase, not from the copy in `closure.json`.
+**Numbers.** Every count of open defects, and every percentage or fraction, in narrative is computed from `closure.json`, `execution-summary.json` or `reports/metrics/coverage.json` (100 × part ÷ base, rounded to at most one decimal) and states its base ("61 of 98 executed"). Open-defect counts come from the same source the sign-off uses: the `defectMetrics` field `confirmedOpen` of `closure.json`, else the open records in `defects/*.json`. A sentence about open defects states the total and every per-severity count ("4 defects remain open: 1 Critical, 2 Major, 1 Minor"). A word such as "two-thirds" is allowed only when it is within 2 points of the exact value; otherwise write the number. Requirements coverage comes from `reports/metrics/coverage.json`, which the metrics collector recomputes before this phase, not from the copy in `closure.json`.
 
 ## Process
 
@@ -160,7 +160,7 @@ Before rendering slides, run every sentence through the tone-check discipline:
 
 - Any slide sentence contains a technical term from the banned list
 - Slide 1 states a ship/no-ship verdict or any release-readiness wording, rather than what was tested, what could not be tested and the open items
-- A severity written as a synonym or a bare code, or an open-defect sentence that lists only the highest severity
+- A severity written as a synonym or a bare code, or an open-defect sentence that lists only the highest severity or whose total does not match the files
 - A percentage or fraction not computed from the run files or stating no base
 - Slide deck has fewer than 5 or more than 7 slides
 - Technical report missing any of its required sections

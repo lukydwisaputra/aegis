@@ -22,6 +22,10 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 - `runs/{runId}/reports/executive/signoff.pdf`
 - `runs/{runId}/reports/executive/executive-deck.pdf`
 - `runs/{runId}/reports/executive/executive-deck.json` — the deck content the slides were rendered from (slide text to check)
+- `runs/{runId}/reports/closure/closure.json` — the closure figures checks 12 and 13 recompute from
+- `runs/{runId}/execution-summary.json` — the execution counts check 13 recomputes from
+- `runs/{runId}/reports/metrics/coverage.json` — requirements coverage for check 13
+- `runs/{runId}/defects/*.json` — the defect records whose severity and open counts checks 12 and 13 compare with
 - `runs/{runId}/gates/gate-3-decision.json` — the owner's Gate 3 decision the sign-off banner must equal (check 8)
 - Tone-check output log (if produced separately)
 - `agent-memory/qa-executive-reporter/lessons.md`
@@ -31,8 +35,8 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 ### Executive Slides
 
 1. **Slide count.** 5-7 slides total. Fewer than 5 = insufficient evidence for stakeholders. More than 7 = scope creep. Outside range = requested-changes.
-2. **Slide 1 = KEY FINDING punchline.** Slide 1's headline is one complete sentence stating what was tested, what could not be tested, and the open items, not a topic header like "Test Results". Example of PASS: "We ran 68 of 100 planned tests: 61 passed and 7 failed; 32 could not be run. 4 defects remain open: 1 Critical, 2 Major, 1 Minor." Examples of FAIL: "Executive Summary", "Test Status Report", a headline that leaves out what could not be tested or the open items.
-3. **No ship/no-ship or release-readiness wording on slide 1.** Slide 1 must not issue "recommend releasing", "do not ship", "ready for production", and must not use "blocking", "release-blocking", "blocker" (as a judgement), "go-live ready" or "ready to release". Any of these = requested-changes. A "Recommended action" box framed as a suggestion is acceptable; a verdict is not.
+2. **Slide 1 = KEY FINDING punchline.** Slide 1's headline is one or two complete sentences stating what was tested, what could not be tested, and the open items, not a topic header like "Test Results". Example of PASS: "We ran 68 of 100 planned tests: 61 passed and 7 failed; 32 could not be run. 4 defects remain open: 1 Critical, 2 Major, 1 Minor." Examples of FAIL: "Executive Summary", "Test Status Report", a headline that leaves out what could not be tested or the open items.
+3. **No ship/no-ship or release-readiness wording on any slide or in the sign-off narrative.** No slide and no sign-off sentence may issue "recommend releasing", "do not ship", "ready for production", and must not use "blocking", "release-blocking", "blocker" (as a judgement), "go-live ready" or "ready to release". Any of these = requested-changes. A "Recommended action" box framed as a suggestion is acceptable; a verdict is not.
 4. **What/So-What/Now-What structure.** Slides 2-4 each show the data (WHAT), its business meaning (SO WHAT), and the action (NOW WHAT). Missing any of the three = passed-with-notes.
 5. **Jargon elimination.** Check slide text for: p95/p99, latency ms, R-squared, TLS, RBAC, monorepo, sprint velocity, DRE, CFR, CWE, CVSS, XSS, SQL injection, axe-core, Playwright, Jest, k6, coverage %, blocker, release-blocking, Sev1 (a bare severity code is jargon). `Blocker` is not jargon when it is the severity label of a count (`1 Blocker defect`); it is when it describes the release or a risk. Each occurrence of technical jargon without a plain-English rewrite = requested-changes. Check the tone-check log; if no log exists, scan manually.
 6. **Jargon rewrite correctness.** If jargon was rewritten, verify the rewrite is accurate (e.g., "p95 latency 847ms" → "page loads under 1 second for 95% of users" is correct; "p95 = 847" → "response was fast" is too vague = passed-with-notes).
@@ -50,14 +54,14 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 
 ### Wording and numbers (all 3 documents)
 
-12. **Severity words.** Every severity in prose is the severity-table name — Sev1 Blocker, Sev2 Critical, Sev3 Major, Sev4 Minor, Sev5 Trivial — never a softer synonym ("moderate", "minor", "medium") and never a code alone. A sentence about open defects lists every open count by severity, not only the highest. `Blocker` is allowed only as the severity label of a count (`1 Blocker defect`). Compare each severity word with the `severity` of the defect it describes in `defects/*.json`. A wrong or softer word, a bare code, or a highest-only sentence = requested-changes.
-13. **Numbers.** Recompute every percentage and fraction in the slides and the sign-off from `closure.json`, `execution-summary.json` and `reports/metrics/coverage.json` (requirements coverage comes from the last). Each must match, state its base ("61 of 98 executed"), and a word such as "two-thirds" must be within 2 points of the exact value. A figure that does not match, states no base, or a word further than 2 points from the exact value = requested-changes. The work report must also say that the tone-check ran on the sign-off as well (evidence beside check 10).
+12. **Severity words.** Every severity in prose is the severity-table name — Sev1 Blocker, Sev2 Critical, Sev3 Major, Sev4 Minor, Sev5 Trivial — never a softer synonym ("moderate", "minor", "medium") and never a code alone. A softer synonym is any severity word other than the defect's severity-table name written with that name's capitalisation ("Minor" is the name of Sev4; "minor issues" for a Major defect is a synonym). Only prose is checked: bare severity codes inside the technical report's tables, which the skill prints, are exempt. A sentence about open defects lists every open count by severity, not only the highest. `Blocker` is allowed only as the severity label of a count (`1 Blocker defect`). Compare each severity word with the `severity` of the defect it describes in `defects/*.json`. A wrong or softer word, a bare code in prose, a highest-only sentence, or an open-defect total or per-severity count that does not match the files = requested-changes.
+13. **Numbers.** Recompute every count, percentage and fraction in the slides and the sign-off from `closure.json`, `execution-summary.json` and `reports/metrics/coverage.json` (requirements coverage comes from the last; open-defect counts come from the `defectMetrics` field `confirmedOpen` of `closure.json`, else the open records in `defects/*.json`, and the total and every per-severity count must match). Each must match, state its base ("61 of 98 executed"), and a word such as "two-thirds" must be within 2 points of the exact value. A figure that does not match, states no base, or a word further than 2 points from the exact value = requested-changes. The work report must also say that the tone-check ran on the sign-off as well (evidence beside check 10).
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — thin What/So-What/Now-What, vague rewrite; emit CorrectiveInstruction
-- `requested-changes` — jargon without rewrite, brand leak, no signature block, a sign-off banner that differs from the recorded Gate 3 decision, a release-readiness word on slide 1, a wrong severity word or a number that does not match the run files, slide 1 not punchline, deliverable in `reports/` root, a PDF that failed to render or a `.md` in its place; block
+- `requested-changes` — jargon without rewrite, brand leak, no signature block, a sign-off banner that differs from the recorded Gate 3 decision, a release-readiness word on a slide or in the sign-off narrative, a wrong severity word or a number that does not match the run files, slide 1 not punchline, deliverable in `reports/` root, a PDF that failed to render or a `.md` in its place; block
 
 ## Submitting Your Verdict
 
@@ -82,6 +86,10 @@ reads:
   - "{run}/reports/executive/signoff.pdf"
   - "{run}/reports/executive/executive-deck.pdf"
   - "{run}/reports/executive/executive-deck.json"
+  - "{run}/reports/closure/closure.json"
+  - "{run}/execution-summary.json"
+  - "{run}/reports/metrics/coverage.json"
+  - "{run}/defects/*.json"
   - "{run}/gates/gate-3-decision.json"
   - "agent-memory/qa-executive-reporter/lessons.md"
 writes: []
