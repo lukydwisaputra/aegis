@@ -112,6 +112,26 @@ describe('computeCoverage: test execution coverage', () => {
     expect(computeCoverage(dir).testExecutionCoverage).toBe(66.7);
   });
 
+  it('the worst outcome decides: fail beats blocked and beats a missing viewport, so those TCs are executed but not passed', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003', 'TC-RSP-004', 'TC-AUTH-001'),
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'fail' }, 'desktop'),
+        result('TC-RSP-001', { status: 'blocked' }, 'tablet'),
+        result('TC-RSP-001', { status: 'pass' }, 'mobile'), // fail + blocked + pass: worst is fail, executed
+        result('TC-RSP-002', { status: 'fail' }, 'desktop'), // tablet and mobile missing: fail beats unknown, executed
+        result('TC-RSP-003', { status: 'blocked' }, 'desktop'),
+        result('TC-RSP-003', { status: 'partial' }, 'tablet'),
+        result('TC-RSP-003', { status: 'pass' }, 'mobile'), // blocked outranks partial: not executed
+        result('TC-RSP-004', { status: 'partial' }, 'desktop'), // partial beats the two missing viewports: executed
+        result('TC-AUTH-001', { results: [{ status: 'fail' }, { status: 'blocked' }] }), // fail beats blocked: executed
+      ]),
+    });
+    // executed: RSP-001, RSP-002, RSP-004, AUTH-001; not: RSP-003. 4 of 5.
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(80);
+  });
+
   it('reads the plain-file synonyms noop (executed, neutral) and skip (not executed)', () => {
     const dir = runWith({
       ...rtm,

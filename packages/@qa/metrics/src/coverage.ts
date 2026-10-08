@@ -4,7 +4,11 @@ import { join } from "node:path";
 export interface CoverageRollup {
   /** Rows of rtm.json with testStatus Covered / all rows, 0 to 100, one decimal. */
   requirementsCoverage: number;
-  /** Designed test cases with a result that is not blocked, skipped or undeterminable / designed, 0 to 100, one decimal. */
+  /**
+   * Designed test cases that were executed / designed, 0 to 100, one decimal. A TC's outcome is its worst outcome across its result
+   * files, results[] entries and unreported scoped viewports (undeterminable), worst first: fail, blocked, partial, skipped, unknown,
+   * pass, no-op. It is executed unless that worst outcome is blocked, skipped or unknown, so fail and partial count as executed.
+   */
   testExecutionCoverage: number;
   /** reports/unit-coverage.json lines (else statements), or null. */
   codeCoverage: number | null;
