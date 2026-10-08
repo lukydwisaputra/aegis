@@ -258,3 +258,10 @@ export const ClosureMetricsSchema = z.object({
   testExecutionCoverage: z.number().min(0).max(100),
 });
 export type ClosureMetrics = z.infer<typeof ClosureMetricsSchema>;
+
+// ─── Uncovered checks ────────────────────────────────────────────────────────
+
+/** Why a check gave no verdict. Computed into coverage.json (uncovered) from the result files; no document supplies it. */
+export const UNCOVERED_CAUSES = ["environment", "testing-side", "requirement-gap", "not-attempted"] as const;
+export const UncoveredCauseSchema = z.enum(UNCOVERED_CAUSES);
+export type UncoveredCause = z.infer<typeof UncoveredCauseSchema>;

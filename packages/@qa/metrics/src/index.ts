@@ -286,3 +286,5 @@ function derivePhase(taskId: string): string {
 }
 
 export * from "./coverage.js";
+export * from "./outcomes.js";
+export * from "./uncovered.js";

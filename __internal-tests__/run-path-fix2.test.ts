@@ -56,10 +56,16 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     const text = read(COLLECTOR);
     const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
     expect(cov).toContain(
-      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, noData? }`',
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, noData? }`',
     );
     expect(cov).toMatch(/`counts` is `\{ designed, attempted, passed, failed, partial, blocked, skipped, unknown, notAttempted \}`/);
     expect(cov).toMatch(/Counts are computed by the command from the case files, never by hand/);
+    expect(cov).toContain('`{ byCause: { environment, testingSide, requirementGap, notAttempted, other }, rows: [{ id, cause, via }] }`');
+    expect(cov).toContain('You never classify a row by hand');
+    expect(cov).toContain("the first match of the command's keyword table on the text of its result files");
+    expect(cov).toContain("else on the origin text of that check's row in the closure's table of uncovered test cases");
+    expect(cov).toContain('a `cause` written on a closure row is ignored');
+    expect(cov).toContain('`blocked` plus `skipped` plus `unknown` plus `notAttempted`');
     expect(cov).toMatch(/`codeCoverage` is a number or null/);
     expect(cov).toMatch(/percentages from 0 to 100/);
   });

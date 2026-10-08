@@ -89,6 +89,12 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 `closure.json` always carries `exitCriteria`, which the sign-off document prints as its Met/Not met checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against this cycle's results, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
 
+### closure.json: uncovered test cases and residual risk
+
+`closure.json` carries `uncoveredTestCases`, one `{ "id", "module", "status", "origin" }` per check that gave no verdict (blocked, skipped, undeterminable, or designed with no result file), `origin` being one plain sentence on why. The closure states no split of them by cause: no `cause` on a row and no total by cause. The split is computed from the result files into `uncovered` of `coverage.json` and is stated only by the executive reports, from that file.
+
+`closure.json` carries the residual risk summary as `residualRiskSummary`, an array with one object per risk testing did not fully mitigate: `{ "riskId", "title", "originalLikelihoodImpactScore", "mitigationStatus", "residualExposure" }`, optionally with `rating` (Critical, High, Medium or Low; else the word in parentheses at the end of the score is used). A rating is the closure's rating of a residual risk, not a defect severity. The sign-off document prints it when the risk register holds no residual data of its own.
+
 ## Process
 
 You run twice per cycle, and your brief names the `pass`. The draft pass (Closure-draft, before Compliance) runs steps 1–4 and 6; the final pass (Closure-final, after Compliance) runs steps 5 and 6.

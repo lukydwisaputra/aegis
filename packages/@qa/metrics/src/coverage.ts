@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { NOT_EXECUTED, readJson, scanChecks } from "./outcomes.js";
+import { classifyUncovered, emptyUncovered, type UncoveredRollup } from "./uncovered.js";
 
 /**
  * Check counts computed from the case design files and case result files: one outcome per TC (its worst outcome, see
@@ -37,46 +38,12 @@ export interface CoverageRollup {
   partialRequirements: number;
   /** Check counts, computed here and nowhere else: the one source for every count a report states. */
   counts: CoverageCounts;
+  /**
+   * The checks that gave no verdict (blocked, or designed with no result file), each with one deterministic cause, and the count per
+   * cause: computed by classifyUncovered, the one source for any split of them a report states.
+   */
+  uncovered: UncoveredRollup;
   noData?: true;
-}
-
-const CASE_FILE = /^(TC-[A-Z]{2,8}-\d{3,})\.json$/;
-const RESULT_FILE = /^(TC-[A-Z]{2,8}-\d{3,})(?:-(desktop|tablet|mobile))?-result\.json$/;
-const VIEWPORTS = ["desktop", "tablet", "mobile"] as const;
-type Viewport = (typeof VIEWPORTS)[number];
-
-type Outcome = "fail" | "blocked" | "partial" | "skipped" | "unknown" | "pass" | "no-op";
-/** Worst first: the outcome of a TC with several results is the first of these any of them has. */
-const WORST_FIRST: readonly Outcome[] = ["fail", "blocked", "partial", "skipped", "unknown", "pass", "no-op"];
-const NOT_EXECUTED: ReadonlySet<Outcome> = new Set<Outcome>(["blocked", "skipped", "unknown"]);
-const SYNONYMS: Readonly<Record<string, Outcome>> = {
-  pass: "pass", passed: "pass", fail: "fail", failed: "fail", blocked: "blocked", partial: "partial",
-  skipped: "skipped", skip: "skipped", "no-op": "no-op", noop: "no-op",
-};
-
-const outcomeOf = (status: unknown): Outcome => (typeof status === "string" ? (SYNONYMS[status.trim().toLowerCase()] ?? "unknown") : "unknown");
-
-function worst(outcomes: readonly Outcome[]): Outcome {
-  if (outcomes.length === 0) return "unknown";
-  return outcomes.reduce<Outcome>((w, o) => (WORST_FIRST.indexOf(o) < WORST_FIRST.indexOf(w) ? o : w), "no-op");
-}
-
-/** One result file: its status, or the worst status of its results[] array. */
-function resultOutcome(doc: unknown): Outcome {
-  if (doc === null || typeof doc !== "object") return "unknown";
-  const o = doc as { status?: unknown; results?: unknown };
-  if (Array.isArray(o.results) && o.results.length > 0) {
-    return worst(o.results.map((r) => outcomeOf((r as { status?: unknown } | null | undefined)?.status)));
-  }
-  return outcomeOf(o.status);
-}
-
-function readJson(file: string): unknown {
-  try {
-    return JSON.parse(readFileSync(file, "utf-8"));
-  } catch {
-    return undefined;
-  }
 }
 
 const percent = (n: number, d: number): number => Math.round((1000 * n) / d) / 10;
@@ -96,54 +63,21 @@ function codeCoverage(runDir: string): number | null {
   return null;
 }
 
-interface Results {
-  plain?: Outcome;
-  byViewport: Map<Viewport, Outcome>;
-}
-
 /** Pure: reads the run's rtm.json, case and result files and unit-coverage.json; writes nothing. */
 export function computeCoverage(runDir: string): CoverageRollup {
   const code = codeCoverage(runDir);
   const rows = rtmRows(readJson(join(runDir, "rtm.json")));
-  const casesDir = join(runDir, "cases");
-  const files = existsSync(casesDir) ? readdirSync(casesDir) : [];
+  const checks = scanChecks(runDir);
 
-  const scopeOf = new Map<string, unknown>();
-  for (const f of files) {
-    const m = CASE_FILE.exec(f);
-    if (m !== null) scopeOf.set(m[1]!, (readJson(join(casesDir, f)) as { viewportScope?: unknown } | undefined)?.viewportScope);
-  }
-
-  if (rows === null || rows.length === 0 || scopeOf.size === 0) {
+  if (rows === null || rows.length === 0 || checks.size === 0) {
     const none: CoverageCounts = { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
-    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: none, noData: true };
-  }
-
-  const results = new Map<string, Results>();
-  for (const f of files) {
-    const m = RESULT_FILE.exec(f);
-    if (m === null || !scopeOf.has(m[1]!)) continue;
-    const entry = results.get(m[1]!) ?? { byViewport: new Map<Viewport, Outcome>() };
-    const outcome = resultOutcome(readJson(join(casesDir, f)));
-    if (m[2] === undefined) entry.plain = outcome;
-    else entry.byViewport.set(m[2] as Viewport, outcome);
-    results.set(m[1]!, entry);
+    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: none, uncovered: emptyUncovered(), noData: true };
   }
 
   let executed = 0;
-  const counts: CoverageCounts = { designed: scopeOf.size, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
-  for (const [id, scope] of scopeOf) {
-    const entry = results.get(id);
-    if (entry === undefined) continue;
-    let outcome: Outcome;
-    if (entry.byViewport.size > 0) {
-      const required: readonly Viewport[] = VIEWPORTS.includes(scope as Viewport) ? [scope as Viewport] : VIEWPORTS;
-      const all = [...entry.byViewport.values()];
-      for (const v of required) if (!entry.byViewport.has(v)) all.push("unknown");
-      outcome = worst(all);
-    } else {
-      outcome = entry.plain ?? "unknown";
-    }
+  const counts: CoverageCounts = { designed: checks.size, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
+  for (const { outcome } of checks.values()) {
+    if (outcome === undefined) continue;
     if (!NOT_EXECUTED.has(outcome)) executed++;
     counts.attempted++;
     if (outcome === "pass" || outcome === "no-op") counts.passed++;
@@ -156,9 +90,10 @@ export function computeCoverage(runDir: string): CoverageRollup {
   const partial = rows.filter((r) => r?.testStatus === "Partial").length;
   return {
     requirementsCoverage: percent(covered, rows.length),
-    testExecutionCoverage: percent(executed, scopeOf.size),
+    testExecutionCoverage: percent(executed, checks.size),
     codeCoverage: code,
     partialRequirements: partial,
     counts,
+    uncovered: classifyUncovered(runDir, checks),
   };
 }

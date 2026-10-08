@@ -136,13 +136,54 @@ const exitCriteriaNote = Array.isArray(closure.exitCriteria)
 // defect records' status codes; neither present → "Open defects: not available".
 const openDefectsSummary = summariseOpenDefects(resolveDefectFigures(closure, defects));
 
-const residualRisk = !existsSync(join(runDir, "risk-register.json"))
-  ? "Residual risk: not available (no risk register in this run)"
-  : typeof riskRegister.residualSummary === "string"
+// Residual risk, in this order: risk-register.json residualSummary (a non-empty string), then its residual array (non-empty),
+// then closure.json#residualRiskSummary (an array of { riskId, title, originalLikelihoodImpactScore, mitigationStatus,
+// residualExposure, rating? } objects), and only then the empty state. The reporter's reports/executive/residual-risks.json
+// ([{ riskId, plain }]) supplies the customer-readable sentence of a risk by its riskId; the closure title prints only for a
+// risk with no entry there. The rating always comes from the closure row (rating, else severity, else the word in parentheses
+// at the end of its score).
+const RISK_RATINGS = ["Critical", "High", "Medium", "Low"];
+const plainByRiskId = new Map();
+try {
+  const plainDoc = readJson(join(runDir, "reports", "executive", "residual-risks.json"));
+  for (const e of Array.isArray(plainDoc) ? plainDoc : []) {
+    if (e !== null && typeof e === "object" && typeof e.riskId === "string" && typeof e.plain === "string" && e.plain.trim() !== "") {
+      plainByRiskId.set(e.riskId, e.plain.trim());
+    }
+  }
+} catch {
+  // an unreadable residual-risks.json is treated as absent: the closure titles print
+}
+function closureRisks(list) {
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((r) => {
+    if (r === null || typeof r !== "object") return [];
+    const plain = typeof r.riskId === "string" ? plainByRiskId.get(r.riskId) : undefined;
+    const text = plain ?? [r.title].find((t) => typeof t === "string" && t.trim() !== "")?.trim();
+    if (text === undefined) return [];
+    const ratingOf = (v) => (typeof v === "string" ? RISK_RATINGS.find((x) => x.toLowerCase() === v.trim().toLowerCase()) : undefined);
+    const fromField = ratingOf(r.rating) ?? ratingOf(r.severity);
+    const fromScore = RISK_RATINGS.find((x) => typeof r.originalLikelihoodImpactScore === "string" && r.originalLikelihoodImpactScore.includes(`(${x})`));
+    return [{ text, rating: fromField ?? fromScore }];
+  });
+}
+function closureResidualRisk(risks) {
+  const critical = risks.filter((r) => r.rating === "Critical").length;
+  const n = risks.length;
+  const head = `${n} residual ${n === 1 ? "risk remains" : "risks remain"} after testing and ${n === 1 ? "is" : "are"} recorded here for the product owner to acknowledge before closure${critical > 0 ? `, ${critical} of them rated Critical` : ""}.`;
+  return [head, ...risks.map((r) => `- ${r.rating === undefined ? "" : `[${r.rating}] `}${r.text}`)].join("\n");
+}
+const closureRiskRows = closureRisks(closure.residualRiskSummary);
+const residualRisk =
+  typeof riskRegister.residualSummary === "string" && riskRegister.residualSummary.trim() !== ""
     ? riskRegister.residualSummary
-    : Array.isArray(riskRegister.residual)
+    : Array.isArray(riskRegister.residual) && riskRegister.residual.length > 0
       ? `${riskRegister.residual.length} residual risks accepted by the product owner`
-      : "No residual risk recorded";
+      : closureRiskRows.length > 0
+        ? closureResidualRisk(closureRiskRows)
+        : !existsSync(join(runDir, "risk-register.json"))
+          ? "Residual risk: not available (no risk register in this run)"
+          : "No residual risk recorded";
 
 const signatoryRoles = ["QA Lead", "Engineering Lead", "Product Owner"];
 // A security defect, by the fields DefectSchema has: a SEC-type id (DEF-{NNN}-{MODULE}-SEC) or a CWE-/WSTG-

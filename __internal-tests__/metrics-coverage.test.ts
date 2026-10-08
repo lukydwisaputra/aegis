@@ -234,6 +234,7 @@ describe('computeCoverage: code coverage and noData', () => {
     expect(computeCoverage(runWith({ ...files, 'reports/unit-coverage.json': { lines: 50 } }))).toEqual({
       requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: 50, partialRequirements: 0, noData: true,
       counts: { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 },
+      uncovered: { rows: [], byCause: { environment: 0, testingSide: 0, requirementGap: 0, notAttempted: 0, other: 0 } },
     });
   });
 
@@ -266,7 +267,7 @@ describe('writeCoverage and aegis metrics coverage', () => {
       expect(out.coverage).toMatchObject({ requirementsCoverage: 75, partialRequirements: 1, testExecutionCoverage: 0 });
       expect(out.coverage.counts).toEqual({ designed: 1, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 1 });
       expect(Object.keys(JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8')))).toEqual(
-        ['requirementsCoverage', 'testExecutionCoverage', 'codeCoverage', 'partialRequirements', 'counts'],
+        ['requirementsCoverage', 'testExecutionCoverage', 'codeCoverage', 'partialRequirements', 'counts', 'uncovered'],
       );
     }
   });
