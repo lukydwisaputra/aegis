@@ -147,6 +147,9 @@ const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closur
 
 // Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
 const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
+// A figure the collector computed from the RTM wins over the copy in closure.json: a reissued executive phase re-reads a
+// closure.json written before the figure was right.
+const rollupCoverage = hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
 
 // Cost: the sum of usdCost over the collector's token-usage rows — {agent, model, ..., usdCost, ts}. A rollup
 // (per agent, model or phase) is never a row, so a line without agent, model and ts is not summed.
@@ -195,7 +198,7 @@ const spec = {
     blocked,
     skipped: metric("skipped"),
     passRate: metric("passRate"),
-    coveragePercent: coverageNoData ? null : metric("requirementsCoverage", "coverage"),
+    coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,
     closedDefects,
   },

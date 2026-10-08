@@ -94,31 +94,24 @@ async function load(url, what) {
   }
 }
 
-const { renderSignoffDocument } = await load(RENDERER, "the PDF renderer");
+const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
 const { checkBrandExposure, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
 
-// ─── verdict mapping ──────────────────────────────────────────────────────────
+// ─── gate decision ────────────────────────────────────────────────────────────
+// The sign-off prints the owner's recorded Gate 3 decision; it maps nothing to a release verdict.
 
-const ALLOWED_VERDICTS = new Set(["GO", "NO-GO", "CONDITIONAL"]);
-const rawVerdict = (gate3.verdict ?? gate3.decision ?? "").toString().toUpperCase();
-let verdict;
-if (ALLOWED_VERDICTS.has(rawVerdict)) {
-  verdict = rawVerdict;
-} else if (rawVerdict === "APPROVED") {
-  verdict = "GO";
-} else if (rawVerdict === "APPROVED-WITH-CONDITIONS" || rawVerdict === "APPROVED_WITH_CONDITIONS") {
-  verdict = "CONDITIONAL";
-} else if (rawVerdict === "REJECTED" || rawVerdict === "BLOCKED") {
-  verdict = "NO-GO";
-} else {
+const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);
+const decision = String(gate3.decision ?? "").trim().toLowerCase();
+if (!DECISIONS.has(decision)) {
   console.error(
-    `ERROR: gate-3-decision.json verdict "${rawVerdict}" cannot be mapped to GO|NO-GO|CONDITIONAL`,
+    `ERROR: gate-3-decision.json decision "${gate3.decision}" is not one of approved | approved-with-conditions | rejected`,
   );
   process.exit(4);
 }
+const maxJargonSurvivors = Number.parseInt(args["max-jargon-survivors"] ?? "0", 10);
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 
@@ -161,19 +154,37 @@ const signoffDate = new Date().toISOString().slice(0, 10);
 const documentId = `SIGNOFF-${runId}-${signoffDate}`;
 const version = args.version ?? plan.version ?? closure.version ?? "unversioned";
 
+const scope = plan.scope ?? closure.scope ?? "Full cycle";
+
+// ─── tone-check pass ──────────────────────────────────────────────────────────
+// The same rewrite and survivor rule as the deck, applied to the free text of the attestation (never to the
+// project name, version, document id or signature roles).
+
+const sourceTexts = [scope, exitCriteriaNote, openDefectsSummary, residualRisk, ...exitCriteria.map((c) => c.criterion)];
+const jargonBefore = detectJargon(sourceTexts.join("\n")).length;
+
 const spec = {
   projectName,
   version,
   signoffDate,
   documentId,
-  scope: plan.scope ?? closure.scope ?? "Full cycle",
-  verdict,
-  exitCriteria,
-  exitCriteriaNote,
-  openDefectsSummary,
-  residualRisk,
+  scope: applyJargonRewrites(scope),
+  decision,
+  exitCriteria: exitCriteria.map((c) => ({ ...c, criterion: applyJargonRewrites(c.criterion) })),
+  exitCriteriaNote: applyJargonRewrites(exitCriteriaNote),
+  openDefectsSummary: applyJargonRewrites(openDefectsSummary),
+  residualRisk: applyJargonRewrites(residualRisk),
   signatoryRoles,
 };
+
+const survivors = detectJargon(
+  [spec.scope, spec.exitCriteriaNote, spec.openDefectsSummary, spec.residualRisk, ...spec.exitCriteria.map((c) => c.criterion)].join("\n"),
+);
+if (survivors.length > maxJargonSurvivors) {
+  console.error(`ERROR: tone-check failed — ${survivors.length} jargon terms survived rewrite (threshold: ${maxJargonSurvivors})`);
+  for (const s of survivors.slice(0, 10)) console.error(`  "${s.original}" → "${s.suggested}"`);
+  process.exit(8);
+}
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 
@@ -201,7 +212,10 @@ console.log(
   JSON.stringify({
     skill: "qa-report-signoff-pdf",
     runId,
-    verdict,
+    decision,
+    openDefectsSummary: spec.openDefectsSummary,
+    jargonRewriteCount: jargonBefore - survivors.length,
+    jargonSurvivors: survivors.length,
     documentId,
     outputPath: out,
     sizeBytes: stats.size,

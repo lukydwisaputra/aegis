@@ -160,13 +160,26 @@ export interface TechnicalReportSpec {
 
 // ─── Sign-off document spec ───────────────────────────────────────────────────
 
+/** The owner's Gate 3 decision as recorded in gates/gate-3-decision.json#decision. */
+export type SignoffDecision = "approved" | "approved-with-conditions" | "rejected";
+
+/** What the banner prints for each decision. */
+export const SIGNOFF_DECISION_TEXT: Readonly<Record<SignoffDecision, string>> = {
+  approved: "APPROVED",
+  "approved-with-conditions": "APPROVED WITH CONDITIONS",
+  rejected: "REJECTED",
+};
+
+/** The banner label: the decision is the owner's, not the QA team's release judgement. */
+export const SIGNOFF_DECISION_LABEL = "GATE 3 DECISION (owner)";
+
 export interface SignoffSpec {
   projectName: string;
   version: string;
   signoffDate: string;
   documentId: string;
   scope: string;
-  verdict: "GO" | "NO-GO" | "CONDITIONAL";
+  decision: SignoffDecision;
   exitCriteria: Array<{ criterion: string; met: boolean }>;
   /** The line printed when exitCriteria is empty; defaults to "Exit criteria: not available". */
   exitCriteriaNote?: string;
@@ -260,17 +273,17 @@ const baseStyles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     marginRight: 6,
   },
-  verdictGo: {
+  decisionApproved: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: "#1e8449",
   },
-  verdictNoGo: {
+  decisionRejected: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: "#c0392b",
   },
-  verdictConditional: {
+  decisionConditions: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: "#d68910",
@@ -612,12 +625,12 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
 // ─── Sign-off document component ──────────────────────────────────────────────
 
 function SignoffDocument({ spec }: { spec: SignoffSpec }) {
-  const verdictStyle =
-    spec.verdict === "GO"
-      ? baseStyles.verdictGo
-      : spec.verdict === "NO-GO"
-        ? baseStyles.verdictNoGo
-        : baseStyles.verdictConditional;
+  const decisionStyle =
+    spec.decision === "approved"
+      ? baseStyles.decisionApproved
+      : spec.decision === "rejected"
+        ? baseStyles.decisionRejected
+        : baseStyles.decisionConditions;
 
   return React.createElement(
     Document,
@@ -687,7 +700,7 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
           React.createElement(Text, { style: baseStyles.cell }, spec.scope)
         )
       ),
-      // Verdict
+      // Gate 3 decision
       React.createElement(
         View,
         {
@@ -702,9 +715,9 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
         React.createElement(
           Text,
           { style: { ...baseStyles.label, marginBottom: 6 } },
-          "RELEASE VERDICT"
+          SIGNOFF_DECISION_LABEL
         ),
-        React.createElement(Text, { style: verdictStyle }, spec.verdict)
+        React.createElement(Text, { style: decisionStyle }, SIGNOFF_DECISION_TEXT[spec.decision])
       ),
       // Exit criteria checklist
       React.createElement(

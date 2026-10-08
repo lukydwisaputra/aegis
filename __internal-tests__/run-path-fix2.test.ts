@@ -49,11 +49,10 @@ describe('I5: the sign-off verdict equals the mapped Gate 3 decision', () => {
     expect(verdict).toContain('a sign-off verdict that differs from the mapped Gate 3 decision');
   });
 
-  it('the mapping is the one the sign-off script applies', () => {
+  it('the sign-off script passes the recorded decision through and maps nothing to GO / NO-GO / CONDITIONAL', () => {
     const src = read('.claude/skills/_qa-report-signoff-pdf/run.mjs');
-    expect(src).toMatch(/rawVerdict === "APPROVED"\) \{\n\s*verdict = "GO"/);
-    expect(src).toMatch(/rawVerdict === "APPROVED-WITH-CONDITIONS"[^\n]*\n\s*verdict = "CONDITIONAL"/);
-    expect(src).toMatch(/rawVerdict === "REJECTED"[^\n]*\n\s*verdict = "NO-GO"/);
+    expect(src).toContain('const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);');
+    expect(src).not.toMatch(/"NO-GO"|"CONDITIONAL"|verdict = "GO"/);
   });
 });
 

@@ -77,7 +77,7 @@ node .claude/skills/_qa-report-executive-slides/run.mjs --run=$RUN_ID
 - Slide count 5–7
 - Slide 1 contains the KEY FINDING punchline (Minto pyramid top)
 - No jargon survivors above `--max-jargon-survivors` threshold
-- No GO/NO-GO verdict on any slide (that lives on the sign-off PDF only)
+- No ship/no-ship or release-readiness wording on any slide; the owner's Gate 3 decision is printed on the sign-off only
 - No internal agent names or the literal word "Aegis"
 
 ## Example
