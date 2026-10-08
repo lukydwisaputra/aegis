@@ -16,6 +16,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "run.status": "run status [--run <id>]",
   "run.stop": "run stop --reason <text> [--run <id>]",
   "run.resume": "run resume [--acknowledge-integrity --reason <text>] [--run <id>]",
+  "run.reissue": "run reissue --phase <id> --reason <text> [--run <id>]",
   "event.append": "event append --type <type> --json '<fields>' [--run <id>]",
   "id.next": "id next --kind TC|DEF|STORY|REQ|RISK|AC [--module <CODE>] [--story <id> --category happy|rejection|edge] [--defect-type <t>]",
   "task.add": "task add --id <id> --title <text> --agent <qa-*> [--description <text>] [--run <id>]",
@@ -40,6 +41,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "messaging.check": "messaging check [--run <id>]",
   "messaging.scan-secrets": "messaging scan-secrets <paths...> [--run <id>]",
   "messaging.exec": "messaging exec [--run <id>] -- <command...>",
+  "metrics.coverage": "metrics coverage [--run <id>]",
 };
 
 /** NEW-07: each messaging adapter with the hints that identify it in a target, so the scanner never hard-codes a provider. */

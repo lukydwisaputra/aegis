@@ -70,6 +70,8 @@ function pdfText(file: string): string {
   return runs.join('\n');
 }
 
+const flat = (s: string): string => s.replace(/\s+/g, ' ');
+
 const FULL_RUN = {
   'plan.json': { scope: 'Authentication module' },
   'reports/closure/closure.json': {
@@ -235,9 +237,11 @@ describe('sign-off document (Deliverable 2)', () => {
     expect(fs.existsSync(path.join(runDir, 'reports', 'signoff.pdf'))).toBe(false);
   });
 
-  it('records the Gate 3 decision and the project name, with the absent exit criteria stated', () => {
-    const text = pdfText(pdf);
-    expect(text).toContain('CONDITIONAL');
+  it('prints the owner\'s Gate 3 decision under its own label, never a release verdict', () => {
+    const text = flat(pdfText(pdf));
+    expect(text).toContain('GATE 3 DECISION (owner)');
+    expect(text).toContain('APPROVED WITH CONDITIONS');
+    expect(text).not.toMatch(/RELEASE VERDICT|CONDITIONAL|NO-GO|\bGO\b/);
     expect(text).toContain(PROJECT);
     expect(text).toContain('Exit criteria: not available');
     expect(text).not.toMatch(/aegis|qa-[a-z]+-/i);
@@ -268,6 +272,27 @@ describe('executive deck (Deliverable 3)', () => {
     const r = run(SCRIPT.slides, noDeck.root);
     expect(r.status).toBe(3);
     expect(r.stderr).toContain('executive-deck.json');
+  });
+});
+
+describe('--max-jargon-survivors must be an integer', () => {
+  const { root } = fixture(FULL_RUN);
+  it.each([
+    ['sign-off', SCRIPT.signoff],
+    ['executive deck', SCRIPT.slides],
+  ])('the %s script exits 2 with a clear error on a value that is not an integer', (_name, script) => {
+    for (const bad of ['abc', '1.5', '', '2x', '-']) {
+      const r = run(script, root, [`--max-jargon-survivors=${bad}`]);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain(`--max-jargon-survivors must be an integer, got "${bad}"`);
+    }
+  });
+
+  it.each([
+    ['sign-off', SCRIPT.signoff],
+    ['executive deck', SCRIPT.slides],
+  ])('the %s script still accepts 0 and a larger integer', (_name, script) => {
+    for (const ok of ['0', '3']) expect(run(script, root, [`--max-jargon-survivors=${ok}`]).status).toBe(0);
   });
 });
 
@@ -335,23 +360,22 @@ describe('A1/A2: real DefectSchema records', () => {
     expect(text).not.toContain('[object Object]');
   });
 
-  it('the sign-off counts the same open defects and names the highest open severity by its code', () => {
+  it('the sign-off counts the same open defects and names them by severity name', () => {
     expect(sign.stderr).toBe('');
     expect(sign.status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
-    // The renderer breaks the line after the leading number into its own text run.
-    expect(text).toMatch(/(^|\n)2[^a-z0-9]*open defects; highest severity: Sev2/);
+    expect(flat(text)).toContain('2 open defects: 1 Critical, 1 Major');
     expect(text).not.toContain('[object Object]');
   });
 });
 
 describe('A2: the technical report and the sign-off agree on open defects', () => {
-  it('on FULL_RUN both take closure.json#defectMetrics.confirmedOpen first (3), not the one record', () => {
+  it('on FULL_RUN both take confirmedOpen first (3); the sign-off cannot break 3 down by severity from one record', () => {
     const { root, runDir } = fixture(FULL_RUN);
     expect(run(SCRIPT.technical, root).status).toBe(0);
     expect(run(SCRIPT.signoff, root).status).toBe(0);
     expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open Defects\n3');
-    expect(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toMatch(/(^|\n)3[^a-z0-9]*open defects; highest severity: Sev2/);
+    expect(flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('3 open defects; severity breakdown: not available');
   });
 
   it('with no defects/ and no defectMetrics the sign-off says "Open defects: not available", never "No open defects"', () => {
@@ -651,5 +675,97 @@ describe('scripts, skills and agents name the real paths', () => {
     expect(text).not.toMatch(/\.md` fallback/);
     expect(text).not.toMatch(/acceptable ONLY if/);
     expect(text).toMatch(/failed to render[^\n]*requested-changes/);
+  });
+});
+
+describe('the sign-off decision banner', () => {
+  const gate = (decision: string) => ({ ...FULL_RUN['gates/gate-3-decision.json'], decision });
+  const signoff = (decision: string) => {
+    const { root, runDir } = fixture({ 'reports/closure/closure.json': FULL_RUN['reports/closure/closure.json'], 'gates/gate-3-decision.json': gate(decision) });
+    const r = run(SCRIPT.signoff, root);
+    return { r, text: r.status === 0 ? flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))) : '' };
+  };
+
+  it.each([
+    ['approved', 'APPROVED'],
+    ['approved-with-conditions', 'APPROVED WITH CONDITIONS'],
+    ['rejected', 'REJECTED'],
+  ])('prints %s as %s and records it in the script output', (decision, shown) => {
+    const { r, text } = signoff(decision);
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ decision });
+    expect(JSON.parse(r.stdout)).not.toHaveProperty('verdict');
+    expect(text).toContain(`GATE 3 DECISION (owner) ${shown}`);
+    if (decision === 'approved') expect(text).not.toContain('WITH CONDITIONS'); // 'APPROVED' is a prefix of the other text
+  });
+
+  it('accepts the recorded decision in any letter case and refuses a value outside the three', () => {
+    expect(signoff('APPROVED').r.status).toBe(0);
+    expect(signoff('GO').r.status).toBe(4);
+    expect(signoff('deferred').r.status).toBe(4);
+  });
+});
+
+describe('the sign-off tone-check (the deck\'s rule)', () => {
+  const tonal = (scope: string, residual: string, criterion: string) => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: {}, exitCriteria: [{ criterion, met: false }] },
+      'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+      'plan.json': { scope },
+      'risk-register.json': { residualSummary: residual },
+    });
+    const r = run(SCRIPT.signoff, root);
+    return { r, text: r.status === 0 ? flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))) : '' };
+  };
+
+  it('the sign-off rewrites jargon and leaves address and INPUT intact', () => {
+    const { r, text } = tonal('Address book and INPUT validation', 'Search is slow: p95 latency 900ms for most users', 'Address the INPUT validation gaps');
+    expect(r.status).toBe(0);
+    expect(text).toContain('the slowest 5% of requests take 900ms');
+    expect(text).not.toContain('p95');
+    expect(text).toContain('Address book and INPUT validation');
+    expect(text).toContain('Address the INPUT validation gaps');
+    expect(JSON.parse(r.stdout).jargonRewriteCount).toBeGreaterThanOrEqual(1);
+    expect(JSON.parse(r.stdout)).toMatchObject({ jargonSurvivors: 0 });
+  });
+
+  it('fails closed with exit 8 and no PDF when more jargon survives than --max-jargon-survivors allows', () => {
+    // A rewrite that itself contains jargon cannot be produced by the shipped rules, so the threshold is exercised with -1.
+    const { root, runDir } = fixture({ 'reports/closure/closure.json': { metrics: {} }, 'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'] });
+    const r = run(SCRIPT.signoff, root, ['--max-jargon-survivors=-1']);
+    expect(r.status).toBe(8);
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive', 'signoff.pdf'))).toBe(false);
+  });
+
+  it('the executive deck fails closed with exit 5 and no PDF when more jargon survives than --max-jargon-survivors allows', () => {
+    const { root, runDir } = fixture(FULL_RUN);
+    const r = run(SCRIPT.slides, root, ['--max-jargon-survivors=-1']);
+    expect(r.status).toBe(5);
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive', 'executive-deck.pdf'))).toBe(false);
+  });
+});
+
+describe('the technical report after a reissue', () => {
+  it('prefers the collector\'s coverage.json over a stale closure.json (a reissued run)', () => {
+    const { root, runDir } = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 5, failed: 0, blocked: 0, requirementsCoverage: 0 }, unavailableMetrics: [] },
+      'reports/metrics/coverage.json': { requirementsCoverage: 92.1, testExecutionCoverage: 67, codeCoverage: null, partialRequirements: 3 },
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Requirements Coverage\n92.1%');
+    expect(text).not.toMatch(/(^|\n)0\.0%/);
+  });
+
+  it('a noData coverage.json still reads not available, and a closure that lists coverage as unavailable yields to a computed figure', () => {
+    const noData = fixture({ 'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0, requirementsCoverage: 50 } }, 'reports/metrics/coverage.json': { noData: true, requirementsCoverage: 0 } });
+    expect(run(SCRIPT.technical, noData.root).status).toBe(0);
+    expect(pdfText(path.join(noData.runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Requirements Coverage\nnot available');
+    const listed = fixture({
+      'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0, requirementsCoverage: 0 }, unavailableMetrics: ['coverage.json'] },
+      'reports/metrics/coverage.json': { requirementsCoverage: 80, testExecutionCoverage: 90, codeCoverage: null, partialRequirements: 0 },
+    });
+    expect(run(SCRIPT.technical, listed.root).status).toBe(0);
+    expect(pdfText(path.join(listed.runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Requirements Coverage\n80.0%');
   });
 });

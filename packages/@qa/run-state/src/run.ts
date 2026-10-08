@@ -103,7 +103,7 @@ export async function commitRun(root: string, prior: RunState, next: RunState, r
  *   Nothing may take claims.lock while holding run.lock.
  *   submit.lock -> run.lock -> (task-file lock) -> event-bus lock (per agent/task; blockRun takes run.lock inside).
  *   submit.lock -> claims.lock -> task-file lock -> event-bus lock (releaseTask).
- *   Phase, gate and run-complete commands verify integrity first (integrity.lock -> run.lock), then take run.lock alone.
+ *   Phase, gate, run-complete and run-reissue commands verify integrity first (integrity.lock -> run.lock), then take run.lock alone.
  */
 export async function withRunLock<T>(root: string, runId: string, fn: () => Promise<T>): Promise<T> {
   if (!existsSync(runJsonPath(root, runId))) throw new RunStateError("run-not-found", `run ${runId} not found`);

@@ -33,27 +33,11 @@ describe('I1: a defect that traces to no requirement', () => {
   });
 });
 
-describe('I5: the sign-off verdict equals the mapped Gate 3 decision', () => {
-  const EXEC_SPV = `${AGENTS}/spv/qa-executive-reporter-spv.md`;
-  it('check 8 maps approved → GO, approved-with-conditions → CONDITIONAL, rejected → NO-GO and requires equality', () => {
-    const text = read(EXEC_SPV);
-    const check8 = text.slice(text.indexOf('8. **'), text.indexOf('### All 3 Documents'));
-    expect(check8).toContain('`approved` → `GO`, `approved-with-conditions` → `CONDITIONAL`, `rejected` → `NO-GO`');
-    expect(check8).toMatch(/verdict that differs from the mapped decision[^\n]*requested-changes/);
-    expect(check8).toMatch(/pre-filled verdict is expected, not a note/);
-    expect(check8).not.toMatch(/Pre-filled GO\/NO-GO = passed-with-notes/);
-    expect(text).toContain('- `runs/{runId}/gates/gate-3-decision.json`');
-    expect(text).toContain('  - "{run}/gates/gate-3-decision.json"');
-    const verdict = text.slice(text.indexOf('## Verdict'), text.indexOf('## Submitting Your Verdict'));
-    expect(verdict).not.toContain('pre-filled verdict');
-    expect(verdict).toContain('a sign-off verdict that differs from the mapped Gate 3 decision');
-  });
-
-  it('the mapping is the one the sign-off script applies', () => {
+describe('I5: the sign-off banner equals the recorded Gate 3 decision', () => {
+  it('the sign-off script passes the recorded decision through and maps nothing to GO / NO-GO / CONDITIONAL', () => {
     const src = read('.claude/skills/_qa-report-signoff-pdf/run.mjs');
-    expect(src).toMatch(/rawVerdict === "APPROVED"\) \{\n\s*verdict = "GO"/);
-    expect(src).toMatch(/rawVerdict === "APPROVED-WITH-CONDITIONS"[^\n]*\n\s*verdict = "CONDITIONAL"/);
-    expect(src).toMatch(/rawVerdict === "REJECTED"[^\n]*\n\s*verdict = "NO-GO"/);
+    expect(src).toContain('const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);');
+    expect(src).not.toMatch(/"NO-GO"|"CONDITIONAL"|verdict = "GO"/);
   });
 });
 
@@ -72,7 +56,7 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     const text = read(COLLECTOR);
     const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
     expect(cov).toContain(
-      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, noData? }`',
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, noData? }`',
     );
     expect(cov).toMatch(/`codeCoverage` is a number or null/);
     expect(cov).toMatch(/percentages from 0 to 100/);

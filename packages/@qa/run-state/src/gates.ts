@@ -26,7 +26,7 @@ import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
 import { commitRun, readRun, withRunLock, writeRun } from "./run.js";
-import { workDir } from "./submit.js";
+import { supersedeAttempts } from "./supersede.js";
 import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
 
 export const gatesDir = (root: string, runId: string): string => join(runDir(root, runId), "gates");
@@ -91,23 +91,6 @@ function reopenPhases(state: RunState, from: PhaseId, gate: GateId): RunState["p
   const phases = { ...state.phases };
   for (const id of reopenedPhaseIds(from, gate)) if (inCycle.has(id)) phases[id] = { status: "pending" };
   return phases;
-}
-
-const WORK_FILE = /^(qa-[a-z0-9-]+)\.(.+)\.(\d+)\.json$/;
-
-/** run.json#supersededAttempts merged with the highest attempt of every agent on `taskIds` (work reports on disk). */
-function supersedeAttempts(root: string, runId: string, state: RunState, taskIds: ReadonlySet<string>): NonNullable<RunState["supersededAttempts"]> {
-  const floors: NonNullable<RunState["supersededAttempts"]> = {};
-  for (const [id, byAgent] of Object.entries(state.supersededAttempts ?? {})) floors[id] = { ...byAgent };
-  const dir = workDir(root, runId);
-  for (const f of existsSync(dir) ? readdirSync(dir) : []) {
-    const m = WORK_FILE.exec(f);
-    if (m === null || !taskIds.has(m[2]!)) continue;
-    const [agent, id, n] = [m[1]!, m[2]!, Number(m[3])];
-    const byAgent = (floors[id] ??= {});
-    byAgent[agent] = Math.max(byAgent[agent] ?? 0, n);
-  }
-  return floors;
 }
 
 export interface DecideGateInput {

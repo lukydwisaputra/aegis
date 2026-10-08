@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { completeRun, createRun, nextStep, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
+import { completeRun, createRun, nextStep, readActiveRun, reissueRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function runCommand(): Command {
@@ -74,6 +74,23 @@ export function runCommand(): Command {
         const state = await resumeRun(ctx.root, runIdFor(ctx, o.run), ctx.caller, acknowledging ? { acknowledgeIntegrity: { reason: o.reason ?? "" } } : {});
         // CO-10: say exactly which errors this acknowledgement waives from now on.
         return { ...state, acknowledgedErrors: acknowledging ? state.integrityAcknowledged?.errors ?? [] : [] };
+      })
+    );
+
+  run
+    .command("reissue")
+    .description("Reopen the executive or curator phase of a completed run (owner only); the run becomes the active run")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .requiredOption("--phase <id>", "phase to reissue: a phase after the last gate (executive or curator)")
+    .requiredOption("--reason <text>", "why the phase is reissued")
+    .action(
+      action(async (o: { run?: string; phase: string; reason: string }) => {
+        const ctx = context();
+        const runId = runIdFor(ctx, o.run);
+        const previous = readActiveRun(ctx.root);
+        const state = await reissueRun(ctx.root, runId, { phase: o.phase, reason: o.reason }, ctx.caller);
+        // The reissued run is now the active one; say so when it replaced another.
+        return { ...state, next: nextStep(state), activeRun: runId, previousActiveRun: previous !== runId ? previous : null };
       })
     );
 

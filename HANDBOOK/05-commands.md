@@ -8,7 +8,7 @@
 
 | Group | Prefix | Commands |
 |---|---|---|
-| Run lifecycle | `/qa-*` | start, smoke, resume, stop, status |
+| Run lifecycle | `/qa-*` | start, smoke, resume, reissue, stop, status |
 | Defect management | `/qa-*` | triage, export, impact |
 | Knowledge | `/qa-*` | ingest-book |
 | CI/CD | `/qa-ci-*` | bootstrap |
@@ -73,6 +73,23 @@ Resumes a paused or interrupted run.
 Example:
 ```bash
 /qa-resume --run RUN-20260523-001
+```
+
+---
+
+#### `/qa-reissue`
+
+Reopens the executive or curator phase of a completed run so its artefacts can be regenerated; gates and earlier phases are untouched.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--phase` | string | — | `executive` or `curator` |
+| `--reason` | string | — | Why the phase is reissued (recorded in the log) |
+| `--run` | string | active run | Run ID; must be completed |
+
+Example:
+```bash
+/qa-reissue --phase=executive --reason="Slide 1 wording and requirements coverage were wrong"
 ```
 
 ---

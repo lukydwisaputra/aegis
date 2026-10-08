@@ -34,7 +34,7 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 - `plan.json` — scope (project name comes from `aegis.config.json#dashboard.projectName`)
 - `reports/metrics/token-usage.jsonl` — token cost in USD: the sum of `usdCost` over the rows that carry `agent`, `model` and `ts` (the collector writes rows only; a line without them is not summed)
 - `reports/metrics/cycle-time.json` — cycle time: `totalWallClockMs`, else the sum of the per-phase `durationMs`
-- `reports/metrics/coverage.json` — when it holds `"noData": true`, requirements coverage reads "not available" whatever `closure.json` says
+- `reports/metrics/coverage.json` — when it holds `"noData": true`, requirements coverage reads "not available" whatever `closure.json` says; otherwise its `requirementsCoverage` is printed in preference to the copy in `closure.json` (a reissued report re-reads a closure written earlier)
 
 ## Output
 

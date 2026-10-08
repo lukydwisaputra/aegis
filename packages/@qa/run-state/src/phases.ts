@@ -20,11 +20,12 @@ import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";
 import { verifyRunIntegrity } from "./integrity.js";
-import { busPath, runDir, taskmasterDir } from "./paths.js";
+import { busPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
 import { PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
-import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
+import { blockRun, commitRun, readRun, supersededAttempt, withRunLock, writeRun } from "./run.js";
 import { attemptsIn, reviewDir, workDir } from "./submit.js";
+import { supersedeAttempts } from "./supersede.js";
 import { formatIssues, iso, loadJson } from "./util.js";
 
 export type NextStep =
@@ -348,6 +349,71 @@ export async function completeRun(root: string, runId: string, caller: string, n
     const ts = iso(now);
     const next: RunState = { ...state, status: "completed", currentPhase: null, updatedAt: ts };
     await commitRun(root, state, next, () => appendChained({ type: "run.completed", ts, runId, summary }, busPath(root, runId), { emittedBy: caller, runId }));
+    return next;
+  });
+}
+
+/** Phases after the last gate's phase: the only ones a completed run may reissue (the gates before them stay decided). */
+export const REISSUABLE_PHASES: readonly PhaseId[] = PHASE_IDS.slice(PHASE_IDS.indexOf(GATE_AFTER[GATE_IDS[GATE_IDS.length - 1]!]) + 1);
+
+export interface ReissueInput {
+  phase: string;
+  reason: string;
+  now?: Date;
+}
+
+/**
+ * Owner: reopen a phase after the last gate of a completed run. Every attempt so far on that phase's tasks is recorded in
+ * run.json#supersededAttempts and the tasks go back to pending, so only new work can pass the barrier again; the run goes back
+ * to running with the phase pending. Gates, other phases and the event history are untouched.
+ * Retryable: until the final run.json write and the run.reissued event both land, the run stays completed, so a failed call
+ * can be repeated and ends with one event. An interrupted call can leave a completed run whose reissued-phase tasks are already
+ * pending or superseded; the retry converges (pending tasks are skipped, superseding is idempotent). If writeActiveRun fails after
+ * run.reissued is recorded, the run is already running but is not the active run, and no command resumes a running run (resume
+ * takes only stopped or blocked runs): the owner stops it (`aegis run stop --run <id> --reason ...`) and resumes it
+ * (`aegis run resume --run <id>`), which sets the active run again. Lock order: integrity.lock -> run.lock (verify), then run.lock -> task-file lock -> event-bus lock.
+ */
+export async function reissueRun(root: string, runId: string, input: ReissueInput, caller: string): Promise<RunState> {
+  assertCallerAllowed(caller, "run.reissue");
+  const reason = input.reason.trim();
+  if (reason === "") throw new RunStateError("invalid-input", "a reissue reason is required");
+  const phase = parsePhase(input.phase);
+  if (!REISSUABLE_PHASES.includes(phase)) {
+    throw new RunStateError("invalid-input", `phase ${phase} is at or before the last gate; only ${REISSUABLE_PHASES.join(", ")} can be reissued`);
+  }
+  const integrity = await verifyRunIntegrity(root, runId, caller, input.now);
+  if (!integrity.ok) throw new RunStateError("integrity-failed", `event log does not verify: ${integrity.errors.join("; ")}`);
+  return withRunLock(root, runId, async () => {
+    const state = readRun(root, runId);
+    if (state.status !== "completed") {
+      throw new RunStateError("out-of-order", `cannot reissue ${phase}: run ${runId} is "${state.status}"; only a completed run can be reissued`);
+    }
+    const record = state.phases[phase];
+    if (record?.status !== "completed") {
+      throw new RunStateError("out-of-order", `cannot reissue ${phase}: it is ${record?.status ?? "missing"} in this run, not completed`);
+    }
+    const unsettled = cycleGates(state).filter((g) => !gateSatisfied(state, g));
+    if (unsettled.length > 0) throw new RunStateError("out-of-order", `cannot reissue ${phase}: gate ${unsettled.join(", ")} is not approved`);
+
+    const ts = iso(input.now);
+    const client = createTaskmasterClient(taskmasterDir(root, runId));
+    const tasks = (await client.list()).filter((t) => t.phase === phase);
+    // The superseded attempts land first, while the run is still completed: a failure below leaves a run that can be reissued again.
+    const open: RunState = { ...state, supersededAttempts: supersedeAttempts(root, runId, state, new Set(tasks.map((t) => t.id))), updatedAt: ts };
+    writeRun(root, open);
+    for (const t of tasks) {
+      if (t.status !== "done" && t.status !== "failed") continue; // pending: reopened by an earlier try
+      try {
+        await client.reopen(t.id);
+      } catch (e) {
+        // submitReview reopens under submit.lock, not run.lock: any failure other than a task that is already pending is real.
+        if ((await client.get(t.id))?.status !== "pending") throw e;
+      }
+    }
+    const next: RunState = { ...open, status: "running", currentPhase: null, phases: { ...open.phases, [phase]: { status: "pending" } }, updatedAt: ts };
+    await commitRun(root, open, next, () => appendChained({ type: "run.reissued", ts, runId, phase, reason }, busPath(root, runId), { emittedBy: caller, runId }));
+    // {run} for path-guard resolves through runs/.active, so the reissued run must be the active one.
+    writeActiveRun(root, runId);
     return next;
   });
 }
