@@ -451,6 +451,11 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
     }
     const unsettled = cycleGates(state).filter((g) => !gateSatisfied(state, g));
     if (unsettled.length > 0) throw new RunStateError("out-of-order", `cannot reissue ${phase}: gate ${unsettled.join(", ")} is not approved`);
+    // A descoped case is out of scope: re-running it would contradict the owner's descope. Checked under the lock, before any write.
+    const descopedListed = (cases ?? []).filter((id) => state.descoped?.some((d) => d.caseId === id));
+    if (descopedListed.length > 0) {
+      throw new RunStateError("invalid-input", `${descopedListed.map((id) => `${id} is descoped; it is out of scope`).join("; ")}: leave it out of --cases`);
+    }
 
     const ts = iso(input.now);
     const reopenedPhases = reissueRange(state.cycleType, phase);

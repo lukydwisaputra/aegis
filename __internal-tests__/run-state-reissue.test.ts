@@ -407,6 +407,19 @@ describe('refusals', () => {
     expect(await snapshot(false)).toEqual(before);
   });
 
+  it('refuses a listed case the owner descoped, naming it, and changes nothing', async () => {
+    await completedRun();
+    const s = readRun(t.root, runId);
+    fs.writeFileSync(runFile(), JSON.stringify({ ...s, descoped: [{ caseId: 'TC-AUTH-002', reason: 'Depends on Singpass', at: TS }] }));
+    const before = await snapshot(true);
+    await expect(reissueRun(t.root, runId, { phase: 'execution', reason: 'x', cases: ['TC-AUTH-001', 'TC-AUTH-002'] }, 'owner')).rejects.toMatchObject({
+      code: 'invalid-input', message: expect.stringMatching(/TC-AUTH-002 is descoped; it is out of scope/),
+    });
+    expect(await snapshot(true)).toEqual(before);
+    // The same list without the descoped id is accepted.
+    await expect(reissueRun(t.root, runId, { phase: 'execution', reason: 'x', cases: ['TC-AUTH-001'] }, 'owner')).resolves.toMatchObject({ reissue: { cases: ['TC-AUTH-001'] } });
+  });
+
   it('refuses a run that is not completed', async () => {
     t = makeAegisRoot();
     runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
