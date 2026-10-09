@@ -66,6 +66,23 @@ export function readJson(file: string): unknown {
   }
 }
 
+/**
+ * The cases the owner recorded as out of scope (run.json#descoped, written by aegis run descope): case id -> the recorded
+ * reason. Read raw, so @qa/metrics stays file-based; an absent or unreadable run.json means none.
+ */
+export function descopedCases(runDir: string): Map<string, string> {
+  const doc = readJson(join(runDir, "run.json"));
+  const list = doc !== null && typeof doc === "object" ? (doc as { descoped?: unknown }).descoped : undefined;
+  const out = new Map<string, string>();
+  if (!Array.isArray(list)) return out;
+  for (const e of list) {
+    if (e === null || typeof e !== "object") continue;
+    const { caseId, reason } = e as { caseId?: unknown; reason?: unknown };
+    if (typeof caseId === "string" && caseId !== "" && typeof reason === "string" && !out.has(caseId)) out.set(caseId, reason);
+  }
+  return out;
+}
+
 /** One designed check: its outcome (undefined when it has no result file) and the free text of its no-verdict result files. */
 export interface CheckState {
   /** Worst outcome across result files and unreported scoped viewports; undefined = no result file. */
@@ -76,15 +93,18 @@ export interface CheckState {
   missingViewport: boolean;
 }
 
-/** Pure: the designed checks of the run's cases directory (cases/{TC-ID}.json) with what their result files say. */
-export function scanChecks(runDir: string): Map<string, CheckState> {
+/**
+ * Pure: the designed checks of the run's cases directory (cases/{TC-ID}.json) with what their result files say. A descoped case is not a check.
+ * `descoped` is the caller's snapshot of descopedCases(runDir); a caller that already read it passes it so one compute sees one snapshot.
+ */
+export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string> = descopedCases(runDir)): Map<string, CheckState> {
   const casesDir = join(runDir, "cases");
   const files = existsSync(casesDir) ? readdirSync(casesDir).sort() : [];
 
   const scopeOf = new Map<string, unknown>();
   for (const f of files) {
     const m = CASE_FILE.exec(f);
-    if (m !== null) scopeOf.set(m[1]!, (readJson(join(casesDir, f)) as { viewportScope?: unknown } | undefined)?.viewportScope);
+    if (m !== null && !descoped.has(m[1]!)) scopeOf.set(m[1]!, (readJson(join(casesDir, f)) as { viewportScope?: unknown } | undefined)?.viewportScope);
   }
 
   interface Results { plain?: Outcome; byViewport: Map<Viewport, Outcome>; texts: string[] }

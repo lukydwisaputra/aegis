@@ -1201,3 +1201,51 @@ describe('the sign-off exit criteria stay inside the page', () => {
     expect(rows).toContain('flex: 1');
   });
 });
+
+describe('the technical report states out-of-scope checks apart', () => {
+  const COUNTS = { designed: 99, attempted: 97, passed: 61, failed: 5, partial: 1, blocked: 30, skipped: 0, unknown: 0, notAttempted: 2 };
+  const base = { 'reports/closure/closure.json': { metrics: { passed: 61, failed: 5, blocked: 30 }, defectMetrics: { totalLogged: 0, confirmedOpen: 0 } } };
+  const cov = (counts: Record<string, number>) => ({ 'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts } });
+
+  it('prints an Out of scope row when the counts carry outOfScope above 0, outside the cells that add up to Total Tests', () => {
+    const { root, runDir } = fixture({ ...base, ...cov({ ...COUNTS, outOfScope: 1 }) });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Out of scope\n1');
+    const cell = (label: string): number => Number(new RegExp(`${label}\\n(\\d+)`).exec(text)?.[1]);
+    expect(['Passed', 'Failed', 'Partial', 'Blocked', 'Skipped', 'Undetermined'].map(cell).reduce((a, b) => a + b, 0)).toBe(cell('Total Tests'));
+  });
+
+  it('places the Out of scope row after Undetermined and before Pass Rate', () => {
+    const { root, runDir } = fixture({ ...base, ...cov({ ...COUNTS, outOfScope: 3 }) });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    const at = (label: string): number => text.indexOf(`${label}\n`);
+    expect(at('Undetermined')).toBeGreaterThan(-1);
+    expect(at('Out of scope')).toBeGreaterThan(at('Undetermined'));
+    expect(at('Pass Rate')).toBeGreaterThan(at('Out of scope'));
+  });
+
+  it.each<[string, unknown]>([['a string', '3'], ['a fraction', 1.5], ['a negative number', -2], ['null', null]])('prints no Out of scope row when outOfScope is %s', (_why, value) => {
+    const { root, runDir } = fixture({ ...base, ...cov({ ...COUNTS, outOfScope: value as number }) });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).not.toContain('Out of scope');
+  });
+
+  it('prints no Out of scope row when coverage.json holds noData, even with outOfScope in its counts', () => {
+    const { root, runDir } = fixture({
+      ...base,
+      'reports/metrics/coverage.json': { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: null, partialRequirements: 0, noData: true, counts: { ...COUNTS, outOfScope: 2 } },
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).not.toContain('Out of scope');
+  });
+
+  it('prints no Out of scope row when nothing is descoped', () => {
+    for (const counts of [COUNTS, { ...COUNTS, outOfScope: 0 }]) {
+      const { root, runDir } = fixture({ ...base, ...cov(counts) });
+      expect(run(SCRIPT.technical, root).status).toBe(0);
+      expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).not.toContain('Out of scope');
+    }
+  });
+});

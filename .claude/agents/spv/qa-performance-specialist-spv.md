@@ -22,6 +22,7 @@ You review performance test scripts and results from `qa-performance-specialist`
 - Lighthouse-CI config at `.lighthouserc.*`
 - `aegis/thresholds.yaml` — authoritative thresholds
 - `agent-memory/qa-performance-specialist/lessons.md`
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -34,6 +35,8 @@ You review performance test scripts and results from `qa-performance-specialist`
 7. **File naming.** Perf test files match `*.perf.ts`. Incorrect extension = passed-with-notes.
 8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 9. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
+
+**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
 ## Verdict
 
@@ -67,6 +70,7 @@ reads:
   - "{tests}/qa/**"
   - "{run}/events.jsonl"
   - "agent-memory/qa-performance-specialist/lessons.md"
+  - "{run}/run.json"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}

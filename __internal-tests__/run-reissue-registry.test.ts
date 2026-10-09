@@ -27,10 +27,48 @@ describe('run.reissued event', () => {
   });
 });
 
+describe('run.reissued scope fields (optional, so older logs still parse)', () => {
+  const scoped = { ...event, phase: 'execution', reopenedPhases: ['execution', 'triage'], reopenedGates: ['G2', 'G3'], cases: ['TC-REG-012', 'TC-ATT-002'] };
+
+  it('parses with reopenedPhases, reopenedGates and cases, and without them', () => {
+    expect(AegisEventSchema.safeParse(scoped).success).toBe(true);
+    expect(AegisEventSchema.safeParse(event).success).toBe(true);
+  });
+
+  it.each([
+    ['a malformed case id', { cases: ['REG-012'] }],
+    ['an empty case list', { cases: [] }],
+    ['an unknown gate', { reopenedGates: ['G4'] }],
+    ['an unknown phase', { reopenedPhases: ['discovery'] }],
+  ])('refuses %s', (_why, extra) => {
+    expect(AegisEventSchema.safeParse({ ...scoped, ...extra }).success).toBe(false);
+  });
+});
+
+describe('run.descoped event', () => {
+  const descoped = { type: 'run.descoped', ts: TS, runId: 'RUN-20261006-001', caseId: 'TC-REG-012', reason: 'Depends on Singpass login, out of scope for this release' };
+
+  it('is declared, parses with a case id and a reason, and is CLI-recorded', () => {
+    expect(declaredTypes()).toContain('run.descoped');
+    expect(AegisEventSchema.safeParse(descoped).success).toBe(true);
+    expect(isCliRecordedEventType('run.descoped')).toBe(true);
+    expect(() => assertAppendableByAgent('run.descoped')).toThrow(expect.objectContaining({ code: 'invalid-input' }));
+  });
+
+  it.each([
+    ['an empty reason', { reason: '' }],
+    ['a malformed case id', { caseId: 'TC-reg-12' }],
+    ['no case id', { caseId: undefined }],
+    ['a malformed run id', { runId: 'RUN-1' }],
+  ])('refuses %s', (_why, extra) => {
+    expect(AegisEventSchema.safeParse({ ...descoped, ...extra }).success).toBe(false);
+  });
+});
+
 describe('run.reissue command registry', () => {
   it('is a CLI command with a cheat-sheet line', () => {
     expect(CLI_COMMANDS).toContain('run.reissue');
-    expect(CLI_USAGE['run.reissue']).toBe('run reissue --phase <id> --reason <text> [--run <id>]');
+    expect(CLI_USAGE['run.reissue']).toBe('run reissue --phase <id> --reason <text> [--cases <ids>] [--run <id>]');
   });
 
   it('is owner-only: the owner may run it and no agent may', () => {
@@ -40,5 +78,14 @@ describe('run.reissue command registry', () => {
     for (const agent of ['qa-orchestrator', 'qa-executive-reporter', 'qa-metrics-collector']) {
       expect(() => assertCallerAllowed(agent, 'run.reissue')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
     }
+  });
+});
+
+describe('run.descope command registry', () => {
+  it('is an owner-only CLI command with a cheat-sheet line', () => {
+    expect(CLI_COMMANDS).toContain('run.descope');
+    expect(CLI_USAGE['run.descope']).toBe('run descope --case <id> (repeat for several) --reason <text> [--run <id>]');
+    expect(OWNER_COMMANDS.has('run.descope')).toBe(true);
+    expect(OWNER_ONLY.has('run.descope')).toBe(true);
   });
 });

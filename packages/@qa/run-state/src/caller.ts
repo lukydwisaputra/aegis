@@ -12,6 +12,7 @@ export const CLI_COMMANDS = [
   "run.stop",
   "run.resume",
   "run.reissue",
+  "run.descope",
   "event.append",
   "id.next",
   "task.add",
@@ -48,6 +49,7 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.stop",
   "run.resume",
   "run.reissue",
+  "run.descope",
   "task.list",
   "integrity.verify",
   "integrity.repair-tail",
@@ -74,7 +76,7 @@ export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
 
 // Commands only the main thread may run; agents reach them through the matching /qa-* skill.
 export const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>([
-  "run.create", "run.stop", "run.resume", "run.reissue", "gate.decide", "escalation.decide", "integrity.repair-tail",
+  "run.create", "run.stop", "run.resume", "run.reissue", "run.descope", "gate.decide", "escalation.decide", "integrity.repair-tail",
 ]);
 
 export const ORCHESTRATOR = "qa-orchestrator";

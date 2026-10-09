@@ -137,6 +137,8 @@ export interface TechnicalReportSpec {
     skipped: number | null;
     /** Checks with a result whose outcome could not be determined; omitted by callers that do not know it, null prints "not available". */
     undetermined?: number | null;
+    /** Designed checks the owner descoped; printed as its own row only when above 0, and never part of totalTests. */
+    outOfScope?: number | null;
     passRate: number | null;
     coveragePercent: number | null;
     openDefects: number | null;
@@ -479,6 +481,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ["Blocked", formatCount(spec.metrics.blocked)],
         ["Skipped", formatCount(spec.metrics.skipped)],
         ...(spec.metrics.undetermined === undefined ? [] : [["Undetermined", formatCount(spec.metrics.undetermined)]]),
+        ...(typeof spec.metrics.outOfScope === "number" && Number.isInteger(spec.metrics.outOfScope) && spec.metrics.outOfScope > 0 ? [["Out of scope", formatCount(spec.metrics.outOfScope)]] : []),
         ["Pass Rate", formatPercent(spec.metrics.passRate)],
         ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
         ["Open Defects", formatCount(spec.metrics.openDefects)],

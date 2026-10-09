@@ -44,11 +44,81 @@ function aegis(agent: string, ...args: string[]) {
   fs.writeFileSync(file, JSON.stringify({ ...s, status: 'completed', gates: { G1: approved, G2: approved, G3: approved } }));
   expect(aegis('qa-orchestrator', 'run', 'reissue', '--phase', 'executive', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
   expect(aegis('owner', 'run', 'reissue', '--phase', 'executive')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
-  expect(aegis('owner', 'run', 'reissue', '--phase', 'closure-final', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'planning', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
   const ok = aegis('owner', 'run', 'reissue', '--phase', 'executive', '--reason', 'Wording fix');
   expect(ok).toMatchObject({ status: 0, out: { status: 'running', next: { kind: 'start-phase', phase: 'executive' }, activeRun: runId, previousActiveRun: null } });
   expect(aegis('owner', 'run', 'status').out.next).toEqual({ kind: 'start-phase', phase: 'executive' });
   expect(aegis('owner', 'integrity', 'verify')).toMatchObject({ status: 0, out: { ok: true } });
   const log = fs.readFileSync(path.join(t.root, 'runs', runId, 'events.jsonl'), 'utf-8').trim().split('\n');
   expect(JSON.parse(log[log.length - 1]!)).toMatchObject({ type: 'run.reissued', phase: 'executive', reason: 'Wording fix', emittedBy: 'owner' });
+}, 60_000);
+
+(stale ? it.skip : it)('run descope is an owner command of the built CLI: records once, says so the second time, refuses an agent and a branded reason', () => {
+  const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
+  expect(aegis('qa-orchestrator', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Out of scope')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Aegis cannot run it')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Depends on Singpass, out of scope')).toMatchObject({
+    status: 0, out: { runId, caseId: 'TC-AUTH-012', recorded: true, descoped: [expect.objectContaining({ caseId: 'TC-AUTH-012' })] },
+  });
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Again')).toMatchObject({ status: 0, out: { recorded: false, message: expect.stringMatching(/already descoped/) } });
+  expect(aegis('owner', 'run', 'status').out.descoped).toEqual([expect.objectContaining({ caseId: 'TC-AUTH-012', reason: 'Depends on Singpass, out of scope' })]);
+  expect(aegis('owner', 'integrity', 'verify')).toMatchObject({ status: 0, out: { ok: true } });
+}, 60_000);
+
+(stale ? it.skip : it)('run reissue --cases reopens execution on the built CLI: G2 and G3 reset, the scope shown by run status', () => {
+  const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
+  const dir = path.join(t.root, 'runs', runId);
+  const s = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf-8'));
+  for (const id of Object.keys(s.phases)) s.phases[id] = { status: 'completed' };
+  const approved = { status: 'approved', decisions: 1 };
+  fs.writeFileSync(path.join(dir, 'run.json'), JSON.stringify({ ...s, status: 'completed', gates: { G1: approved, G2: approved, G3: approved } }));
+  fs.mkdirSync(path.join(dir, 'cases'));
+  for (const id of ['TC-AUTH-001', 'TC-AUTH-002']) fs.writeFileSync(path.join(dir, 'cases', `${id}.json`), JSON.stringify({ id }));
+  const snapshot = () => ({ run: fs.readFileSync(path.join(dir, 'run.json'), 'utf-8'), events: fs.readFileSync(path.join(dir, 'events.jsonl'), 'utf-8') });
+  const before = snapshot();
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'execution', '--reason', 'x', '--cases', 'TC-AUTH-009')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(snapshot()).toEqual(before);
+  // A scope only applies when Execution is reissued: refused for a later phase, nothing written.
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'executive', '--reason', 'x', '--cases', 'TC-AUTH-001')).toMatchObject({
+    status: 2, err: { error: 'invalid-input', message: expect.stringMatching(/--cases only applies when Execution is reissued/) },
+  });
+  expect(snapshot()).toEqual(before);
+  const ok = aegis('owner', 'run', 'reissue', '--phase', 'execution', '--reason', 'Run the blocked checks', '--cases', 'TC-AUTH-001, TC-AUTH-002');
+  expect(ok).toMatchObject({
+    status: 0,
+    out: { status: 'running', next: { kind: 'start-phase', phase: 'execution' }, gates: { G1: approved, G2: { status: 'reset', decisions: 1 }, G3: { status: 'reset', decisions: 1 } } },
+  });
+  expect(aegis('owner', 'run', 'status').out.reissue).toMatchObject({ phase: 'execution', cases: ['TC-AUTH-001', 'TC-AUTH-002'], reopenedGates: ['G2', 'G3'] });
+  expect(aegis('owner', 'integrity', 'verify')).toMatchObject({ status: 0, out: { ok: true } });
+}, 60_000);
+
+(stale ? it.skip : it)('run descope with a repeated --case records every case, once each, and refuses the whole batch on one bad id', () => {
+  const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
+  const dir = path.join(t.root, 'runs', runId);
+  const snapshot = () => ({ run: fs.readFileSync(path.join(dir, 'run.json'), 'utf-8'), events: fs.readFileSync(path.join(dir, 'events.jsonl'), 'utf-8') });
+  const before = snapshot();
+  // One malformed id among two: nothing is recorded (run.json and the event log stay byte-identical).
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-001', '--case', 'TC-AUTH', '--reason', 'Out of scope')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(snapshot()).toEqual(before);
+  // A branded reason is refused up front too.
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-001', '--case', 'TC-AUTH-002', '--reason', 'Aegis cannot run it')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(snapshot()).toEqual(before);
+  // A caller that may not descope records nothing.
+  expect(aegis('qa-orchestrator', 'run', 'descope', '--case', 'TC-AUTH-001', '--case', 'TC-AUTH-002', '--reason', 'Out of scope')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+  expect(snapshot()).toEqual(before);
+  // Two --case flags record both; a duplicate id in the same call is recorded once.
+  const ok = aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-001', '--case', 'TC-AUTH-002', '--case', 'TC-AUTH-001', '--reason', 'Depends on Singpass');
+  expect(ok).toMatchObject({
+    status: 0,
+    out: { runId, results: [expect.objectContaining({ caseId: 'TC-AUTH-001', recorded: true }), expect.objectContaining({ caseId: 'TC-AUTH-002', recorded: true })] },
+  });
+  expect(ok.out.results).toHaveLength(2);
+  expect(aegis('owner', 'run', 'status').out.descoped.map((d: { caseId: string }) => d.caseId)).toEqual(['TC-AUTH-001', 'TC-AUTH-002']);
+  const events = fs.readFileSync(path.join(dir, 'events.jsonl'), 'utf-8').trim().split('\n').map((l) => JSON.parse(l));
+  expect(events.filter((e) => e.type === 'run.descoped').map((e) => e.caseId)).toEqual(['TC-AUTH-001', 'TC-AUTH-002']);
+  // Repeating the batch is idempotent per id.
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-001', '--case', 'TC-AUTH-002', '--reason', 'Again')).toMatchObject({
+    status: 0, out: { results: [expect.objectContaining({ recorded: false }), expect.objectContaining({ recorded: false })] },
+  });
+  expect(aegis('owner', 'integrity', 'verify')).toMatchObject({ status: 0, out: { ok: true } });
 }, 60_000);

@@ -9,7 +9,6 @@ import {
   GateDecisionSchema,
   GateIdSchema,
   PHASE_IDS,
-  gateNumber,
   type GateDecision,
   type GateDecisionValue,
   type GateId,
@@ -18,20 +17,15 @@ import {
   type RunState,
 } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
-import { busPath, runDir, taskmasterDir } from "./paths.js";
+import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
-import { commitRun, readRun, withRunLock, writeRun } from "./run.js";
-import { supersedeAttempts } from "./supersede.js";
+import { commitRun, readRun, withRunLock } from "./run.js";
+import { reopenPhaseTasks } from "./supersede.js";
 import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
-
-export const gatesDir = (root: string, runId: string): string => join(runDir(root, runId), "gates");
-export const gateDecisionPath = (root: string, runId: string, gate: GateId): string =>
-  join(gatesDir(root, runId), `gate-${gateNumber(gate)}-decision.json`);
 
 export function parseGate(gate: string): GateId {
   const g = /^[1-3]$/.test(gate) ? `G${gate}` : gate;
@@ -139,23 +133,9 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
 
     let open = state;
     if (reopen !== undefined) {
-      const client = createTaskmasterClient(taskmasterDir(root, runId));
-      const phaseSet = new Set<string>(reopenedPhaseIds(reopen, gate));
-      const tasks = (await client.list()).filter((t) => t.phase !== undefined && phaseSet.has(t.phase));
       // The superseded attempts land first, while the gate is still open: the barrier never trusts the old work,
       // and a failure below leaves a gate the owner can decide again.
-      open = { ...state, supersededAttempts: supersedeAttempts(root, runId, state, new Set(tasks.map((t) => t.id))), updatedAt: ts };
-      writeRun(root, open);
-      for (const t of tasks) {
-        if (t.status !== "done" && t.status !== "failed") continue; // pending: reopened by an earlier try
-        try {
-          await client.reopen(t.id);
-        } catch (e) {
-          // submitReview reopens under submit.lock, not run.lock: a late rejection of an unreviewed (failed,
-          // accepted-with-risk) attempt can reopen the task between list() and here. Any other failure is real.
-          if ((await client.get(t.id))?.status !== "pending") throw e;
-        }
-      }
+      open = await reopenPhaseTasks(root, runId, state, new Set<string>(reopenedPhaseIds(reopen, gate)), ts);
     }
 
     publishDecision(root, runId, decision);

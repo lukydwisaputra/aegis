@@ -16,7 +16,8 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "run.status": "run status [--run <id>]",
   "run.stop": "run stop --reason <text> [--run <id>]",
   "run.resume": "run resume [--acknowledge-integrity --reason <text>] [--run <id>]",
-  "run.reissue": "run reissue --phase <id> --reason <text> [--run <id>]",
+  "run.reissue": "run reissue --phase <id> --reason <text> [--cases <ids>] [--run <id>]",
+  "run.descope": "run descope --case <id> (repeat for several) --reason <text> [--run <id>]",
   "event.append": "event append --type <type> --json '<fields>' [--run <id>]",
   "id.next": "id next --kind TC|DEF|STORY|REQ|RISK|AC [--module <CODE>] [--story <id> --category happy|rejection|edge] [--defect-type <t>]",
   "task.add": "task add --id <id> --title <text> --agent <qa-*> [--description <text>] [--run <id>]",
@@ -139,6 +140,9 @@ export function routingContext(root: string): string {
     lines.push(`- Active run: ${runId} — status ${s.status}, phase ${s.currentPhase ?? "none"}, environment ${s.environment}${s.stopRequested ? ", stop requested" : ""}.`);
     const open = Object.entries(s.gates).filter(([, g]) => g?.status === "open").map(([id]) => id);
     if (open.length > 0) lines.push(`- Open gate: ${list(open)} — the owner decides it with /qa-gate-decide.`);
+    // A reset gate (decided before, reopened by a reissue) is not open yet: the orchestrator opens it when its phase completes again.
+    const reset = Object.entries(s.gates).filter(([, g]) => g?.status === "reset").map(([id]) => id);
+    if (reset.length > 0) lines.push(`- Reset gate: ${list(reset)} — the earlier decision no longer stands; it needs a new owner decision (/qa-gate-decide) once it is opened.`);
     const escalations = s.blockedBy.filter((c) => c.kind === "escalation").map((c) => c.taskId ?? "?");
     if (escalations.length > 0) lines.push(`- Open escalation: ${list(escalations)} — decide it with /qa-escalation.`);
     const other = s.blockedBy.filter((c) => c.kind !== "escalation").map((c) => `${c.kind}: ${c.reason}`);

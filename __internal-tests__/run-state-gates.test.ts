@@ -282,6 +282,36 @@ describe('smoke auto-decision (fix round 1)', () => {
   });
 });
 
+describe('a reset gate (decided before, reissued since) needs a new decision', () => {
+  const approved = { status: 'approved', decisions: 1 };
+  const reset = { status: 'reset', decisions: 1 };
+
+  it('full cycle: it is not open, so an earlier pending phase starts first', async () => {
+    await full();
+    fastForward(t.root, runId, 'execution', { G1: approved, G2: reset, G3: { status: 'reset', decisions: 2 } });
+    expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'start-phase', phase: 'execution' });
+  });
+
+  it('full cycle: once its phase is done the gate must be opened again, and nothing after it starts', async () => {
+    await full();
+    fastForward(t.root, runId, 'closure-draft', { G1: approved, G2: reset });
+    expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'open-gate', gate: 'G2' });
+    await expect(startPhase(t.root, runId, 'closure-draft', ORCH)).rejects.toMatchObject({ code: 'out-of-order', message: expect.stringMatching(/gate G2 must be opened/) });
+    await expect(decideGate(t.root, runId, { gate: 'G2', decision: 'approved', note: 'early' }, 'owner')).rejects.toMatchObject({ code: 'out-of-order', message: expect.stringMatching(/not open \(reset\)/) });
+  });
+
+  it('smoke cycle: a reset G2 is not decided, so it is auto-decided again with the next sequence', async () => {
+    t = makeAegisRoot();
+    fs.writeFileSync(path.join(t.root, 'thresholds.yaml'), 'smoke:\n  passRateMin: 100\n  openSev1Max: 0\n  openSev2Max: 0\n');
+    runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'smoke' }, 'owner')).runId;
+    fastForward(t.root, runId, 'closure-draft', { G2: reset });
+    expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'auto-decide', gate: 'G2' });
+    writeRunFile(t.root, runId, 'execution-summary.json', { totals: { passed: 10, failed: 0, blocked: 0 } });
+    expect(await autoDecideGate(t.root, runId, 'G2', ORCH)).toMatchObject({ sequence: 2, decision: 'approved' });
+    expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'complete-run' });
+  });
+});
+
 describe('escalation decisions (spec §4.5, CO-07)', () => {
   beforeEach(async () => {
     await full();

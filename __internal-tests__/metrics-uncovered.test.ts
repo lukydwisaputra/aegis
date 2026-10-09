@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { CAUSE_RULES, classifyUncovered, computeCoverage } from '@qa/metrics';
+import { CAUSE_RULES, classifyUncovered, computeCoverage, type CheckState } from '@qa/metrics';
 import { UNCOVERED_CAUSES } from '@qa/contracts';
 
 const dirs: string[] = [];
@@ -229,5 +229,27 @@ const realAvailable = REAL !== undefined && REAL !== '' && fs.existsSync(path.jo
     expect(bare.byCause).toEqual(r.byCause);
     expect(bare.rows).toEqual(r.rows);
     console.log(JSON.stringify(r.byCause));
+  });
+});
+
+describe('classifyUncovered: descoped cases are out of scope, never uncovered', () => {
+  it('lists no descoped case, blocked or never attempted, even from a checks map that still holds it', () => {
+    const at = '2026-10-09T00:00:00.000Z';
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003'),
+      ...Object.fromEntries([blocked('TC-AUTH-001', 'depends on a recorded Singpass transaction fixture'), blocked('TC-AUTH-002', 'harness')]),
+      'run.json': { descoped: [{ caseId: 'TC-AUTH-001', reason: 'Singpass is out of scope', at }, { caseId: 'TC-AUTH-003', reason: 'Dropped from the release', at }] },
+    });
+    const r = classifyUncovered(dir);
+    expect(r.rows).toEqual([{ id: 'TC-AUTH-002', cause: 'testing-side', via: 'keyword: harness' }]);
+    expect(r.byCause).toEqual({ ...zero, testingSide: 1 });
+    const explicit = new Map<string, CheckState>([
+      ['TC-AUTH-001', { outcome: 'blocked', texts: [], missingViewport: false }],
+      ['TC-AUTH-003', { texts: [], missingViewport: false }],
+    ]);
+    expect(classifyUncovered(dir, explicit)).toEqual({ rows: [], byCause: zero });
+    const { counts, uncovered } = computeCoverage(dir);
+    expect(counts.blocked + counts.skipped + counts.unknown + counts.notAttempted).toBe(uncovered.rows.length);
   });
 });

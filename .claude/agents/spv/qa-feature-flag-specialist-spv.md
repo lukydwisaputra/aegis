@@ -22,6 +22,7 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 - `target-profile.json` — for detected flag system
 - `runs/{runId}/defects/*.json` — flag-related defects
 - `agent-memory/qa-feature-flag-specialist/lessons.md`
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -32,6 +33,8 @@ You review feature flag test results from `qa-feature-flag-specialist`. You veri
 4. **Flag-conditional defect tagging.** Any defect found only when flag X is enabled/disabled has `flagName` and `flagState` fields in the defect record. Untagged flag-specific defects = passed-with-notes.
 5. **Default-state tested.** The default state (what the flag is set to in production) was the first test case for each flag. Missing default-state test = passed-with-notes.
 6. **Flag interaction test.** If multiple flags are active, at least one test covers interaction between flags (both on, both off, mixed). Missing interaction test when >1 flag exists = passed-with-notes.
+
+**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
 ## Verdict
 
@@ -62,6 +65,8 @@ reads:
   - "{run}/target-profile.json"
   - "{run}/defects/*.json"
   - "agent-memory/qa-feature-flag-specialist/lessons.md"
+  - "{run}/run.json"
+  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}

@@ -275,9 +275,9 @@ describe('the executive SPV description lists the wording and number checks', ()
 
 describe('/qa-reissue is discoverable and its follow-ups are named', () => {
   it('the cheat sheet, the command reference and qa-help list it', () => {
-    expect(read('docs/D05-cheat-sheet.md')).toContain('| `/qa-reissue --phase=executive --reason="..."` | Reopen the executive or curator phase of a completed run |');
+    expect(read('docs/D05-cheat-sheet.md')).toContain('| `/qa-reissue --phase=execution --reason="..." [--cases=TC-...]` | Reopen a phase after Gate 1 of a completed run; its later gates are decided again |');
     expect(read('docs/D05-commands-reference.md')).toContain('### /qa-reissue');
-    expect(read('.claude/skills/qa-help/SKILL.md')).toContain('always list `/qa-reissue` (reopen the executive or curator phase of a completed run)');
+    expect(read('.claude/skills/qa-help/SKILL.md')).toContain('always list `/qa-reissue` (reopen a phase after Gate 1 of a completed run), `/qa-descope` (record a test case as out of scope)');
   });
 
   it('the reissue skill and the handbook name the collector republish, and regenerate-report points at /qa-reissue', () => {

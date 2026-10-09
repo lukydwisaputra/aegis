@@ -79,17 +79,35 @@ Example:
 
 #### `/qa-reissue`
 
-Reopens the executive or curator phase of a completed run so its artefacts can be regenerated; gates and earlier phases are untouched.
+Reopens a phase after Gate 1 of a completed full run, and every phase after it; every gate after that phase is decided again by the owner. Gate 1 and earlier phases are untouched.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--phase` | string | — | `executive` or `curator` |
-| `--reason` | string | — | Why the phase is reissued (recorded in the log) |
+| `--phase` | string | — | A phase after Gate 1: `design` through `curator` |
+| `--reason` | string | — | Why the phase is reissued (recorded in the log; reports may quote it) |
+| `--cases` | string | every case | Comma-separated test case ids a reissued Execution re-runs |
 | `--run` | string | active run | Run ID; must be completed |
 
 Example:
 ```bash
-/qa-reissue --phase=executive --reason="Slide 1 wording and requirements coverage were wrong"
+/qa-reissue --phase=execution --reason="Re-run the checks the test environment blocked" --cases=TC-ATT-002,TC-ATT-005
+```
+
+---
+
+#### `/qa-descope`
+
+Records a test case as out of scope for a run, with the owner's reason; counts and reports state it apart instead of as a gap.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--case` | string | — | A test case id; repeat `--case` for several (validated all or nothing) |
+| `--reason` | string | — | Why it is out of scope; quoted in reports, so it names no tool or agent |
+| `--run` | string | active run | Run ID; any status |
+
+Example:
+```bash
+/qa-descope --case=TC-REG-012 --reason="Depends on Singpass login, which this release does not cover"
 ```
 
 ---
