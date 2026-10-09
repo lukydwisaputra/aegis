@@ -41,9 +41,9 @@ describe('/qa-reissue skill', () => {
   });
 
   it('the docs name the command', () => {
-    expect(read('HANDBOOK/13-mechanics.md')).toContain('## 13.10 Reissuing the executive phase (`/qa-reissue`)');
+    expect(read('HANDBOOK/13-mechanics.md')).toContain('## 13.10 Reissuing a phase of a completed run (`/qa-reissue`)');
     expect(read('HANDBOOK/13-mechanics.md')).toContain('## 13.11 → Deep dives');
     expect(read('HANDBOOK/05-commands.md')).toContain('#### `/qa-reissue`');
-    expect(read('CLAUDE.md')).toContain('/qa-reissue --phase=executive');
+    expect(read('CLAUDE.md')).toContain('/qa-reissue --phase=execution');
   });
 });

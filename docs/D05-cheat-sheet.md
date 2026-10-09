@@ -16,7 +16,8 @@ _Top 10 commands. Print this, stick it somewhere._
 | `/qa-regression` | Regression-only run |
 | `/qa-rerun-failed` | Re-run only failed test cases |
 | `/qa-resume` | Continue an interrupted cycle |
-| `/qa-reissue --phase=executive --reason="..."` | Reopen the executive or curator phase of a completed run |
+| `/qa-reissue --phase=execution --reason="..." [--cases=TC-...]` | Reopen a phase after Gate 1 of a completed run; its later gates are decided again |
+| `/qa-descope --case=TC-... --reason="..."` | Record a test case as out of scope for a run |
 
 ## Checking & fixing
 

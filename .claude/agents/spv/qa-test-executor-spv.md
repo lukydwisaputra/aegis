@@ -23,6 +23,7 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 - Sample evidence files under `runs/{runId}/evidence/` (spot-check)
 - `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
 - `runs/{runId}/dev-test-review.json` — when it exists: the `kind` of the developer test a developer-covered TC names
+- `runs/{runId}/run.json` — its `reissue` record: the case list of a scoped re-execution (`cases`, with `execution` in `reopenedPhases`)
 - `agent-memory/qa-test-executor/lessons.md`
 
 ## Review Checklist
@@ -37,6 +38,7 @@ You review execution summaries and dispatch records produced by `qa-test-executo
 8. **Escalation stop and recovery.** After a `task.escalated` event, a `task.released` with result `failed`, or a `run.blocked` event for an escalation, the executor dispatched nothing — no specialist and no SPV — until the matching `escalation.decided`. A `specialist.dispatched` in between, an SPV dispatched for a task released `failed` (the executor's work report or a refused review shows it), or a re-dispatch of a pending task under a new id = requested-changes. Run `aegis task list --phase execution` to confirm each specialist was re-dispatched under its existing task id (one task per dispatch, attempts counting up) and that no task was added twice.
 9. **Execution summary totals.** `execution-summary.json` carries non-negative integer `passed`, `failed`, `blocked`, `skipped` and `pendingManual` counts that agree with the case results, and the TCs of a task the owner accepted with risk are counted `blocked` with the owner's reason stated. Missing or wrong counts = requested-changes.
 10. **Developer-covered TCs.** A TC with `coveredBy` in its `traceability` was dispatched to exactly one specialist, chosen by the named developer test's `kind` in `dev-test-review.json` and not by `testType` (`unit` → qa-unit-specialist, `e2e` → qa-ui-specialist, `api`, `integration` or `other` → qa-api-specialist); no QA script was written for it; its `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref; and its evidence under `runs/{runId}/evidence/{TC-ID}/` shows the run with `CI=true`, no snapshot update and no coverage flag, runner output there and not in the target, and the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after (this repo's directory and the QA tests directory left out) with no change (a test whose config would build or start the target in place is `blocked`, not run). A duplicate script, a second dispatch, a misroute, a result without the ref, or any change in the target = requested-changes.
+11. **Scoped re-execution.** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the work report and `execution-summary.json` name that scope; the `tcIds` of every `specialist.dispatched` after the `run.reissued` are within the case list, except a carry-forward attempt, which re-ran nothing; every other case keeps its earlier result file; and each reopened specialist task outside the list has a carry-forward attempt with its own passing review. A case outside the list re-run, a result file of one rewritten, or a summary that does not name the scope = requested-changes. The check lapses once the event log holds a `gate.decided` with decision rejected after the latest `run.reissued`: the owner's rejection note then governs the scope.
 
 ## Verdict
 
@@ -68,6 +70,7 @@ reads:
   - "{run}/evidence/**"
   - "{run}/cases/{TC-ID}.json"
   - "{run}/cases/{TC-ID}-result.json"
+  - "{run}/run.json"
   - path: "{run}/dev-test-review.json"
     optional: true
   - "agent-memory/qa-test-executor/lessons.md"

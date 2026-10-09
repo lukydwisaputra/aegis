@@ -64,13 +64,27 @@ Options:
 
 ### /qa-reissue
 
-Reopen the executive or curator phase of a completed run, so wrong executive artefacts can be regenerated without a new cycle. Earlier phases, the gate decisions and the event history stay as they are.
+Reopen a phase after Gate 1 of a completed full run, and every phase after it. Every gate after that phase must be decided again by the owner; Gate 1, the earlier phases and the event history stay as they are.
 
 ```
-/qa-reissue --phase=<executive|curator> --reason="<why>" [options]
+/qa-reissue --phase=<design..curator> --reason="<why>" [options]
 
 Options:
+  --cases=TC-...,TC-... Re-run only these cases in a reissued Execution (default: every case)
   --run=RUN-...         Run to reissue (default: active run; it must be completed)
+```
+
+---
+
+### /qa-descope
+
+Record a test case as out of scope for a run, with the owner's reason. Counts, rollups and reports state it apart instead of as a coverage gap.
+
+```
+/qa-descope --case=TC-<MODULE>-<NNN> [--case=TC-...] --reason="<why>" [options]
+
+Options:
+  --run=RUN-...         Run to record it on (default: active run; any status)
 ```
 
 ---
