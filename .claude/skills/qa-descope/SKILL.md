@@ -23,7 +23,7 @@ Several cases with the same reason: repeat `--case`, for example `pnpm aegis run
 
 ## Behaviour
 1. Run `AEGIS_AGENT=owner pnpm aegis run status` (add `--run <id>` when given) and show the cases already descoped (`descoped` in the output).
-2. Run `AEGIS_AGENT=owner pnpm aegis run descope --case <TC-ID> --reason "<reason>"` (add `--run <id>` when given; repeat `--case` for several cases). The CLI checks every case id and the reason, then appends each case with its reason and time to `descoped` in `run.json` and records one `run.descoped` event. A case already descoped is left as it is: its entry in the output says `recorded: false` and nothing changes. When the CLI refuses (an empty reason, a reason naming the framework or an agent, a malformed case id or one with no design file), show the refusal text and stop.
+2. Run `AEGIS_AGENT=owner pnpm aegis run descope --case <TC-ID> --reason "<reason>"` (add `--run <id>` when given; repeat `--case` for several cases). The CLI checks every case id and the reason, then appends each case with its reason and time to `descoped` in `run.json` and records one `run.descoped` event per case recorded. A case already descoped is left as it is: its entry in the output says `recorded: false` and nothing changes. When the CLI refuses (an empty reason, a reason naming the framework or an agent, a malformed case id or one with no design file), show the refusal text and stop.
 3. Tell the owner what changes: the next metrics computation (before Closure-draft and before Executive) counts the case as out of scope, and reports already written keep their old figures until those phases run again (`/qa-reissue`).
 
 ## Events emitted

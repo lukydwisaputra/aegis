@@ -72,6 +72,13 @@ describe('the orchestrator runs a reissue of any phase after Gate 1', () => {
     expect(orch).toContain('The case list applies only until a gate rejection: when the event log holds a `gate.decided` with decision rejected after the latest `run.reissued`, ignore the `cases` of the `reissue` record');
   });
 
+  it('a lapsed case list is announced in the executor brief with the sentence the executor matches', () => {
+    const exec = read('.claude/agents/tier1-phase/qa-test-executor.md');
+    const sentence = 'the owner rejected a gate after the reissue, so run what the rejection note names; nothing is carried forward by scope';
+    expect(orch).toContain(`say so in the brief of \`qa-test-executor\`: "${sentence}"`);
+    expect(exec).toContain(`your brief says "${sentence}"`);
+  });
+
   it('its SPV accepts a restart after run.reissued', () => {
     const spv = read('.claude/agents/spv/qa-orchestrator-spv.md');
     const check2 = spv.slice(spv.indexOf('2. **Phase order.**'), spv.indexOf('3. **SPV coverage.**'));
@@ -120,6 +127,17 @@ describe('/qa-descope and /qa-reissue', () => {
     expect(skill).toContain('--case <TC-ID> --case <TC-ID>');
     expect(skill).toContain('all or nothing');
     expect(skill).toContain('plain business wording');
+  });
+
+  it('/qa-descope records one event per case, tolerates a repeat and works on a completed run', () => {
+    const skill = read('.claude/skills/qa-descope/SKILL.md');
+    expect(skill).toContain('one `run.descoped` event per case recorded');
+    expect(skill).toContain('`recorded: false`');
+    expect(skill).toContain('a completed run included');
+  });
+
+  it('/qa-reissue sends Planning-or-earlier and open-gate reopenings to /qa-gate-decide', () => {
+    expect(read('.claude/skills/qa-reissue/SKILL.md')).toContain('Reopening Planning or earlier, or phases of an open gate, is a gate rejection (`/qa-gate-decide`)');
   });
 
   it('/qa-reissue names the phases after Gate 1, --cases, the gate reset and the archived decision files', () => {
