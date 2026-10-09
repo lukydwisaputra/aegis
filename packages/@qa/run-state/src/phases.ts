@@ -430,6 +430,10 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
   if (!REISSUABLE_PHASES.includes(phase)) {
     throw new RunStateError("invalid-input", `phase ${phase} is at or before Gate 1 (${GATE_AFTER.G1}); only ${REISSUABLE_PHASES.join(", ")} can be reissued`);
   }
+  // A scope only means something to Execution: refuse it before any write when Execution is not in the reopened range.
+  if (input.cases !== undefined && PHASE_IDS.indexOf(phase) > PHASE_IDS.indexOf("execution")) {
+    throw new RunStateError("invalid-input", `--cases only applies when Execution is reissued; ${phase} comes after execution, which a reissue of ${phase} does not reopen`);
+  }
   const cases = input.cases === undefined ? undefined : parseCaseIds(root, runId, input.cases);
   const integrity = await verifyRunIntegrity(root, runId, caller, input.now);
   if (!integrity.ok) throw new RunStateError("integrity-failed", `event log does not verify: ${integrity.errors.join("; ")}`);
@@ -466,8 +470,12 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
       appendChained({ type: "run.reissued", ts, runId, phase, reason, reopenedPhases, reopenedGates, ...scope }, busPath(root, runId), { emittedBy: caller, runId })
     );
     // {run} for path-guard resolves through runs/.active, so the reissued run must be the active one.
-    writeActiveRun(root, runId);
-    archiveResetDecisions(root, runId, reopenedGates);
+    // The archive runs even when the pointer write throws; the original error still propagates.
+    try {
+      writeActiveRun(root, runId);
+    } finally {
+      archiveResetDecisions(root, runId, reopenedGates);
+    }
     return next;
   });
 }

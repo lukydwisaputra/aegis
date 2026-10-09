@@ -18,7 +18,7 @@ Reopens a run that is already completed, from a phase after Gate 1 (Design throu
 |------|---------|-------------|
 | `--phase` | required | A phase after Gate 1: `design`, `env-data`, `execution`, `triage`, `closure-draft`, `compliance`, `closure-final`, `executive` or `curator` |
 | `--reason` | required | Why the phase is reissued; recorded in the event log and quoted in reports, so it names no tool or agent |
-| `--cases` | every case | Comma-separated test case ids: a reissued Execution re-runs only these, and every other case keeps its recorded result |
+| `--cases` | every case | Comma-separated test case ids: a reissued Execution re-runs only these, and every other case keeps its recorded result; refused for a phase after `execution` |
 | `--run` | active run | Run to reissue (status `completed`) |
 
 ## Behaviour
