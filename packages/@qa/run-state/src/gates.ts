@@ -9,7 +9,6 @@ import {
   GateDecisionSchema,
   GateIdSchema,
   PHASE_IDS,
-  gateNumber,
   type GateDecision,
   type GateDecisionValue,
   type GateId,
@@ -21,16 +20,12 @@ import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
-import { busPath, runDir } from "./paths.js";
+import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
 import { commitRun, readRun, withRunLock } from "./run.js";
 import { reopenPhaseTasks } from "./supersede.js";
 import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
-
-export const gatesDir = (root: string, runId: string): string => join(runDir(root, runId), "gates");
-export const gateDecisionPath = (root: string, runId: string, gate: GateId): string =>
-  join(gatesDir(root, runId), `gate-${gateNumber(gate)}-decision.json`);
 
 export function parseGate(gate: string): GateId {
   const g = /^[1-3]$/.test(gate) ? `G${gate}` : gate;

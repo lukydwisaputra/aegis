@@ -44,7 +44,7 @@ function aegis(agent: string, ...args: string[]) {
   fs.writeFileSync(file, JSON.stringify({ ...s, status: 'completed', gates: { G1: approved, G2: approved, G3: approved } }));
   expect(aegis('qa-orchestrator', 'run', 'reissue', '--phase', 'executive', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
   expect(aegis('owner', 'run', 'reissue', '--phase', 'executive')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
-  expect(aegis('owner', 'run', 'reissue', '--phase', 'closure-final', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'planning', '--reason', 'x')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
   const ok = aegis('owner', 'run', 'reissue', '--phase', 'executive', '--reason', 'Wording fix');
   expect(ok).toMatchObject({ status: 0, out: { status: 'running', next: { kind: 'start-phase', phase: 'executive' }, activeRun: runId, previousActiveRun: null } });
   expect(aegis('owner', 'run', 'status').out.next).toEqual({ kind: 'start-phase', phase: 'executive' });
