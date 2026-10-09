@@ -149,9 +149,6 @@ export interface TechnicalReportSpec {
     status: string;
   }>;
   compliance: Record<string, { covered: number | null; gapped: number | null }>;
-  tokenCostUsd: number | null;
-  /** Total cycle wall-clock in milliseconds; null when no cycle-time data exists. */
-  cycleTimeMs?: number | null;
   /** Optional evidence index — base64-encoded PNG data URIs keyed by defect ID */
   evidenceScreenshots?: Array<{
     defectId: string;
@@ -421,13 +418,6 @@ function SlideDeckDocument({ spec }: { spec: SlideSpec }) {
 export const NOT_AVAILABLE = "not available";
 const formatCount = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : String(v));
 const formatPercent = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : `${v.toFixed(1)}%`);
-function formatDuration(ms: number | null | undefined): string {
-  if (ms == null) return NOT_AVAILABLE;
-  const totalMinutes = Math.round(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
-}
 
 function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
   return React.createElement(
@@ -465,16 +455,6 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
           Text,
           { style: baseStyles.body },
           `Scope: ${spec.scope}`
-        ),
-        React.createElement(
-          Text,
-          { style: baseStyles.body },
-          `Token Cost: ${spec.tokenCostUsd == null ? NOT_AVAILABLE : `$${spec.tokenCostUsd.toFixed(4)}`}`
-        ),
-        React.createElement(
-          Text,
-          { style: baseStyles.body },
-          `Cycle Time: ${formatDuration(spec.cycleTimeMs)}`
         )
       )
     ),

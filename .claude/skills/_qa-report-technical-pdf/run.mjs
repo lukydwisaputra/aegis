@@ -71,21 +71,6 @@ function readJsonGlob(dir) {
   return entries === null ? null : entries.map((e) => e.doc);
 }
 
-/** Every parseable row of a JSONL file, or null when the file is absent. */
-function readJsonl(path) {
-  if (!existsSync(path)) return null;
-  const rows = [];
-  for (const line of readFileSync(path, "utf-8").split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      rows.push(JSON.parse(line));
-    } catch {
-      // a torn or malformed row is skipped, not counted
-    }
-  }
-  return rows;
-}
-
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 const closure = readJson(join(runDir, "reports", "closure", "closure.json"));
@@ -96,8 +81,6 @@ if (!closure) {
 
 const defects = readJsonGlob(join(runDir, "defects"));
 const plan = readJson(join(runDir, "plan.json")) ?? {};
-const tokenUsage = readJsonl(join(runDir, "reports", "metrics", "token-usage.jsonl"));
-const cycleTime = readJson(join(runDir, "reports", "metrics", "cycle-time.json"));
 const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
 const complianceReports = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
 
@@ -182,25 +165,6 @@ const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
 // closure.json written before the figure was right.
 const rollupCoverage = recomputed !== null ? num(recomputed.requirementsCoverage) : hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
 
-// Cost: the sum of usdCost over the collector's token-usage rows — {agent, model, ..., usdCost, ts}. A rollup
-// (per agent, model or phase) is never a row, so a line without agent, model and ts is not summed.
-const isUsageRow = (r) =>
-  r !== null && typeof r === "object" && typeof r.agent === "string" && typeof r.model === "string" && typeof r.ts === "string";
-const pricedRows = (tokenUsage ?? []).filter((r) => isUsageRow(r) && num(r.usdCost) !== null);
-const tokenCostUsd =
-  pricedRows.length > 0 && !isUnavailable("token-usage") ? pricedRows.reduce((s, r) => s + r.usdCost, 0) : null;
-
-// Cycle time: the collector's total wall-clock, else the sum of its per-phase durationMs.
-function cycleTimeMsOf(ct) {
-  if (!hasData(ct) || typeof ct !== "object" || isUnavailable("cycle-time")) return null;
-  for (const k of ["totalWallClockMs", "wallClockMs", "totalDurationMs", "totalMs"]) {
-    if (num(ct[k]) !== null) return ct[k];
-  }
-  const phases = Array.isArray(ct) ? ct : Array.isArray(ct.phases) ? ct.phases : null;
-  const durations = (phases ?? []).map((p) => num(p?.durationMs)).filter((d) => d !== null);
-  return durations.length > 0 ? durations.reduce((s, d) => s + d, 0) : null;
-}
-
 // Compliance: each report names its regulation and lists gaps[]; its covered list is the regulation's
 // own key (characteristicsCovered, articlesCovered, practicesCovered or sectionsCovered). A report
 // without a regulation is listed under its file name (istqb.json → istqb).
@@ -242,8 +206,6 @@ const spec = {
     status: defectStatusCode(d) ?? "not available",
   })),
   compliance,
-  tokenCostUsd,
-  cycleTimeMs: cycleTimeMsOf(cycleTime),
 };
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────

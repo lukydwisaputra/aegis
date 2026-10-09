@@ -32,8 +32,6 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 - `defects/*.json` — full defect list: `DefectSchema` records, printed as id, title, and the `code` of `severity` and of `status` (a plain string severity or status from an older run is read as is). Closed is the number of records whose status matches closed, verified, resolved, won't fix, duplicate, cannot reproduce or not a bug; a record flagged for the owner is neither closed nor open, and only a run with no records takes closed as `totalLogged` minus `confirmedOpen`. Open is `defectMetrics.confirmedOpen`, else the records not closed and not flagged. The sign-off skill counts open defects with the same resolver (`resolveDefectFigures` in `@qa/contracts`), so the two documents agree
 - `reports/compliance/*.json` — one gap report per relevant regulation (compliance section): `regulation`, `gaps[]`, and the regulation's covered list (`characteristicsCovered`, `articlesCovered`, `practicesCovered` or `sectionsCovered`); a report without `regulation` is listed under its file name
 - `plan.json` — scope (project name comes from `aegis.config.json#dashboard.projectName`)
-- `reports/metrics/token-usage.jsonl` — token cost in USD: the sum of `usdCost` over the rows that carry `agent`, `model` and `ts` (the collector writes rows only; a line without them is not summed)
-- `reports/metrics/cycle-time.json` — cycle time: `totalWallClockMs`, else the sum of the per-phase `durationMs`
 - `reports/metrics/coverage.json` — when it holds `"noData": true`, requirements coverage reads "not available" whatever `closure.json` says; otherwise its `requirementsCoverage` is printed in preference to the copy in `closure.json` (a reissued report re-reads a closure written earlier). Its `counts` object (computed from the case files) is the source of the check counts: Total Tests is `attempted` (every check with a result), and Passed, Failed, Partial, Blocked, Skipped and Undetermined are the counts of `passed`, `failed`, `partial`, `blocked`, `skipped` and `unknown`, so the cells add up to the total. Pass Rate is `passed` over `attempted`, one decimal, so it agrees with the Passed cell. A `coverage.json` without a complete `counts` object (written before counts existed, or absent) is recomputed by the script itself from `rtm.json` and the case and result files, read-only, with the collector's own function (its requirements coverage replaces the one in `coverage.json` and in `closure.json` too); only when that finds no data either do the figures fall back to `closure.json` as above, and Partial and Undetermined read "not available" (never a zero)
 
 ## Output
@@ -43,7 +41,7 @@ The skill is a thin orchestrator. It reads the closure artefacts already produce
 ## Behaviour
 
 1. Resolve `--run` to an absolute run directory; fail (exit 3) if `reports/closure/closure.json` is missing.
-2. Load the inputs. An absent figure is printed as **"not available"**, never as 0: a missing file, a metric file the collector wrote as `{ "noData": true }`, a token log with no priced row, a metric named in `closure.json#unavailableMetrics`, and a key the closure report does not carry. No compliance report prints "Compliance reports: not available".
+2. Load the inputs. An absent figure is printed as **"not available"**, never as 0: a missing file, a metric file the collector wrote as `{ "noData": true }`, a metric named in `closure.json#unavailableMetrics`, and a key the closure report does not carry. No compliance report prints "Compliance reports: not available".
 3. Read `aegis.config.json#dashboard.projectName` to populate the spec's `projectName`. Never write the literal "Aegis" or any internal agent name in the PDF — the report data is checked against the stakeholder brand patterns of `@qa/contracts` before rendering, and a match fails the run (exit 4).
 4. Assemble a `TechnicalReportSpec` (see `packages/@qa/pdf-renderer/src/index.ts` for the type).
 5. Call `renderTechnicalReport(spec)` and write the returned buffer to `--out`.
@@ -95,8 +93,6 @@ reads:
   - path: "{run}/reports/compliance/*.json"
     optional: true
   - "{run}/plan.json"
-  - "{run}/reports/metrics/token-usage.jsonl"
-  - "{run}/reports/metrics/cycle-time.json"
   - "{run}/reports/metrics/coverage.json"
   - "{run}/rtm.json"
   - "{run}/cases/*.json"

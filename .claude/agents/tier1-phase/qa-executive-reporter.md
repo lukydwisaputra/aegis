@@ -29,7 +29,7 @@ You operate after Gate 3 (cycle approved for closure). Your three outputs are Cl
 - `runs/{runId}/events.jsonl` — full event timeline
 - `runs/{runId}/gates/gate-{1,2,3}-decision.json` — gate decisions
 - `runs/{runId}/reports/compliance/*.json` — the per-regulation compliance reports (one per relevant regulation)
-- `runs/{runId}/reports/metrics/*.json` — token spend, duration, cost, and other computed metrics from qa-metrics-collector
+- `runs/{runId}/reports/metrics/*.json` — computed metrics from qa-metrics-collector (requirements coverage and the `counts` of checks)
 - `aegis.config.json#dashboard.projectName` and `#dashboard.footerText` — brand-clean labels
 - `agent-memory/qa-executive-reporter/lessons.md` — prior cycles' lessons
 
@@ -64,7 +64,6 @@ Structure (all sections required):
 - Security findings (CVE, OWASP, a11y — by severity)
 - Compliance posture (the per-regulation reports, one per relevant regulation, concatenated)
 - Quality gate evaluation (gates passed/failed with thresholds compared)
-- Cycle metadata (duration, token spend, cost in USD)
 - Appendices: full defect list, evidence index, event timeline
 
 Skill to invoke: `_qa-report-technical-pdf`
@@ -147,9 +146,9 @@ Before rendering slides, and again for the sign-off narrative, run every sentenc
 
 ## Process
 
-1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary, `runs/{runId}/reports/metrics/token-usage.jsonl`. Load lessons.md. Read `reports/metrics/coverage.json` as well.
+1. **Read context.** Load closure report, defect list, risk register, compliance reports, execution summary. Load lessons.md. Read `reports/metrics/coverage.json` as well.
 
-2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill (`node .claude/skills/_qa-report-technical-pdf/run.mjs --run=<runId>`). It reads `reports/closure/closure.json`, the defect records in `defects/`, `reports/metrics/token-usage.jsonl`, `reports/metrics/cycle-time.json`, `reports/metrics/coverage.json` and `reports/compliance/*.json`, and writes `reports/executive/technical-report.pdf`. **You must invoke the skill — never hand-write a `.md` instead.** If the skill fails, fix the input its error names and run it again; if it still fails, emit `report.fallback {deliverable: "technical", reason}` with the error, write no substitute file, and release the task `failed` (Task Protocol step 4) so the owner sees the render failure. Never write to the `reports/` root.
+2. **Produce Deliverable 1** by invoking the `_qa-report-technical-pdf` skill (`node .claude/skills/_qa-report-technical-pdf/run.mjs --run=<runId>`). It reads `reports/closure/closure.json`, the defect records in `defects/`, `reports/metrics/coverage.json` and `reports/compliance/*.json`, and writes `reports/executive/technical-report.pdf`. **You must invoke the skill — never hand-write a `.md` instead.** If the skill fails, fix the input its error names and run it again; if it still fails, emit `report.fallback {deliverable: "technical", reason}` with the error, write no substitute file, and release the task `failed` (Task Protocol step 4) so the owner sees the render failure. Never write to the `reports/` root.
 
 3. **Produce Deliverable 2** by first writing `reports/executive/residual-risks.json`: a JSON array of `{ "riskId": "...", "plain": "..." }` for EVERY risk of `residualRiskSummary` in `closure.json`, in the closure's order, one entry per `riskId`, never a duplicate (the sign-off keeps the first and ignores the rest), `plain` being one customer-readable sentence that describes what REMAINS after testing: the current exposure and what the owner must do, stated as an open item for the owner, never as a release condition or verdict, with no framework, tool or product-internals names, no internal paths, and no ticket, defect or requirement ids. The sentence stays consistent with that row's `residualExposure` and `mitigationStatus`: a risk that did not materialise or is now contained says so, and that is fine because the printed bracket reads "Originally <rating>"; it never states or implies the original rating as the current level (no "this high risk", no "critical exposure" for a contained one). The sign-off prints it in place of the closure's title, after the original rating from the closure, and tone-checks it. Then invoke the `_qa-report-signoff-pdf` skill (writes `reports/executive/signoff.pdf`). Populate the signature block with role placeholders — humans sign. The sign-off prints the tested build version, derived from the run by the script (the commit the explorer recorded, with the run's environment): never "unversioned" when the run records the build, and an explicit `--version` flag wins when you pass one. Same skill-first rule as Deliverable 1: a render failure is recorded with `report.fallback`, never covered by a `.md`. The skill takes the residual risk from the risk register and, when that holds none, from the closure's `residualRiskSummary`; never call the renderer directly to get around it, because that skips the tone-check and the decision validation. The skill runs the same tone-check on the sign-off and prints `jargonRewriteCount` and `jargonSurvivors`: record the skill's `jargonRewriteCount` in the work report, and append `jargon.flagged` with source `signoff` only for a sentence you rewrote yourself.
 
@@ -230,7 +229,6 @@ reads:
   - "{run}/gates/gate-{1,2,3}-decision.json"
   - "{run}/reports/compliance/*.json"
   - "{run}/reports/metrics/*.json"
-  - "{run}/reports/metrics/token-usage.jsonl"
   - aegis.config.json
   - "agent-memory/qa-executive-reporter/lessons.md"
 writes:

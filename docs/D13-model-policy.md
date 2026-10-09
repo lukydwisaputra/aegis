@@ -52,7 +52,7 @@ Runs automatically on `aegis init` and `aegis update`.
 
 ## Cost monitoring
 
-The token-usage report (`runs/{runId}/reports/token-usage.jsonl`) breaks down spend by `modelTier`. If validation tier becomes the dominant cost, switch SPVs back to Sonnet by editing:
+The `token.used` events in `runs/{runId}/events.jsonl` break down token use by model. If validation tier becomes the dominant cost, switch SPVs back to Sonnet by editing:
 
 ```yaml
 # aegis/.claude/model-policy.yaml

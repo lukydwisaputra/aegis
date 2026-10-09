@@ -147,10 +147,11 @@ describe('technical report (Deliverable 1)', () => {
     expect(text).toContain('Closed Defects\n0'); // the run holds one record, not closed: closed is read from the records, not total minus open
   });
 
-  it('sums the cost from token-usage.jsonl and the cycle time from cycle-time.json', () => {
+  it('prints neither a token cost nor a cycle time, although the run holds both metric files', () => {
     const text = pdfText(pdf);
-    expect(text).toContain('Token Cost: $1.7623');
-    expect(text).toContain('Cycle Time: 1 h 30 min');
+    expect(text).not.toMatch(/Token Cost|Cycle Time/i);
+    expect(text).not.toContain('1.7623');
+    expect(text).not.toMatch(/1 h 30 min/);
   });
 
   it('reads compliance coverage from each report\'s own covered key and gaps[]', () => {
@@ -178,8 +179,6 @@ describe('technical report with absent inputs', () => {
     expect(text).toContain('Pass Rate\nnot available');
     expect(text).toContain('Requirements Coverage\nnot available');
     expect(text).toContain('Open Defects\nnot available');
-    expect(text).toContain('Token Cost: not available');
-    expect(text).toContain('Cycle Time: not available');
     expect(text).toContain('Compliance reports: not available');
     expect(text).not.toContain('$0.0000');
   });
@@ -201,10 +200,8 @@ describe('technical report with absent inputs', () => {
     expect(text).toContain('Total Tests\n7');
     expect(text).toContain('Pass Rate\n100.0%');
     expect(text).toContain('Requirements Coverage\nnot available');
-    expect(text).toContain('Cycle Time: not available');
-    expect(text).toContain('Token Cost: not available');
+    expect(text).not.toMatch(/Cycle Time|Token Cost/i);
     expect(text).not.toMatch(/(^|\n)0\.0%/);
-    expect(text).not.toMatch(/Cycle Time: 0/);
   });
 
   it('fails with exit 3 when reports/closure/closure.json is missing', () => {
@@ -491,28 +488,64 @@ describe('A4: a compliance report without regulation', () => {
   });
 });
 
-describe('B1: cycle time and token usage shapes', () => {
-  it('reads cycle-time.json#totalWallClockMs before the phase sum, and sums only {agent, model, ts} rows, never a rollup row', () => {
+describe('the technical report no longer prints token cost or cycle time', () => {
+  const CELLS = [
+    'Total Tests\n45',
+    'Passed\n40',
+    'Failed\n3',
+    'Blocked\n2',
+    'Pass Rate\n88.9%',
+    'Requirements Coverage\n92.5%',
+    'Open Defects\n3',
+    'Closed Defects\n0',
+  ];
+
+  it('ignores unreliable metric files: a negative wall clock and priced rows leave no trace, the other cells are unchanged', () => {
     const { root, runDir } = fixture({
-      'reports/closure/closure.json': { metrics: { passed: 3, failed: 0, blocked: 0 } },
+      ...FULL_RUN,
       'reports/metrics/cycle-time.json': {
-        phases: [{ phase: 'scan', startedAt: '2026-10-04T00:00:00Z', completedAt: '2026-10-04T00:30:00Z', durationMs: 1800000, agentName: 'scanner' }],
-        totalWallClockMs: 7200000,
+        phases: [{ phase: 'scan', startedAt: '2026-10-04T00:30:00Z', completedAt: '2026-10-04T00:00:00Z', durationMs: -1380000, agentName: 'scanner' }],
+        totalWallClockMs: -1380000,
         bottleneckPhase: 'scan',
       },
       'reports/metrics/token-usage.jsonl':
         [
-          { agent: 'a', model: 'm', inputTokens: 1, outputTokens: 1, cachedTokens: 0, usdCost: 1.5, ts: '2026-10-04T00:00:00Z' },
-          { model: 'm', scope: 'per-model', usdCost: 1.5 },
-          { agent: 'a', usdCost: 1.5 },
+          { agent: 'a', model: 'm', inputTokens: 1, outputTokens: 1, cachedTokens: 0, usdCost: 1980.9, ts: '2026-10-04T00:00:00Z' },
+          { agent: 'b', model: 'm', inputTokens: 1, outputTokens: 1, cachedTokens: 0, usdCost: 0.5, ts: '2026-10-04T00:01:00Z' },
         ]
           .map((r) => JSON.stringify(r))
           .join('\n') + '\n',
     });
+    const r = run(SCRIPT.technical, root);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).not.toMatch(/Token Cost|Cycle Time|Cost|\$/i);
+    expect(text).not.toContain('1980');
+    expect(text).not.toMatch(/-23|-1380000/);
+    for (const cell of CELLS) expect(text).toContain(cell);
+    expect(text).toContain('Run ID: ' + RUN);
+    expect(text).toContain('Scope: Authentication module');
+  });
+
+  it('renders the same cells without any metric files', () => {
+    const { 'reports/metrics/token-usage.jsonl': _t, 'reports/metrics/cycle-time.json': _c, ...rest } = FULL_RUN;
+    const { root, runDir } = fixture(rest);
     expect(run(SCRIPT.technical, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('Cycle Time: 2 h 0 min');
-    expect(text).toContain('Token Cost: $1.5000');
+    expect(text).not.toMatch(/Token Cost|Cycle Time/i);
+    for (const cell of CELLS) expect(text).toContain(cell);
+  });
+
+  it('the script no longer reads either metric file nor builds either field', () => {
+    const script = fs.readFileSync(SCRIPT.technical, 'utf-8');
+    expect(script).not.toMatch(/token-usage|cycle-time|tokenCostUsd|cycleTimeMs/);
+    const renderer = read('packages/@qa/pdf-renderer/src/index.ts');
+    expect(renderer).not.toMatch(/tokenCostUsd|cycleTimeMs|Token Cost|Cycle Time/);
+    const skill = read('.claude/skills/_qa-report-technical-pdf/SKILL.md');
+    expect(skill).not.toMatch(/token-usage|cycle-time/);
+    const reporter = read('.claude/agents/tier1-phase/qa-executive-reporter.md');
+    expect(reporter).not.toMatch(/token-usage|token spend|cost in USD|Cycle metadata/);
   });
 });
 
