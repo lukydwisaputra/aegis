@@ -21,6 +21,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 - Real-time test files at `tests/qa/api/{feature}.realtime.test.ts`
 - `runs/{runId}/target-profile.json` — `hasRealtimeFeatures`, for the no-op check
 - `agent-memory/qa-realtime-specialist/lessons.md`
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -32,6 +33,8 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 6. **No production targeting.** Work report confirms tests ran against `testing` or `staging` only.
 7. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes. Does not apply to a legitimate `specialist.no-op` run.
 8. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
+
+**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
 ## Verdict
 
@@ -63,6 +66,8 @@ reads:
   - "{run}/target-profile.json"
   - "{run}/events.jsonl"
   - "agent-memory/qa-realtime-specialist/lessons.md"
+  - "{run}/run.json"
+  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}

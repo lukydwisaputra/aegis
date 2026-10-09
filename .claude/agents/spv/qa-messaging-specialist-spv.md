@@ -26,6 +26,7 @@ You review messaging test results from `qa-messaging-specialist`. You verify tha
 - `aegis/aegis.config.json` — `messaging.fakeRecipients`, and the environments whose `forbiddenSpecialists` name the specialist (`aegis.config.json#environments.production.forbiddenSpecialists`, and the testing and staging lists)
 - `runs/{runId}/events.jsonl` — the preflight and sandbox events
 - `agent-memory/qa-messaging-specialist/lessons.md`
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -42,6 +43,8 @@ You review messaging test results from `qa-messaging-specialist`. You verify tha
 11. **Naming and sandbox.** Specs are `tests/qa/messaging/{flow}.messaging.spec.ts`, each with a `sandbox.explored` event; otherwise requested-changes.
 12. **Env names in force.** The env names in the work report match `plan.json#env`, and any stub wiring line quoted uses them; otherwise requested-changes.
 13. **Fake recipients in stub-layer data.** Every flow a `*.messaging.spec.ts` triggers uses test data whose recipients are the `fakeRecipients` of `runs/{runId}/messaging/plan.json`, so an app that is not pointed at the stub can only reach a fake. A stub-layer spec that triggers a flow with any other recipient = requested-changes.
+
+**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
 ## Verdict
 
@@ -77,6 +80,8 @@ reads:
   - "{run}/cases/{TC-ID}-result.json"
   - "{run}/evidence/TC-*/**"
   - "agent-memory/qa-messaging-specialist/lessons.md"
+  - "{run}/run.json"
+  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}

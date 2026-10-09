@@ -24,6 +24,7 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 - `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
 - `runs/{runId}/evidence/{TC-ID}/` — a developer-covered TC's runner output and before/after scoped `git status --porcelain` (repo and QA tests directories left out)
 - `agent-memory/qa-unit-specialist/lessons.md`
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -36,6 +37,8 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 7. **Sandbox-first compliance.** A final test exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 8. **Assertion-present tests.** Every committed test contains at least one assertion that can fail. A committed test with zero assertions = requested-changes.
 9. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, the developer test it names was run read-only — unchanged, not copied, and no QA script written for the TC — with `CI=true`, no snapshot update and no coverage flag, its runner output and reports under `runs/{runId}/evidence/{TC-ID}/`; that evidence holds the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after (this repo's directory and the QA tests directory left out), with no change; a test whose config would build or start the target in place was not run and the TC is `blocked` with the reason; and `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script, a result without the ref, or any change in the target = requested-changes.
+
+**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
 ## Verdict
 
@@ -70,6 +73,8 @@ reads:
   - "{run}/cases/{TC-ID}-result.json"
   - "{run}/evidence/{TC-ID}/**"
   - "agent-memory/qa-unit-specialist/lessons.md"
+  - "{run}/run.json"
+  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}

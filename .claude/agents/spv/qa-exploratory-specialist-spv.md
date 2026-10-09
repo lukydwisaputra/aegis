@@ -23,6 +23,7 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 - `runs/{runId}/defect-candidates/*.json` — the candidates the session filed
 - `runs/{runId}/evidence/exploratory/` — the evidence those candidates cite
 - `agent-memory/qa-exploratory-specialist/lessons.md`
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -35,6 +36,8 @@ You review exploratory session reports from `qa-exploratory-specialist`. You ver
 7. **MCP is the primary tool.** Work report confirms browser interactions used Playwright MCP (`mcp__playwright__*`) as the primary tool, with `playwright-cli` only as a fallback when MCP was unavailable. Any `.spec.ts` file created during the session, or `@playwright/test` Node API used for session navigation, = requested-changes. When a defect was suspected, the work report must show `browser_snapshot` + `browser_take_screenshot` were captured before navigating away.
 8. **Sandbox-first + cleanup.** During the session, scratch work lived in `sandbox/{date}-{slug}/`. At session end: covered observations were promoted to `runs/{runId}/reports/exploratory/{session-id}-notes.md`; suspected defects became candidates in `runs/{runId}/defect-candidates/` with evidence copied to `runs/{runId}/evidence/exploratory/`; and the sandbox dir was removed with `sandbox.experiment-completed` appended. Any leftover `sandbox/{date}-{slug}/` dir at session end, a candidate with no evidence under `runs/{runId}/evidence/exploratory/`, or a defect opened by the specialist, = requested-changes.
 9. **Story charters (Explore).** Each Explore charter names its story and covers its happy, rejection and edge criteria; every observation carries `observation.recorded`, and every proposed test case a `tc.proposal`. A charter without a story, or one covering only happy paths, = requested-changes.
+
+**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
 ## Verdict
 
@@ -67,6 +70,8 @@ reads:
   - "{run}/evidence/exploratory/**"
   - "sandbox/{date}-{slug}/**"
   - "agent-memory/qa-exploratory-specialist/lessons.md"
+  - "{run}/run.json"
+  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}
