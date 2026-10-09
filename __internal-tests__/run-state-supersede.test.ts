@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as taskmaster from '@qa/taskmaster-client';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import { addTask, createRun, readRun, reopenPhaseTasks, startPhase, supersedeAttempts, taskmasterDir, workDir } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
@@ -60,5 +61,56 @@ describe('reopenPhaseTasks (shared by a gate rejection and a reissue)', () => {
 
     // A retry converges: the reopened task is pending and is skipped, the floors are the same.
     await expect(reopenPhaseTasks(t.root, runId, open, new Set(['planning']), TS)).resolves.toEqual(open);
+  });
+
+  it('reopens a task released failed, and its superseded floor holds the failed attempt', async () => {
+    fastForward(t.root, runId, 'planning');
+    await startPhase(t.root, runId, 'planning', ORCH);
+    await workTask(t.root, runId, 'T-planning-1', 'qa-test-planner', null, 'passed', 'failed');
+    expect(await task('T-planning-1')).toMatchObject({ status: 'failed' });
+    const open = await reopenPhaseTasks(t.root, runId, readRun(t.root, runId), new Set(['planning']), TS);
+    expect(open.supersededAttempts).toEqual({ 'T-planning-1': { 'qa-test-planner': 1 } });
+    const reopened = await task('T-planning-1');
+    expect(reopened).toMatchObject({ status: 'pending' });
+    expect(reopened).not.toHaveProperty('result');
+  });
+
+  describe('a reopen that races a late review', () => {
+    afterEach(() => jest.restoreAllMocks());
+    /** The real client, whose list() still reports `taskId` as done: the view reopenPhaseTasks had before another writer changed the file. */
+    function staleList(taskId: string): void {
+      const real = createTaskmasterClient;
+      jest.spyOn(taskmaster, 'createTaskmasterClient').mockImplementation((dir: string) => {
+        const client = real(dir);
+        return Object.assign(Object.create(client), {
+          list: async () => (await client.list()).map((x) => (x.id === taskId ? { ...x, status: 'done' as const } : x)),
+        });
+      });
+    }
+
+    async function plannedTask(): Promise<void> {
+      fastForward(t.root, runId, 'planning');
+      await startPhase(t.root, runId, 'planning', ORCH);
+      await workTask(t.root, runId, 'T-planning-1', 'qa-test-planner', 'qa-test-planner-spv');
+    }
+
+    it('swallows the refusal when the task is already pending: the late reviewer reopened it first', async () => {
+      await plannedTask();
+      await createTaskmasterClient(taskmasterDir(t.root, runId)).reopen('T-planning-1');
+      staleList('T-planning-1');
+      await expect(reopenPhaseTasks(t.root, runId, readRun(t.root, runId), new Set(['planning']), TS)).resolves.toMatchObject({
+        supersededAttempts: { 'T-planning-1': { 'qa-test-planner': 1 } },
+      });
+      expect(await task('T-planning-1')).toMatchObject({ status: 'pending' });
+    });
+
+    it('rethrows any other failure: the task is claimed again, not pending', async () => {
+      await plannedTask();
+      const client = createTaskmasterClient(taskmasterDir(t.root, runId));
+      await client.reopen('T-planning-1');
+      await client.claim('T-planning-1', 'qa-test-planner');
+      staleList('T-planning-1');
+      await expect(reopenPhaseTasks(t.root, runId, readRun(t.root, runId), new Set(['planning']), TS)).rejects.toThrow(/only done or failed tasks can be reopened/);
+    });
   });
 });

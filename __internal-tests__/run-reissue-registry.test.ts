@@ -84,7 +84,7 @@ describe('run.reissue command registry', () => {
 describe('run.descope command registry', () => {
   it('is an owner-only CLI command with a cheat-sheet line', () => {
     expect(CLI_COMMANDS).toContain('run.descope');
-    expect(CLI_USAGE['run.descope']).toBe('run descope --case <id> --reason <text> [--run <id>]');
+    expect(CLI_USAGE['run.descope']).toBe('run descope --case <id> (repeat for several) --reason <text> [--run <id>]');
     expect(OWNER_COMMANDS.has('run.descope')).toBe(true);
     expect(OWNER_ONLY.has('run.descope')).toBe(true);
   });

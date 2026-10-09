@@ -43,7 +43,8 @@ export async function reopenPhaseTasks(root: string, runId: string, state: RunSt
     try {
       await client.reopen(t.id);
     } catch (e) {
-      // Any failure other than a task that is already pending is real.
+      // submitReview reopens under submit.lock, not run.lock: a late rejection of an unreviewed (failed, accepted-with-risk)
+      // attempt can reopen the task between list() and here. Any other failure is real.
       if ((await client.get(t.id))?.status !== "pending") throw e;
     }
   }

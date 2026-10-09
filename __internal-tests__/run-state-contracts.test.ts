@@ -75,6 +75,19 @@ describe('@qa/contracts — RunStateSchema', () => {
     expect(RunStateSchema.safeParse({ ...minimal, reissue: { ...reissue, extra: 1 } }).success).toBe(false);
     expect(RunStateSchema.safeParse({ ...minimal, descoped: [{ caseId: 'TC-REG-012', reason: '', at: TS }] }).success).toBe(false);
   });
+
+  it('a reissue record without cases parses; each other field is required', () => {
+    const reissue = { phase: 'executive', reason: 'Wording fix', at: TS, reopenedPhases: ['executive', 'curator'], reopenedGates: [] };
+    const parsed = RunStateSchema.parse({ ...minimal, reissue });
+    expect(parsed.reissue).toEqual(reissue);
+    expect(parsed.reissue).not.toHaveProperty('cases');
+    for (const key of ['phase', 'reason', 'at', 'reopenedPhases', 'reopenedGates']) {
+      const { [key]: _dropped, ...rest } = reissue as Record<string, unknown>;
+      expect(RunStateSchema.safeParse({ ...minimal, reissue: rest }).success).toBe(false);
+    }
+    expect(RunStateSchema.safeParse({ ...minimal, reissue: { ...reissue, cases: [] } }).success).toBe(false);
+    expect(RunStateSchema.safeParse({ ...minimal, reissue: { ...reissue, reason: '' } }).success).toBe(false);
+  });
 });
 
 describe('@qa/contracts — EventEnvelopeSchema', () => {

@@ -117,6 +117,22 @@ describe('H3 router context', () => {
     expect(text).toContain('Open escalation: T-1');
   });
 
+  it('lists a reset gate apart from an open one, with what it needs', async () => {
+    const runId = await create();
+    const file = path.join(t.root, 'runs', runId, 'run.json');
+    const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+    s.gates = { G1: { status: 'approved', decisions: 1 }, G2: { status: 'reset', decisions: 2 }, G3: { status: 'reset', decisions: 1 } };
+    fs.writeFileSync(file, JSON.stringify(s));
+    const text = routingContext(t.root);
+    expect(text).toContain('Reset gate: G2, G3 — the earlier decision no longer stands; it needs a new owner decision (/qa-gate-decide) once it is opened.');
+    expect(text).not.toContain('Open gate');
+    s.gates.G2 = { status: 'open', openedAt: s.createdAt, decisions: 2 };
+    fs.writeFileSync(file, JSON.stringify(s));
+    const mixed = routingContext(t.root);
+    expect(mixed).toContain('Open gate: G2');
+    expect(mixed).toContain('Reset gate: G3');
+  });
+
   it('stays well under the 10,000-character additionalContext cap even with many blocks', async () => {
     const runId = await create();
     const file = path.join(t.root, 'runs', runId, 'run.json');
