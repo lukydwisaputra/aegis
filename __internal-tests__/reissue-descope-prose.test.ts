@@ -82,7 +82,7 @@ describe('the orchestrator runs a reissue of any phase after Gate 1', () => {
   it('a reset gate is neither open nor approved, and the case list lapses at a gate rejection', () => {
     expect(orch).toContain('a reset gate is neither open nor approved');
     expect(orch).toContain('`next` is `open-gate` for the gate the reissue reset');
-    expect(orch).toContain('The case list applies only until a gate rejection: when the event log holds a `gate.decided` with decision rejected after the latest `run.reissued`, ignore the `cases` of the `reissue` record');
+    expect(orch).toContain('The case list applies only until a gate rejection or a completed run: when the event log holds a `gate.decided` with decision rejected or a `run.completed` after the latest `run.reissued`, ignore the `cases` of the `reissue` record');
     // Step 5, the gate-rejection path, points to step 9 for the lapsed case list.
     const step5 = orch.slice(orch.indexOf('5. **Open the gates; never decide them.**'), orch.indexOf('6. **Leave the specialist cap to the CLI.**'));
     expect(step5).toContain("Inside a reissued cycle a rejection also lapses the reissue's case list: step 9 says what the `qa-test-executor` brief then states.");
@@ -91,8 +91,12 @@ describe('the orchestrator runs a reissue of any phase after Gate 1', () => {
   it('a lapsed case list is announced in the executor brief with the sentence the executor matches', () => {
     const exec = read('.claude/agents/tier1-phase/qa-test-executor.md');
     const sentence = 'the owner rejected a gate after the reissue, so run what the rejection note names; nothing is carried forward by scope';
-    expect(orch).toContain(`say so in the brief of \`qa-test-executor\`: "${sentence}"`);
+    expect(orch).toContain(`say so in the brief of \`qa-test-executor\`: after a rejection "${sentence}"`);
     expect(exec).toContain(`your brief says "${sentence}"`);
+    // A run.completed after the latest run.reissued lapses the list too, with one sentence the orchestrator and the executor share.
+    const completed = 'the reissued run completed since, so nothing is carried forward by scope';
+    expect(orch).toContain(`after a completed run \"${completed}\"`);
+    expect(exec).toContain(`or \"${completed}\"`);
   });
 
   it('its SPV accepts a restart after run.reissued', () => {
@@ -113,7 +117,8 @@ describe('the executor runs a scoped re-execution', () => {
   });
 
   it('the case list lapses at a gate rejection', () => {
-    expect(exec).toContain('The case list applies only until a gate rejection');
+    expect(exec).toContain('The case list applies only until a gate rejection or a completed run');
+    expect(exec).toContain('the event log holds a `gate.decided` with decision rejected or a `run.completed` after the latest `run.reissued`');
     expect(exec).toContain('ignore the `cases` of the `reissue` record');
   });
 
@@ -121,7 +126,7 @@ describe('the executor runs a scoped re-execution', () => {
     const spv = read('.claude/agents/spv/qa-test-executor-spv.md');
     expect(spv).toContain('- `runs/{runId}/run.json` — its `reissue` record');
     expect(spv).toContain('11. **Scoped re-execution.**');
-    expect(spv).toContain('The check lapses once the event log holds a `gate.decided` with decision rejected after the latest `run.reissued`');
+    expect(spv).toContain('The check lapses once the event log holds a `gate.decided` with decision rejected or a `run.completed` after the latest `run.reissued`');
     expect((contractOf(spv) as { reads: unknown[] }).reads).toContain('{run}/run.json');
   });
 });
@@ -178,5 +183,46 @@ describe('/qa-descope and /qa-reissue', () => {
     expect(read('CLAUDE.md')).toContain('/qa-descope --case=TC-... --reason="..."');
     expect(read('docs/D05-cheat-sheet.md')).toContain('| `/qa-descope --case=TC-... --reason="..."` | Record a test case as out of scope for a run |');
     expect(read('docs/D05-commands-reference.md')).toContain('### /qa-descope');
+  });
+});
+
+describe('branch review fixes', () => {
+  const dir = path.join(ROOT, '.claude/agents/spv');
+  const specialistSpvs = fs.readdirSync(dir).filter((f) => /^qa-.*-specialist-spv\.md$/.test(f) && f !== 'qa-web-explorer-spv.md');
+
+  it('every specialist SPV (the twelve that review Execution work) knows a carry-forward attempt and reads what it needs', () => {
+    expect(specialistSpvs).toHaveLength(12);
+    for (const f of specialistSpvs) {
+      const spv = read(`.claude/agents/spv/${f}`);
+      expect(spv).toContain('**Carry-forward attempt (scoped re-execution).**');
+      expect(spv).toContain('the work report\'s summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above');
+      expect(spv).toContain('no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`');
+      expect(spv).toContain('A carry-forward attempt that re-ran or changed anything = requested-changes.');
+      const reads = (contractOf(spv) as { reads: string[] }).reads;
+      expect(reads).toEqual(expect.arrayContaining(['{run}/run.json', '{run}/events.jsonl']));
+    }
+  });
+
+  it('the executor tells the specialist how to declare a carry-forward, in the words its SPV matches', () => {
+    const exec = read('.claude/agents/tier1-phase/qa-test-executor.md');
+    expect(exec).toContain('a work report whose summary begins "Carry-forward attempt" and whose approach names the carried-forward result files');
+  });
+
+  it('the closure reporter leaves descoped cases out of uncoveredTestCases, and its SPV rejects one listed there', () => {
+    expect(read('.claude/agents/tier1-phase/qa-closure-reporter.md')).toContain('the cases listed in `coverage.json#descoped` are not among them, they are stated apart as out of scope');
+    expect(read('.claude/agents/spv/qa-closure-reporter-spv.md')).toContain('or listed in `uncoveredTestCases` = requested-changes');
+  });
+
+  it('the executor skips descoped cases and keeps them out of the totals; its SPV checks both', () => {
+    const exec = read('.claude/agents/tier1-phase/qa-test-executor.md');
+    expect(exec).toContain('Skip every case in the `descoped` list of `aegis run status`');
+    expect(exec).toContain('the cases in the `descoped` list of `aegis run status` are in none of the totals');
+    expect(read('.claude/agents/spv/qa-test-executor-spv.md')).toContain('a descoped case that was run or counted = requested-changes');
+  });
+
+  it('the orchestrator and its SPV count gate-report decisions from the later of the previous gate decision and the latest reissue', () => {
+    const w = "one entry per dispatch since the previous gate decision (the run's start for G1) or the latest `run.reissued`, whichever is later";
+    expect(read('.claude/agents/orchestrator/qa-orchestrator.md')).toContain(w);
+    expect(read('.claude/agents/spv/qa-orchestrator-spv.md')).toContain(w);
   });
 });
