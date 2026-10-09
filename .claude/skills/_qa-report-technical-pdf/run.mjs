@@ -148,6 +148,8 @@ const blocked = rollupCounts ? rollupCounts.blocked : metric("blocked");
 // Partial and Undetermined read "not available" without counts: closure.json has no figure for them the table can trust.
 const partialCount = rollupCounts ? rollupCounts.partial : null;
 const undeterminedCount = rollupCounts ? rollupCounts.unknown : null;
+// Checks the owner descoped are in none of the counts above: printed apart, and only when there is one.
+const outOfScopeCount = rollupCounts && num(rollupCounts.outOfScope) !== null && rollupCounts.outOfScope > 0 ? rollupCounts.outOfScope : undefined;
 const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
 const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 // With counts the pass rate is passed over attempted, one decimal, so it agrees with the Passed cell; closure's own rate (which a
@@ -194,6 +196,7 @@ const spec = {
     blocked,
     skipped: skippedCount,
     undetermined: undeterminedCount,
+    ...(outOfScopeCount !== undefined ? { outOfScope: outOfScopeCount } : {}),
     passRate,
     coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,
