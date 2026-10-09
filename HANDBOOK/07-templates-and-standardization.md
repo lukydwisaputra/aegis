@@ -291,8 +291,7 @@ Each run's reporting output is partitioned by owner:
 runs/{runId}/reports/
   closure/      closure.md + closure.json                       (qa-closure-reporter)
   metrics/      coverage.json, defect-trend.json, cycle-time.json,
-                effectiveness.json, flaky.json, agent-reliability.json,
-                token-usage.jsonl                                (qa-metrics-collector — SOLE owner)
+                effectiveness.json, flaky.json, agent-reliability.json  (qa-metrics-collector — SOLE owner)
   executive/    technical-report.pdf, signoff.pdf,
                 executive-deck.pdf                               (qa-executive-reporter)
   compliance/   {iso25010,iso5055,istqb,cmmi,gdpr,pdpa}.{md,json}

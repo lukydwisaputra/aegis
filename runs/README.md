@@ -24,7 +24,6 @@ runs/
     ├── reports/
     │   ├── work/                              # worker WorkReport.json per task
     │   ├── closure.md     closure.json
-    │   ├── token-usage.jsonl
     │   ├── cycle-time.json
     │   ├── defect-trend.json
     │   ├── coverage.json

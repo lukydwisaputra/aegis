@@ -43,7 +43,7 @@ If the same bad pattern keeps being proposed: add a note to the curator's `agent
 1. Run `/qa-status --json | jq .tokenUsage` to see per-agent costs
 2. Sort by `costUsd DESC` — which agents are expensive?
 3. Check if SPVs are the dominant cost: if yes, edit `aegis/.claude/model-policy.yaml` to switch the validation tier to `claude-sonnet-5` (there is no automatic Sonnet-first SPV fast-path).
-4. Check `cached%` column in token-usage report. Low `cached%` means prompt caching isn't working — check that knowledge files are not being regenerated between calls.
+4. Compare `cached` with `input` in the `token.used` events of `events.jsonl`. A low `cached` share means prompt caching isn't working — check that knowledge files are not being regenerated between calls.
 5. Use `/qa-dry-run` before the next cycle to estimate costs before committing.
 
 ## 15.6 "Health check failed"

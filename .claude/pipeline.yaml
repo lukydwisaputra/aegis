@@ -152,7 +152,6 @@ escapes:
   - {unit: qa-messaging-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-metrics-collector, field: reviewedBy.none, reason: "runs without a task; no work report to review"}
   - {unit: qa-metrics-collector, field: optional, value: "{run}/reports/unit-coverage.json", reason: "qa-metrics-collector.md code coverage from the unit specialist's unit-coverage.json (if it exists)"}
-  - {unit: qa-metrics-collector, field: terminal, value: "{run}/reports/metrics/token-usage.jsonl", reason: "qa-metrics-collector.md:34 per-dispatch usage rows kept for the dashboard and internal analysis; no customer-facing report reads them"}
   - {unit: qa-orchestrator-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-performance-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
   - {unit: qa-realtime-specialist-spv, field: reviewedBy.none, reason: "not stated in prose"}
