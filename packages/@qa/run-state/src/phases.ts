@@ -46,11 +46,16 @@ export function cycleGates(state: RunState): GateId[] {
   return state.cycleType === "smoke" ? ["G2"] : [...GATE_IDS];
 }
 
-function gateSatisfied(state: RunState, gate: GateId): boolean {
+/**
+ * A gate whose decision lets the cycle move past it. An open gate and a reset one (decided before, reissued since; it needs a
+ * new owner decision) never do, in either cycle.
+ */
+export function gateSatisfied(state: RunState, gate: GateId): boolean {
   const status = state.gates[gate]?.status;
+  if (status === undefined || status === "open" || status === "reset") return false;
   // A smoke gate is decided either way: a failed auto-decision ends the cycle, it does not reopen it.
-  if (state.cycleType === "smoke") return status !== undefined && status !== "open";
-  return status !== undefined && APPROVED.has(status);
+  if (state.cycleType === "smoke") return true;
+  return APPROVED.has(status);
 }
 
 /** The single ordering rule behind phase start/complete, gate open/auto-decide and run complete. */
