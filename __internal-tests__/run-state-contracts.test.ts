@@ -58,6 +58,23 @@ describe('@qa/contracts — RunStateSchema', () => {
   it('rejects a status that does not exist (e.g. deferred)', () => {
     expect(RunStateSchema.safeParse({ ...minimal, status: 'deferred' }).success).toBe(false);
   });
+
+  it('a gate may be reset: decided before, needs a new owner decision, its decision count kept', () => {
+    expect(RunStateSchema.parse({ ...minimal, gates: { G2: { status: 'reset', decisions: 4 } } }).gates.G2).toEqual({ status: 'reset', decisions: 4 });
+    expect(RunStateSchema.safeParse({ ...minimal, gates: { G2: { status: 'deferred', decisions: 4 } } }).success).toBe(false);
+  });
+
+  it('carries an optional reissue record and optional descoped cases', () => {
+    const reissue = { phase: 'execution', reason: 'Re-run the blocked checks', at: TS, cases: ['TC-REG-012'], reopenedPhases: ['execution', 'triage'], reopenedGates: ['G2'] };
+    const descoped = [{ caseId: 'TC-REG-012', reason: 'Singpass is out of scope', at: TS }];
+    expect(RunStateSchema.parse({ ...minimal, reissue, descoped })).toMatchObject({ reissue, descoped });
+    expect(RunStateSchema.parse(minimal)).not.toHaveProperty('reissue');
+    expect(RunStateSchema.parse(minimal)).not.toHaveProperty('descoped');
+    expect(RunStateSchema.safeParse({ ...minimal, reissue: { ...reissue, phase: 'bogus' } }).success).toBe(false);
+    expect(RunStateSchema.safeParse({ ...minimal, reissue: { ...reissue, cases: ['TC-1'] } }).success).toBe(false);
+    expect(RunStateSchema.safeParse({ ...minimal, reissue: { ...reissue, extra: 1 } }).success).toBe(false);
+    expect(RunStateSchema.safeParse({ ...minimal, descoped: [{ caseId: 'TC-REG-012', reason: '', at: TS }] }).success).toBe(false);
+  });
 });
 
 describe('@qa/contracts — EventEnvelopeSchema', () => {
