@@ -88,7 +88,6 @@ reads:
   - "{run}/evidence/{TC-ID}/**"
   - "agent-memory/qa-ui-specialist/lessons.md"
   - "{run}/run.json"
-  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}

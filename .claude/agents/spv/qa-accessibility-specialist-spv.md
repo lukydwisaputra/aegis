@@ -70,7 +70,6 @@ reads:
   - "{run}/events.jsonl"
   - "agent-memory/qa-accessibility-specialist/lessons.md"
   - "{run}/run.json"
-  - "{run}/events.jsonl"
 writes: []
 emits:
   - {event: review.passed, via: "cli:review.submit"}
