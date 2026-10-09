@@ -68,7 +68,7 @@ describe('run.descoped event', () => {
 describe('run.reissue command registry', () => {
   it('is a CLI command with a cheat-sheet line', () => {
     expect(CLI_COMMANDS).toContain('run.reissue');
-    expect(CLI_USAGE['run.reissue']).toBe('run reissue --phase <id> --reason <text> [--run <id>]');
+    expect(CLI_USAGE['run.reissue']).toBe('run reissue --phase <id> --reason <text> [--cases <ids>] [--run <id>]');
   });
 
   it('is owner-only: the owner may run it and no agent may', () => {

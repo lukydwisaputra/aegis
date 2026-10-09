@@ -16,7 +16,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "run.status": "run status [--run <id>]",
   "run.stop": "run stop --reason <text> [--run <id>]",
   "run.resume": "run resume [--acknowledge-integrity --reason <text>] [--run <id>]",
-  "run.reissue": "run reissue --phase <id> --reason <text> [--run <id>]",
+  "run.reissue": "run reissue --phase <id> --reason <text> [--cases <ids>] [--run <id>]",
   "run.descope": "run descope --case <id> --reason <text> [--run <id>]",
   "event.append": "event append --type <type> --json '<fields>' [--run <id>]",
   "id.next": "id next --kind TC|DEF|STORY|REQ|RISK|AC [--module <CODE>] [--story <id> --category happy|rejection|edge] [--defect-type <t>]",

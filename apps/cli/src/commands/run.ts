@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { completeRun, createRun, descopeRun, nextStep, readActiveRun, reissueRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
+import { checkDescope, completeRun, createRun, descopeRun, nextStep, readActiveRun, reissueRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function runCommand(): Command {
@@ -79,16 +79,18 @@ export function runCommand(): Command {
 
   run
     .command("reissue")
-    .description("Reopen the executive or curator phase of a completed run (owner only); the run becomes the active run")
+    .description("Reopen a phase after Gate 1 of a completed full run and every phase after it (owner only); gates in that range need a new decision; the run becomes the active run")
     .option("--run <id>", "run id (defaults to the active run)")
-    .requiredOption("--phase <id>", "phase to reissue: a phase after the last gate (executive or curator)")
-    .requiredOption("--reason <text>", "why the phase is reissued")
+    .requiredOption("--phase <id>", "phase to reissue: a phase after Gate 1's phase (design through curator)")
+    .requiredOption("--reason <text>", "why the phase is reissued; the reports may quote it")
+    .option("--cases <ids>", "comma-separated test case ids a reissued Execution re-runs, e.g. TC-AUTH-001,TC-AUTH-004")
     .action(
-      action(async (o: { run?: string; phase: string; reason: string }) => {
+      action(async (o: { run?: string; phase: string; reason: string; cases?: string }) => {
         const ctx = context();
         const runId = runIdFor(ctx, o.run);
         const previous = readActiveRun(ctx.root);
-        const state = await reissueRun(ctx.root, runId, { phase: o.phase, reason: o.reason }, ctx.caller);
+        const cases = o.cases === undefined ? undefined : o.cases.split(",");
+        const state = await reissueRun(ctx.root, runId, { phase: o.phase, reason: o.reason, ...(cases !== undefined ? { cases } : {}) }, ctx.caller);
         // The reissued run is now the active one; say so when it replaced another.
         return { ...state, next: nextStep(state), activeRun: runId, previousActiveRun: previous !== runId ? previous : null };
       })
@@ -96,18 +98,25 @@ export function runCommand(): Command {
 
   run
     .command("descope")
-    .description("Record a test case as out of scope for the run (owner only); every count and report states it apart")
+    .description("Record test cases as out of scope for the run (owner only); every count and report states them apart")
     .option("--run <id>", "run id (defaults to the active run)")
-    .requiredOption("--case <id>", "test case id, e.g. TC-AUTH-012 (repeat the command for each case)")
-    .requiredOption("--reason <text>", "why the case is out of scope; the reports quote it")
+    .requiredOption("--case <id>", "test case id, e.g. TC-AUTH-012 (repeat the flag for each case)", (v: string, acc: string[] = []) => [...acc, v])
+    .requiredOption("--reason <text>", "why the cases are out of scope; the reports quote it")
     .action(
-      action(async (o: { run?: string; case: string; reason: string }) => {
+      action(async (o: { run?: string; case: string[]; reason: string }) => {
         const ctx = context();
         const runId = runIdFor(ctx, o.run);
-        const { state, caseId, recorded } = await descopeRun(ctx.root, runId, { caseId: o.case, reason: o.reason }, ctx.caller);
-        const entry = state.descoped?.find((d) => d.caseId === caseId);
-        const message = recorded ? `${caseId} is now out of scope for ${runId}` : `${caseId} is already descoped ("${entry?.reason ?? ""}"); nothing changed`;
-        return { runId, caseId, recorded, message, descoped: state.descoped ?? [] };
+        // Every refusal that needs no lock comes before the first write, so a batch is all or nothing on validation.
+        const checked = checkDescope(ctx.root, runId, o.case, o.reason, ctx.caller);
+        const results = [];
+        for (const caseId of checked.caseIds) {
+          const r = await descopeRun(ctx.root, runId, { caseId, reason: checked.reason }, ctx.caller);
+          const entry = r.state.descoped?.find((d) => d.caseId === r.caseId);
+          const message = r.recorded ? `${r.caseId} is now out of scope for ${runId}` : `${r.caseId} is already descoped ("${entry?.reason ?? ""}"); nothing changed`;
+          results.push({ runId, caseId: r.caseId, recorded: r.recorded, message, descoped: r.state.descoped ?? [] });
+        }
+        // One case: the single-case shape. Several: { runId, results } with one single-case object per id.
+        return results.length === 1 ? results[0]! : { runId, results };
       })
     );
 
