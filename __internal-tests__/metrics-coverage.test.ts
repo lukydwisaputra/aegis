@@ -215,6 +215,60 @@ describe('computeCoverage: counts', () => {
   });
 });
 
+describe('computeCoverage: descoped cases (run.json#descoped)', () => {
+  const runJson = (...ids: string[]) => ({
+    'run.json': { runId: 'RUN-20261006-001', descoped: ids.map((caseId) => ({ caseId, reason: `Out of scope: ${caseId}`, at: '2026-10-09T00:00:00.000Z' })) },
+  });
+
+  it('drops a descoped case from designed and attempted even when it has a result, counts it as out of scope and lists its reason', () => {
+    const dir = runWith({
+      'rtm.json': { rows: rows(1, 0) },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-002', { status: 'blocked' }), result('TC-AUTH-003', { status: 'fail' })]),
+      ...runJson('TC-AUTH-004', 'TC-AUTH-002', 'TC-AUTH-099'),
+    });
+    const r = computeCoverage(dir);
+    expect(r.counts).toEqual({ designed: 2, attempted: 2, passed: 1, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0, outOfScope: 2 });
+    expect(r.testExecutionCoverage).toBe(100);
+    expect(r.descoped).toEqual([{ caseId: 'TC-AUTH-002', reason: 'Out of scope: TC-AUTH-002' }, { caseId: 'TC-AUTH-004', reason: 'Out of scope: TC-AUTH-004' }]);
+    expect(r.uncovered).toEqual({ rows: [], byCause: { environment: 0, testingSide: 0, requirementGap: 0, notAttempted: 0, other: 0 } });
+    expect(Object.keys(r)).toEqual(['requirementsCoverage', 'testExecutionCoverage', 'codeCoverage', 'partialRequirements', 'counts', 'uncovered', 'descoped']);
+  });
+
+  it('keeps the shape when nothing designed is descoped: no outOfScope count and no descoped list', () => {
+    const r = computeCoverage(runWith({ 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001'), ...runJson('TC-AUTH-099') }));
+    expect(r.counts).not.toHaveProperty('outOfScope');
+    expect(r).not.toHaveProperty('descoped');
+  });
+
+  it('requirements coverage: a row whose cases are all descoped leaves the denominator; a row with some uses only the in-scope ones', () => {
+    const req = (n: number, testStatus: string, testCaseIds: string[]) => ({ ...row(n, testStatus), testCaseIds });
+    const dir = runWith({
+      'rtm.json': { rows: [
+        req(1, 'Covered', ['TC-AUTH-001']),
+        req(2, 'Not Covered', ['TC-AUTH-002']), // every case descoped: out of the denominator
+        req(3, 'Partial', ['TC-AUTH-001', 'TC-AUTH-003']), // in scope 001, passed: Covered
+        req(4, 'Partial', ['TC-AUTH-004', 'TC-AUTH-005']), // nothing descoped: recorded Partial stands
+        req(5, 'Covered', ['TC-AUTH-005', 'TC-AUTH-006']), // in scope 005, failed: not covered
+      ] },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004', 'TC-AUTH-005', 'TC-AUTH-006'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-003', { status: 'blocked' }), result('TC-AUTH-004', { status: 'pass' }), result('TC-AUTH-005', { status: 'fail' })]),
+      ...runJson('TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-006'),
+    });
+    // 4 rows in scope: 1 and 3 covered, 4 partial, 5 not covered.
+    expect(computeCoverage(dir)).toMatchObject({ requirementsCoverage: 50, partialRequirements: 1 });
+  });
+
+  it('every row out of scope: requirements coverage is 0, never NaN', () => {
+    const dir = runWith({
+      'rtm.json': { rows: [{ ...row(1, 'Covered'), testCaseIds: ['TC-AUTH-002'] }] },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      ...runJson('TC-AUTH-002'),
+    });
+    expect(computeCoverage(dir).requirementsCoverage).toBe(0);
+  });
+});
+
 describe('computeCoverage: code coverage and noData', () => {
   const full = { 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001') };
 
