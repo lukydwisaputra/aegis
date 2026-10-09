@@ -23,9 +23,9 @@ import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
 import { PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
-import { blockRun, commitRun, readRun, supersededAttempt, withRunLock, writeRun } from "./run.js";
+import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, workDir } from "./submit.js";
-import { supersedeAttempts } from "./supersede.js";
+import { reopenPhaseTasks } from "./supersede.js";
 import { formatIssues, iso, loadJson } from "./util.js";
 
 export type NextStep =
@@ -396,20 +396,8 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
     if (unsettled.length > 0) throw new RunStateError("out-of-order", `cannot reissue ${phase}: gate ${unsettled.join(", ")} is not approved`);
 
     const ts = iso(input.now);
-    const client = createTaskmasterClient(taskmasterDir(root, runId));
-    const tasks = (await client.list()).filter((t) => t.phase === phase);
     // The superseded attempts land first, while the run is still completed: a failure below leaves a run that can be reissued again.
-    const open: RunState = { ...state, supersededAttempts: supersedeAttempts(root, runId, state, new Set(tasks.map((t) => t.id))), updatedAt: ts };
-    writeRun(root, open);
-    for (const t of tasks) {
-      if (t.status !== "done" && t.status !== "failed") continue; // pending: reopened by an earlier try
-      try {
-        await client.reopen(t.id);
-      } catch (e) {
-        // submitReview reopens under submit.lock, not run.lock: any failure other than a task that is already pending is real.
-        if ((await client.get(t.id))?.status !== "pending") throw e;
-      }
-    }
+    const open = await reopenPhaseTasks(root, runId, state, new Set<string>([phase]), ts);
     const next: RunState = { ...open, status: "running", currentPhase: null, phases: { ...open.phases, [phase]: { status: "pending" } }, updatedAt: ts };
     await commitRun(root, open, next, () => appendChained({ type: "run.reissued", ts, runId, phase, reason }, busPath(root, runId), { emittedBy: caller, runId }));
     // {run} for path-guard resolves through runs/.active, so the reissued run must be the active one.
