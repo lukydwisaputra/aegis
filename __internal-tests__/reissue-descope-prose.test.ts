@@ -34,10 +34,17 @@ describe('the reporters state out-of-scope checks apart, with their reason', () 
     expect(source).toContain('never as a gap, never among the uncovered checks, and never in the designed or attempted count');
   });
 
+  it('the executive reporter runs the quoted out-of-scope reason through the tone check and the brand check', () => {
+    const rep = read('.claude/agents/tier1-phase/qa-executive-reporter.md');
+    const source = rep.slice(rep.indexOf('**Source of truth for counts.**'), rep.indexOf('## Process'));
+    expect(source).toContain('The recorded reason you quote goes through the tone check and the brand check like every other sentence; reword it when it fails either.');
+  });
+
   it('the executive SPV, in check 13', () => {
     const spv = read('.claude/agents/spv/qa-executive-reporter-spv.md');
     const check13 = spv.slice(spv.indexOf('13. **Numbers.**'), spv.indexOf('## Verdict'));
     expect(check13).toContain('Out-of-scope checks (`coverage.json#counts.outOfScope`, each named in `coverage.json#descoped`) are stated separately with their recorded reason');
+    expect(check13).toContain('Omitting a nonzero `coverage.json#counts.outOfScope` from the narrative, or stating it without its recorded reason, is requested-changes too.');
   });
 
   it('the closure reporter in step 2 and its SPV in check 3', () => {
@@ -76,6 +83,9 @@ describe('the orchestrator runs a reissue of any phase after Gate 1', () => {
     expect(orch).toContain('a reset gate is neither open nor approved');
     expect(orch).toContain('`next` is `open-gate` for the gate the reissue reset');
     expect(orch).toContain('The case list applies only until a gate rejection: when the event log holds a `gate.decided` with decision rejected after the latest `run.reissued`, ignore the `cases` of the `reissue` record');
+    // Step 5, the gate-rejection path, points to step 9 for the lapsed case list.
+    const step5 = orch.slice(orch.indexOf('5. **Open the gates; never decide them.**'), orch.indexOf('6. **Leave the specialist cap to the CLI.**'));
+    expect(step5).toContain("Inside a reissued cycle a rejection also lapses the reissue's case list: step 9 says what the `qa-test-executor` brief then states.");
   });
 
   it('a lapsed case list is announced in the executor brief with the sentence the executor matches', () => {
