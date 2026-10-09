@@ -48,10 +48,12 @@ describe('H4 run context (spec §4.2)', () => {
     expect(runContextFor(t.root, 'general-purpose', 'g1')).toBeNull();
   });
 
-  it('lists no run reissue command to any agent: it is owner-only', async () => {
+  it('lists no run reissue or run descope command to any agent: both are owner-only', async () => {
     await create();
-    for (const agent of ['qa-orchestrator', 'qa-executive-reporter']) {
-      expect(runContextFor(t.root, agent, 'r1')).not.toContain('run reissue');
+    for (const agent of ['qa-orchestrator', 'qa-executive-reporter', 'qa-test-executor']) {
+      const text = runContextFor(t.root, agent, 'r1');
+      expect(text).not.toContain('run reissue');
+      expect(text).not.toContain('run descope');
     }
   });
 

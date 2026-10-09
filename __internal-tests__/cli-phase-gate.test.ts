@@ -52,3 +52,15 @@ function aegis(agent: string, ...args: string[]) {
   const log = fs.readFileSync(path.join(t.root, 'runs', runId, 'events.jsonl'), 'utf-8').trim().split('\n');
   expect(JSON.parse(log[log.length - 1]!)).toMatchObject({ type: 'run.reissued', phase: 'executive', reason: 'Wording fix', emittedBy: 'owner' });
 }, 60_000);
+
+(stale ? it.skip : it)('run descope is an owner command of the built CLI: records once, says so the second time, refuses an agent and a branded reason', () => {
+  const runId = aegis('owner', 'run', 'create', '--env', 'development', '--module', 'AUTH').out.runId as string;
+  expect(aegis('qa-orchestrator', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Out of scope')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Aegis cannot run it')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Depends on Singpass, out of scope')).toMatchObject({
+    status: 0, out: { runId, caseId: 'TC-AUTH-012', recorded: true, descoped: [expect.objectContaining({ caseId: 'TC-AUTH-012' })] },
+  });
+  expect(aegis('owner', 'run', 'descope', '--case', 'TC-AUTH-012', '--reason', 'Again')).toMatchObject({ status: 0, out: { recorded: false, message: expect.stringMatching(/already descoped/) } });
+  expect(aegis('owner', 'run', 'status').out.descoped).toEqual([expect.objectContaining({ caseId: 'TC-AUTH-012', reason: 'Depends on Singpass, out of scope' })]);
+  expect(aegis('owner', 'integrity', 'verify')).toMatchObject({ status: 0, out: { ok: true } });
+}, 60_000);

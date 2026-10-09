@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { completeRun, createRun, nextStep, readActiveRun, reissueRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
+import { completeRun, createRun, descopeRun, nextStep, readActiveRun, reissueRun, requestStop, resumeRun, RunStateError, runStatus } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function runCommand(): Command {
@@ -91,6 +91,23 @@ export function runCommand(): Command {
         const state = await reissueRun(ctx.root, runId, { phase: o.phase, reason: o.reason }, ctx.caller);
         // The reissued run is now the active one; say so when it replaced another.
         return { ...state, next: nextStep(state), activeRun: runId, previousActiveRun: previous !== runId ? previous : null };
+      })
+    );
+
+  run
+    .command("descope")
+    .description("Record a test case as out of scope for the run (owner only); every count and report states it apart")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .requiredOption("--case <id>", "test case id, e.g. TC-AUTH-012 (repeat the command for each case)")
+    .requiredOption("--reason <text>", "why the case is out of scope; the reports quote it")
+    .action(
+      action(async (o: { run?: string; case: string; reason: string }) => {
+        const ctx = context();
+        const runId = runIdFor(ctx, o.run);
+        const { state, caseId, recorded } = await descopeRun(ctx.root, runId, { caseId: o.case, reason: o.reason }, ctx.caller);
+        const entry = state.descoped?.find((d) => d.caseId === caseId);
+        const message = recorded ? `${caseId} is now out of scope for ${runId}` : `${caseId} is already descoped ("${entry?.reason ?? ""}"); nothing changed`;
+        return { runId, caseId, recorded, message, descoped: state.descoped ?? [] };
       })
     );
 
