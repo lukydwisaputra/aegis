@@ -481,7 +481,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ["Blocked", formatCount(spec.metrics.blocked)],
         ["Skipped", formatCount(spec.metrics.skipped)],
         ...(spec.metrics.undetermined === undefined ? [] : [["Undetermined", formatCount(spec.metrics.undetermined)]]),
-        ...(typeof spec.metrics.outOfScope === "number" && spec.metrics.outOfScope > 0 ? [["Out of scope", formatCount(spec.metrics.outOfScope)]] : []),
+        ...(typeof spec.metrics.outOfScope === "number" && Number.isInteger(spec.metrics.outOfScope) && spec.metrics.outOfScope > 0 ? [["Out of scope", formatCount(spec.metrics.outOfScope)]] : []),
         ["Pass Rate", formatPercent(spec.metrics.passRate)],
         ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
         ["Open Defects", formatCount(spec.metrics.openDefects)],

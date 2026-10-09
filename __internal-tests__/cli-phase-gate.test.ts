@@ -74,7 +74,15 @@ function aegis(agent: string, ...args: string[]) {
   fs.writeFileSync(path.join(dir, 'run.json'), JSON.stringify({ ...s, status: 'completed', gates: { G1: approved, G2: approved, G3: approved } }));
   fs.mkdirSync(path.join(dir, 'cases'));
   for (const id of ['TC-AUTH-001', 'TC-AUTH-002']) fs.writeFileSync(path.join(dir, 'cases', `${id}.json`), JSON.stringify({ id }));
+  const snapshot = () => ({ run: fs.readFileSync(path.join(dir, 'run.json'), 'utf-8'), events: fs.readFileSync(path.join(dir, 'events.jsonl'), 'utf-8') });
+  const before = snapshot();
   expect(aegis('owner', 'run', 'reissue', '--phase', 'execution', '--reason', 'x', '--cases', 'TC-AUTH-009')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+  expect(snapshot()).toEqual(before);
+  // A scope only applies when Execution is reissued: refused for a later phase, nothing written.
+  expect(aegis('owner', 'run', 'reissue', '--phase', 'executive', '--reason', 'x', '--cases', 'TC-AUTH-001')).toMatchObject({
+    status: 2, err: { error: 'invalid-input', message: expect.stringMatching(/--cases only applies when Execution is reissued/) },
+  });
+  expect(snapshot()).toEqual(before);
   const ok = aegis('owner', 'run', 'reissue', '--phase', 'execution', '--reason', 'Run the blocked checks', '--cases', 'TC-AUTH-001, TC-AUTH-002');
   expect(ok).toMatchObject({
     status: 0,

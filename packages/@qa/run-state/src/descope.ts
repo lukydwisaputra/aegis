@@ -29,9 +29,9 @@ export function checkDescope(root: string, runId: string, caseIds: readonly stri
   assertCallerAllowed(caller, "run.descope");
   const trimmed = reason.trim();
   if (trimmed === "") throw new RunStateError("invalid-input", "a descope reason is required");
-  const leak = checkBrandExposure(trimmed);
-  if (leak !== null) {
-    throw new RunStateError("invalid-input", `the reason is quoted in the reports and must not name the framework or an agent (it matches ${leak})`);
+  // The refusal never echoes the matching pattern: it would print the very term the reports must not carry.
+  if (checkBrandExposure(trimmed) !== null) {
+    throw new RunStateError("invalid-input", "the reason is quoted in the reports and must not name the framework or an agent: the reason matches a forbidden term");
   }
   return { caseIds: parseCaseIds(root, runId, caseIds), reason: trimmed };
 }

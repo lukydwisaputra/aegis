@@ -1216,6 +1216,31 @@ describe('the technical report states out-of-scope checks apart', () => {
     expect(['Passed', 'Failed', 'Partial', 'Blocked', 'Skipped', 'Undetermined'].map(cell).reduce((a, b) => a + b, 0)).toBe(cell('Total Tests'));
   });
 
+  it('places the Out of scope row after Undetermined and before Pass Rate', () => {
+    const { root, runDir } = fixture({ ...base, ...cov({ ...COUNTS, outOfScope: 3 }) });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    const at = (label: string): number => text.indexOf(`${label}\n`);
+    expect(at('Undetermined')).toBeGreaterThan(-1);
+    expect(at('Out of scope')).toBeGreaterThan(at('Undetermined'));
+    expect(at('Pass Rate')).toBeGreaterThan(at('Out of scope'));
+  });
+
+  it.each<[string, unknown]>([['a string', '3'], ['a fraction', 1.5], ['a negative number', -2], ['null', null]])('prints no Out of scope row when outOfScope is %s', (_why, value) => {
+    const { root, runDir } = fixture({ ...base, ...cov({ ...COUNTS, outOfScope: value as number }) });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).not.toContain('Out of scope');
+  });
+
+  it('prints no Out of scope row when coverage.json holds noData, even with outOfScope in its counts', () => {
+    const { root, runDir } = fixture({
+      ...base,
+      'reports/metrics/coverage.json': { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: null, partialRequirements: 0, noData: true, counts: { ...COUNTS, outOfScope: 2 } },
+    });
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).not.toContain('Out of scope');
+  });
+
   it('prints no Out of scope row when nothing is descoped', () => {
     for (const counts of [COUNTS, { ...COUNTS, outOfScope: 0 }]) {
       const { root, runDir } = fixture({ ...base, ...cov(counts) });
