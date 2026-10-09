@@ -95,12 +95,15 @@ function closureOrigins(runDir: string): Map<string, string> {
  * Pure: the checks that gave no verdict (worst outcome blocked, skipped or undeterminable, or designed with no result file), each
  * with one cause. A check with no result file is not-attempted, and only that is. Any other row takes the first CAUSE_RULES match
  * on the text of its result files (the specialists' own words), else on the closure row's origin text, else testing-side when a
- * scoped viewport has no result, else "other". `checks` may be passed when the caller has already scanned the run. A case the owner descoped is never listed. Writes nothing.
+ * scoped viewport has no result, else "other". `checks` and `descoped` may be passed when the caller has already scanned the run and read run.json. A case the owner descoped is never listed. Writes nothing.
  */
-export function classifyUncovered(runDir: string, checks: ReadonlyMap<string, CheckState> = scanChecks(runDir)): UncoveredRollup {
+export function classifyUncovered(
+  runDir: string,
+  checks: ReadonlyMap<string, CheckState> = scanChecks(runDir),
+  descoped: ReadonlyMap<string, string> = descopedCases(runDir)
+): UncoveredRollup {
   const origins = closureOrigins(runDir);
   // A descoped case is out of scope, never an uncovered check, even in a map the caller built itself.
-  const descoped = descopedCases(runDir);
   const out = emptyUncovered();
   for (const [id, state] of [...checks].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (descoped.has(id)) continue;

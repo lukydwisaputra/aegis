@@ -18,6 +18,12 @@ describe('the metrics collector names the out-of-scope rule and keys of coverage
     expect(coverage).toContain('A requirement row whose linked cases are all descoped leaves the requirements denominator');
     expect(coverage).toContain('the cases the owner descoped (`run.json`)');
   });
+
+  it('says noData also covers a run whose every designed case is descoped, and that outOfScope and descoped survive it', () => {
+    expect(coverage).toContain('or every designed case is descoped.');
+    expect(coverage).toContain('all zero when `noData` is true except `outOfScope`');
+    expect(coverage).toContain('also when `noData` is true, see Out of scope');
+  });
 });
 
 describe('the reporters state out-of-scope checks apart, with their reason', () => {

@@ -78,7 +78,7 @@ export function descopedCases(runDir: string): Map<string, string> {
   for (const e of list) {
     if (e === null || typeof e !== "object") continue;
     const { caseId, reason } = e as { caseId?: unknown; reason?: unknown };
-    if (typeof caseId === "string" && typeof reason === "string" && !out.has(caseId)) out.set(caseId, reason);
+    if (typeof caseId === "string" && caseId !== "" && typeof reason === "string" && !out.has(caseId)) out.set(caseId, reason);
   }
   return out;
 }
@@ -93,11 +93,13 @@ export interface CheckState {
   missingViewport: boolean;
 }
 
-/** Pure: the designed checks of the run's cases directory (cases/{TC-ID}.json) with what their result files say. A descoped case is not a check. */
-export function scanChecks(runDir: string): Map<string, CheckState> {
+/**
+ * Pure: the designed checks of the run's cases directory (cases/{TC-ID}.json) with what their result files say. A descoped case is not a check.
+ * `descoped` is the caller's snapshot of descopedCases(runDir); a caller that already read it passes it so one compute sees one snapshot.
+ */
+export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string> = descopedCases(runDir)): Map<string, CheckState> {
   const casesDir = join(runDir, "cases");
   const files = existsSync(casesDir) ? readdirSync(casesDir).sort() : [];
-  const descoped = descopedCases(runDir);
 
   const scopeOf = new Map<string, unknown>();
   for (const f of files) {

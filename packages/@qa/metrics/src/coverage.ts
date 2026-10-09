@@ -54,6 +54,7 @@ export interface CoverageRollup {
   uncovered: UncoveredRollup;
   /** The descoped designed cases with their reasons, sorted by id; present only when there is one. */
   descoped?: OutOfScopeCase[];
+  /** True when there is nothing to compute from: no rtm rows, no case files, or every designed case is descoped (outOfScope and descoped are still stated then). */
   noData?: true;
 }
 
@@ -99,15 +100,28 @@ function codeCoverage(runDir: string): number | null {
   return null;
 }
 
-/** Pure: reads the run's rtm.json, case and result files, run.json#descoped and unit-coverage.json; writes nothing. */
+/**
+ * Pure: reads the run's rtm.json, case and result files, run.json#descoped and unit-coverage.json; writes nothing. run.json is read
+ * once, so every part of one result sees the same descoped snapshot.
+ * Scoping: a requirement row is scoped by every descoped id in run.json (a case with no design file is harmless there), while
+ * counts.outOfScope and the descoped list count only descoped ids that have a design file.
+ */
 export function computeCoverage(runDir: string): CoverageRollup {
   const code = codeCoverage(runDir);
   const rows = rtmRows(readJson(join(runDir, "rtm.json")));
-  const checks = scanChecks(runDir);
+  const descoped = descopedCases(runDir);
+  const checks = scanChecks(runDir, descoped);
+  const outOfScope: OutOfScopeCase[] = [...descoped]
+    .filter(([id]) => existsSync(join(runDir, "cases", `${id}.json`)))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([caseId, reason]) => ({ caseId, reason }));
+  const withOutOfScope = (counts: CoverageCounts): CoverageCounts => (outOfScope.length > 0 ? { ...counts, outOfScope: outOfScope.length } : counts);
+  const descopedList = outOfScope.length > 0 ? { descoped: outOfScope } : {};
 
   if (rows === null || rows.length === 0 || checks.size === 0) {
     const none: CoverageCounts = { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
-    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: none, uncovered: emptyUncovered(), noData: true };
+    // noData stays true even when every designed case is descoped; the descoped cases are still stated.
+    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: withOutOfScope(none), uncovered: emptyUncovered(), ...descopedList, noData: true };
   }
 
   let executed = 0;
@@ -122,21 +136,16 @@ export function computeCoverage(runDir: string): CoverageRollup {
   }
   counts.notAttempted = Math.max(0, counts.designed - counts.attempted);
 
-  const descoped = descopedCases(runDir);
   const statuses = rows.map((r) => scopedStatus(r, descoped, checks)).filter((s) => s !== null);
   const covered = statuses.filter((s) => s === "Covered").length;
   const partial = statuses.filter((s) => s === "Partial").length;
-  const outOfScope: OutOfScopeCase[] = [...descoped]
-    .filter(([id]) => existsSync(join(runDir, "cases", `${id}.json`)))
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([caseId, reason]) => ({ caseId, reason }));
   return {
     requirementsCoverage: statuses.length === 0 ? 0 : percent(covered, statuses.length),
     testExecutionCoverage: percent(executed, checks.size),
     codeCoverage: code,
     partialRequirements: partial,
-    counts: outOfScope.length > 0 ? { ...counts, outOfScope: outOfScope.length } : counts,
-    uncovered: classifyUncovered(runDir, checks),
-    ...(outOfScope.length > 0 ? { descoped: outOfScope } : {}),
+    counts: withOutOfScope(counts),
+    uncovered: classifyUncovered(runDir, checks, descoped),
+    ...descopedList,
   };
 }

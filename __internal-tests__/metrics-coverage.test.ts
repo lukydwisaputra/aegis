@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { computeCoverage } from '@qa/metrics';
+import { classifyUncovered, computeCoverage, descopedCases, scanChecks } from '@qa/metrics';
 import { assertCallerAllowed, createRun, runContextFor, runDir, writeCoverage } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
@@ -266,6 +266,70 @@ describe('computeCoverage: descoped cases (run.json#descoped)', () => {
       ...runJson('TC-AUTH-002'),
     });
     expect(computeCoverage(dir).requirementsCoverage).toBe(0);
+  });
+});
+
+describe('computeCoverage: every designed case descoped', () => {
+  const stamp = (caseId: string, reason: string) => ({ caseId, reason, at: '2026-10-09T00:00:00.000Z' });
+
+  it('stays noData but still states the out-of-scope count and the descoped list', () => {
+    const dir = runWith({
+      'rtm.json': { rows: rows(1, 0) },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      'run.json': { descoped: [stamp('TC-AUTH-002', 'Second'), stamp('TC-AUTH-001', 'First'), stamp('TC-AUTH-099', 'No design file')] },
+    });
+    expect(computeCoverage(dir)).toEqual({
+      requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: null, partialRequirements: 0, noData: true,
+      counts: { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0, outOfScope: 2 },
+      uncovered: { rows: [], byCause: { environment: 0, testingSide: 0, requirementGap: 0, notAttempted: 0, other: 0 } },
+      descoped: [{ caseId: 'TC-AUTH-001', reason: 'First' }, { caseId: 'TC-AUTH-002', reason: 'Second' }],
+    });
+  });
+
+  it('a noData run with nothing descoped keeps the old shape: no outOfScope, no descoped', () => {
+    const r = computeCoverage(runWith({ ...designed('TC-AUTH-001'), 'run.json': { descoped: [stamp('TC-AUTH-099', 'No design file')] } }));
+    expect(r).toMatchObject({ noData: true });
+    expect(r.counts).not.toHaveProperty('outOfScope');
+    expect(r).not.toHaveProperty('descoped');
+  });
+});
+
+describe('descoped cases: junk entries and one snapshot per compute', () => {
+  it.each<[string, unknown]>([
+    ['a non-array', { caseId: 'TC-AUTH-002', reason: 'x' }],
+    ['null', null],
+    ['a string', 'TC-AUTH-002'],
+  ])('run.json#descoped as %s is ignored without throwing', (_why, descoped) => {
+    const dir = runWith({ 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001', 'TC-AUTH-002'), 'run.json': { descoped } });
+    expect(descopedCases(dir).size).toBe(0);
+    const r = computeCoverage(dir);
+    expect(r.counts.designed).toBe(2);
+    expect(r).not.toHaveProperty('descoped');
+  });
+
+  it('skips entries with a non-string reason, an empty or missing case id, or a non-object, and keeps the first reason of a repeated id', () => {
+    const dir = runWith({
+      'rtm.json': { rows: rows(1, 0) },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003'),
+      'run.json': { descoped: [
+        { caseId: 'TC-AUTH-001', reason: 42 }, { caseId: '', reason: 'empty id' }, { reason: 'no id' }, null, 'TC-AUTH-001', [],
+        { caseId: 'TC-AUTH-002', reason: 'Kept' }, { caseId: 'TC-AUTH-002', reason: 'Later duplicate' },
+      ] },
+    });
+    expect([...descopedCases(dir)]).toEqual([['TC-AUTH-002', 'Kept']]);
+    const r = computeCoverage(dir);
+    expect(r.counts).toMatchObject({ designed: 2, outOfScope: 1 });
+    expect(r.descoped).toEqual([{ caseId: 'TC-AUTH-002', reason: 'Kept' }]);
+  });
+
+  it('scanChecks and classifyUncovered use the descoped map they are given instead of re-reading run.json', () => {
+    const dir = runWith({ ...designed('TC-AUTH-001', 'TC-AUTH-002'), 'run.json': { descoped: [{ caseId: 'TC-AUTH-002', reason: 'x' }] } });
+    expect([...scanChecks(dir).keys()]).toEqual(['TC-AUTH-001']);
+    expect([...scanChecks(dir, new Map()).keys()]).toEqual(['TC-AUTH-001', 'TC-AUTH-002']);
+    expect([...scanChecks(dir, new Map([['TC-AUTH-001', 'y']])).keys()]).toEqual(['TC-AUTH-002']);
+    const checks = scanChecks(dir, new Map());
+    expect(classifyUncovered(dir, checks, new Map()).rows.map((r) => r.id)).toEqual(['TC-AUTH-001', 'TC-AUTH-002']);
+    expect(classifyUncovered(dir, checks).rows.map((r) => r.id)).toEqual(['TC-AUTH-001']);
   });
 });
 
