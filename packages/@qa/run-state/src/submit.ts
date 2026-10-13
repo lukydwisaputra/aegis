@@ -10,7 +10,7 @@ import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
-import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
+import { atomicWrite, formatLimitIssues, iso, loadJson } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -64,8 +64,9 @@ function publishJson(file: string, value: unknown): void {
 
 export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<SubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
-  const parsed = WorkReportSchema.safeParse(loadJson(file));
-  if (!parsed.success) throw new RunStateError("invalid-input", `work report invalid: ${formatIssues(parsed.error.issues)}`);
+  const raw = loadJson(file);
+  const parsed = WorkReportSchema.safeParse(raw);
+  if (!parsed.success) throw new RunStateError("invalid-input", `work report invalid: ${formatLimitIssues(raw, parsed.error.issues)}`);
   const report = parsed.data;
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
@@ -187,8 +188,9 @@ export async function submitReview(root: string, runId: string, file: string, ca
   if (!caller.endsWith("-spv")) {
     throw new RunStateError("caller-forbidden", `only SPV agents submit reviews; "${caller}" is not an SPV`);
   }
-  const parsed = ReviewSchema.safeParse(loadJson(file));
-  if (!parsed.success) throw new RunStateError("invalid-input", `review invalid: ${formatIssues(parsed.error.issues)}`);
+  const raw = loadJson(file);
+  const parsed = ReviewSchema.safeParse(raw);
+  if (!parsed.success) throw new RunStateError("invalid-input", `review invalid: ${formatLimitIssues(raw, parsed.error.issues)}`);
   const review = parsed.data;
   if (review.reviewer !== caller) {
     throw new RunStateError("invalid-input", `review reviewer "${review.reviewer}" does not match caller "${caller}"`);
