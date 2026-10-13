@@ -1,5 +1,15 @@
 import type { Outcome } from "./outcomes.js";
 
+/** The last event of `type` in the order given, or undefined: a corrected event appended later supersedes the earlier one. */
+export function lastEventOfType<T extends { type?: unknown }>(events: Iterable<T>, type: string): T | undefined {
+  let last: T | undefined;
+  for (const e of events) if (e.type === type) last = e;
+  return last;
+}
+
+/** The `defect.management-complete` readers use: the last one of the run (a corrected one may follow a first). */
+export const latestDefectManagementComplete = <T extends { type?: unknown }>(events: Iterable<T>): T | undefined => lastEventOfType(events, "defect.management-complete");
+
 /** The outcome each test.* event type records for its case. */
 export const TEST_EVENT_OUTCOME: Readonly<Record<string, Outcome>> = {
   "test.passed": "pass",

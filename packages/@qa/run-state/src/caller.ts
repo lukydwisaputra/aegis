@@ -142,6 +142,25 @@ export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));
 }
 
+/**
+ * Content checks `aegis event append` runs before it appends (the schema alone cannot say it): a `defect.management-complete` that
+ * states openApplicationDefects must have a severityBreakdown that sums to it, because the breakdown counts the open application
+ * defects. The refusal names both numbers. Other types and events without the field pass.
+ */
+export function assertEventConsistent(type: string, fields: Record<string, unknown>): void {
+  if (type !== "defect.management-complete") return;
+  const open = fields["openApplicationDefects"];
+  const by = fields["severityBreakdown"];
+  if (typeof open !== "number" || by === null || typeof by !== "object" || Array.isArray(by)) return;
+  const sum = Object.values(by as Record<string, unknown>).reduce<number>((a, n) => a + (typeof n === "number" ? n : 0), 0);
+  if (sum !== open) {
+    throw new RunStateError(
+      "invalid-input",
+      `defect.management-complete is inconsistent: severityBreakdown sums to ${sum} but openApplicationDefects is ${open}; severityBreakdown counts the open application defects by severity code. Correct the figures (aegis metrics defects) and append the event again`
+    );
+  }
+}
+
 export function assertAppendableByAgent(type: string): void {
   if (isCliRecordedEventType(type)) {
     throw new RunStateError("invalid-input", `event type ${type} is recorded by the CLI, not appended directly`);

@@ -4,8 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { AegisEventSchema, isOpenApplicationDefect, resolveDefectFigures, verdictLeavesDefectOpen } from '@qa/contracts';
-import { computeDefectRecordCounts } from '@qa/metrics';
-import { amendDefect, assertCallerAllowed, readDefectCounts, runContextFor, runDir } from '@qa/run-state';
+import { computeDefectRecordCounts, latestDefectManagementComplete } from '@qa/metrics';
+import { amendDefect, assertCallerAllowed, assertEventConsistent, readDefectCounts, runContextFor, runDir } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 // Gap 7: the defect headline is openApplicationDefects, derived from the records; totalOpened counts only defect.opened events.
@@ -161,6 +161,43 @@ describe('metrics defects: who may run it and where it is listed', () => {
       };
       expect(run('qa-metrics-collector')).toMatchObject({ status: 0, out: { runId, counts: { openApplicationDefects: 1, notFixed: 1 } } });
       expect(run('qa-executive-reporter')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+    } finally {
+      t.cleanup();
+    }
+  }, 60_000);
+});
+
+describe('defect.management-complete consistency (gap C)', () => {
+  const fields = { totalOpened: 2, duplicates: 0, severityBreakdown: { Sev3: 2, Sev4: 3 }, openApplicationDefects: 5 };
+  it('refuses a breakdown that does not sum to openApplicationDefects, naming both numbers', () => {
+    expect(() => assertEventConsistent('defect.management-complete', fields)).not.toThrow();
+    expect(() => assertEventConsistent('defect.management-complete', { ...fields, openApplicationDefects: 2 })).toThrow(/severityBreakdown sums to 5 but openApplicationDefects is 2/);
+  });
+  it('leaves events without openApplicationDefects (older ones, totalOpened differing) and other types alone', () => {
+    expect(() => assertEventConsistent('defect.management-complete', { totalOpened: 2, duplicates: 0, severityBreakdown: { Sev3: 2, Sev4: 3 } })).not.toThrow();
+    expect(() => assertEventConsistent('defect.opened', { severityBreakdown: { Sev1: 9 }, openApplicationDefects: 1 })).not.toThrow();
+  });
+  it('readers use the last defect.management-complete of the run', () => {
+    const events = [{ type: 'defect.management-complete', openApplicationDefects: 7, seq: 1 }, { type: 'defect.opened', seq: 2 }, { type: 'defect.management-complete', openApplicationDefects: 5, seq: 3 }, { type: 'task.claimed', seq: 4 }];
+    expect(latestDefectManagementComplete(events)).toMatchObject({ seq: 3, openApplicationDefects: 5 });
+    expect(latestDefectManagementComplete([{ type: 'task.claimed' }])).toBeUndefined();
+  });
+  it('the built CLI appends the corrected event after the inconsistent one is refused; both stay on the chain', async () => {
+    if (stale) return;
+    const t = makeAegisRoot();
+    try {
+      const runId = await startedRun(t.root);
+      const run = (json: object) => {
+        const env = { ...process.env, AEGIS_AGENT: 'qa-defect-manager', AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+        const r = spawnSync(process.execPath, [CLI, 'event', 'append', '--type', 'defect.management-complete', '--json', JSON.stringify(json), '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
+        return { status: r.status, err: r.stderr ? JSON.parse(r.stderr) : null };
+      };
+      expect(run({ ...fields, openApplicationDefects: 2 })).toMatchObject({ status: 2, err: { error: 'invalid-input', message: expect.stringMatching(/sums to 5 but openApplicationDefects is 2/) } });
+      expect(run(fields).status).toBe(0);
+      expect(run({ ...fields, totalOpened: 4 }).status).toBe(0);
+      const events = fs.readFileSync(path.join(runDir(t.root, runId), 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+      expect(latestDefectManagementComplete(events)).toMatchObject({ totalOpened: 4, openApplicationDefects: 5 });
+      expect(events.filter((e) => e.type === 'defect.management-complete')).toHaveLength(2);
     } finally {
       t.cleanup();
     }

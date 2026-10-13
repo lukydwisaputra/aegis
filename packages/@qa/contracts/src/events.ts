@@ -931,7 +931,12 @@ export const DefectManagementCompleteEventSchema = EventBase.extend({
   // reframed or withdrawn afterwards. Use openApplicationDefects for any "how many defects are open" headline.
   totalOpened: z.number().int().nonnegative(),
   duplicates: z.number().int().nonnegative(),
+  // WHAT severityBreakdown COUNTS: the open application defects, by severity code, so its values sum to openApplicationDefects when that
+  // field is present (aegis event append refuses an event where they differ). An event written before openApplicationDefects existed
+  // counted the defects opened in the run instead (it then sums to totalOpened).
   severityBreakdown: z.record(z.string(), z.number().int().nonnegative()),
+  // A corrected event may be appended again later; the LAST defect.management-complete of a run is the one readers use
+  // (latestDefectManagementComplete in @qa/metrics). Events are never edited or deleted.
   // Additive, derived from the defect records (`aegis metrics defects`; HANDBOOK 13.10). An event written before they existed has none of them.
   // openApplicationDefects = notFixed + partiallyFixed + cannotVerify + the open records with no retest verdict (a status neither closed
   // nor flagged for the owner). PARTIALLY FIXED is open until the remainder is fixed or the developers confirm the current fix resolves
