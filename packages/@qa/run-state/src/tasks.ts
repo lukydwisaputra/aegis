@@ -296,6 +296,47 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
 }
 
 /**
+ * Owner only: clears a claimed task that can never finish — in-progress, with no work report from its claim waiting for
+ * review (for example one whose id the report schemas cannot carry). Records task.cancelled; refuses a finished task, a
+ * gate task and a task whose claim holds a fresh work report (release that one instead).
+ */
+export async function abandonTask(root: string, runId: string, taskId: string, reason: string, caller: string, now?: Date): Promise<Task> {
+  assertCallerAllowed(caller, "task.abandon");
+  assertTaskId(taskId);
+  const why = reason.trim();
+  if (why === "") throw new RunStateError("invalid-input", "an abandon reason is required");
+  return withClaimsLock(root, runId, () =>
+    withRunLock(root, runId, async () => {
+      const state = readRun(root, runId);
+      if (state.status === "completed") throw new RunStateError("run-not-active", `run ${runId} is completed`);
+      const c = client(root, runId);
+      const before = await mustGet(root, runId, taskId);
+      if (GATE_TASK_ID.test(taskId)) throw new RunStateError("invalid-input", `${taskId} is a gate task; it cannot be abandoned`);
+      if (before.status !== "in-progress") {
+        throw new RunStateError("invalid-input", `task ${taskId} is ${before.status}; only an in-progress task can be abandoned (a never-claimed pending task is cancelled by its dispatcher)`);
+      }
+      if (before.assignee !== undefined && freshAttempt(root, runId, before.assignee, taskId) !== null) {
+        throw new RunStateError("invalid-input", `task ${taskId} holds a work report that was not reviewed yet; release it with aegis task release instead`);
+      }
+      try {
+        await c.abandon(taskId, why);
+      } catch (e) {
+        if (e instanceof ClaimError) throw new RunStateError("invalid-input", `task ${taskId} changed meanwhile; only an in-progress task can be abandoned`);
+        throw e;
+      }
+      await appendOrRollback(c, before, "cancelled", () =>
+        appendChained(
+          { type: "task.cancelled", ts: iso(now), runId, taskId, agent: before.assignee ?? caller, reason: `abandoned by the owner: ${why}` },
+          busPath(root, runId),
+          { emittedBy: caller, runId }
+        )
+      );
+      return mustGet(root, runId, taskId);
+    })
+  );
+}
+
+/**
  * The release freshness rule (R6): the attempt of `agent`'s work report from its current claim of `taskId`, or null.
  * Fresh means the latest attempt exists, is newer than any a gate rejection superseded, and has neither a review nor
  * an escalation decision (a retry reopens the task for a new attempt, so the failed one never counts again).
