@@ -165,7 +165,7 @@ describe('the sign-off banner is the owner\'s recorded decision', () => {
   it('the reporter and the SPV name the label and the three texts, and no GO / NO-GO / CONDITIONAL mapping remains', () => {
     for (const file of [REPORTER, SPV]) {
       const text = body(read(file));
-      expect(text).toContain('GATE 3 DECISION (owner)');
+      expect(text).toContain('CLOSURE DECISION');
       for (const shown of ['APPROVED', 'APPROVED WITH CONDITIONS', 'REJECTED']) expect(text).toContain(shown);
       expect(text).not.toMatch(/GO \/ NO-GO|`GO`|`NO-GO`|`CONDITIONAL`/);
     }

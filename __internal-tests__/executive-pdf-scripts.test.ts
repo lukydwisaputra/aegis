@@ -238,7 +238,7 @@ describe('sign-off document (Deliverable 2)', () => {
 
   it('prints the owner\'s Gate 3 decision under its own label, never a release verdict', () => {
     const text = flat(pdfText(pdf));
-    expect(text).toContain('GATE 3 DECISION (owner)');
+    expect(text).toContain('CLOSURE DECISION');
     expect(text).toContain('APPROVED WITH CONDITIONS');
     expect(text).not.toMatch(/RELEASE VERDICT|CONDITIONAL|NO-GO|\bGO\b/);
     expect(text).toContain(PROJECT);
@@ -730,7 +730,7 @@ describe('the sign-off decision banner', () => {
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toMatchObject({ decision });
     expect(JSON.parse(r.stdout)).not.toHaveProperty('verdict');
-    expect(text).toContain(`GATE 3 DECISION (owner) ${shown}`);
+    expect(text).toContain(`CLOSURE DECISION ${shown}`);
     if (decision === 'approved') expect(text).not.toContain('WITH CONDITIONS'); // 'APPROVED' is a prefix of the other text
   });
 

@@ -82,7 +82,7 @@ Structure (all sections required):
 - Risk register status (mitigated / residual)
 - Compliance attestations per regulation (named clauses)
 - Exit criteria checklist ("Met" or "Not met" each)
-- Gate 3 decision banner: the label GATE 3 DECISION (owner) followed by the decision the owner recorded for Gate 3 — APPROVED, APPROVED WITH CONDITIONS or REJECTED. The skill pre-fills it; it documents the human decision and is not your verdict or recommendation.
+- Gate 3 decision banner: the label CLOSURE DECISION followed by the decision the owner recorded for Gate 3 — APPROVED, APPROVED WITH CONDITIONS or REJECTED. The skill pre-fills it; it documents the human decision and is not your verdict or recommendation.
 - Signature block: QA Lead, Engineering Lead, Product Owner, Security Officer (when applicable), Compliance Officer (when applicable)
 
 Skill to invoke: `_qa-report-signoff-pdf`

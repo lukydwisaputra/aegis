@@ -212,7 +212,7 @@ describe('the sign-off', () => {
 
   it('keeps the Gate 3 banner, the exit criteria, the open-defect summary and the signature block', () => {
     expect(r.status).toBe(0);
-    expect(f).toContain('GATE 3 DECISION (owner)');
+    expect(f).toContain('CLOSURE DECISION');
     expect(f).toContain('APPROVED WITH CONDITIONS');
     expect(f).toContain('Exit Criteria');
     expect(f).toContain('OPEN DEFECTS SUMMARY');

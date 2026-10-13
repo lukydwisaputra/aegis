@@ -46,7 +46,7 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 ### Sign-off Document
 
 7. **Signature block present.** Document includes named roles: QA Lead, Engineering Lead, Product Owner, and the Security Officer when a defect id ends in `-SEC` or a defect's `compliance` holds a `CWE-` or `WSTG-` tag. Missing signature block = requested-changes.
-8. **Banner equals the Gate 3 decision.** The sign-off prints the label GATE 3 DECISION (owner) followed by the owner's decision from `gates/gate-3-decision.json#decision`, as the sign-off script prints it: `approved` → `APPROVED`, `approved-with-conditions` → `APPROVED WITH CONDITIONS`, `rejected` → `REJECTED`. The pre-filled banner is expected, not a note: it records the owner's decision, not the reporter's. A missing banner, or a banner that differs from the recorded decision = requested-changes. A banner labelled RELEASE VERDICT, GO, NO-GO or CONDITIONAL = requested-changes.
+8. **Banner equals the Gate 3 decision.** The sign-off prints the label CLOSURE DECISION followed by the owner's decision from `gates/gate-3-decision.json#decision`, as the sign-off script prints it: `approved` → `APPROVED`, `approved-with-conditions` → `APPROVED WITH CONDITIONS`, `rejected` → `REJECTED`. The pre-filled banner is expected, not a note: it records the owner's decision, not the reporter's. A missing banner, or a banner that differs from the recorded decision = requested-changes. A banner labelled RELEASE VERDICT, GO, NO-GO or CONDITIONAL = requested-changes.
 
 ### All 3 Documents
 

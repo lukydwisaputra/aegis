@@ -229,8 +229,8 @@ export const SIGNOFF_DECISION_TEXT: Readonly<Record<SignoffDecision, string>> = 
   rejected: "REJECTED",
 };
 
-/** The banner label: the decision is the owner's, not the QA team's release judgement. */
-export const SIGNOFF_DECISION_LABEL = "GATE 3 DECISION (owner)";
+/** The banner label: it records the recorded closure decision, never a release judgement by the QA team. */
+export const SIGNOFF_DECISION_LABEL = "CLOSURE DECISION";
 
 export interface SignoffSpec {
   projectName: string;
@@ -435,7 +435,7 @@ function SlideDeckDocument({ spec }: { spec: SlideSpec }) {
         View,
         { style: { ...baseStyles.row, marginBottom: 8 } },
         React.createElement(Text, { style: baseStyles.cellBold }, "Action"),
-        React.createElement(Text, { style: baseStyles.cellBold }, "Owner"),
+        React.createElement(Text, { style: baseStyles.cellBold }, "Responsible role"),
         React.createElement(Text, { style: baseStyles.cellBold }, "Deadline"),
         React.createElement(Text, { style: baseStyles.cellBold }, "Impact")
       ),
