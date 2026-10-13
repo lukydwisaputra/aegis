@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { summarizeRun, scanCollector, renderRootReadme, renderProjectReadme, buildManifest, regenerate } from '../scripts/gen-index';
+import { summarizeRun, scanCollector, renderRootReadme, renderProjectReadme, buildManifest, regenerate, carryForward } from '../scripts/gen-index';
 import { readFileSync as rf } from 'node:fs';
 
 function makeRun(root: string, id: string, run: unknown, closure: unknown, defectIds: string[] = []): string {
@@ -293,5 +293,33 @@ describe('index rendering', () => {
     JSON.parse(rf(join(tmp, 'manifest.json'), 'utf8')); // valid JSON
     regenerate(tmp, '2026-07-07');
     expect(rf(join(tmp, 'README.md'), 'utf8')).toBe(first); // identical
+  });
+});
+
+describe('carryForward', () => {
+  let tmp: string;
+  beforeEach(() => { tmp = mkdtempSync(join(tmpdir(), 'gen-index-cf-')); });
+  afterEach(() => { rmSync(tmp, { recursive: true, force: true }); });
+
+  it('keeps figures the manifest already published when the run no longer resolves them, and lets resolved figures win', () => {
+    const runs = join(tmp, 'projects', 'p', 'runs');
+    makeRun(runs, 'RUN-1', { runId: 'RUN-1' }, undefined); // no closure: every figure resolves to a dash
+    makeRun(runs, 'RUN-2', { runId: 'RUN-2' }, { metrics: { passed: 9, failed: 1, blocked: 0, passRate: 90 } });
+    writeFileSync(join(tmp, 'manifest.json'), JSON.stringify({ projects: [{ name: 'p', runs: [
+      { runId: 'RUN-1', passed: '42', failed: '0', blocked: '0', passRate: '100', defects: '3' },
+      { runId: 'RUN-2', passed: '1', failed: '1', blocked: '1', passRate: '1', defects: '1' },
+    ] }] }));
+    regenerate(tmp, '2026-10-13');
+    const m = JSON.parse(rf(join(tmp, 'manifest.json'), 'utf8')).projects[0].runs;
+    const r1 = m.find((r: any) => r.runId === 'RUN-1');
+    const r2 = m.find((r: any) => r.runId === 'RUN-2');
+    expect(r1).toMatchObject({ passed: '42', failed: '0', blocked: '0', passRate: '100', defects: '3' });
+    expect(r2).toMatchObject({ passed: '9', failed: '1', passRate: '90' });
+  });
+
+  it('does nothing for a run the manifest never held', () => {
+    const projects = [{ name: 'p', runs: [{ runId: 'RUN-9', date: 'd', module: 'm', environment: 'e', shipRec: 'inform-only', passed: '—', failed: '—', blocked: '—', passRate: '—', defects: '—', reportLink: 'l' }] }];
+    expect(carryForward(projects, { projects: [] })).toEqual(projects);
+    expect(carryForward(projects, undefined)).toEqual(projects);
   });
 });
