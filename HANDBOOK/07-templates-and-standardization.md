@@ -22,7 +22,7 @@ Defect IDs follow `DEF-{NNN}-{MODULE}-{TYPE}`; all other IDs follow `<TYPE>-<MOD
 | `DEF` | Defect | `DEF-001-AUTH-UI` | `DEF-{NNN}-{MODULE}-{TYPE}` |
 | `RUN` | QA run | `RUN-20260523-001` | `RUN-{YYYYMMDD}-{NNN}` |
 | `L` | Agent lesson | `L-TD-012` | `L-{AGENT-INITIALS}-{NNN}` |
-| `WR` | Work report | `WR-T-42` | `WR-T-{taskNumber}` |
+| `WR` | Work report | `WR-T-42` | `WR-{taskId}`: the task id itself (`WR-T-execution-3`). A task kept under a legacy id with no trailing number after a gate rejection (`T-compliance-gdpr`) uses `WR-T-compliance-gdpr`, optionally `-{attempt}`; new tasks must still be `T-{phase}-{n}` |
 
 `{TYPE}` in defect IDs is one of: `UI`, `API`, `A11Y`, `SEC`, `PERF`, `DATA`, `UNIT`, `EXP`.
 

@@ -46,7 +46,8 @@ function assertTaskId(taskId: string): void {
  * Gap 1: a task id is later spliced into WR-<id> and RV-<agent>-<id>, whose schemas accept only T-<n>, T-<phase>-<n>
  * and T-GATE-G<N>. A new task that could never form one would be accepted here and refused at submit time, so it is
  * refused at creation. Strict early refusal was chosen over relaxing the regex: the trailing number keeps ids unique
- * per phase and the WR/RV ids stay parseable by every consumer of existing runs.
+ * per phase and the WR/RV ids stay parseable by every consumer of existing runs. A task that already exists under a legacy id
+ * (T-compliance-gdpr, left pending by a gate rejection) keeps it: WorkReportIdSchema and ReviewIdSchema accept it as WR-<taskId>.
  */
 function assertTaskRefShape(taskId: string): void {
   if (TaskRefSchema.safeParse(taskId).success) return;

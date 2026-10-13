@@ -64,8 +64,17 @@ export const LessonIdSchema = z.string().regex(
  */
 const TASK_REF = "T-(?:\\d+|(?![Gg][Aa][Tt][Ee]-)[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*-\\d+|GATE-G\\d+)";
 export const TaskRefSchema = z.string().regex(new RegExp(`^${TASK_REF}$`), "Task ref format: T-{n} | T-{phase}-{n} | T-GATE-G{N}");
-export const WorkReportIdSchema = z.string().regex(new RegExp(`^WR-${TASK_REF}$`), "WorkReport ID format: WR-{taskRef}");
-export const ReviewIdSchema = z.string().regex(new RegExp(`^RV-[a-z-]+-${TASK_REF}$`), "Review ID format: RV-{agent-slug}-{taskRef}");
+/**
+ * A LEGACY task id: T-<letter-led segments> with no trailing number (T-compliance-gdpr, T-compliance-iso25010), which addTask accepted
+ * before it began refusing them (a gate rejection leaves such a task pending under its old id, and it can no longer be cancelled and
+ * replaced). New tasks stay strict (TaskRefSchema); WR and RV ids accept both, so old runs and their reopened tasks keep working
+ * without an invented id. A legacy id may also carry an attempt number (WR-T-compliance-gdpr-2: the strict T-<phase>-<n> shape), and
+ * T-GATE-... stays refused.
+ */
+const LEGACY_TASK_REF = "T-(?![Gg][Aa][Tt][Ee](?:-|$))[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*";
+const WR_TASK_REF = `(?:${TASK_REF}|${LEGACY_TASK_REF})`;
+export const WorkReportIdSchema = z.string().regex(new RegExp(`^WR-${WR_TASK_REF}$`), "WorkReport ID format: WR-{taskId} (a legacy task id with no trailing number may add -{attempt})");
+export const ReviewIdSchema = z.string().regex(new RegExp(`^RV-[a-z-]+-${WR_TASK_REF}$`), "Review ID format: RV-{agent-slug}-{taskId}");
 
 export type TestCaseId = z.infer<typeof TestCaseIdSchema>;
 export type DefectId = z.infer<typeof DefectIdSchema>;

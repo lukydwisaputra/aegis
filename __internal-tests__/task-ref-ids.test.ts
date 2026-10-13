@@ -7,8 +7,17 @@ describe('task refs in work-report and review ids', () => {
       expect([ok(TaskRefSchema, t), ok(WorkReportIdSchema, `WR-${t}`), ok(ReviewIdSchema, `RV-ui-spv-${t}`)]).toEqual([true, true, true]);
   });
   it('rejects malformed refs, including a phase named GATE', () => {
-    for (const t of ['T-', 'T-design', 'T-env-auth', 'T-env--auth-1', 'T-env-auth-', 'T-GATE-1', 'T-gate-1', 'T-Gate-2', 'T-gate-x-1', 'T-GATE-GX', 'T-GATE-G1-2', 'T-1-2', 'task:env-setup'])
+    for (const t of ['T-', 'T-env--auth-1', 'T-env-auth-', 'T-GATE-1', 'T-gate-1', 'T-Gate-2', 'T-gate-x-1', 'T-GATE-GX', 'T-GATE-G1-2', 'T-1-2', 'task:env-setup'])
       expect([ok(TaskRefSchema, t), ok(WorkReportIdSchema, `WR-${t}`), ok(ReviewIdSchema, `RV-ui-spv-${t}`)]).toEqual([false, false, false]);
+  });
+  // Gap A: a task left under a legacy id (no trailing number) by a gate rejection keeps working; new tasks stay strict.
+  it('WR and RV ids accept a legacy task id, with or without an attempt number; the task ref itself stays strict', () => {
+    for (const t of ['T-compliance-gdpr', 'T-compliance-iso25010', 'T-design', 'T-env-auth', 'T-compliance-gdpr-2', 'T-compliance-iso25010-3']) {
+      expect([t, ok(WorkReportIdSchema, `WR-${t}`), ok(ReviewIdSchema, `RV-qa-compliance-spv-${t}`)]).toEqual([t, true, true]);
+    }
+    for (const t of ['T-compliance-gdpr', 'T-compliance-iso25010', 'T-design', 'T-env-auth']) expect(ok(TaskRefSchema, t)).toBe(false);
+    for (const t of ['T-compliance-gdpr-2', 'T-GATE-G3']) expect(ok(TaskRefSchema, t)).toBe(true);
+    for (const t of ['T-GATE-1', 'T-gate-x', 'T-GATE', 'T-GATE-G1-2', 'T-1-2']) expect([t, ok(WorkReportIdSchema, `WR-${t}`)]).toEqual([t, false]);
   });
   it('nextId("WR") keeps a full task id and still maps a bare number', async () => {
     expect([await nextId('WR', 'T-design-1'), await nextId('WR', 'T-GATE-G2'), await nextId('WR', 42)])
