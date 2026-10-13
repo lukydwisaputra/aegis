@@ -8,7 +8,7 @@ See [D13-prompt-caching.md](D13-prompt-caching.md) for prompt caching mechanics.
 
 ## The problem
 
-Full-mode SPV agents (Opus) reviewing every worker output is expensive. A naive implementation would send the SPV the same knowledge refs, lessons, and context as the worker — most of which is irrelevant to a reviewer checking a completed artifact.
+Full-mode SPV agents (validation tier, high effort) reviewing every worker output is expensive. A naive implementation would send the SPV the same knowledge refs, lessons, and context as the worker — most of which is irrelevant to a reviewer checking a completed artifact.
 
 ---
 

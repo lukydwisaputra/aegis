@@ -184,7 +184,7 @@ Options:
 
 ### /qa-ingest-book
 
-Chunk a QA book into knowledge/. Uses Haiku → Sonnet (cached) → Opus model strategy.
+Chunk a QA book into knowledge/. Runs every ingestion stage on the model named in `model-policy.yaml#ingestion`, with the per-chapter pass cached.
 
 ```
 /qa-ingest-book [options]
