@@ -7,8 +7,12 @@ import {
   View,
   Image,
   StyleSheet,
+  Font,
 } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
+
+// A word is never split at a line end ("DEF-001-AD-MIN-DATA", "inter-face"): identifiers and ids stay readable and searchable in the PDF text.
+Font.registerHyphenationCallback((word) => [word]);
 
 // ─── Tone-check ───────────────────────────────────────────────────────────────
 
@@ -66,13 +70,32 @@ export const JARGON_RULES: Array<{
 ];
 
 /**
+ * Identifier-shaped tokens: artefact ids (DEF-004-ATT-API, TC-AUTH-001, REQ-REG-04, STORY-..., SCN-..., AC-..., RUN-..., OQ-12, RISK-...,
+ * RQ-..., AMB-..., GAP-...) and compliance tags (WSTG-, CWE-, WCAG-, GDPR-, PDPA-, ISTQB-, CMMI-, ISO25010-...). No tone-check or jargon
+ * replacement ever rewrites a word inside one: "DEF-004-ATT-API" must never print as "DEF-004-ATT-application interface".
+ */
+const IDENTIFIER =
+  /\b(?:(?:DEF|TC|REQ|STORY|SCN|AC|RUN|OQ|RISK|RQ|AMB|GAP)-[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?|(?:WSTG|CWE|WCAG|GDPR|PDPA|ISTQB|CMMI|ISO\d{4,5})-[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?)\b/g;
+
+/** Replace every identifier by a placeholder no rule matches; returns the masked text and the way back. */
+function maskIdentifiers(text: string): { masked: string; restore: (t: string) => string } {
+  const found: string[] = [];
+  const masked = text.replace(IDENTIFIER, (id) => `\u0001${found.push(id) - 1}\u0002`);
+  return { masked, restore: (t) => t.replace(/\u0001(\d+)\u0002/g, (_m, i: string) => found[Number(i)] ?? "") };
+}
+
+/**
  * Apply all jargon rewrites to a text string.
- * Rules are applied in order; each rule operates on the result of the previous.
+ * Rules are applied in order; each rule operates on the result of the previous. Identifiers (see IDENTIFIER) are masked first and put
+ * back unchanged, so no rule rewrites a word inside one.
  */
 export function applyJargonRewrites(text: string): string {
-  return JARGON_RULES.reduce((current, rule) => {
-    return current.replace(rule.pattern, (match) => rule.rewrite(match));
-  }, text);
+  const { masked, restore } = maskIdentifiers(text);
+  return restore(
+    JARGON_RULES.reduce((current, rule) => {
+      return current.replace(rule.pattern, (match) => rule.rewrite(match));
+    }, masked)
+  );
 }
 
 /**
@@ -83,6 +106,7 @@ export function detectJargon(
   text: string
 ): Array<{ original: string; suggested: string }> {
   const findings: Array<{ original: string; suggested: string }> = [];
+  text = maskIdentifiers(text).masked;
   for (const rule of JARGON_RULES) {
     // Reset lastIndex so global regexes match from the start
     rule.pattern.lastIndex = 0;
