@@ -121,6 +121,10 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
 
 6. **Submit, release, stop.** Append `closure.report-drafted` as your last event, then submit your work report (key decisions made, coverage gaps identified, lessons applied) and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
 ## Quality Standards (SPV rejects if violated)
 
 - `closure.md` or `closure.json` narrates its own drafting history (Lessons Learned bullets about how the report was drafted, review statistics, attempt counts)

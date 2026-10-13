@@ -1,5 +1,5 @@
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { PHASE_IDS, checkBrandExposure } from "@qa/contracts";
+import { PHASE_IDS, checkBrandExposure, checkToolingWords } from "@qa/contracts";
 import { XARGS_VALUE_FLAGS, bashWriteTargets, expandBraces, findParts, unwrap, writtenBy, xargsCommand, type LocatedCommand, type ShellWord, type WriteTarget } from "./bash.js";
 import type { GuardContext } from "./context.js";
 import { envVerdict, isCliOnlyRunPath, matchGlob, roleOf, roleWritable } from "./roles.js";
@@ -51,6 +51,9 @@ export const ROLLUP_OWNED_RUN_GLOBS: readonly string[] = ["execution-summary.jso
 
 /** Customer-facing run files (CLAUDE.md brand exposure rule). */
 export const BRAND_CLEAN_RUN_GLOBS: readonly string[] = ["plan.*", "rtm.*", "cases/**", "defects/**", "reports/closure/**", "reports/executive/**"];
+
+/** Customer-facing run files that must also be free of tooling wording (TOOLING_WORD_PATTERNS in @qa/contracts). */
+export const TOOLING_CLEAN_RUN_GLOBS: readonly string[] = ["defects/**", "reports/closure/**", "reports/compliance/**"];
 
 /**
  * H1 rollout (owner decision 2026-10-02): the run writes the 9 legacy skills still make directly from the main thread.
@@ -325,6 +328,10 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
   if (content !== null && inRun !== null && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
     const hit = checkBrandExposure(content);
     if (hit !== null) return { deny: `${abs} is customer-facing and the text matches ${String(hit)}; write "QA team" or the project name instead (CLAUDE.md brand exposure rule)` };
+  }
+  if (content !== null && inRun !== null && TOOLING_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
+    const hit = checkToolingWords(content);
+    if (hit !== null) return { deny: `${abs} is customer-facing and the text has tooling wording (${String(hit)}); say what the application does, and keep tooling facts (commands, event numbers, review or attempt counts, refusals) for the events and the work report (customer-facing wording rule)` };
   }
   // Removing runs/ or a run directory deletes every CLI-only file in it; no caller does it, legacy skill or not.
   if (REMOVE_OPS.has(via) && holdsRuns(ctx, abs)) {

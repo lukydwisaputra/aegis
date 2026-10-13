@@ -45,6 +45,7 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
 - Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `taskmaster/`,
   `intake/`, `hooks/`, `integrity/`, lock files and the active-run pointer — are refused for every caller.
 - Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
+- Tooling wording is refused too in `defects/`, `reports/closure/` and `reports/compliance/` (`TOOLING_WORD_PATTERNS` in `@qa/contracts`, checked by H1): CLI, defectMap, event sequence numbers (`seq 784`), `framework defect`, `cli.refused` or refusal counts, review and attempt counts, SPV, `requested changes`, work report and "record owner". Tooling facts belong in events and work reports. The list is deliberately narrow (it does not flag the plain word "framework" or "sequence"); it can still hit a target that has its own "CLI" or a "work report" feature, and then the author words it differently ("command-line tool"). Every open question in those files asks a decision of a named audience (PM, owner or developers) and says what changes with each answer.
   when the written text matches a brand-exposure pattern.
 - The main thread never writes a run directory or the target's `tests/`; a subagent whose name does not start with
   `qa-` never writes inside this repo either. Rollout exception: the direct run writes of the skills not yet rewritten

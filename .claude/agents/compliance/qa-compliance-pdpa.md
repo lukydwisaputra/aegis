@@ -94,6 +94,10 @@ Source: mirror of the consolidated Act (lawplayer.com/sg/act/PDPA2012), read for
 - `runs/{runId}/reports/compliance/pdpa.{md,json}` — gap report. `runs/{runId}/reports/compliance/pdpa.json` is `{ "regulation": "pdpa", "sectionsCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - PDPA tags on TCs and defects: `PDPA-Sec{N}` (e.g., `PDPA-Sec24`), `PDPA-Sec{N}{L}` for a letter-suffixed section (e.g., `PDPA-Sec26C`) or `PDPA-Part{Roman}` for a Part (e.g., `PDPA-PartIX`)
 
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
 ## Quality Standards
 
 - Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)

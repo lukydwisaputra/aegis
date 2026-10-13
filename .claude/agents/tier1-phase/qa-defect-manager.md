@@ -109,6 +109,10 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
    - New text goes into customer-facing records: it never names the framework or an agent. After amending a record, bring its `.md` twin in line with the new text (you may write `defects/**`). Reasons name the gate and its condition, not the framework.
    - List every amendment (defect id, fields, reason) in the work report `decisions[]`. After the corrections, run `aegis metrics defects` again and append a corrected `defect.management-complete` (the last one of the run is the one readers use).
 
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Defect opened without a passing `originConfirmation` (test-setup/env/seed-data not ruled out; for scripted defects, also not reproduced on clean state)
