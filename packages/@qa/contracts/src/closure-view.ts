@@ -49,6 +49,26 @@ export interface DefectHeadline {
   closedWithoutVerdict: number | null;
 }
 
+/** One open application defect for the sign-off: what it is and what it awaits. */
+export interface OpenDefectItem {
+  id: string;
+  title: string | null;
+  /** "Sev4 (Minor)". */
+  severity: string;
+  state: string;
+  /** What the closure says the defect awaits; null when the closure does not say. */
+  awaits: string | null;
+}
+
+/** A passed case whose first failure came from a wrong test step (closure.json#falsePasses.<key>.wrongStep): the closure's own words. */
+export interface WrongStepNote {
+  key: string;
+  requirement: string | null;
+  wrongStep: string;
+  whatConforms: string | null;
+  whatThePassMeans: string | null;
+}
+
 export interface DefectLogRow {
   id: string;
   title: string;
@@ -92,6 +112,10 @@ export interface ClosureView {
   cases: CaseFigures;
   defects: DefectHeadline;
   defectLog: DefectLogRow[];
+  /** The open application defects, each with its severity word and what it awaits (the closure's defectMetrics.openItems, else the open log rows). */
+  openItems: OpenDefectItem[];
+  /** falsePasses entries that carry a wrong test step (for example the lockout check): printed by both documents. */
+  wrongStepNotes: WrongStepNote[];
   variances: Array<{ variance: string; reason: string | null }>;
   exitCriteria: ExitCriterionView[];
   /** Exit criteria that are not met, each with the closure's stated reason. */
@@ -226,6 +250,20 @@ function defectView(closure: Record<string, unknown>, records: readonly unknown[
   return { headline, log };
 }
 
+function severityWord(code: unknown): string {
+  const c = typeof code === "string" ? code : isPlain(code) && typeof code["code"] === "string" ? code["code"] : null;
+  return c === null ? "not available" : Object.hasOwn(SEVERITY_MAP, c) ? `${c} (${SEVERITY_MAP[c as keyof typeof SEVERITY_MAP]})` : c;
+}
+
+/** The open application defects: the closure's defectMetrics.openItems when it lists them, else the open rows of the defect log. */
+function openItemsOf(closure: Record<string, unknown>, log: readonly DefectLogRow[]): OpenDefectItem[] {
+  const dm = isPlain(closure["defectMetrics"]) ? closure["defectMetrics"] : {};
+  const fromClosure = (Array.isArray(dm["openItems"]) ? dm["openItems"] : []).flatMap((o) =>
+    isPlain(o) && str(o["defectId"]) !== null ? [{ id: str(o["defectId"])!, title: str(o["title"]), severity: severityWord(o["severity"]), state: str(o["state"]) ?? "open", awaits: str(o["awaits"]) }] : []
+  );
+  return fromClosure.length > 0 ? fromClosure : log.filter((d) => d.open).map((d) => ({ id: d.id, title: d.title, severity: d.severity, state: d.state, awaits: null }));
+}
+
 const AUDIENCE_ORDER = ["PM", "owner", "developers"];
 const firstAudience = (a: string): string => (a.split(/[,/&]|\band\b/)[0] ?? a).trim() || "unassigned";
 const idNumber = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? Number.MAX_SAFE_INTEGER);
@@ -249,6 +287,23 @@ function questions(closure: Record<string, unknown>): ClosureView["openQuestions
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
   return keys.map((audience) => ({ audience, questions: groups.get(audience)!.sort((a, b) => idNumber(a.id) - idNumber(b.id)) }));
+}
+
+/**
+ * A closure sentence may point to one of ITS OWN numbered sections ("section 6", "Sections 2 and 3"). The executive documents have no
+ * numbered sections, so such a reference would dangle: it is rewritten to "the closure report", a document that exists and is published
+ * with the run. A legal reference ("section 24 of the PDPA") and a lettered one ("section 26C") are left alone.
+ */
+export function rewriteSectionReferences(text: string): string {
+  return text.replace(/\b([Ss])ections?\s+\d+(?![A-Za-z0-9])(?:\s*(?:,|and|to|-|\u2013)\s*\d+(?![A-Za-z0-9]))*(?!\s+of\s+the\s+(?:PDPA|GDPR|Act)\b)/g, (_m, _f: string, at: number) => (at === 0 || /(?:^|[.!?]\s+|\n\s*)(?:[-\u2022*]\s+)?$/.test(text.slice(0, at)) ? "The closure report" : "the closure report"));
+}
+
+/** rewriteSectionReferences over every string of a JSON-like value. */
+export function rewriteSectionReferencesDeep<T>(value: T): T {
+  if (typeof value === "string") return rewriteSectionReferences(value) as unknown as T;
+  if (Array.isArray(value)) return value.map((v) => rewriteSectionReferencesDeep(v)) as unknown as T;
+  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, rewriteSectionReferencesDeep(v)])) as unknown as T;
+  return value;
 }
 
 /** The closure's view for the executive documents. See the interface comments for each field's source. */
@@ -295,6 +350,10 @@ export function buildClosureView(input: ClosureViewInput): ClosureView {
     cases: caseFigures(closure, input.rollupCounts, input.executionSummary),
     defects: headline,
     defectLog: log,
+    openItems: openItemsOf(closure, log),
+    wrongStepNotes: Object.entries(isPlain(closure["falsePasses"]) ? closure["falsePasses"] : {}).flatMap(([key, v]) =>
+      isPlain(v) && str(v["wrongStep"]) !== null ? [{ key, requirement: str(v["requirement"]), wrongStep: str(v["wrongStep"])!, whatConforms: str(v["whatConforms"]), whatThePassMeans: str(v["whatThePassMeans"]) }] : []
+    ),
     variances: (Array.isArray(closure["variancesFromPlan"]) ? closure["variancesFromPlan"] : []).flatMap((v) =>
       typeof v === "string" ? [{ variance: v, reason: null }] : isPlain(v) && str(v["variance"]) !== null ? [{ variance: str(v["variance"])!, reason: str(v["reason"]) }] : []
     ),

@@ -106,7 +106,7 @@ async function load(url, what) {
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
 const { computeCoverage } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, rewriteSectionReferencesDeep } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -208,7 +208,7 @@ for (const row of view.compliance?.rows ?? []) compliance[row.regulation] = { co
 
 const cor = onCaseOfRecord();
 const c = view.cases;
-const spec = {
+const specRaw = {
   runId,
   projectName,
   generatedAt: new Date().toISOString(),
@@ -237,8 +237,11 @@ const spec = {
   exitCriteria: view.exitCriteria,
   openQuestions: view.openQuestions,
   falsePasses: view.falsePasses,
+  wrongStepNotes: view.wrongStepNotes,
   residualRisks: view.residualRisks,
 };
+// A closure sentence that points to one of ITS numbered sections would dangle here (this report has none): it is rewritten to "the closure report".
+const spec = rewriteSectionReferencesDeep(specRaw);
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 // Class B contract: no framework name or agent name in the rendered output.

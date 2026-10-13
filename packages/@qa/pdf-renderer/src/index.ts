@@ -203,6 +203,8 @@ export interface TechnicalReportSpec {
   exitCriteria?: Array<{ criterion: string; met: boolean; evidence: string | null }>;
   openQuestions?: Array<{ audience: string; questions: Array<{ id: string; priority: string | null; question: string }> }>;
   falsePasses?: Array<{ case: string; finding: string; latestResult: string | null }>;
+  /** A passed case whose first failure came from a wrong test step, in the closure's words; printed beside the false passes. */
+  wrongStepNotes?: Array<{ requirement: string | null; wrongStep: string; whatConforms: string | null; whatThePassMeans: string | null }>;
   residualRisks?: Array<{ title: string; rating: string | null; mitigationStatus: string | null; residualExposure: string | null }>;
   /** Optional evidence index — base64-encoded PNG data URIs keyed by defect ID */
   evidenceScreenshots?: Array<{
@@ -514,9 +516,15 @@ function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
     blocks.push(...sectionTitle("var", "Variances from the Test Plan"));
     (spec.variances ?? []).forEach((v, i) => blocks.push(paragraph(`var-${i}`, `${v.variance}${v.reason ? ` Reason: ${v.reason}` : ""}`)));
   }
-  if ((spec.falsePasses ?? []).length > 0) {
+  if ((spec.falsePasses ?? []).length > 0 || (spec.wrongStepNotes ?? []).length > 0) {
     blocks.push(...sectionTitle("fp", "Passes That Did Not Hold"));
     (spec.falsePasses ?? []).forEach((f, i) => blocks.push(paragraph(`fp-${i}`, `${f.case}: ${f.finding}${f.latestResult ? ` Latest result: ${f.latestResult}` : ""}`)));
+    (spec.wrongStepNotes ?? []).forEach((n, i) => {
+      blocks.push(paragraph(`ws-${i}-t`, "A wrong test step", true));
+      for (const [label, text] of [["Requirement", n.requirement], ["The wrong step", n.wrongStep], ["What conforms", n.whatConforms], ["What the pass means", n.whatThePassMeans]] as const) {
+        if (text) blocks.push(paragraph(`ws-${i}-${label}`, `${label}: ${text}`));
+      }
+    });
   }
   if ((spec.residualRisks ?? []).length > 0) {
     blocks.push(...sectionTitle("risk", "Residual Risks"));

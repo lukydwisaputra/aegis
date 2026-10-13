@@ -95,7 +95,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -159,15 +159,6 @@ try {
 } catch {
   // unreadable: the closure titles print (the residual risk block below treats it the same way)
 }
-// Tier 2, the sign-off being a formal attestation for stakeholders: the closure text this document prints (signoffFedTexts) must be plain
-// business language: no oracle, stub, mutants, env flag names, HTTP status numbers, CWE ids, route paths, snake_case codes, bare Sev codes ...
-// Exits 9 with the first 5 phrases, their fields and the plain replacement, before anything renders. The technical report is not held to
-// this tier; it is an engineering document.
-const plainHits = signoffFedTexts(closure, plainRisk).flatMap(({ location, text }) => findPlainLanguage(text, location));
-if (plainHits.length > 0) {
-  console.error(`ERROR: ${describePlainLanguageHits(plainHits)}\nThe closure report fields that feed the sign-off must be written in plain business language before this document is rendered.`);
-  process.exit(9);
-}
 const view = buildClosureView({
   closure,
   defects,
@@ -177,6 +168,19 @@ const view = buildClosureView({
   complianceReports: complianceReports.filter((d) => d && typeof d === "object" && !Array.isArray(d)).map((d, i) => ({ name: `report-${i + 1}`, regulation: d.regulation, gaps: Array.isArray(d.gaps) ? d.gaps.length : null, highGaps: typeof d.highSeverityGapCount === "number" ? d.highSeverityGapCount : null })),
   descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
 });
+// Tier 2, the sign-off being a formal attestation for stakeholders: the closure text this document prints (signoffFedTexts) must be plain
+// business language: no oracle, stub, mutants, env flag names, HTTP status numbers, CWE ids, route paths, snake_case codes, bare Sev codes ...
+// Exits 9 with the first 5 phrases, their fields and the plain replacement, before anything renders. The technical report is not held to
+// this tier; it is an engineering document.
+// The open-defect lines the sign-off prints (title and what each awaits) are checked too, from whichever source the view took them.
+const plainHits = [
+  ...signoffFedTexts(closure, plainRisk).flatMap(({ location, text }) => findPlainLanguage(text, location)),
+  ...view.openItems.flatMap((o) => [...(o.title ? findPlainLanguage(o.title, `defect ${o.id} title`) : []), ...(o.awaits ? findPlainLanguage(o.awaits, `defect ${o.id} awaits`) : [])]),
+];
+if (plainHits.length > 0) {
+  console.error(`ERROR: ${describePlainLanguageHits(plainHits)}\nThe closure report fields that feed the sign-off must be written in plain business language before this document is rendered.`);
+  process.exit(9);
+}
 
 // Further blocks printed after the exit criteria. Each is built from view fields only; a block with nothing to say is left out.
 const n = (v) => (v === null || v === undefined ? "not available" : String(v));
@@ -199,8 +203,22 @@ if (view.variances.length > 0) sections.push({ title: "Variances from the test p
       `Open application defects: ${n(d.open)}${d.openPartiallyFixed === null ? "" : ` (${d.openPartiallyFixed} partially fixed, open until the developers fix the rest or confirm the current fix resolves everything)`}. Fixed: ${n(d.fixed)}. Reframed, a requirement or hardening question and not an open defect: ${n(d.reframed)}. Report withdrawn: ${n(d.reportWithdrawn)}.`,
     ];
     if (d.closedWithoutVerdict !== null) lines.push(`Closed without a retest verdict: ${d.closedWithoutVerdict}.`);
+    // Each open application defect: id, severity word, state, short title and what it awaits (the closure's words).
+    for (const o of view.openItems) lines.push({ quote: `- ${o.id} (${o.severity}, ${o.state})${o.title ? `: ${o.title}` : ""}${o.awaits ? ` Awaits: ${o.awaits}` : ""}` });
     sections.push({ title: "Defects", lines });
   }
+}
+// A passed case whose first failure came from a wrong test step is stated in the closure's own words (Gate 3 requires it in the executive documents).
+if (view.wrongStepNotes.length > 0) {
+  sections.push({
+    title: "Wrong test step",
+    lines: view.wrongStepNotes.flatMap((w) => [
+      ...(w.requirement ? [{ quote: `Requirement: ${w.requirement}` }] : []),
+      { quote: `The wrong step: ${w.wrongStep}` },
+      ...(w.whatConforms ? [{ quote: `What conforms: ${w.whatConforms}` }] : []),
+      ...(w.whatThePassMeans ? [{ quote: `What the pass means: ${w.whatThePassMeans}` }] : []),
+    ]),
+  });
 }
 if (view.compliance !== null) {
   const k = view.compliance;
@@ -319,7 +337,7 @@ const sectionLines = sections.flatMap((x) => [x.title, ...x.lines.map(ownText).f
 const sourceTexts = [scope, exitCriteriaNote, openDefectsSummary, residualRisk, ...sectionLines];
 const jargonBefore = detectJargon(sourceTexts.join("\n")).length;
 
-const spec = {
+const specRaw = {
   projectName,
   version,
   signoffDate,
@@ -334,6 +352,8 @@ const spec = {
   sections: sections.map((x) => ({ title: x.title, lines: x.lines.map((l) => (typeof l === "string" ? applyJargonRewrites(l) : l.quote)) })),
   signatoryRoles,
 };
+// A closure sentence that points to one of ITS numbered sections would dangle here (this document has none): it is rewritten to "the closure report".
+const spec = rewriteSectionReferencesDeep(specRaw);
 
 const survivors = detectJargon(
   [spec.scope, spec.exitCriteriaNote, spec.openDefectsSummary, spec.residualRisk, ...sections.flatMap((x) => [x.title, ...x.lines.map(ownText).filter((l) => l !== null).map((l) => applyJargonRewrites(l))])].join("\n"),

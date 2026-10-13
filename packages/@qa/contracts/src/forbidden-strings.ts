@@ -249,8 +249,8 @@ export function describePlainLanguageHits(hits: readonly PlainLanguageHit[], max
 /**
  * The closure.json text the sign-off prints, each with its field, for the tier-2 check: the criterion of every exit criterion and the
  * stated reason of an unmet one, the plan variances (variance and reason), the case-of-record basis, the out-of-scope reasons, the
- * reconciliation of the case figures, and the residual risks (the executive reporter's plain sentence, else the closure title). Nothing
- * else of the closure is printed by the sign-off; falsePasses and openQuestions are printed by the technical report only (tier 1).
+ * reconciliation of the case figures, the wrong-step notes of falsePasses, and the residual risks (the executive reporter's plain sentence,
+ * else the closure title); the open-defect lines the sign-off prints are checked by the script from the view. Nothing else is printed; falsePasses and openQuestions are printed by the technical report only (tier 1).
  */
 export function signoffFedTexts(closure: unknown, plainRisk?: ReadonlyMap<string, string>): Array<{ location: string; text: string }> {
   const out: Array<{ location: string; text: string }> = [];
@@ -274,6 +274,11 @@ export function signoffFedTexts(closure: unknown, plainRisk?: ReadonlyMap<string
   const at = recs.findIndex((r) => typeof rec(r)["point"] === "string" && /case figures|case counts|pass rate/i.test(rec(r)["point"] as string) && typeof rec(r)["statement"] === "string");
   if (at >= 0) add(`closure.json.reconciliations[${at}].statement`, rec(recs[at])["statement"]);
   else add("closure.json.metrics.passRateBasisNote", rec(c["metrics"])["passRateBasisNote"]);
+  for (const [key, v] of Object.entries(rec(c["falsePasses"]))) {
+    const r = rec(v);
+    if (typeof r["wrongStep"] !== "string") continue;
+    for (const f of ["requirement", "wrongStep", "whatConforms", "whatThePassMeans"]) add(`closure.json.falsePasses.${key}.${f}`, r[f]);
+  }
   (Array.isArray(c["residualRiskSummary"]) ? c["residualRiskSummary"] : []).forEach((r, i) => {
     const id = rec(r)["riskId"];
     const plain = typeof id === "string" ? plainRisk?.get(id) : undefined;
