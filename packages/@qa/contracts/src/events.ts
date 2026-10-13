@@ -488,6 +488,8 @@ export const RtmLinkRemovedEventSchema = EventBase.extend({
   type: z.literal("rtm.link-removed"),
   requirementId: z.string(),
   defectId: DefectIdSchema,
+  // Additive: how many defectMap entries of this defect and requirement were removed with the row link (absent when there were none).
+  defectMapEntriesRemoved: z.number().int().positive().optional(),
   agent: z.string(),
   reason: z.string().min(1),
 });

@@ -97,6 +97,17 @@ describe('aegis defect amend', () => {
     expect(read(`defects/${ID}.json`)).toEqual(FIXTURE);
   });
 
+  it('corrects a wrong requirement link and user story, validated against the id formats', async () => {
+    const res = await amend([{ path: 'requirementId', value: 'REQ-REG-05' }, { path: 'userStory', value: 'STORY-REG-005' }]);
+    expect(res.changes.map((c) => [c.path, c.oldValue, c.newValue])).toEqual([['requirementId', 'REQ-REG-04', 'REQ-REG-05'], ['userStory', 'STORY-REG-004', 'STORY-REG-005']]);
+    expect(read(`defects/${ID}.json`)).toMatchObject({ requirementId: 'REQ-REG-05', userStory: 'STORY-REG-005' });
+    await expect(amend([{ path: 'requirementId', value: 'REG-5' }])).rejects.toMatchObject({ message: expect.stringMatching(/requirementId/) });
+    await expect(amend([{ path: 'userStory', value: 'STORY-5' }])).rejects.toMatchObject({ message: expect.stringMatching(/userStory/) });
+    await expect(amend([{ path: 'requirementId', value: null }])).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(amend([{ path: 'requirementId.x', value: 'REQ-REG-05' }])).rejects.toMatchObject({ message: expect.stringMatching(/amendable fields: .*requirementId, userStory/) });
+    expect(read(`defects/${ID}.json`).requirementId).toBe('REQ-REG-05');
+  });
+
   it('amendablePath splits a field into its segments', () => {
     expect(amendablePath('retestVerdict.reason')).toEqual(['retestVerdict', 'reason']);
     expect(amendablePath('g2Triage')).toEqual(['g2Triage']);
@@ -179,8 +190,21 @@ describe('aegis rtm unlink', () => {
     const after = read('rtm.json');
     expect(after.rows[0].defectIds).toEqual(['DEF-001-AUTH-UI']);
     expect(after.rows[1].defectIds).toEqual([ID]);
-    expect({ ...after, rows: undefined }).toEqual({ ...rtm(), rows: undefined });
-    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ requirementId: 'REQ-REG-04', defectId: ID, agent: DM, reason: 'Linked to the wrong requirement' });
+    // The defectMap entry of this defect and requirement goes with the row link; nothing else in the file changes.
+    expect({ ...after, rows: undefined }).toEqual({ ...rtm(), rows: undefined, defectMap: [] });
+    expect(res.defectMapEntriesRemoved).toBe(1);
+    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ requirementId: 'REQ-REG-04', defectId: ID, agent: DM, reason: 'Linked to the wrong requirement', defectMapEntriesRemoved: 1 });
+  });
+
+  it('keeps defectMap entries of other pairs, and records no count when the map has none for this pair', async () => {
+    const doc = rtm();
+    doc.defectMap.push({ defectId: ID, requirementId: 'REQ-REG-05' }, { defectId: 'DEF-001-AUTH-UI', requirementId: 'REQ-REG-04' });
+    write('rtm.json', doc);
+    await unlink();
+    expect(read('rtm.json').defectMap).toEqual([{ defectId: ID, requirementId: 'REQ-REG-05' }, { defectId: 'DEF-001-AUTH-UI', requirementId: 'REQ-REG-04' }]);
+    write('rtm.json', { rows: rtm().rows });
+    await unlink({ requirementId: 'REQ-REG-05' });
+    expect(events().filter((e) => e.type === 'rtm.link-removed').pop()!.defectMapEntriesRemoved).toBeUndefined();
   });
 
   it('refuses a missing row, a link that is not there, a missing reason, bad ids and other callers', async () => {

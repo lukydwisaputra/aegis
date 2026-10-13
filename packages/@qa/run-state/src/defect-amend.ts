@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, checkBrandExposure } from "@qa/contracts";
+import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed, OWNER } from "./caller.js";
 import { RunStateError } from "./errors.js";
@@ -11,11 +11,12 @@ import { atomicWrite, formatIssues, iso } from "./util.js";
 
 /**
  * The fields `aegis defect amend` may change, by their dotted path in the defect record: everything under `retestVerdict` and
- * `g2Triage` (the object itself included, so a missing retest verdict can be added), and `status.code` and
- * `status.transitionedAt`. Nothing else is amendable: not the severity, the evidence, the reproduction steps, and never the
+ * `g2Triage` (the object itself included, so a missing retest verdict can be added), `status.code` and
+ * `status.transitionedAt`, and the requirement and story links `requirementId` and `userStory` (checked against their id formats, for a
+ * record linked to the wrong requirement). Nothing else is amendable: not the severity, the evidence, the reproduction steps, and never the
  * record's `history`.
  */
-export const AMENDABLE_DEFECT_FIELDS = "retestVerdict[.*], g2Triage[.*], status.code, status.transitionedAt";
+export const AMENDABLE_DEFECT_FIELDS = "retestVerdict[.*], g2Triage[.*], status.code, status.transitionedAt, requirementId, userStory";
 
 const SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
 const FORBIDDEN_SEGMENTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
@@ -53,6 +54,10 @@ export function amendablePath(path: string): string[] {
   const bad = (why: string): RunStateError => new RunStateError("invalid-input", `field "${path}" ${why}; amendable fields: ${AMENDABLE_DEFECT_FIELDS}`);
   if (segments.some((s) => !SEGMENT.test(s) || FORBIDDEN_SEGMENTS.has(s))) throw bad("is not a dotted field path");
   const root = segments[0]!;
+  if (root === "requirementId" || root === "userStory") {
+    if (segments.length !== 1) throw bad("is not amendable");
+    return segments;
+  }
   if (root === "status") {
     if (segments.length !== 2 || !STATUS_FIELDS.has(segments[1]!)) throw bad("is not amendable");
     return segments;
@@ -175,6 +180,12 @@ export async function amendDefect(root: string, runId: string, defectId: string,
     if (changes.length === 0) throw new RunStateError("invalid-input", `nothing changes: every given value already equals the record's`);
     const added = [...issueKeys(next)].filter((k) => !issueKeys(before).has(k));
     if (added.length > 0) throw new RunStateError("invalid-input", `the amended record would be invalid: ${added.join("; ")}`);
+    for (const [field, schema] of [["requirementId", RequirementIdSchema], ["userStory", StoryIdSchema]] as const) {
+      if (changes.some((c) => c.path === field)) {
+        const id = schema.safeParse(next[field]);
+        if (!id.success) throw new RunStateError("invalid-input", `${field} would be invalid: ${formatIssues(id.error.issues)}`);
+      }
+    }
     if (changes.some((c) => c.path.split(".")[0] === "retestVerdict") && next["retestVerdict"] !== undefined) {
       const rv = RetestVerdictSchema.safeParse(next["retestVerdict"]);
       if (!rv.success) throw new RunStateError("invalid-input", `retestVerdict would be invalid: ${formatIssues(rv.error.issues)}`);
@@ -205,12 +216,15 @@ export interface UnlinkResult {
   reason: string;
   /** The defect ids the requirement's row still links. */
   remaining: string[];
+  /** The defectMap entries of this defect and requirement that were removed with the row link. */
+  defectMapEntriesRemoved: number;
 }
 
 /**
  * `aegis rtm unlink`: remove one defect id from the `defectIds` of one requirement's row of rtm.json (qa-defect-manager and the
- * owner only), for a link that is no longer valid: a withdrawn or reframed defect, or one linked to the wrong requirement. The
- * rest of rtm.json is untouched. The row must exist and link the defect, else the command refuses. One `rtm.link-removed` event
+ * owner only), for a link that is no longer valid: a withdrawn or reframed defect, or one linked to the wrong requirement. It also
+ * removes the `defectMap` entries of that defect and requirement pair (`{defectId, requirementId}`), so the map does not keep the
+ * link; the rest of rtm.json is untouched. The row must exist and link the defect, else the command refuses. One `rtm.link-removed` event
  * records requirement, defect, reason and agent; a failed event puts the file back. Lock order: run.lock -> event-bus lock.
  */
 export async function unlinkRtmDefect(root: string, runId: string, input: { requirementId: string; defectId: string; reason: string; now?: Date }, caller: string): Promise<UnlinkResult> {
@@ -240,10 +254,16 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
     }
     const remaining = linked.filter((d) => d !== input.defectId) as string[];
     row["defectIds"] = remaining;
+    let mapEntriesRemoved = 0;
+    if (Array.isArray(doc["defectMap"])) {
+      const kept = (doc["defectMap"] as unknown[]).filter((e) => !(isPlain(e) && e["defectId"] === input.defectId && e["requirementId"] === req.data));
+      mapEntriesRemoved = (doc["defectMap"] as unknown[]).length - kept.length;
+      doc["defectMap"] = kept;
+    }
     atomicWrite(file, JSON.stringify(doc, null, 2) + "\n");
     try {
       await appendChained(
-        { type: "rtm.link-removed", ts: iso(input.now), requirementId: req.data, defectId: input.defectId, agent: caller, reason },
+        { type: "rtm.link-removed", ts: iso(input.now), requirementId: req.data, defectId: input.defectId, agent: caller, reason, ...(mapEntriesRemoved > 0 ? { defectMapEntriesRemoved: mapEntriesRemoved } : {}) },
         busPath(root, runId),
         { emittedBy: caller, runId }
       );
@@ -251,6 +271,6 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
       atomicWrite(file, priorText);
       throw e;
     }
-    return { runId, requirementId: req.data, defectId: input.defectId, reason, remaining };
+    return { runId, requirementId: req.data, defectId: input.defectId, reason, remaining, defectMapEntriesRemoved: mapEntriesRemoved };
   });
 }

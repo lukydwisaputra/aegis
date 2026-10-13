@@ -32,7 +32,7 @@ export function defectCommand(): Command {
   const defect = new Command("defect").description("Correct a defect record after triage (qa-defect-manager and the owner)");
   defect
     .command("amend")
-    .description("Change allow-listed fields of one defect record (retestVerdict.*, g2Triage.*, status.code, status.transitionedAt) and record why")
+    .description("Change allow-listed fields of one defect record (retestVerdict.*, g2Triage.*, status.code, status.transitionedAt, requirementId, userStory) and record why")
     .requiredOption("--defect <id>", "defect id, e.g. DEF-003-REG-SEC")
     .option("--set <field=value>", "field to change; repeat for several; a value that parses as JSON is JSON, else text", collect, [] as string[])
     .option("--json <object>", "fields to change as one JSON object, {\"retestVerdict.reason\": \"...\"}")
@@ -52,7 +52,7 @@ export function rtmCommand(): Command {
   const rtm = new Command("rtm").description("Correct the requirements traceability matrix after triage (qa-defect-manager and the owner)");
   rtm
     .command("unlink")
-    .description("Remove one defect id from a requirement's row of rtm.json")
+    .description("Remove one defect id from a requirement's row of rtm.json, and its defectMap entry for that requirement")
     .requiredOption("--defect <id>", "defect id to unlink")
     .requiredOption("--requirement <id>", "requirement id of the row, e.g. REQ-REG-04")
     .requiredOption("--reason <text>", "why the link is no longer valid (withdrawn, reframed, wrong requirement)")
