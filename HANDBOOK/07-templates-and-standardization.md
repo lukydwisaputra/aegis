@@ -28,6 +28,8 @@ Defect IDs follow `DEF-{NNN}-{MODULE}-{TYPE}`; all other IDs follow `<TYPE>-<MOD
 
 **Module codes** are defined in `aegis/module-codes.md`. Always use the module code from that file; do not invent new codes.
 
+A lesson id is assigned by `aegis review submit` (never by the reviewer) from the worker's agent name: drop `qa-`, take the first letter of each remaining word (at most four): `qa-compliance-spv` is `CS`, `qa-defect-manager-spv` is `DMS`; a one-word agent such as `qa-orchestrator` or `qa-curator` uses its first two letters (`OR`, `CU`). The number is one above the highest id in that agent's lessons file and archive.
+
 Sequences are auto-assigned by the framework. Never manually reassign or reuse a sequence number even if an artefact is deleted.
 
 ---

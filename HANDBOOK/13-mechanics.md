@@ -136,9 +136,11 @@ When `proposeLesson(candidate)` is called:
 3. If max similarity ≥ 0.7: this is a near-duplicate → increment `hitCount` + update `lastSeen` on the existing entry; discard candidate
 4. If no match: proceed to conflict check
 5. Conflict check: if new `correctiveRule` is semantically opposite to an existing rule → emit `lesson.conflict-flagged`; do NOT append; escalate to curator
-6. Schema validation via Zod
+6. Assign the id (`L-{INITIALS}-{NNN}`, next free number of this agent's lessons file; see 7.2) and validate via Zod
 7. Cap check: if active entries count ≥ 50 → evict lowest hitCount oldest entry to archive
-8. Append; release lock; emit `lesson.appended`
+8. Append; release lock
+
+When `aegis review submit` pipes a `CorrectiveInstruction` and the lesson cannot be written (conflict, schema refusal, unreadable lessons file), the review is still recorded: the instruction stays in the review file, the CLI prints a `warning:` line on stderr and lists it under `warnings` in its result, and the chain gets `lesson.conflict-flagged` or `lesson.schema-rejected` (with `taskId`, `reviewPath`, `instructionIndex`).
 
 ## 13.5 SPV review pipeline
 

@@ -1515,6 +1515,11 @@ export const LessonSchemaRejectedEventSchema = EventBase.extend({
   type: z.literal("lesson.schema-rejected"),
   agent: z.string(),
   error: z.string(),
+  // Gap 2: set by aegis review submit when a CorrectiveInstruction could not be written to the worker's lessons file;
+  // the instruction itself stays in the review file at reviewPath, so nothing is lost.
+  taskId: z.string().optional(),
+  reviewPath: z.string().optional(),
+  instructionIndex: z.number().int().nonnegative().optional(),
 });
 
 // ─── Escalation, worktree & command telemetry ─────────────────────────────────

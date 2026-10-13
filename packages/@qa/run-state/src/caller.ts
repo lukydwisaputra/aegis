@@ -113,8 +113,9 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
 
 // Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
 export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity.", "escalation."];
-// cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself.
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight"]);
+// cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
+// recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2).
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

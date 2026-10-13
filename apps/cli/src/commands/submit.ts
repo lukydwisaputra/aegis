@@ -25,7 +25,11 @@ export function reviewCommand(): Command {
     .action(
       action((o: { file: string; run?: string }) => {
         const ctx = context();
-        return submitReview(ctx.root, runIdFor(ctx, o.run), resolve(o.file), ctx.caller);
+        return submitReview(ctx.root, runIdFor(ctx, o.run), resolve(o.file), ctx.caller).then((result) => {
+          // Gap 2: a lesson that could not be written is visible on stderr as well as in the JSON result.
+          for (const w of result.warnings ?? []) process.stderr.write(`warning: ${w}\n`);
+          return result;
+        });
       })
     );
   return rv;
