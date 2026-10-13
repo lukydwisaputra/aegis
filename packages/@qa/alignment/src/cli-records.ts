@@ -23,6 +23,8 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "messaging.exec": ["messaging.live-preflight"],
   "defect.amend": ["defect.record-amended"],
   "rtm.unlink": ["rtm.link-removed"],
+  "rtm.sync-defects": ["rtm.defect-map-synced"],
+  "rtm.render": ["rtm.rendered"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {

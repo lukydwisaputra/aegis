@@ -41,6 +41,8 @@ export const CLI_COMMANDS = [
   "defect.amend",
   "rtm.unlink",
   "metrics.defects",
+  "rtm.sync-defects",
+  "rtm.render",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -66,6 +68,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "rtm.unlink",
   // Gap 7: read-only, the defect headline numbers of the run's records.
   "metrics.defects",
+  "rtm.sync-defects",
+  "rtm.render",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -103,6 +107,8 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "metrics.coverage": "qa-metrics-collector",
   "defect.amend": "qa-defect-manager",
   "rtm.unlink": "qa-defect-manager",
+  "rtm.sync-defects": "qa-defect-manager",
+  "rtm.render": "qa-defect-manager",
 };
 
 // Read-only commands several named agents run (the owner always may, as OWNER_COMMANDS says): the agent that writes the figures and
@@ -136,7 +142,7 @@ export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.
 // cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
 // recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2); the last two by
 // aegis defect amend and aegis rtm unlink (gap 5).
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed"]);
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

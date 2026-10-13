@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure } from "@qa/contracts";
+import { readdirSync } from "node:fs";
 import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed, OWNER } from "./caller.js";
 import { RunStateError } from "./errors.js";
@@ -214,18 +215,90 @@ export interface UnlinkResult {
   requirementId: string;
   defectId: string;
   reason: string;
-  /** The defect ids the requirement's row still links. */
+  /** The defect ids the requirement's row still links (empty when the requirement has no row). */
   remaining: string[];
-  /** The defectMap entries of this defect and requirement that were removed with the row link. */
+  /** Whether the pair was linked in the requirement's row of rtm.json. */
+  rowLinkRemoved: boolean;
+  /** The defectMap entries of this defect and requirement that were removed. */
   defectMapEntriesRemoved: number;
+  /** Whether the defect table of rtm.md was re-rendered from the defectMap. */
+  rtmMdUpdated: boolean;
+}
+
+// ─── rtm.md: the defect-to-case table is rendered from rtm.json#defectMap ────────────────────────────────────────────────────────────
+
+/**
+ * rtm.md is hand-written by qa-test-designer (prose, execution waves, candidate map), so it is not rendered whole. Only its defect-to-case
+ * table is deterministic: it is `rtm.json#defectMap` as a table under the heading `## Defect-to-case map`, and that table (with the count in
+ * its heading) is the one part the CLI rewrites, so it cannot disagree with rtm.json after a correction. Everything else in rtm.md stays.
+ */
+const DEFECT_SECTION = /^## Defect-to-case map.*$/m;
+const DEFECT_TABLE_HEADER = ["Defect", "Sev", "Retest case", "Origin of case", "Story", "Acceptance criteria", "Wave", "Fix PR", "Note"];
+
+const cell = (v: unknown): string => {
+  const text = Array.isArray(v) ? v.join(", ") : v === null || v === undefined ? "" : String(v);
+  const one = text.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|").trim();
+  return one === "" ? "-" : one;
+};
+
+/** The defect table of rtm.md text rebuilt from the defectMap, or null when the text has no `## Defect-to-case map` section. */
+export function renderDefectSection(md: string, defectMap: readonly unknown[]): string | null {
+  const heading = DEFECT_SECTION.exec(md);
+  if (heading === null) return null;
+  const start = heading.index;
+  const afterHeading = start + heading[0].length;
+  const next = md.slice(afterHeading).search(/^## /m);
+  const end = next < 0 ? md.length : afterHeading + next;
+  const entries = defectMap.filter(isPlain).sort((a, b) => String(a["defectId"]).localeCompare(String(b["defectId"])));
+  const table = [
+    `| ${DEFECT_TABLE_HEADER.join(" | ")} |`,
+    `|${DEFECT_TABLE_HEADER.map(() => "---").join("|")}|`,
+    ...entries.map((e) => `| ${[e["defectId"], e["severity"], e["retestCaseId"], e["caseOrigin"], e["storyId"], e["acIds"], e["wave"], e["fixPr"], e["note"]].map(cell).join(" | ")} |`),
+  ].join("\n");
+  const newHeading = /\(\d+ reported defects?\)/.test(heading[0]) ? heading[0].replace(/\(\d+ reported defects?\)/, `(${entries.length} reported defect${entries.length === 1 ? "" : "s"})`) : heading[0];
+  const body = md.slice(afterHeading, end);
+  const lines = body.split("\n");
+  const first = lines.findIndex((l) => l.startsWith("|"));
+  let rebuilt: string;
+  if (first < 0) rebuilt = `${body.replace(/\s+$/, "")}\n\n${table}\n\n`;
+  else {
+    let last = first;
+    while (last + 1 < lines.length && lines[last + 1]!.startsWith("|")) last++;
+    rebuilt = [...lines.slice(0, first), table, ...lines.slice(last + 1)].join("\n");
+  }
+  return md.slice(0, start) + newHeading + rebuilt + md.slice(end);
+}
+
+function readRtm(file: string, runId: string): { text: string; doc: Record<string, unknown> } {
+  if (!existsSync(file)) throw new RunStateError("invalid-input", `run ${runId} has no rtm.json`);
+  const text = readFileSync(file, "utf-8");
+  let doc: unknown;
+  try {
+    doc = JSON.parse(text);
+  } catch (e) {
+    throw new RunStateError("invalid-input", `rtm.json is not valid JSON: ${(e as Error).message}`);
+  }
+  if (!isPlain(doc) || !Array.isArray(doc["rows"])) throw new RunStateError("invalid-input", "rtm.json has no rows array");
+  return { text, doc };
+}
+
+/** Re-render rtm.md's defect table in place when the file and its section exist; returns the prior text to restore, or null when nothing was written. */
+function rerenderMd(mdFile: string, defectMap: unknown): string | null {
+  if (!existsSync(mdFile) || !Array.isArray(defectMap)) return null;
+  const prior = readFileSync(mdFile, "utf-8");
+  const next = renderDefectSection(prior, defectMap);
+  if (next === null || next === prior) return null;
+  atomicWrite(mdFile, next);
+  return prior;
 }
 
 /**
- * `aegis rtm unlink`: remove one defect id from the `defectIds` of one requirement's row of rtm.json (qa-defect-manager and the
- * owner only), for a link that is no longer valid: a withdrawn or reframed defect, or one linked to the wrong requirement. It also
- * removes the `defectMap` entries of that defect and requirement pair (`{defectId, requirementId}`), so the map does not keep the
- * link; the rest of rtm.json is untouched. The row must exist and link the defect, else the command refuses. One `rtm.link-removed` event
- * records requirement, defect, reason and agent; a failed event puts the file back. Lock order: run.lock -> event-bus lock.
+ * `aegis rtm unlink`: remove one defect-to-requirement link from rtm.json (qa-defect-manager and the owner only), for a link that is no
+ * longer valid: a withdrawn or reframed defect, or one linked to the wrong requirement. The pair may be in the requirement row's
+ * `defectIds`, in a `defectMap` entry ({defectId, requirementId}), or both: each is removed, and a pair that exists only in the defectMap
+ * succeeds. A pair present nowhere is refused, naming what the requirement's row does link. The defect table of rtm.md is re-rendered from
+ * the defectMap; the rest of rtm.json and rtm.md is untouched. One `rtm.link-removed` event records requirement, defect, reason and agent
+ * (and defectMapEntriesRemoved); a failed event puts both files back. Lock order: run.lock -> event-bus lock.
  */
 export async function unlinkRtmDefect(root: string, runId: string, input: { requirementId: string; defectId: string; reason: string; now?: Date }, caller: string): Promise<UnlinkResult> {
   assertCallerAllowed(caller, "rtm.unlink");
@@ -234,34 +307,32 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
   if (!req.success) throw new RunStateError("invalid-input", `requirement id "${input.requirementId}" is not REQ-{MODULE}-{NN}`);
   if (!DefectIdSchema.safeParse(input.defectId).success) throw new RunStateError("invalid-input", `defect id "${input.defectId}" is not DEF-{NNN}-{MODULE}-{TYPE}`);
   const file = join(runDir(root, runId), "rtm.json");
+  const mdFile = join(runDir(root, runId), "rtm.md");
   return withRunLock(root, runId, async () => {
     assertMayCorrect(root, runId, caller);
-    if (!existsSync(file)) throw new RunStateError("invalid-input", `run ${runId} has no rtm.json`);
-    const priorText = readFileSync(file, "utf-8");
-    let doc: unknown;
-    try {
-      doc = JSON.parse(priorText);
-    } catch (e) {
-      throw new RunStateError("invalid-input", `rtm.json is not valid JSON: ${(e as Error).message}`);
-    }
-    const rows = isPlain(doc) ? doc["rows"] : undefined;
-    if (!isPlain(doc) || !Array.isArray(rows)) throw new RunStateError("invalid-input", "rtm.json has no rows array");
+    const { text: priorText, doc } = readRtm(file, runId);
+    const rows = doc["rows"] as unknown[];
     const row = rows.find((r): r is Record<string, unknown> => isPlain(r) && r["requirementId"] === req.data);
-    if (row === undefined) throw new RunStateError("invalid-input", `rtm.json has no row for ${req.data}`);
-    const linked = Array.isArray(row["defectIds"]) ? (row["defectIds"] as unknown[]) : [];
-    if (!linked.includes(input.defectId)) {
-      throw new RunStateError("invalid-input", `${input.defectId} is not linked to ${req.data} (it links: ${linked.length === 0 ? "no defect" : linked.join(", ")})`);
+    const linked = row !== undefined && Array.isArray(row["defectIds"]) ? (row["defectIds"] as unknown[]) : [];
+    const inRow = linked.includes(input.defectId);
+    const map = Array.isArray(doc["defectMap"]) ? (doc["defectMap"] as unknown[]) : [];
+    const kept = map.filter((e) => !(isPlain(e) && e["defectId"] === input.defectId && e["requirementId"] === req.data));
+    const mapEntriesRemoved = map.length - kept.length;
+    if (!inRow && mapEntriesRemoved === 0) {
+      throw new RunStateError(
+        "invalid-input",
+        row === undefined
+          ? `rtm.json has no row for ${req.data} and its defectMap has no ${input.defectId} entry for it`
+          : `${input.defectId} is not linked to ${req.data} (its row links: ${linked.length === 0 ? "no defect" : linked.join(", ")}; its defectMap has no such entry)`
+      );
     }
     const remaining = linked.filter((d) => d !== input.defectId) as string[];
-    row["defectIds"] = remaining;
-    let mapEntriesRemoved = 0;
-    if (Array.isArray(doc["defectMap"])) {
-      const kept = (doc["defectMap"] as unknown[]).filter((e) => !(isPlain(e) && e["defectId"] === input.defectId && e["requirementId"] === req.data));
-      mapEntriesRemoved = (doc["defectMap"] as unknown[]).length - kept.length;
-      doc["defectMap"] = kept;
-    }
+    if (inRow && row !== undefined) row["defectIds"] = remaining;
+    if (mapEntriesRemoved > 0) doc["defectMap"] = kept;
     atomicWrite(file, JSON.stringify(doc, null, 2) + "\n");
+    let priorMd: string | null = null;
     try {
+      priorMd = mapEntriesRemoved > 0 ? rerenderMd(mdFile, kept) : null;
       await appendChained(
         { type: "rtm.link-removed", ts: iso(input.now), requirementId: req.data, defectId: input.defectId, agent: caller, reason, ...(mapEntriesRemoved > 0 ? { defectMapEntriesRemoved: mapEntriesRemoved } : {}) },
         busPath(root, runId),
@@ -269,8 +340,161 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
       );
     } catch (e) {
       atomicWrite(file, priorText);
+      if (priorMd !== null) atomicWrite(mdFile, priorMd);
       throw e;
     }
-    return { runId, requirementId: req.data, defectId: input.defectId, reason, remaining, defectMapEntriesRemoved: mapEntriesRemoved };
+    return { runId, requirementId: req.data, defectId: input.defectId, reason, remaining, rowLinkRemoved: inRow, defectMapEntriesRemoved: mapEntriesRemoved, rtmMdUpdated: priorMd !== null };
+  });
+}
+
+export interface SyncResult {
+  runId: string;
+  /** false: the defectMap and the rows already matched the records; nothing was written and no event recorded. */
+  changed: boolean;
+  added: string[];
+  updated: string[];
+  removed: string[];
+  /** Extra entries of a defect that already had one (one entry per defect record is kept). */
+  duplicatesRemoved: number;
+  /** Row links added from the records' requirementId. */
+  rowLinksAdded: Array<{ requirementId: string; defectId: string }>;
+  /** Records whose requirementId has no row in rtm.json, or that name none: not linked, for the defect manager to decide. */
+  unlinked: Array<{ defectId: string; requirementId: string | null }>;
+  rtmMdUpdated: boolean;
+  reason: string;
+}
+
+/**
+ * `aegis rtm sync-defects --reason <text>` (qa-defect-manager and the owner only): make rtm.json#defectMap consistent with the defect
+ * records. One entry per defect record: severity (the record's severity.code), title, requirementId and storyId (the record's userStory)
+ * are taken from the record; retestCaseId, caseOrigin, acIds, wave, fixPr, verdictOracle, note and any other key of an existing entry are
+ * kept; a new entry gets retestCaseId from the record's testCaseId, empty acIds and verdictOracle, a null wave and fixPr, and a note saying
+ * those were not recorded. An entry whose defect has no record is removed (and a second entry of one defect). A record that names no
+ * requirement (an untraced defect) keeps an existing entry's requirement and story. The `defectIds` of the requirement row named by a
+ * record's requirementId gain the defect when it is missing: that is the record's own explicit link, so nothing is guessed; a link in
+ * another row is never removed (use `rtm unlink`: a defect may legitimately sit on several rows). Nothing else in rtm.json changes. The
+ * defect table of rtm.md is re-rendered. One `rtm.defect-map-synced` event carries the counts and defect ids. Lock order: run.lock -> bus.
+ */
+export async function syncRtmDefectMap(root: string, runId: string, input: { reason: string; now?: Date }, caller: string): Promise<SyncResult> {
+  assertCallerAllowed(caller, "rtm.sync-defects");
+  const reason = requireReason(input.reason);
+  const file = join(runDir(root, runId), "rtm.json");
+  const mdFile = join(runDir(root, runId), "rtm.md");
+  const defectsDir = join(runDir(root, runId), "defects");
+  return withRunLock(root, runId, async () => {
+    assertMayCorrect(root, runId, caller);
+    const { text: priorText, doc } = readRtm(file, runId);
+    const rows = doc["rows"] as unknown[];
+    const records = new Map<string, Record<string, unknown>>();
+    for (const name of existsSync(defectsDir) ? readdirSync(defectsDir).filter((n) => /^DEF-.*\.json$/.test(n)).sort() : []) {
+      let rec: unknown;
+      try {
+        rec = JSON.parse(readFileSync(join(defectsDir, name), "utf-8"));
+      } catch {
+        continue;
+      }
+      const id = isPlain(rec) && typeof rec["id"] === "string" ? rec["id"] : name.replace(/\.json$/, "");
+      if (isPlain(rec) && DefectIdSchema.safeParse(id).success) records.set(id, rec);
+    }
+    const oldMap = Array.isArray(doc["defectMap"]) ? (doc["defectMap"] as unknown[]) : [];
+    const byId = new Map<string, Record<string, unknown>>();
+    let duplicatesRemoved = 0;
+    const removed: string[] = [];
+    for (const e of oldMap) {
+      if (!isPlain(e) || typeof e["defectId"] !== "string") continue;
+      if (!records.has(e["defectId"])) { removed.push(e["defectId"]); continue; }
+      if (byId.has(e["defectId"])) { duplicatesRemoved++; continue; }
+      byId.set(e["defectId"], e);
+    }
+    const added: string[] = [];
+    const updated: string[] = [];
+    const rowLinksAdded: Array<{ requirementId: string; defectId: string }> = [];
+    const unlinked: Array<{ defectId: string; requirementId: string | null }> = [];
+    const sev = (r: Record<string, unknown>): string | undefined => (isPlain(r["severity"]) && typeof r["severity"]["code"] === "string" ? (r["severity"]["code"] as string) : typeof r["severity"] === "string" ? r["severity"] : undefined);
+    for (const [id, rec] of records) {
+      const wanted: Record<string, unknown> = {
+        ...(sev(rec) !== undefined ? { severity: sev(rec) } : {}),
+        ...(typeof rec["title"] === "string" ? { title: rec["title"] } : {}),
+        ...(typeof rec["requirementId"] === "string" ? { requirementId: rec["requirementId"] } : {}),
+        ...(typeof rec["userStory"] === "string" ? { storyId: rec["userStory"] } : {}),
+      };
+      const existing = byId.get(id);
+      if (existing === undefined) {
+        byId.set(id, {
+          defectId: id, severity: wanted["severity"] ?? null, title: wanted["title"] ?? null, retestCaseId: typeof rec["testCaseId"] === "string" ? rec["testCaseId"] : null,
+          caseOrigin: "new defect", storyId: wanted["storyId"] ?? null, requirementId: wanted["requirementId"] ?? null, acIds: [], wave: null, fixPr: null, verdictOracle: [],
+          note: "Added from the defect record; acceptance criteria, wave and fix are not recorded.",
+        });
+        added.push(id);
+      } else if (Object.entries(wanted).some(([k, v]) => existing[k] !== v)) {
+        Object.assign(existing, wanted);
+        updated.push(id);
+      }
+      const reqId = typeof rec["requirementId"] === "string" ? rec["requirementId"] : null;
+      const row = reqId === null ? undefined : rows.find((r): r is Record<string, unknown> => isPlain(r) && r["requirementId"] === reqId);
+      if (reqId === null || row === undefined) unlinked.push({ defectId: id, requirementId: reqId });
+      else {
+        const ids = Array.isArray(row["defectIds"]) ? (row["defectIds"] as unknown[]) : [];
+        if (!ids.includes(id)) {
+          row["defectIds"] = [...ids, id];
+          rowLinksAdded.push({ requirementId: reqId, defectId: id });
+        }
+      }
+    }
+    const newMap = [...byId.values()].sort((a, b) => String(a["defectId"]).localeCompare(String(b["defectId"])));
+    const changed = added.length + updated.length + removed.length + duplicatesRemoved + rowLinksAdded.length > 0;
+    const base = { runId, added, updated, removed, duplicatesRemoved, rowLinksAdded, unlinked, reason };
+    if (!changed) return { ...base, changed: false, rtmMdUpdated: false };
+    doc["defectMap"] = newMap;
+    atomicWrite(file, JSON.stringify(doc, null, 2) + "\n");
+    let priorMd: string | null = null;
+    try {
+      priorMd = rerenderMd(mdFile, newMap);
+      await appendChained(
+        { type: "rtm.defect-map-synced", ts: iso(input.now), agent: caller, reason, added, updated, removed, duplicatesRemoved, rowLinksAdded, rtmMdUpdated: priorMd !== null },
+        busPath(root, runId),
+        { emittedBy: caller, runId }
+      );
+    } catch (e) {
+      atomicWrite(file, priorText);
+      if (priorMd !== null) atomicWrite(mdFile, priorMd);
+      throw e;
+    }
+    return { ...base, changed: true, rtmMdUpdated: priorMd !== null };
+  });
+}
+
+export interface RenderResult {
+  runId: string;
+  changed: boolean;
+  entries: number;
+}
+
+/**
+ * `aegis rtm render` (qa-defect-manager and the owner only): rewrite the defect-to-case table of rtm.md from rtm.json#defectMap, the one
+ * part of rtm.md that is deterministic (see renderDefectSection). Refuses when rtm.md has no `## Defect-to-case map` section. Records
+ * `rtm.rendered` only when the file changed.
+ */
+export async function renderRtmDefects(root: string, runId: string, caller: string, now?: Date): Promise<RenderResult> {
+  assertCallerAllowed(caller, "rtm.render");
+  const file = join(runDir(root, runId), "rtm.json");
+  const mdFile = join(runDir(root, runId), "rtm.md");
+  return withRunLock(root, runId, async () => {
+    assertMayCorrect(root, runId, caller);
+    const { doc } = readRtm(file, runId);
+    const map = Array.isArray(doc["defectMap"]) ? (doc["defectMap"] as unknown[]) : [];
+    if (!existsSync(mdFile)) throw new RunStateError("invalid-input", `run ${runId} has no rtm.md`);
+    const prior = readFileSync(mdFile, "utf-8");
+    const next = renderDefectSection(prior, map);
+    if (next === null) throw new RunStateError("invalid-input", "rtm.md has no '## Defect-to-case map' section to render into");
+    if (next === prior) return { runId, changed: false, entries: map.length };
+    atomicWrite(mdFile, next);
+    try {
+      await appendChained({ type: "rtm.rendered", ts: iso(now), agent: caller, file: "rtm.md", section: "defect-to-case map", entries: map.length }, busPath(root, runId), { emittedBy: caller, runId });
+    } catch (e) {
+      atomicWrite(mdFile, prior);
+      throw e;
+    }
+    return { runId, changed: true, entries: map.length };
   });
 }

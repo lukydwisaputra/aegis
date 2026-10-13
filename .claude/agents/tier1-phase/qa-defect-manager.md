@@ -104,6 +104,8 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 10. **Record corrections a gate decision demands (a correction dispatch, never in the closure reporter's task).** When the owner's gate decision or conditions require a defect record or an RTM link to be corrected (stale retest text, a missing retest verdict, a wrong status timestamp, a defect withdrawn or reframed, a defect linked to the wrong requirement), the orchestrator dispatches you in a task of its own before the closure reporter's, and you make each correction with the CLI, not by editing the file:
    - `aegis defect amend --defect <DEF-ID> --set retestVerdict.reason="<text>" --set status.transitionedAt=<UTC ISO> --reason "<the gate condition and why the record was wrong>"` (or `--json '{"retestVerdict.reason": "<text>"}'`). It changes only `retestVerdict.*`, `g2Triage.*`, `status.code`, `status.transitionedAt`, `requirementId` and `userStory` (the last two checked against their id formats, to correct a requirement link), validates the result against the defect schema, and records one `defect.record-amended` event with every old and new value. Adding a missing retest verdict is `--json '{"retestVerdict": {"verdict": "NOT FIXED", "reason": "<text>"}}'`. Everything else in a record (severity, evidence, reproduction steps, `history`) stays as it is; a record that needs a change outside the allow-list is reported to the orchestrator, never edited by hand.
    - `aegis rtm unlink --defect <DEF-ID> --requirement <REQ-ID> --reason "<why the link is no longer valid>"` removes one defect id from one requirement's row of `rtm.json` (and its `defectMap` entry for that requirement) and records `rtm.link-removed`. Use it for a withdrawn or reframed defect and for a defect linked to the wrong requirement; link the defect to the right requirement with step 7.
+   - `aegis rtm sync-defects --reason "<why>"` makes `rtm.json#defectMap` match the defect records after corrections: one entry per record, with severity, title, requirement and story taken from the record (the retest case, origin, acceptance criteria, wave, fix and note of an existing entry are kept; a new entry gets empty values and a note), an entry whose defect has no record removed, and a defect added to the `defectIds` of the row its own record's `requirementId` names. It never removes a link from another row (that is `rtm unlink`). Run it after the amendments and unlinks of a correction dispatch. `rtm unlink` also removes a pair that exists only in the `defectMap`.
+   - `aegis rtm render` rewrites the defect-to-case table of `rtm.md` from the `defectMap` (`sync-defects` and `unlink` already do it); the rest of `rtm.md` is the test designer's prose and is never edited by you. Never edit `rtm.md` by hand after a correction: render it.
    - New text goes into customer-facing records: it never names the framework or an agent. After amending a record, bring its `.md` twin in line with the new text (you may write `defects/**`). Reasons name the gate and its condition, not the framework.
    - List every amendment (defect id, fields, reason) in the work report `decisions[]`. After the corrections, run `aegis metrics defects` again and append a corrected `defect.management-complete` (the last one of the run is the one readers use).
 
@@ -140,6 +142,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-defect-manager 
 - `defect.management-complete` — single event at end: `{totalOpened, duplicates, severityBreakdown, openApplicationDefects?, fixed?, partiallyFixed?, reframed?, reportWithdrawn?, cannotVerify?, notFixed?}` (`severityBreakdown` counts the open application defects by severity code, so it sums to `openApplicationDefects`; the CLI refuses an event where they differ, naming both numbers; after a record correction you append a corrected event: readers use the last `defect.management-complete` of the run, and an earlier one is never edited or deleted; `totalOpened` counts only the defects this run raised, never the open ones; the seven optional counts are copied from `aegis metrics defects`, which counts the records; `openApplicationDefects` includes `notFixed`, `partiallyFixed` and `cannotVerify`, and left out when it prints `counts: null`)
 - `defect.record-amended` — recorded by `aegis defect amend`, one per amendment command; never appended by hand
 - `rtm.link-removed` — recorded by `aegis rtm unlink`, one per removed link; never appended by hand
+- `rtm.defect-map-synced` — recorded by `aegis rtm sync-defects`, one per sync that changed something; never appended by hand
+- `rtm.rendered` — recorded by `aegis rtm render` when `rtm.md` changed; never appended by hand
 
 ## Concurrency
 
@@ -194,8 +198,10 @@ emits:
   - {event: defect.management-complete, via: append}
   - {event: defect.record-amended, via: "cli:defect.amend"}
   - {event: rtm.link-removed, via: "cli:rtm.unlink"}
+  - {event: rtm.defect-map-synced, via: "cli:rtm.sync-defects"}
+  - {event: rtm.rendered, via: "cli:rtm.render"}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append, defect.amend, rtm.unlink, metrics.defects]
+cli: [task.claim, work-report.submit, task.release, event.append, defect.amend, rtm.unlink, rtm.sync-defects, rtm.render, metrics.defects]
 runs: []
 dispatches: []
 config: []

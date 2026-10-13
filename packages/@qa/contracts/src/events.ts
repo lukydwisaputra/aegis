@@ -494,6 +494,28 @@ export const RtmLinkRemovedEventSchema = EventBase.extend({
   reason: z.string().min(1),
 });
 
+export const RtmDefectMapSyncedEventSchema = EventBase.extend({
+  type: z.literal("rtm.defect-map-synced"),
+  agent: z.string(),
+  reason: z.string().min(1),
+  // Defect ids whose defectMap entry was added from its record, updated from it, or removed because the defect has no record.
+  added: z.array(DefectIdSchema),
+  updated: z.array(DefectIdSchema),
+  removed: z.array(z.string()),
+  duplicatesRemoved: z.number().int().nonnegative(),
+  // Row links added to a requirement row's defectIds from the record's own requirementId.
+  rowLinksAdded: z.array(z.object({ requirementId: z.string(), defectId: DefectIdSchema })),
+  rtmMdUpdated: z.boolean(),
+});
+
+export const RtmRenderedEventSchema = EventBase.extend({
+  type: z.literal("rtm.rendered"),
+  agent: z.string(),
+  file: z.string(),
+  section: z.string(),
+  entries: z.number().int().nonnegative(),
+});
+
 // ─── Threshold override ───────────────────────────────────────────────────────
 
 export const ThresholdOverriddenEventSchema = EventBase.extend({
@@ -1833,6 +1855,8 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   MigrationAppliedEventSchema,
   RtmAppendLinkEventSchema,
   RtmLinkRemovedEventSchema,
+  RtmDefectMapSyncedEventSchema,
+  RtmRenderedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,

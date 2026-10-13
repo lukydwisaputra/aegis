@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { amendDefect, parseChangeValue, RunStateError, unlinkRtmDefect, type DefectChange } from "@qa/run-state";
+import { amendDefect, parseChangeValue, renderRtmDefects, RunStateError, syncRtmDefectMap, unlinkRtmDefect, type DefectChange } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 const collect = (v: string, acc: string[] = []): string[] => [...acc, v];
@@ -61,6 +61,27 @@ export function rtmCommand(): Command {
       action((o: { defect: string; requirement: string; reason: string; run?: string }) => {
         const ctx = context();
         return unlinkRtmDefect(ctx.root, runIdFor(ctx, o.run), { requirementId: o.requirement, defectId: o.defect, reason: o.reason }, ctx.caller);
+      })
+    );
+  rtm
+    .command("sync-defects")
+    .description("Make rtm.json#defectMap match the defect records (one entry per record; severity, title, requirement and story from the record) and re-render the defect table of rtm.md")
+    .requiredOption("--reason <text>", "why the map is synced (the gate decision or finding behind it)")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(
+      action((o: { reason: string; run?: string }) => {
+        const ctx = context();
+        return syncRtmDefectMap(ctx.root, runIdFor(ctx, o.run), { reason: o.reason }, ctx.caller);
+      })
+    );
+  rtm
+    .command("render")
+    .description("Rewrite the defect-to-case table of rtm.md from rtm.json#defectMap (the rest of rtm.md is untouched)")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(
+      action((o: { run?: string }) => {
+        const ctx = context();
+        return renderRtmDefects(ctx.root, runIdFor(ctx, o.run), ctx.caller);
       })
     );
   return rtm;
