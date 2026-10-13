@@ -137,6 +137,10 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
    Step 11 is reachable once every specialist task is settled.
 
+## Credentials for specs
+
+Every specialist brief you write states: when a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys, run it as `aegis env exec -- <command>`; the specialist never reads the secrets file. A case is never recorded Blocked for missing credentials unless `aegis env check` lists the name as missing; then the blocker names that variable.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Specialist dispatched before `env.ready` event exists in events.jsonl
@@ -229,7 +233,7 @@ emits:
   - {event: execution.blocked, via: append}
   - {event: execution.complete, via: append}
 awaits: []
-cli: [task.claim, task.add, task.cancel, task.list, work-report.submit, task.release, event.append, run.status]
+cli: [task.claim, task.add, task.cancel, task.list, work-report.submit, task.release, event.append, run.status, env.exec, env.check]
 runs: []
 dispatches:
   - qa-exploratory-specialist

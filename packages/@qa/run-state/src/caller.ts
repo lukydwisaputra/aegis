@@ -45,6 +45,8 @@ export const CLI_COMMANDS = [
   "metrics.rollups",
   "rtm.sync-defects",
   "rtm.render",
+  "env.exec",
+  "env.check",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -57,9 +59,9 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.resume",
   "run.reissue",
   "run.descope",
+  "task.abandon",
   "task.list",
   "integrity.verify",
-  "task.abandon",
   "integrity.repair-tail",
   "gate.decide",
   "escalation.decide",

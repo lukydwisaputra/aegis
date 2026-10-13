@@ -59,6 +59,10 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 7. **Evidence.** Write axe-results.json and pa11y-report.json for every TC (pass and fail) to `runs/{runId}/evidence/{TC-ID}/`. This overwrites the previous run's evidence for the same TC — only the latest result per TC is kept. Inspection screenshots taken mid-task to resolve ARIA ambiguity must be deleted immediately after use and never written to `runs/{runId}/evidence/`.
 
+## Credentials for specs
+
+When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked without first trying `aegis env exec`; a name `env check` lists as missing is the one thing to report.
+
 ## Quality Standards (SPV rejects if violated)
 
 - axe-core run with `runOnly` omitted (must scope to WCAG 2.2 AA)
@@ -113,7 +117,7 @@ emits:
   - {event: a11y.violation-critical, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, env.exec, env.check]
 runs: [playwright-cli, pa11y]
 dispatches: []
 config:

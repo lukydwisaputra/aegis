@@ -96,6 +96,10 @@ scope=data never seeds on a read-only environment. There the orchestrator record
 
 9. **Submit, release, stop.** Append `env.ready` (or `env.setup-failed`) as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
+## Credentials for specs
+
+The QA secrets of the run environment hold the Supabase credentials and dev keys that factories, fixtures and dev-test fixtures read. You never read that file: run the specs and the setup that need them as `aegis env exec -- <command>`, and run `aegis env check` in your report step so the work report names which variables the CLI injects and which are missing.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Auth fixture missing teardown (logout + clearCookies + close) for any role
@@ -188,7 +192,7 @@ emits:
   - {event: credentials.missing, via: append}
   - {event: test.config-written, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append, helpers.vendor, messaging.check]
+cli: [task.claim, work-report.submit, task.release, event.append, helpers.vendor, messaging.check, env.exec, env.check]
 runs: [npm, playwright-cli]
 dispatches: []
 config:
