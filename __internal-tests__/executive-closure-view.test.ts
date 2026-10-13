@@ -27,7 +27,7 @@ const CLOSURE = {
   resultsSummary: {
     counts: { designed: 116, attempted: 116, passed: 92, failed: 18, blocked: 4, partial: 2, skipped: 0, notAttempted: 0 },
     outOfScope: [{ caseId: 'TC-REG-012', reason: 'Singpass login out of scope for this release (owner decision)' }],
-    caseOfRecord: { passed: 93, failed: 18, blocked: 4, partial: 1, passRate: 80.2, basis: 'TC-COMMS-007 taken on its messaging-stub result (owner, Gate 2 condition 5)' },
+    caseOfRecord: { passed: 93, failed: 18, blocked: 4, partial: 1, passRate: 80.2, basis: 'TC-COMMS-007 taken on its messaging stand-in result (owner, Gate 2 condition 5)' },
   },
   reconciliations: [
     { point: 'NRIC-shaped values', statement: 'A scan found values in 6 files.' },
@@ -52,7 +52,7 @@ const CLOSURE = {
     { regulation: 'CMMI', gapCount: 9, highSeverityGapCount: 2 },
   ],
   complianceTotals: { reports: 2, gaps: 29, highSeverityGaps: 5 },
-  complianceNote: 'The reports are coverage statements. No verdict is given.',
+  complianceNote: 'The reports are coverage statements. No ship / no-ship verdict is given here.',
 };
 const FILES = {
   'reports/closure/closure.json': CLOSURE,
@@ -176,6 +176,8 @@ describe('the technical report', () => {
     expect(text).toContain('ISO/IEC 25010\n20\n3');
     expect(text).toContain('CMMI\n9\n2');
     expect(f).toContain('Coverage gaps');
+    expect(f).toContain('This document gives no release recommendation and no compliance verdict.');
+    expect(f).not.toMatch(/no[- ]ship/i);
     expect(f).toContain('Gaps rated high');
     expect(f).toContain('Total: 29 coverage gaps across 2 reports, 5 rated high.');
     expect(text).not.toMatch(/\nCovered\n|\ncmmi\n|\niso25010\n/);
@@ -233,7 +235,7 @@ describe('the sign-off', () => {
     expect(f).toContain('Open application defects: 2 (1 partially fixed');
     expect(f).toContain('Fixed: 2. Reframed, a requirement or hardening question and not an open defect: 1. Report withdrawn: 1.');
     expect(f).toContain('COMPLIANCE COVERAGE');
-    expect(f).toContain('2 coverage reports list 29 test-coverage gaps, 5 rated high: ISO/IEC 25010 20 (3 rated high), CMMI 9 (2 rated high). These are gaps in test coverage; no compliance verdict is given.');
+    expect(f).toContain('2 coverage reports list 29 test-coverage gaps, 5 rated high: ISO/IEC 25010 20 (3 rated high), CMMI 9 (2 rated high). These are gaps in test coverage. This document gives no release recommendation and no compliance verdict.');
     expect(f).toContain('EXIT CRITERIA NOT MET: THE DIFFERENCES STATED');
     expect(f).toContain('Criterion 2: Not met: the matrix summary counts 24 defects against 28 in the traceability matrix.');
     expect(f).toContain('OUT OF SCOPE');

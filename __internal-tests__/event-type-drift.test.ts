@@ -48,6 +48,7 @@ const NON_EVENT_PREFIXES = [
   // NEW-07: the messaging config keys, named one by one so the messaging.* events stay checked
   'messaging.stubPort', 'messaging.dispatchTimeoutSeconds', 'messaging.fakeRecipients',
   // JSON field paths inside artefacts
+  'metrics.passRateBasisNote', // closure.json field named by the closure reporter rule
   'status.code', 'status.transitionedAt', 'retestVerdict.', 'g2Triage.', // defect record fields aegis defect amend changes
   'defectMetrics.', 'resultsSummary.', 'rootCause.', 'work-report.',
   'SignoffSpec.', 'response.usage.',

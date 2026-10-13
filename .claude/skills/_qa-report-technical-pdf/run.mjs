@@ -232,7 +232,7 @@ const spec = {
   outOfScopeCases: view.outOfScope,
   defects: view.defectLog.map((d) => ({ id: d.id, title: d.title, severity: d.severity, status: d.state })),
   compliance,
-  ...(view.compliance === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps, note: view.compliance.note } }),
+  ...(view.compliance === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps } }),
   variances: view.variances,
   exitCriteria: view.exitCriteria,
   openQuestions: view.openQuestions,

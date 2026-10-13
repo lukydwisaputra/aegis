@@ -95,7 +95,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -159,6 +159,15 @@ try {
 } catch {
   // unreadable: the closure titles print (the residual risk block below treats it the same way)
 }
+// Tier 2, the sign-off being a formal attestation for stakeholders: the closure text this document prints (signoffFedTexts) must be plain
+// business language: no oracle, stub, mutants, env flag names, HTTP status numbers, CWE ids, route paths, snake_case codes, bare Sev codes ...
+// Exits 9 with the first 5 phrases, their fields and the plain replacement, before anything renders. The technical report is not held to
+// this tier; it is an engineering document.
+const plainHits = signoffFedTexts(closure, plainRisk).flatMap(({ location, text }) => findPlainLanguage(text, location));
+if (plainHits.length > 0) {
+  console.error(`ERROR: ${describePlainLanguageHits(plainHits)}\nThe closure report fields that feed the sign-off must be written in plain business language before this document is rendered.`);
+  process.exit(9);
+}
 const view = buildClosureView({
   closure,
   defects,
@@ -199,8 +208,7 @@ if (view.compliance !== null) {
   sections.push({
     title: "Compliance coverage",
     lines: [
-      `${n(k.reports)} coverage reports list ${n(k.totalGaps)} test-coverage gaps, ${n(k.totalHighGaps)} rated high${per === "" ? "" : `: ${per}`}. These are gaps in test coverage; no compliance verdict is given.`,
-      ...(k.note ? [{ quote: k.note }] : []),
+      `${n(k.reports)} coverage reports list ${n(k.totalGaps)} test-coverage gaps, ${n(k.totalHighGaps)} rated high${per === "" ? "" : `: ${per}`}. These are gaps in test coverage. This document gives no release recommendation and no compliance verdict.`,
     ],
   });
 }

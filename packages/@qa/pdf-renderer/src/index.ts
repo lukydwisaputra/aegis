@@ -643,7 +643,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
       React.createElement(
         Text,
         { style: baseStyles.body },
-        "Gaps are test-coverage gaps in each standard, rated by the standard's own review. They are not defects and carry no compliance verdict."
+        "Gaps are test-coverage gaps in each standard, rated by the standard's own review. They are not defects. This document gives no release recommendation and no compliance verdict."
       ),
       React.createElement(
         View,

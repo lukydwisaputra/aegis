@@ -12,14 +12,22 @@ const REAL = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'closur
 
 const POSITIVE: Array<[string, string]> = [
   ['reports/metrics/coverage.json', 'the coverage summary'], ['reports/closure/closure.md', 'the closure report'], ['reports/compliance/gdpr.json', 'the compliance report'],
-  ['defects/*.json', 'the defect records'], ['defects/DEF-003-REG-SEC.json', 'the defect records'], ['defects/triage-summary.md', 'the triage summary'],
-  ['cases/TC-AUTH-001-result.json', 'the case result files'], ['cases/*-result.json', 'the case result files'], ['evidence/TC-REG-013/shot.png', 'the evidence'],
-  ['runs/RUN-20261012-002/plan.json', 'the test plan'],
-  ['coverage.json', 'the coverage summary'], ['rtm.json', 'the traceability matrix'], ['rtm.md', 'the traceability matrix'], ['closure.json', 'the closure report'],
-  ['events.jsonl', 'the run record'], ['run.json', 'the run record'], ['triage-summary.md', 'the triage summary'], ['TC-VOL-009-result.json', 'the case result files'],
-  ['TC-COMMS-007-result-messaging.json', 'the case result files'], ['execution-summary.json', 'the plain name of the document'],
+  ['reports/work/qa-x.json', 'nothing: work reports and reviews are internal'], ['runs/RUN-20261012-002/reports/mutation/stryker.json', 'the mutation test report'],
+  ['reports/executive/signoff.pdf', 'the executive report'],  ['defects/*.json', 'the defect records'], ['defects/triage-summary.md', 'the triage summary'], ['cases/*-result.json', 'the case result files'],
+  ['*-result.json', 'the case result files'], ['x-result-extra.json', 'the case result files'],
+  ['coverage.json', 'the coverage summary'], ['rtm.json', 'the traceability matrix'], ['rtm.md', 'the traceability matrix'], ['closure.json', 'the closure report'], ['closure.md', 'the closure report'],
+  ['events.jsonl', 'the run record'], ['run.json', 'the run record'], ['triage-summary.md', 'the triage summary'], ['execution-summary.md', 'the plain name of the document'],
+  ['risk-register.json', 'the plain name of the document'], ['execution-summary.json', 'the plain name of the document'],
   ['localhost', 'the local test server'], ['http://127.0.0.1/login', 'the local test server'], [':3002', 'the local test server (no port)'], [':54422', 'the local test server (no port)'],
   ['port 3011', 'the local test server (no port)'], ['ports 3998', 'the local test server (no port)'], ['listener on :3998', 'the local test server (no port)'],
+];
+// Citing proof is how a defect record or a compliance report works: these are NOT tooling wording.
+const ALLOWED_CITATIONS = [
+  'evidence/TC-REG-013/shot.png', 'runs/RUN-20261012-002/evidence/DEF-003-REG-SEC/TC-REG-013_step5_20261012T104840Z.json', 'cases/TC-AUTH-001-result.json',
+  'cases/TC-COMMS-007-result-messaging.json', 'cases/TC-VOL-009.json', 'cases/TC-VOL-009.md', 'defects/DEF-003-REG-SEC.json', 'defects/DEF-007-REG-UI.md',
+  'TC-VOL-009-result.json', 'TC-REG-013-mobile-result.json', 'runs/RUN-20261012-002/cases/TC-ENG-005-result.json', 'runs/RUN-20261012-002/defects/DEF-001-VOL-EXP.json',
+  '[proof](runs/RUN-20261012-002/evidence/DEF-003-REG-SEC/step5.json)', '[the case](cases/TC-REG-013-result.json)', 'runs/RUN-20261012-002/stories/STORY-REG-004.json',
+  'runs/RUN-20261012-002/requirements/ambiguity-report.json', 'plan.json', 'runs/RUN-20261012-002/gates/gate-1-decision.json',
 ];
 const NEGATIVE = [
   'The reports page offers XLSX only.', 'Cases are grouped by module and the reports of the cases are printed below.', 'Defects and cases reports/cases are discussed with the PM.',
@@ -34,6 +42,11 @@ describe('TOOLING_WORD_RULES: paths, file names and local servers', () => {
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.map((h) => h.instead)).toContain(instead);
     expect(checkToolingWords(`See ${text} here`)).toBeInstanceOf(RegExp);
+  });
+
+  it.each(ALLOWED_CITATIONS)('the citation "%s" is never flagged', (c) => {
+    expect(findToolingWords(`Proof: ${c}.`)).toEqual([]);
+    expect(findToolingWords(`See ${c}`)).toEqual([]);
   });
 
   it.each(NEGATIVE)('plain wording is clean: %s', (text) => {

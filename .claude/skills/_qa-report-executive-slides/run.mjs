@@ -127,13 +127,20 @@ async function load(url, what) {
 }
 
 const { renderSlideDeck, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits } = await load(CONTRACTS, "the brand check");
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits } = await load(CONTRACTS, "the brand check");
 
+// Tier 2: the deck is business language, so engineering vocabulary (oracle, stub, mutants, env flags, HTTP status numbers, CWE ids, route
+// paths, snake_case codes, bare Sev codes ...) is refused too, with its plain replacement.
 // Customer-facing wording guard on the deck content, before the tone-check and before rendering: the same list as the H1 hook and the
 // two report scripts. Exits with the first 5 offending phrases and their fields.
 const toolingHits = findToolingWordsIn(deckSource, "executive-deck.json");
 if (toolingHits.length > 0) {
   console.error(`ERROR: ${describeToolingHits(toolingHits)}\nThe deck content must be corrected before it is rendered.`);
+  process.exit(10);
+}
+const plainHits = findPlainLanguageIn(deckSource, "executive-deck.json");
+if (plainHits.length > 0) {
+  console.error(`ERROR: ${describePlainLanguageHits(plainHits)}\nThe deck content must be written in plain business language before it is rendered.`);
   process.exit(10);
 }
 
