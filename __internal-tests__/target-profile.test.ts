@@ -1,5 +1,6 @@
 import * as fs from 'fs'; import * as path from 'path';
 import { MESSAGING_PROVIDERS, ScanWarningEventSchema, TargetProfileCoreSchema, TargetProfileSchema } from '@qa/contracts';
+import { ScanProfileSchema } from '@qa/run-state';
 import { PROFILE, TS } from './helpers/pipeline';
 const md = fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', 'crosscutting', 'qa-context-scanner.md'), 'utf-8');
 const example = JSON.parse(/```jsonc\n([\s\S]*?)\n```/.exec(md)![1]!);
@@ -147,5 +148,21 @@ describe('TargetProfileSchema (AUD-031)', () => {
     expect([core.targetIsSingleProject, core.sourceInventory.routes[0]!.path, core.existingTests.files]).toEqual([true, '/auth/login', []]);
     const { files: _f, ...noFiles } = example.existingTests;
     expect(TargetProfileCoreSchema.safeParse({ ...example, existingTests: noFiles }).success).toBe(false);
+  });
+});
+
+describe('Scan barrier: a count without a file list is refused (the Dev-test-review skip reads files)', () => {
+  const profile = { ...PROFILE, existingTests: { files: ['tests/a.test.ts'], frameworks: ['vitest'], locations: ['tests'], count: 1, unitTestStyle: 'tests-dir' as const } };
+  it('accepts a count with its files, and zero with none', () => {
+    expect(ScanProfileSchema.safeParse(profile).success).toBe(true);
+    expect(ScanProfileSchema.safeParse({ ...profile, existingTests: { ...profile.existingTests, files: [], count: 0, unitTestStyle: 'none' } }).success).toBe(true);
+  });
+  it('refuses count 536 with an empty files[]', () => {
+    const r = ScanProfileSchema.safeParse({ ...profile, existingTests: { ...profile.existingTests, files: [], count: 536 } });
+    expect(r.success).toBe(false);
+    expect(JSON.stringify(r.error?.issues)).toContain('existingTests.count is 536 but files[] is empty: list every test file path');
+  });
+  it('the scanner prose says the list is never left empty', () => {
+    expect(fs.readFileSync(path.join(__dirname, '..', '.claude/agents/crosscutting/qa-context-scanner.md'), 'utf-8')).toContain('never leave it empty or truncate it to save space');
   });
 });
