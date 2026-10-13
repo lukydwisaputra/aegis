@@ -2,7 +2,8 @@
 name: qa-compliance-pdpa
 description: Reviews test artefacts against Singapore PDPA (Personal Data Protection Act 2012, amended 2020). Evaluates coverage of the 9 data protection obligations, the Do Not Call (DNC) provisions, and the Mandatory Data Breach Notification (MDBN) requirements. Produces PDPA-Sec{N} tagged gap report.
 modelTier: planning
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

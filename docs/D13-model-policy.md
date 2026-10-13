@@ -4,36 +4,24 @@
 
 All model assignments are centralized in `aegis/.claude/model-policy.yaml`. Agent definition files declare a `modelTier` — never a model name. A build step resolves tier → model and injects the `model:` field at install/update time.
 
-**Why centralized?** Changing all SPVs to Sonnet (for cost) is a one-line edit, not a 22-file change.
+**Why centralized?** Changing every SPV's model or effort is a one-line edit, not a 22-file change.
 
 ## The 4 tiers
 
-| Tier | Model | When to use |
-|------|-------|-------------|
-| `planning` | `claude-opus-4-8` | Deep synthesis, strategy, cross-artifact reasoning. Few invocations, high stakes. |
-| `implementation` | `claude-sonnet-5` | High-volume writing and coding. Strong reasoning at much lower cost. |
-| `validation` | `claude-opus-4-8` | SPV review. High leverage — a missed defect by an SPV propagates downstream. |
-| `read-only` | `claude-haiku-4-5-20251001` | Pure extraction, classification, aggregation. No novel synthesis needed. |
+Every tier runs the same model, `claude-sonnet-5-5`. A tier now decides the reasoning effort, set in the `efforts:` map of `model-policy.yaml` and stamped into each agent as `effort:`. Effort is never `low`: the floor is `medium`, and a test enforces it.
 
-## Assignment rationale
+| Tier | Model | Effort | Agents |
+|------|-------|--------|--------|
+| `planning` | `claude-sonnet-5-5` | high | Orchestrator, test planner, executive reporter, curator, the 6 compliance reviewers. Errors here propagate to every downstream task. |
+| `implementation` | `claude-sonnet-5-5` | medium | Phase agents and Tier-2 specialists. High call count, predictable patterns. |
+| `validation` | `claude-sonnet-5-5` | high | SPVs, the shared compliance SPV, the developer-test reviewer. A missed SPV review lets a defect reach production. |
+| `read-only` | `claude-sonnet-5-5` | medium | `qa-context-scanner` and `qa-metrics-collector`: scanning, extraction and metric rollups. |
 
-**Planning tier (Opus):** These agents set strategy that everyone else follows. Errors here propagate to 50+ downstream tasks. Examples: `qa-orchestrator`, `qa-test-planner`, `qa-executive-reporter`, all 6 compliance reviewers.
+An SPV now shares its worker's model, so it no longer brings an independent model's blind spots to the review. High effort is the compensation. If SPV rejection rates or escaped defects suggest the review has weakened, raise the validation tier's model or effort first.
 
-**Implementation tier (Sonnet):** High call count, predictable patterns. `qa-test-designer` may generate 100+ test cases per cycle — Opus at that volume is cost-prohibitive.
+## Book ingestion
 
-**Validation tier (Opus — upgraded from default):** Reviewing requires holding the rules + the artifact + the lessons file simultaneously. The cost of a missed SPV review is a defect that reaches production. Worth upgrading.
-
-**Read-only tier (Haiku):** `qa-context-scanner` lists files and detects frameworks. `qa-metrics-collector` rolls the event log up into metric files before Closure-draft and Executive. No synthesis needed — just fast, cheap passes.
-
-## Book ingestion uses multiple models per book
-
-The `ingestion` section of `model-policy.yaml` defines a multi-stage strategy:
-- Metadata + skip-filter: Haiku (cheap ~$0.03)
-- Per-chapter extraction (with prompt caching): Sonnet (~$0.32 cached)
-- Cross-book synthesis: Opus (~$0.30 for 5 triggers)
-- Quality audit: Opus (optional, ~$0.10)
-
-See `docs/D05-book-ingestion-model-strategy.md` for full cost breakdown.
+The `ingestion` section of `model-policy.yaml` names a model per stage (metadata, skip-filter, per-chapter extraction, cross-book synthesis, audit). All stages currently run `claude-sonnet-5-5`. See `docs/D05-book-ingestion-model-strategy.md` for the stage breakdown.
 
 ## SPV model
 
@@ -45,19 +33,19 @@ SPVs run on the `validation` tier. There is no automatic Sonnet-first escalation
 1. Read `model-policy.yaml`
 2. For each `.claude/agents/**/*.md`: parse frontmatter, find `modelTier`
 3. Look up tier → model name
-4. Inject `model: <name>` field into frontmatter
+4. Inject `model: <name>` and `effort: <level>` (from `efforts:`) into frontmatter
 5. Validate: every agent has a `modelTier`; every `modelTier` exists in policy; no agent appears in two assignment lists
 
 Runs automatically on `aegis init` and `aegis update`.
 
 ## Cost monitoring
 
-The `token.used` events in `runs/{runId}/events.jsonl` break down token use by model. If validation tier becomes the dominant cost, switch SPVs back to Sonnet by editing:
+The `token.used` events in `runs/{runId}/events.jsonl` break down token use by model. Rates come from `tokenRates` in `model-policy.yaml`, mirrored in `MODEL_RATES` in `packages/@qa/metrics/src/index.ts`; a test fails when a tier or ingestion model has no rate in either. If the validation tier becomes the dominant cost, lower its effort:
 
 ```yaml
 # aegis/.claude/model-policy.yaml
-tiers:
-  validation: claude-sonnet-5   # downgrade from claude-opus-4-8
+efforts:
+  validation: medium   # never low
 ```
 
 Then run `pnpm aegis build-agents` to apply.

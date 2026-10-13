@@ -2,7 +2,8 @@
 name: qa-dev-test-reviewer-spv
 description: Reviews qa-dev-test-reviewer work reports. Validates that every developer test has an evidenced verdict, that unit-test adequacy rests on a Stryker mutation score at or above the threshold (a skipped run leaves no unit test adequate), that other adequate tests record covered acceptance criteria and an evidence note, that wrong verdicts name the contradicted requirement, and that the target tree was never modified. Submits its verdict with aegis review submit.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

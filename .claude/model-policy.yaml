@@ -6,11 +6,20 @@
 version: "1.0"
 
 # Tier definitions
+# Every tier runs the same model; the tier decides the reasoning effort the build step stamps
+# into `effort:`. Minimum effort is medium: `low` is not allowed anywhere (owner decision).
 tiers:
-  planning:        claude-opus-4-8       # deep reasoning, synthesis, strategy
-  implementation:  claude-sonnet-5       # high-volume writing/coding workhorse
-  validation:      claude-opus-4-8       # SPVs — upgraded for high-leverage review
-  read-only:       claude-haiku-4-5-20251001  # cheap classification & scanning
+  planning:        claude-sonnet-5-5     # deep reasoning, synthesis, strategy
+  implementation:  claude-sonnet-5-5     # high-volume writing/coding workhorse
+  validation:      claude-sonnet-5-5     # SPVs and compliance review
+  read-only:       claude-sonnet-5-5     # classification, scanning, metric rollups
+
+# Tier → reasoning effort (medium | high | xhigh | max; never low)
+efforts:
+  planning:        high
+  implementation:  medium
+  validation:      high
+  read-only:       medium
 
 # Agent → tier assignments
 # Every agent must appear exactly once. Build step validates.
@@ -95,19 +104,26 @@ assignments:
 # Book ingestion uses a multi-model per-book strategy (see docs/71-book-ingestion-model-strategy.md).
 # These are NOT single-agent assignments — they're per-phase model overrides
 # applied by the qa-ingest-book skill, not resolved by the build step.
+# All stages run claude-sonnet-5-5; the old per-book cost figures assumed Haiku/Opus and are gone.
 # ─────────────────────────────────────────────────────────────────────────────
 ingestion:
-  metadata:        claude-haiku-4-5-20251001   # ToC + page boundaries (~$0.01/book)
-  skipFilter:      claude-haiku-4-5-20251001   # Identify chapters to skip (~$0.02/book)
-  chunkingPrimary: claude-sonnet-5             # Per-chapter extraction, cached (~$0.20/book)
-  synthesis:       claude-opus-4-8             # Cross-book topic consolidation (rare, ~$0.30/topic)
-  audit:           claude-opus-4-8             # Optional quality spot-check (~$0.10/book)
+  metadata:        claude-sonnet-5-5           # ToC + page boundaries
+  skipFilter:      claude-sonnet-5-5           # Identify chapters to skip
+  chunkingPrimary: claude-sonnet-5-5           # Per-chapter extraction, cached
+  synthesis:       claude-sonnet-5-5           # Cross-book topic consolidation (rare)
+  audit:           claude-sonnet-5-5           # Optional quality spot-check
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Cost tier rates (USD per 1M tokens) — used by qa-metrics-collector.
 # Updated when Anthropic changes pricing. Source: Anthropic pricing page.
 # ─────────────────────────────────────────────────────────────────────────────
 tokenRates:
+  claude-sonnet-5-5:
+    inputPerMillion:  3.00
+    outputPerMillion: 15.00
+    cacheWritePerMillion: 3.75
+    cacheReadPerMillion:  0.30
+  # Ids still seen in older runs' events.jsonl; costed at their old rates.
   claude-opus-4-8:
     inputPerMillion:  15.00
     outputPerMillion: 75.00

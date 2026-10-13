@@ -2,7 +2,8 @@
 name: qa-responsive-specialist
 description: Runs UI tests across the viewport matrix — desktop (1920×1080), tablet (768×1024), mobile (375×667). Detects breakpoint defects (overflow, hidden CTAs, broken nav). Auto-tags defects with the viewport(s) where they reproduce. Dispatched by qa-test-executor for responsive test cases.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

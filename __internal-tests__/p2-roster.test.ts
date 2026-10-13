@@ -195,7 +195,7 @@ describe('compliance review docs (AUD-052)', () => {
 
 describe('final wave doc fixes (parked A)', () => {
   it('HANDBOOK/06 model column follows model-policy.yaml (T1 #4)', () => {
-    const FAMILY: Record<string, string> = { planning: 'Opus', implementation: 'Sonnet', validation: 'Opus', 'read-only': 'Haiku' };
+    const FAMILY: Record<string, string> = { planning: 'Sonnet', implementation: 'Sonnet', validation: 'Sonnet', 'read-only': 'Sonnet' };
     const policy = parse(read('.claude/model-policy.yaml')) as { assignments: Record<string, string[]> };
     const tierOf = new Map(Object.entries(policy.assignments).flatMap(([tier, agents]) => agents.map((a) => [a, tier] as const)));
     const wrong = read('HANDBOOK/06-agents.md').split('\n').flatMap((l) => {

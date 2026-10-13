@@ -2,7 +2,8 @@
 name: qa-context-scanner
 description: Runs first every cycle. Read-only scan of the target project. Detects framework, package manager, monorepo layout, JSX/TSX ratio, existing tests, CI provider, API surface, env var names, Supabase usage, app list, personal data and messaging integration. Writes target-profile.json. Emits target.profiled and target.changed events. Never modifies target code.
 modelTier: read-only
-model: claude-haiku-4-5-20251001
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Bash]
 knowledge_refs: []
 ---
