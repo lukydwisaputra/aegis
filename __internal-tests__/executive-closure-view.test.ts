@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildClosureView, regulationName } from '@qa/contracts';
+import { buildClosureView, regulationName, rewriteNationalIdTerms } from '@qa/contracts';
 import { GATE3, SCRIPT, fixture, flat, pdfText, run, temps } from './helpers/exec-pdf';
 
 afterAll(() => { for (const t of temps) fs.rmSync(t, { recursive: true, force: true }); });
@@ -78,7 +78,9 @@ describe('buildClosureView', () => {
 
   it('takes the case figures from the case-of-record block and states the three bases', () => {
     expect(view.cases).toMatchObject({ source: 'case-of-record', passed: 93, failed: 18, partial: 1, blocked: 4, total: 116, passRate: 80.2 });
-    expect(view.cases.note).toMatch(/Coverage rollup: 92 passed, 18 failed, 2 partial, 4 blocked \(79\.3% passed\)\. Execution summary: 92 passed, 18 failed, 6 blocked.*it has no partial status.*Case of record: 93 passed, 18 failed, 1 partial, 4 blocked \(80\.2% passed\)/);
+    // One paragraph: the closure's own reconciliation carries the three bases once; the basis is a sentence, not wrapped in brackets.
+    expect(view.cases.note).toMatch(/^Figures are those of the case of record\. TC-COMMS-007 taken on its messaging stand-in result \(owner, Gate 2 condition 5\)\. Rollup 92 passed \(79\.3%\); execution summary 6 blocked as it has no partial status; case of record 93 passed \(80\.2%\)\.$/);
+    expect(view.cases.note?.match(/79\.3%/g)).toHaveLength(1);
     expect(view.cases.reconciliation).toMatch(/^Rollup 92 passed/);
   });
 
@@ -140,11 +142,9 @@ describe('the technical report', () => {
     expect(text).toContain('Passed\n93');
     expect(text).toContain('Partial\n1');
     expect(text).toContain('Pass Rate\n80.2%');
-    expect(f).toContain('Coverage rollup: 92 passed');
-    expect(f).toContain('Execution summary: 92 passed, 18 failed, 6 blocked');
-    expect(f).toContain('Case of record: 93 passed');
-    expect(f).toContain('Reconciliation: Rollup 92 passed (79.3%)');
-    expect(f).toContain('Out of scope (owner decision, not in any count above): TC-REG-012');
+    expect(f).toContain('Figures are those of the case of record. TC-COMMS-007 taken on its messaging stand-in result (owner, Gate 2 condition 5). Rollup 92 passed (79.3%); execution summary 6 blocked as it has no partial status; case of record 93 passed (80.2%).');
+    expect(f).not.toContain('Reconciliation:');
+    expect(f).toContain("Out of scope, by the owner's decision and in none of the counts above: TC-REG-012: Singpass login out of scope for this release (owner decision)");
   });
 
   it('the defect log shows the retest verdict and severity words, open first, and no lifecycle code', () => {
@@ -225,8 +225,8 @@ describe('the sign-off', () => {
   it('adds tests executed with the case figures and the reconciliation sentence', () => {
     expect(f).toContain('TESTS EXECUTED');
     expect(f).toContain('116 checks were executed to a result: 93 passed, 18 failed, 1 partly passed, 4 blocked; 80.2% passed.');
-    expect(f).toContain('Coverage rollup: 92 passed');
-    expect(f).toContain('Reconciliation: Rollup 92 passed (79.3%)');
+    expect(f).toContain('Figures are those of the case of record. TC-COMMS-007 taken on its messaging stand-in result (owner, Gate 2 condition 5). Rollup 92 passed (79.3%); execution summary 6 blocked as it has no partial status; case of record 93 passed (80.2%).');
+    expect(f).not.toContain('Reconciliation:');
   });
 
   it('adds variances, the defect breakdown, the compliance coverage statement, the unmet criteria with their reasons and the out-of-scope line', () => {
@@ -285,5 +285,92 @@ describe('agent text and skill docs', () => {
   it('the skills describe the closure view and the exit codes', () => {
     expect(read('.claude/skills/_qa-report-technical-pdf/SKILL.md')).toMatch(/buildClosureView.*never \\?"Closed Defects\\?".*refused with exit 7/s);
     expect(read('.claude/skills/_qa-report-signoff-pdf/SKILL.md')).toMatch(/blocks from the closure view.*refused with exit 9/s);
+  });
+});
+
+// Round 8: the open-defect block in the technical report, one reconciliation paragraph, punctuation, national ID wording, other audiences.
+describe('round 8', () => {
+  const OPEN = [
+    { id: 'DEF-005-PART-UI', severity: 'Sev4 (Minor)', state: 'PARTIALLY FIXED', title: 'The save button stays disabled after a retry', awaits: 'A developer fix of the part that remains' },
+    { id: 'DEF-006-NEW-EXP', severity: 'Sev4 (Minor)', state: 'Open', title: 'The list scrolls past the last row.', awaits: 'The product owner decision on priority.' },
+  ];
+  const closure = { ...CLOSURE, defectMetrics: { ...CLOSURE.defectMetrics, openItems: OPEN.map((o) => ({ defectId: o.id, severity: o.severity, state: o.state, title: o.title, awaits: o.awaits })) } };
+  const files = { ...FILES, 'reports/closure/closure.json': closure };
+  const t = tech(files);
+  const s = sign(files);
+  const tf = flat(t.text);
+  const sf = flat(s.text);
+
+  it('1: the technical report prints each open defect (id, severity, state, title, awaits) before the defect log', () => {
+    expect(t.r.status).toBe(0);
+    expect(tf).toContain('Open Application Defects');
+    expect(tf).toContain('DEF-005-PART-UI (Sev4 (Minor), PARTIALLY FIXED): The save button stays disabled after a retry. Awaits: A developer fix of the part that remains.');
+    expect(tf).toContain('DEF-006-NEW-EXP (Sev4 (Minor), Open): The list scrolls past the last row. Awaits: The product owner decision on priority.');
+    expect(tf.indexOf('Open Application Defects')).toBeLessThan(tf.indexOf('Defect Log'));
+  });
+
+  it('2: one reconciliation paragraph; the rollup percentage and the blocked count each appear once per document', () => {
+    for (const doc of [tf, sf]) {
+      expect(doc.match(/79\.3%/g)).toHaveLength(1);
+      expect(doc.match(/6 blocked/g)).toHaveLength(1);
+      expect(doc).not.toContain('Reconciliation:');
+    }
+  });
+
+  it('3: no capital after an opening bracket, no unpunctuated "Awaits:", no nested brackets from the script-written lines', () => {
+    for (const doc of [tf, sf]) {
+      expect(doc).not.toMatch(/\(The /);
+      expect(doc).not.toMatch(/\w Awaits:/);
+      expect(doc).not.toContain('))');
+      expect(doc).not.toMatch(/\(\([A-Za-z]/);
+    }
+    expect(sf).toContain('DEF-005-PART-UI (Sev4 (Minor), PARTIALLY FIXED): The save button stays disabled after a retry. Awaits: A developer fix of the part that remains.');
+  });
+
+  it('3: a closure basis that is a full sentence is printed as a sentence, never inside brackets', () => {
+    const basis = 'The owner decided at the defect triage approval that TC-VOL-002 stays partial.';
+    const cl = { ...closure, resultsSummary: { ...closure.resultsSummary, caseOfRecord: { ...closure.resultsSummary.caseOfRecord, basis } } };
+    for (const doc of [tech({ ...files, 'reports/closure/closure.json': cl }).text, sign({ ...files, 'reports/closure/closure.json': cl }).text]) {
+      expect(flat(doc)).toContain(`Figures are those of the case of record. ${basis}`);
+      expect(flat(doc)).not.toMatch(/\(The owner/);
+    }
+  });
+
+  it('4: the technical report prints the closure\'s full reason for an unmet exit criterion', () => {
+    expect(tf).toContain('Not met: the matrix summary counts 24 defects against 28 in the traceability matrix.');
+  });
+
+  it('5: "NRIC-shaped values" reads "values shaped like national ID numbers" in the sign-off, and stays in the technical report', () => {
+    const cl = { ...closure, variancesFromPlan: [{ variance: 'A scan found NRIC-shaped values in 6 files and one NRIC-shaped value in a log.', reason: 'The NRIC numbers are test data.' }] };
+    const tt = flat(tech({ ...files, 'reports/closure/closure.json': cl }).text);
+    const ss = flat(sign({ ...files, 'reports/closure/closure.json': cl }).text);
+    expect(tt).toContain('NRIC-shaped values in 6 files');
+    expect(ss).toContain('values shaped like national ID numbers in 6 files and one value shaped like national ID numbers in a log');
+    expect(ss).toContain('The national ID numbers are test data.');
+    expect(ss).not.toContain('NRIC');
+  });
+
+  it('5: the rewrite is deterministic and leaves other text alone', () => {
+    expect(rewriteNationalIdTerms('NRIC-shaped values, an NRIC-shaped value and NRIC numbers; NRIC/SPD stays')).toBe('values shaped like national ID numbers, an value shaped like national ID numbers and national ID numbers; NRIC/SPD stays');
+  });
+
+  it('5: the deck prints the same wording', () => {
+    const deck = { keyFinding: 'A scan found NRIC-shaped values in test data only.', supportingInsights: [{ what: 'One scan ran', soWhat: 'No real data', nowWhat: 'Keep the scan' }, { what: 'Two', soWhat: 'Two', nowWhat: 'Two' }, { what: 'Three', soWhat: 'Three', nowWhat: 'Three' }], recommendations: [{ action: 'Keep the scan', owner: 'Engineering', deadline: '2026-10-20', impact: 'HIGH' }], residualRisks: [{ plain: 'Test data may hold NRIC numbers.' }] };
+    const { root, runDir } = fixture({ ...files, 'reports/executive/executive-deck.json': deck });
+    const r = run(SCRIPT.slides, root);
+    expect(r.status).toBe(0);
+    const text = flat(pdfText(path.join(runDir, 'reports', 'executive', 'executive-deck.pdf')));
+    expect(text).toContain('values shaped like national ID numbers');
+    expect(text).toContain('national ID numbers');
+    expect(text).not.toContain('NRIC');
+  });
+
+  it('6: a question naming several audiences stays under the first and prints "also: <others>"', () => {
+    const view = buildClosureView({ closure, defects: Object.values(DEFECTS), rollupCounts: null, executionSummary: null });
+    const pm = view.openQuestions.find((g) => g.audience === 'PM')!;
+    expect(pm.questions.find((q) => q.id === 'OQ-1')!.also).toBe('security officer');
+    expect(pm.questions.find((q) => q.id === 'OQ-2')!.also).toBeNull();
+    expect(tf).toContain('OQ-1 [high]: Is the first reading right? If yes nothing changes. [also: security officer]');
+    expect(tf).not.toMatch(/OQ-2 \[high\][^\n]*also:/);
   });
 });

@@ -106,7 +106,7 @@ async function load(url, what) {
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
 const { computeCoverage } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, rewriteSectionReferencesDeep } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, openDefectLine, rewriteSectionReferencesDeep } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -228,7 +228,9 @@ const specRaw = {
   },
   defectHeadline: view.defects,
   caseNote: view.cases.note,
-  reconciliation: view.cases.reconciliation,
+  // One paragraph: the case note already carries the closure's reconciliation when there is a case of record.
+  reconciliation: view.cases.note ? null : view.cases.reconciliation,
+  openDefectLines: view.openItems.map(openDefectLine),
   outOfScopeCases: view.outOfScope,
   defects: view.defectLog.map((d) => ({ id: d.id, title: d.title, severity: d.severity, status: d.state })),
   compliance,

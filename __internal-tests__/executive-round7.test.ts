@@ -66,12 +66,12 @@ describe('A: the wrong test step is printed in both documents', () => {
 
 describe('B: no dangling section references', () => {
   it('rewrites a reference to a closure section to "the closure report", keeping legal and lettered references', () => {
-    expect(rewriteSectionReferences('All seven are false passes (section 6).')).toBe('All seven are false passes (the closure report).');
-    expect(rewriteSectionReferences('Section 2 lists each one.')).toBe('The closure report lists each one.');
-    expect(rewriteSectionReferences('listed in section 2 by the file; see sections 3 and 4 and Sections 5-6')).toBe('listed in the closure report by the file; see the closure report and the closure report');
+    expect(rewriteSectionReferences('All seven are false passes (section 6).')).toBe('All seven are false passes (the closure report delivered with this run).');
+    expect(rewriteSectionReferences('Section 2 lists each one.')).toBe('The closure report delivered with this run lists each one.');
+    expect(rewriteSectionReferences('listed in section 2 by the file; see sections 3 and 4 and Sections 5-6')).toBe('listed in the closure report delivered with this run by the file; see the closure report delivered with this run and the closure report delivered with this run');
     expect(rewriteSectionReferences('PDPA section 24 of the PDPA and section 26C and Section 15A apply')).toBe('PDPA section 24 of the PDPA and section 26C and Section 15A apply');
     expect(rewriteSectionReferences('no reference here, sections of the plan')).toBe('no reference here, sections of the plan');
-    expect(rewriteSectionReferencesDeep({ a: ['see section 4'], b: { c: 'Section 1' }, n: 3 })).toEqual({ a: ['see the closure report'], b: { c: 'The closure report' }, n: 3 });
+    expect(rewriteSectionReferencesDeep({ a: ['see section 4'], b: { c: 'Section 1' }, n: 3 })).toEqual({ a: ['see the closure report delivered with this run'], b: { c: 'The closure report delivered with this run' }, n: 3 });
   });
 
   it.each([['technical report', tech], ['sign-off', sign]])('the %s has no "section N" that points nowhere', (_n, make) => {
@@ -80,8 +80,8 @@ describe('B: no dangling section references', () => {
     // Neither document has numbered sections, so every numbered reference left must be a legal or lettered one (the fixture's "section 24 of the PDPA" and "section 26C").
     expect([...text.matchAll(/\bsections?\s+\d+(?:\w*)(?:\s+of the PDPA)?/gi)].map((m) => m[0])).toEqual(['section 24 of the PDPA', 'section 26C']);
     expect(text).toContain('the closure report');
-    expect(text).toMatch(/confirmed false passes \(the closure report\)/);
-    expect(text).toMatch(/The closure report lists each one under the document that carries it/);
+    expect(text).toMatch(/confirmed false passes \(the closure report delivered with this run\)/);
+    expect(text).toMatch(/The closure report delivered with this run lists each one under the document that carries it/);
   });
 });
 
@@ -90,8 +90,8 @@ describe('C: the sign-off lists the open application defects', () => {
     const { r, text } = sign();
     expect(r.status).toBe(0);
     expect(text).toContain('DEFECTS Open application defects: 2');
-    expect(text).toContain('- DEF-004-ENG-API (Sev3 (Major), PARTIALLY FIXED): Uploads above 4 MB are refused; the requirement says 20 MB Awaits: A developer fix of the part that remains');
-    expect(text).toContain('- DEF-005-COMMS-EXP (Sev4 (Minor), No retest verdict (new this cycle, triaged)): The message detail page fails for a malformed message id Awaits: A developer fix and the product owner decision on priority.');
+    expect(text).toContain('- DEF-004-ENG-API (Sev3 (Major), PARTIALLY FIXED): Uploads above 4 MB are refused; the requirement says 20 MB. Awaits: A developer fix of the part that remains');
+    expect(text).toContain('- DEF-005-COMMS-EXP (Sev4 (Minor), No retest verdict, new this cycle, triaged): The message detail page fails for a malformed message id. Awaits: A developer fix and the product owner decision on priority.');
     expect(text).toContain('Signatories');
     expect(text).toContain('GATE 3 DECISION (owner)');
   });
@@ -101,7 +101,7 @@ describe('C: the sign-off lists the open application defects', () => {
     const rec = (id: string, title: string) => [`defects/${id}.json`, { id, title, severity: { code: 'Sev4', name: 'Minor' }, status: { code: 'Triaged', transitionedAt: '2026-10-12T10:00:00Z' } }] as const;
     const ok = fixture({ ...files, 'reports/closure/closure.json': { ...rest, defectMetrics: { openApplicationDefects: 1 } }, ...Object.fromEntries([rec('DEF-001-AUTH-UI', 'Login fails for plus-aliased email')]) });
     expect(run(SCRIPT.signoff, ok.root).status).toBe(0);
-    expect(flat(pdfText(path.join(ok.runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('- DEF-001-AUTH-UI (Sev4 (Minor), Open (new this cycle)): Login fails for plus-aliased email');
+    expect(flat(pdfText(path.join(ok.runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('- DEF-001-AUTH-UI (Sev4 (Minor), Open, new this cycle): Login fails for plus-aliased email');
     const bad = fixture({ ...files, 'reports/closure/closure.json': { ...rest, defectMetrics: { openApplicationDefects: 1 } }, ...Object.fromEntries([rec('DEF-001-AUTH-UI', 'Page returns 500 on login')]) });
     const x = run(SCRIPT.signoff, bad.root);
     expect(x.status).toBe(9);

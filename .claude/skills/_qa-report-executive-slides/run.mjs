@@ -127,7 +127,7 @@ async function load(url, what) {
 }
 
 const { renderSlideDeck, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits } = await load(CONTRACTS, "the brand check");
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits, rewriteNationalIdTerms } = await load(CONTRACTS, "the brand check");
 
 // Tier 2: the deck is business language, so engineering vocabulary (oracle, stub, mutants, env flags, HTTP status numbers, CWE ids, route
 // paths, snake_case codes, bare Sev codes ...) is refused too, with its plain replacement.
@@ -149,7 +149,7 @@ if (plainHits.length > 0) {
 // so the deck file is unaffected.
 
 function rewriteStrings(value) {
-  if (typeof value === "string") return applyJargonRewrites(value);
+  if (typeof value === "string") return rewriteNationalIdTerms(applyJargonRewrites(value));
   if (Array.isArray(value)) return value.map(rewriteStrings);
   if (value && typeof value === "object") {
     const out = {};

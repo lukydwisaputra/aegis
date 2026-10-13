@@ -95,7 +95,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, openDefectLine, rewriteNationalIdTermsDeep, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -191,8 +191,9 @@ const sections = [];
   if (c.passed !== null || c.failed !== null || c.blocked !== null) {
     lines.push(`${n(c.total)} checks were executed to a result: ${n(c.passed)} passed, ${n(c.failed)} failed, ${n(c.partial)} partly passed, ${n(c.blocked)} blocked${c.passRate === null ? "" : `; ${c.passRate}% passed`}.`);
   }
+  // One paragraph: the case note already carries the closure's reconciliation when there is a case of record.
   if (c.note) lines.push({ quote: c.note });
-  if (c.reconciliation) lines.push({ quote: `Reconciliation: ${c.reconciliation}` });
+  else if (c.reconciliation) lines.push({ quote: `Reconciliation: ${c.reconciliation}` });
   if (lines.length > 0) sections.push({ title: "Tests executed", lines });
 }
 if (view.variances.length > 0) sections.push({ title: "Variances from the test plan", lines: view.variances.map((v) => ({ quote: `- ${v.variance}${v.reason ? ` Reason: ${v.reason}` : ""}` })) });
@@ -204,7 +205,7 @@ if (view.variances.length > 0) sections.push({ title: "Variances from the test p
     ];
     if (d.closedWithoutVerdict !== null) lines.push(`Closed without a retest verdict: ${d.closedWithoutVerdict}.`);
     // Each open application defect: id, severity word, state, short title and what it awaits (the closure's words).
-    for (const o of view.openItems) lines.push({ quote: `- ${o.id} (${o.severity}, ${o.state})${o.title ? `: ${o.title}` : ""}${o.awaits ? ` Awaits: ${o.awaits}` : ""}` });
+    for (const o of view.openItems) lines.push({ quote: `- ${openDefectLine(o)}` });
     sections.push({ title: "Defects", lines });
   }
 }
@@ -353,7 +354,8 @@ const specRaw = {
   signatoryRoles,
 };
 // A closure sentence that points to one of ITS numbered sections would dangle here (this document has none): it is rewritten to "the closure report".
-const spec = rewriteSectionReferencesDeep(specRaw);
+// Tier 2 also rewrites (never refuses) the tester's term "NRIC-shaped values" to "values shaped like national ID numbers".
+const spec = rewriteNationalIdTermsDeep(rewriteSectionReferencesDeep(specRaw));
 
 const survivors = detectJargon(
   [spec.scope, spec.exitCriteriaNote, spec.openDefectsSummary, spec.residualRisk, ...sections.flatMap((x) => [x.title, ...x.lines.map(ownText).filter((l) => l !== null).map((l) => applyJargonRewrites(l))])].join("\n"),

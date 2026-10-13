@@ -183,8 +183,10 @@ export interface TechnicalReportSpec {
   };
   /** States which bases the case figures follow (coverage rollup, execution summary, case of record); printed under the summary table. */
   caseNote?: string | null;
-  /** The closure's own reconciliation of the case figures. */
+  /** The closure's own reconciliation of the case figures; printed only when caseNote does not already carry it. */
   reconciliation?: string | null;
+  /** The open application defects, one printed line each (id, severity word, state, title, what it awaits), shown before the defect log. */
+  openDefectLines?: string[];
   /** Designed checks the owner descoped, each with the owner's reason. */
   outOfScopeCases?: Array<{ caseId: string; reason: string }>;
   /** The defect log: severity reads "Sev4 (Minor)", status the retest verdict or "Open (new this cycle)"; callers pass it open first. */
@@ -201,7 +203,7 @@ export interface TechnicalReportSpec {
   /** Narrative sections, all taken from the closure report; each is printed only when it has content. */
   variances?: Array<{ variance: string; reason: string | null }>;
   exitCriteria?: Array<{ criterion: string; met: boolean; evidence: string | null }>;
-  openQuestions?: Array<{ audience: string; questions: Array<{ id: string; priority: string | null; question: string }> }>;
+  openQuestions?: Array<{ audience: string; questions: Array<{ id: string; priority: string | null; question: string; also?: string | null }> }>;
   falsePasses?: Array<{ case: string; finding: string; latestResult: string | null }>;
   /** A passed case whose first failure came from a wrong test step, in the closure's words; printed beside the false passes. */
   wrongStepNotes?: Array<{ requirement: string | null; wrongStep: string; whatConforms: string | null; whatThePassMeans: string | null }>;
@@ -537,7 +539,7 @@ function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
     blocks.push(paragraph("oq-intro", "Decisions the QA team has not been given. Each question names who decides."));
     (spec.openQuestions ?? []).forEach((g, gi) => {
       blocks.push(paragraph(`oq-g-${gi}`, `For ${g.audience} (${g.questions.length})`, true));
-      g.questions.forEach((q, qi) => blocks.push(paragraph(`oq-${gi}-${qi}`, `${q.id}${q.priority ? ` [${q.priority}]` : ""}: ${q.question}`)));
+      g.questions.forEach((q, qi) => blocks.push(paragraph(`oq-${gi}-${qi}`, `${q.id}${q.priority ? ` [${q.priority}]` : ""}: ${q.question}${q.also ? ` [also: ${q.also}]` : ""}`)));
     });
   }
   return blocks.length === 0 ? [] : [React.createElement(Page, { key: "narrative", size: "A4", style: baseStyles.page }, ...blocks)];
@@ -638,7 +640,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
             React.createElement(
               Text,
               { key: "out-of-scope", style: baseStyles.body },
-              `Out of scope (owner decision, not in any count above): ${(spec.outOfScopeCases ?? []).map((c) => `${c.caseId} (${c.reason})`).join("; ")}`
+              `Out of scope, by the owner's decision and in none of the counts above: ${(spec.outOfScopeCases ?? []).map((c) => `${c.caseId}: ${c.reason}`).join("; ")}`
             ),
           ]
         : []),
@@ -693,6 +695,14 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
     React.createElement(
       Page,
       { size: "A4", style: baseStyles.page },
+      ...((spec.openDefectLines ?? []).length > 0
+        ? [
+            React.createElement(Text, { key: "open-defects-t", style: baseStyles.subheader }, "Open Application Defects"),
+            React.createElement(View, { key: "open-defects-d", style: baseStyles.divider }),
+            ...(spec.openDefectLines ?? []).map((l, i) => React.createElement(Text, { key: `open-defect-${i}`, style: baseStyles.body }, l)),
+            React.createElement(View, { key: "open-defects-gap", style: { marginBottom: 10 } }),
+          ]
+        : []),
       React.createElement(Text, { style: baseStyles.subheader }, "Defect Log"),
       React.createElement(View, { style: baseStyles.divider }),
       React.createElement(

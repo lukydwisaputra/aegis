@@ -85,6 +85,8 @@ export interface OpenQuestionView {
   question: string;
   /** All audiences the closure names, as written. */
   audience: string;
+  /** The audiences named after the first (the group the question is under); null when it names one. */
+  also: string | null;
 }
 
 export interface ExitCriterionView {
@@ -156,6 +158,19 @@ export interface ClosureViewInput {
   descopedFallback?: ReadonlyArray<{ caseId: string; reason: string }>;
 }
 
+/** A sentence ends with a full stop (or ! or ?); one that does not gets one. */
+export function terminated(text: string): string {
+  const t = text.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
+/** One open application defect as a printed line: id, severity word and state, the title as a sentence, and what it awaits. */
+export function openDefectLine(o: OpenDefectItem): string {
+  // The state already inside brackets ("Open (new this cycle)") is joined with a comma so the line never closes two brackets in a row.
+  const state = o.state.replace(/\s*\(([^()]*)\)/g, ", $1");
+  return `${o.id} (${o.severity}, ${state})${o.title ? `: ${terminated(o.title)}` : "."}${o.awaits ? ` Awaits: ${terminated(o.awaits)}` : ""}`;
+}
+
 function rate(passed: number | null, total: number | null): number | null {
   return passed === null || total === null || total <= 0 ? null : round1((100 * passed) / total);
 }
@@ -194,7 +209,10 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
       fmt("Case of record", figs, figs.passRate),
     ].filter((p): p is string => p !== null);
     const basis = isPlain(cor) ? str(cor["basis"]) : null;
-    return { source: "case-of-record", ...figs, note: `Figures are those of the case of record${basis === null ? "" : ` (${basis})`}. ${parts.join(". ")}.`, reconciliation };
+    // ONE paragraph: the case-of-record statement, its basis, then either the closure's own reconciliation (which already states the rollup,
+    // the execution summary and the case of record) or, without one, the three bases built from the numbers. Never both.
+    const body = reconciliation !== null ? terminated(reconciliation) : `${parts.join(". ")}.`;
+    return { source: "case-of-record", ...figs, note: `Figures are those of the case of record.${basis === null ? "" : ` ${terminated(basis)}`} ${body}`, reconciliation };
   }
   if (rollupFig !== null) return { source: "rollup", ...rollupFig, note: null, reconciliation };
   const passed = num(metrics["passed"]);
@@ -278,7 +296,8 @@ function questions(closure: Record<string, unknown>): ClosureView["openQuestions
     const audience = str(q["audience"]) ?? "unassigned";
     const key = firstAudience(audience);
     const g = groups.get(key) ?? [];
-    g.push({ id: str(q["id"]) ?? "", priority: str(q["priority"]), question: str(q["question"])!, audience });
+    const others = audience.split(/[,/&]|\band\b/).map((a) => a.trim()).filter((a) => a !== "").slice(1);
+    g.push({ id: str(q["id"]) ?? "", priority: str(q["priority"]), question: str(q["question"])!, audience, also: others.length > 0 ? others.join(", ") : null });
     groups.set(key, g);
   }
   const keys = [...groups.keys()].sort((a, b) => {
@@ -291,11 +310,11 @@ function questions(closure: Record<string, unknown>): ClosureView["openQuestions
 
 /**
  * A closure sentence may point to one of ITS OWN numbered sections ("section 6", "Sections 2 and 3"). The executive documents have no
- * numbered sections, so such a reference would dangle: it is rewritten to "the closure report", a document that exists and is published
- * with the run. A legal reference ("section 24 of the PDPA") and a lettered one ("section 26C") are left alone.
+ * numbered sections, so such a reference would dangle: it is rewritten to "the closure report delivered with this run", a document that
+ * exists and says where to look. A legal reference ("section 24 of the PDPA") and a lettered one ("section 26C") are left alone.
  */
 export function rewriteSectionReferences(text: string): string {
-  return text.replace(/\b([Ss])ections?\s+\d+(?![A-Za-z0-9])(?:\s*(?:,|and|to|-|\u2013)\s*\d+(?![A-Za-z0-9]))*(?!\s+of\s+the\s+(?:PDPA|GDPR|Act)\b)/g, (_m, _f: string, at: number) => (at === 0 || /(?:^|[.!?]\s+|\n\s*)(?:[-\u2022*]\s+)?$/.test(text.slice(0, at)) ? "The closure report" : "the closure report"));
+  return text.replace(/\b([Ss])ections?\s+\d+(?![A-Za-z0-9])(?:\s*(?:,|and|to|-|\u2013)\s*\d+(?![A-Za-z0-9]))*(?!\s+of\s+the\s+(?:PDPA|GDPR|Act)\b)/g, (_m, _f: string, at: number) => (at === 0 || /(?:^|[.!?]\s+|\n\s*)(?:[-\u2022*]\s+)?$/.test(text.slice(0, at)) ? "The closure report delivered with this run" : "the closure report delivered with this run"));
 }
 
 /** rewriteSectionReferences over every string of a JSON-like value. */
@@ -369,3 +388,19 @@ export function buildClosureView(input: ClosureViewInput): ClosureView {
 
 /** The six retest verdict words, for callers that list them. */
 export const RETEST_VERDICT_WORDS: readonly string[] = RetestVerdictCodeSchema.options;
+
+/**
+ * The deterministic tier-2 rewrite of one tester's term: "NRIC-shaped value(s)" and "NRIC number(s)" are written for stakeholders as
+ * "value(s) shaped like national ID numbers" and "national ID numbers". A rewrite, not a refusal; the technical report keeps the term.
+ */
+export function rewriteNationalIdTerms(text: string): string {
+  return text.replace(/\bNRIC-shaped (values?)/gi, "$1 shaped like national ID numbers").replace(/\bNRIC numbers?\b/gi, "national ID numbers");
+}
+
+/** rewriteNationalIdTerms over every string of a JSON-like value. */
+export function rewriteNationalIdTermsDeep<T>(value: T): T {
+  if (typeof value === "string") return rewriteNationalIdTerms(value) as unknown as T;
+  if (Array.isArray(value)) return value.map((v) => rewriteNationalIdTermsDeep(v)) as unknown as T;
+  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, rewriteNationalIdTermsDeep(v)])) as unknown as T;
+  return value;
+}
