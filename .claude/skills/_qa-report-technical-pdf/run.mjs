@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 // file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
 const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
 const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
+const METRICS = new URL("../../../packages/@qa/metrics/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, "..", "..", "..");
@@ -70,21 +71,6 @@ function readJsonGlob(dir) {
   return entries === null ? null : entries.map((e) => e.doc);
 }
 
-/** Every parseable row of a JSONL file, or null when the file is absent. */
-function readJsonl(path) {
-  if (!existsSync(path)) return null;
-  const rows = [];
-  for (const line of readFileSync(path, "utf-8").split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      rows.push(JSON.parse(line));
-    } catch {
-      // a torn or malformed row is skipped, not counted
-    }
-  }
-  return rows;
-}
-
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 const closure = readJson(join(runDir, "reports", "closure", "closure.json"));
@@ -95,8 +81,6 @@ if (!closure) {
 
 const defects = readJsonGlob(join(runDir, "defects"));
 const plan = readJson(join(runDir, "plan.json")) ?? {};
-const tokenUsage = readJsonl(join(runDir, "reports", "metrics", "token-usage.jsonl"));
-const cycleTime = readJson(join(runDir, "reports", "metrics", "cycle-time.json"));
 const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
 const complianceReports = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
 
@@ -115,6 +99,7 @@ async function load(url, what) {
 }
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
+const { computeCoverage } = await load(METRICS, "the coverage computation");
 const { checkBrandExposure, resolveDefectFigures, defectSeverityCode, defectStatusCode } = await load(
   CONTRACTS,
   "the brand check",
@@ -136,36 +121,51 @@ const hasData = (doc) => doc !== null && !(typeof doc === "object" && !Array.isA
 
 const m = closure.metrics ?? {};
 const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[key]));
-const passed = metric("passed");
-const failed = metric("failed");
-const blocked = metric("blocked");
-const totalTests = passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 
-// Open/closed defects: the resolver the sign-off uses too — closure.json#defectMetrics first, then the
-// defect records' status codes (DefectSchema `status.code`; Closed, Verified, Resolved, Won't Fix, … are closed).
+// Check counts: the counts object of the collector's coverage.json is computed from the case files and wins over
+// closure.json#metrics, which copies the executor's roll-up (that roll-up counts a partial case as a pass). A coverage.json
+// without a complete counts object (written before counts existed, or never written) is recomputed here from the case files,
+// read-only, by the same function the collector command runs. Only when that finds no data either do the closure figures stand,
+// and a zero is never printed as if it were real.
+const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
+const completeCounts = (c) => c !== null && typeof c === "object" && COUNT_KEYS.every((k) => num(c[k]) !== null);
+// When the script recomputes, the recomputed requirements coverage is used too: closure.json may carry a copy of 0.
+let recomputed = null;
+function resolveCounts() {
+  if (hasData(coverageDoc) && completeCounts(coverageDoc?.counts)) return coverageDoc.counts;
+  if (coverageDoc !== null && !hasData(coverageDoc)) return null;
+  const computed = computeCoverage(runDir);
+  if (computed.noData === true || !completeCounts(computed.counts)) return null;
+  recomputed = computed;
+  return computed.counts;
+}
+const rollupCounts = resolveCounts();
+// Total Tests is every check that has a result (the attempted count). Partial and Undetermined have their own cells, so passed,
+// failed, partial, blocked, skipped and undetermined add up to it.
+const passed = rollupCounts ? rollupCounts.passed : metric("passed");
+const failed = rollupCounts ? rollupCounts.failed : metric("failed");
+const blocked = rollupCounts ? rollupCounts.blocked : metric("blocked");
+// Partial and Undetermined read "not available" without counts: closure.json has no figure for them the table can trust.
+const partialCount = rollupCounts ? rollupCounts.partial : null;
+const undeterminedCount = rollupCounts ? rollupCounts.unknown : null;
+// Checks the owner descoped are in none of the counts above: printed apart, and only when there is one.
+const outOfScopeCount = rollupCounts && num(rollupCounts.outOfScope) !== null && rollupCounts.outOfScope > 0 ? rollupCounts.outOfScope : undefined;
+const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
+const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
+// With counts the pass rate is passed over attempted, one decimal, so it agrees with the Passed cell; closure's own rate (which a
+// roll-up counting a partial case as a pass can skew) is used only without counts.
+const passRate = rollupCounts ? (rollupCounts.attempted > 0 ? Math.round((1000 * rollupCounts.passed) / rollupCounts.attempted) / 10 : null) : metric("passRate");
+
+// Open/closed defects: the resolver the sign-off uses too. Open is closure.json#defectMetrics first, then the defect records'
+// status codes (DefectSchema `status.code`); closed is the records with a closed status (Closed, Verified, Resolved,
+// Won't Fix, …), never a record flagged for the owner, and total minus open only when the run has no records.
 const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closure, defects);
 
 // Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
 const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
-
-// Cost: the sum of usdCost over the collector's token-usage rows — {agent, model, ..., usdCost, ts}. A rollup
-// (per agent, model or phase) is never a row, so a line without agent, model and ts is not summed.
-const isUsageRow = (r) =>
-  r !== null && typeof r === "object" && typeof r.agent === "string" && typeof r.model === "string" && typeof r.ts === "string";
-const pricedRows = (tokenUsage ?? []).filter((r) => isUsageRow(r) && num(r.usdCost) !== null);
-const tokenCostUsd =
-  pricedRows.length > 0 && !isUnavailable("token-usage") ? pricedRows.reduce((s, r) => s + r.usdCost, 0) : null;
-
-// Cycle time: the collector's total wall-clock, else the sum of its per-phase durationMs.
-function cycleTimeMsOf(ct) {
-  if (!hasData(ct) || typeof ct !== "object" || isUnavailable("cycle-time")) return null;
-  for (const k of ["totalWallClockMs", "wallClockMs", "totalDurationMs", "totalMs"]) {
-    if (num(ct[k]) !== null) return ct[k];
-  }
-  const phases = Array.isArray(ct) ? ct : Array.isArray(ct.phases) ? ct.phases : null;
-  const durations = (phases ?? []).map((p) => num(p?.durationMs)).filter((d) => d !== null);
-  return durations.length > 0 ? durations.reduce((s, d) => s + d, 0) : null;
-}
+// A figure the collector computed from the RTM wins over the copy in closure.json: a reissued executive phase re-reads a
+// closure.json written before the figure was right.
+const rollupCoverage = recomputed !== null ? num(recomputed.requirementsCoverage) : hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
 
 // Compliance: each report names its regulation and lists gaps[]; its covered list is the regulation's
 // own key (characteristicsCovered, articlesCovered, practicesCovered or sectionsCovered). A report
@@ -192,10 +192,13 @@ const spec = {
     totalTests,
     passed,
     failed,
+    partial: partialCount,
     blocked,
-    skipped: metric("skipped"),
-    passRate: metric("passRate"),
-    coveragePercent: coverageNoData ? null : metric("requirementsCoverage", "coverage"),
+    skipped: skippedCount,
+    undetermined: undeterminedCount,
+    ...(outOfScopeCount !== undefined ? { outOfScope: outOfScopeCount } : {}),
+    passRate,
+    coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,
     closedDefects,
   },
@@ -206,8 +209,6 @@ const spec = {
     status: defectStatusCode(d) ?? "not available",
   })),
   compliance,
-  tokenCostUsd,
-  cycleTimeMs: cycleTimeMsOf(cycleTime),
 };
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────

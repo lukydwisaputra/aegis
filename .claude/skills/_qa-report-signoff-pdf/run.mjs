@@ -94,31 +94,29 @@ async function load(url, what) {
   }
 }
 
-const { renderSignoffDocument } = await load(RENDERER, "the PDF renderer");
+const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
 const { checkBrandExposure, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
 
-// ─── verdict mapping ──────────────────────────────────────────────────────────
+// ─── gate decision ────────────────────────────────────────────────────────────
+// The sign-off prints the owner's recorded Gate 3 decision; it maps nothing to a release verdict.
 
-const ALLOWED_VERDICTS = new Set(["GO", "NO-GO", "CONDITIONAL"]);
-const rawVerdict = (gate3.verdict ?? gate3.decision ?? "").toString().toUpperCase();
-let verdict;
-if (ALLOWED_VERDICTS.has(rawVerdict)) {
-  verdict = rawVerdict;
-} else if (rawVerdict === "APPROVED") {
-  verdict = "GO";
-} else if (rawVerdict === "APPROVED-WITH-CONDITIONS" || rawVerdict === "APPROVED_WITH_CONDITIONS") {
-  verdict = "CONDITIONAL";
-} else if (rawVerdict === "REJECTED" || rawVerdict === "BLOCKED") {
-  verdict = "NO-GO";
-} else {
+const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);
+const decision = String(gate3.decision ?? "").trim().toLowerCase();
+if (!DECISIONS.has(decision)) {
   console.error(
-    `ERROR: gate-3-decision.json verdict "${rawVerdict}" cannot be mapped to GO|NO-GO|CONDITIONAL`,
+    `ERROR: gate-3-decision.json decision "${gate3.decision}" is not one of approved | approved-with-conditions | rejected`,
   );
   process.exit(4);
 }
+const maxJargonRaw = args["max-jargon-survivors"] ?? "0";
+if (!/^-?\d+$/.test(maxJargonRaw)) {
+  console.error(`ERROR: --max-jargon-survivors must be an integer, got "${maxJargonRaw}"`);
+  process.exit(2);
+}
+const maxJargonSurvivors = Number.parseInt(maxJargonRaw, 10);
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 
@@ -138,13 +136,62 @@ const exitCriteriaNote = Array.isArray(closure.exitCriteria)
 // defect records' status codes; neither present → "Open defects: not available".
 const openDefectsSummary = summariseOpenDefects(resolveDefectFigures(closure, defects));
 
-const residualRisk = !existsSync(join(runDir, "risk-register.json"))
-  ? "Residual risk: not available (no risk register in this run)"
-  : typeof riskRegister.residualSummary === "string"
+// Residual risk, in this order: risk-register.json residualSummary (a non-empty string), then its residual array (non-empty),
+// then closure.json#residualRiskSummary (an array of { riskId, title, originalLikelihoodImpactScore, mitigationStatus,
+// residualExposure, rating? } objects), and only then the empty state. The reporter's reports/executive/residual-risks.json
+// ([{ riskId, plain }]) supplies the customer-readable sentence of a risk by its riskId; the closure title prints only for a
+// risk with no entry there; for a riskId listed more than once the first entry wins, later ones are ignored and one warning
+// naming the id goes to stderr. The rating always comes from the closure row (rating, else severity, else the word in
+// parentheses at the end of its score) and is the ORIGINAL rating, the one the risk had before testing: it prints as
+// "[Originally High]" beside a sentence that describes what remains.
+const RISK_RATINGS = ["Critical", "High", "Medium", "Low"];
+const plainByRiskId = new Map();
+const duplicateRiskIds = new Set();
+try {
+  const plainDoc = readJson(join(runDir, "reports", "executive", "residual-risks.json"));
+  for (const e of Array.isArray(plainDoc) ? plainDoc : []) {
+    if (e !== null && typeof e === "object" && typeof e.riskId === "string" && typeof e.plain === "string" && e.plain.trim() !== "") {
+      if (plainByRiskId.has(e.riskId)) {
+        if (!duplicateRiskIds.has(e.riskId)) process.stderr.write(`warning: residual-risks.json lists riskId ${e.riskId} more than once; the first entry is used and later duplicates are ignored\n`);
+        duplicateRiskIds.add(e.riskId);
+      } else {
+        plainByRiskId.set(e.riskId, e.plain.trim());
+      }
+    }
+  }
+} catch {
+  // an unreadable residual-risks.json is treated as absent: the closure titles print
+}
+function closureRisks(list) {
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((r) => {
+    if (r === null || typeof r !== "object") return [];
+    const plain = typeof r.riskId === "string" ? plainByRiskId.get(r.riskId) : undefined;
+    const text = plain ?? [r.title].find((t) => typeof t === "string" && t.trim() !== "")?.trim();
+    if (text === undefined) return [];
+    const ratingOf = (v) => (typeof v === "string" ? RISK_RATINGS.find((x) => x.toLowerCase() === v.trim().toLowerCase()) : undefined);
+    const fromField = ratingOf(r.rating) ?? ratingOf(r.severity);
+    const fromScore = RISK_RATINGS.find((x) => typeof r.originalLikelihoodImpactScore === "string" && r.originalLikelihoodImpactScore.includes(`(${x})`));
+    return [{ text, rating: fromField ?? fromScore }];
+  });
+}
+function closureResidualRisk(risks) {
+  const critical = risks.filter((r) => r.rating === "Critical").length;
+  const n = risks.length;
+  const head = `${n} residual ${n === 1 ? "risk remains" : "risks remain"} after testing and ${n === 1 ? "is" : "are"} recorded here for the product owner to acknowledge before closure${critical > 0 ? `, ${critical} of them originally rated Critical` : ""}.`;
+  return [head, ...risks.map((r) => `- ${r.rating === undefined ? "" : `[Originally ${r.rating}] `}${r.text}`)].join("\n");
+}
+const closureRiskRows = closureRisks(closure.residualRiskSummary);
+const residualRisk =
+  typeof riskRegister.residualSummary === "string" && riskRegister.residualSummary.trim() !== ""
     ? riskRegister.residualSummary
-    : Array.isArray(riskRegister.residual)
+    : Array.isArray(riskRegister.residual) && riskRegister.residual.length > 0
       ? `${riskRegister.residual.length} residual risks accepted by the product owner`
-      : "No residual risk recorded";
+      : closureRiskRows.length > 0
+        ? closureResidualRisk(closureRiskRows)
+        : !existsSync(join(runDir, "risk-register.json"))
+          ? "Residual risk: not available (no risk register in this run)"
+          : "No residual risk recorded";
 
 const signatoryRoles = ["QA Lead", "Engineering Lead", "Product Owner"];
 // A security defect, by the fields DefectSchema has: a SEC-type id (DEF-{NNN}-{MODULE}-SEC) or a CWE-/WSTG-
@@ -159,21 +206,49 @@ if (complianceReports.length > 0) signatoryRoles.push("Compliance Officer");
 
 const signoffDate = new Date().toISOString().slice(0, 10);
 const documentId = `SIGNOFF-${runId}-${signoffDate}`;
-const version = args.version ?? plan.version ?? closure.version ?? "unversioned";
+// The tested build: the commit the web explorer recorded in discovery-report.json (target.commit), as the 7-character short
+// commit, prefixed with the run's environment when run.json records one (development reads "dev-f1c1715").
+const ENV_SHORT = { development: "dev", testing: "test", staging: "staging", production: "prod" };
+function testedBuild() {
+  const commit = readJson(join(runDir, "discovery-report.json"))?.target?.commit;
+  if (typeof commit !== "string" || !/^[0-9a-f]{7,40}$/i.test(commit.trim())) return null;
+  const short = commit.trim().slice(0, 7).toLowerCase();
+  const env = readJson(join(runDir, "run.json"))?.environment;
+  return typeof env === "string" && env.trim() !== "" ? `${Object.hasOwn(ENV_SHORT, env) ? ENV_SHORT[env] : env}-${short}` : short;
+}
+const version = args.version ?? plan.version ?? closure.version ?? testedBuild() ?? "unversioned";
+
+const scope = plan.scope ?? closure.scope ?? "Full cycle";
+
+// ─── tone-check pass ──────────────────────────────────────────────────────────
+// The same rewrite and survivor rule as the deck, applied to the free text of the attestation (never to the
+// project name, version, document id or signature roles).
+
+const sourceTexts = [scope, exitCriteriaNote, openDefectsSummary, residualRisk, ...exitCriteria.map((c) => c.criterion)];
+const jargonBefore = detectJargon(sourceTexts.join("\n")).length;
 
 const spec = {
   projectName,
   version,
   signoffDate,
   documentId,
-  scope: plan.scope ?? closure.scope ?? "Full cycle",
-  verdict,
-  exitCriteria,
-  exitCriteriaNote,
-  openDefectsSummary,
-  residualRisk,
+  scope: applyJargonRewrites(scope),
+  decision,
+  exitCriteria: exitCriteria.map((c) => ({ ...c, criterion: applyJargonRewrites(c.criterion) })),
+  exitCriteriaNote: applyJargonRewrites(exitCriteriaNote),
+  openDefectsSummary: applyJargonRewrites(openDefectsSummary),
+  residualRisk: applyJargonRewrites(residualRisk),
   signatoryRoles,
 };
+
+const survivors = detectJargon(
+  [spec.scope, spec.exitCriteriaNote, spec.openDefectsSummary, spec.residualRisk, ...spec.exitCriteria.map((c) => c.criterion)].join("\n"),
+);
+if (survivors.length > maxJargonSurvivors) {
+  console.error(`ERROR: tone-check failed — ${survivors.length} jargon terms survived rewrite (threshold: ${maxJargonSurvivors})`);
+  for (const s of survivors.slice(0, 10)) console.error(`  "${s.original}" → "${s.suggested}"`);
+  process.exit(8);
+}
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 
@@ -201,7 +276,10 @@ console.log(
   JSON.stringify({
     skill: "qa-report-signoff-pdf",
     runId,
-    verdict,
+    decision,
+    openDefectsSummary: spec.openDefectsSummary,
+    jargonRewriteCount: jargonBefore - survivors.length,
+    jargonSurvivors: survivors.length,
     documentId,
     outputPath: out,
     sizeBytes: stats.size,

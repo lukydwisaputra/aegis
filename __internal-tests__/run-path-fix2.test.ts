@@ -33,27 +33,11 @@ describe('I1: a defect that traces to no requirement', () => {
   });
 });
 
-describe('I5: the sign-off verdict equals the mapped Gate 3 decision', () => {
-  const EXEC_SPV = `${AGENTS}/spv/qa-executive-reporter-spv.md`;
-  it('check 8 maps approved → GO, approved-with-conditions → CONDITIONAL, rejected → NO-GO and requires equality', () => {
-    const text = read(EXEC_SPV);
-    const check8 = text.slice(text.indexOf('8. **'), text.indexOf('### All 3 Documents'));
-    expect(check8).toContain('`approved` → `GO`, `approved-with-conditions` → `CONDITIONAL`, `rejected` → `NO-GO`');
-    expect(check8).toMatch(/verdict that differs from the mapped decision[^\n]*requested-changes/);
-    expect(check8).toMatch(/pre-filled verdict is expected, not a note/);
-    expect(check8).not.toMatch(/Pre-filled GO\/NO-GO = passed-with-notes/);
-    expect(text).toContain('- `runs/{runId}/gates/gate-3-decision.json`');
-    expect(text).toContain('  - "{run}/gates/gate-3-decision.json"');
-    const verdict = text.slice(text.indexOf('## Verdict'), text.indexOf('## Submitting Your Verdict'));
-    expect(verdict).not.toContain('pre-filled verdict');
-    expect(verdict).toContain('a sign-off verdict that differs from the mapped Gate 3 decision');
-  });
-
-  it('the mapping is the one the sign-off script applies', () => {
+describe('I5: the sign-off banner equals the recorded Gate 3 decision', () => {
+  it('the sign-off script passes the recorded decision through and maps nothing to GO / NO-GO / CONDITIONAL', () => {
     const src = read('.claude/skills/_qa-report-signoff-pdf/run.mjs');
-    expect(src).toMatch(/rawVerdict === "APPROVED"\) \{\n\s*verdict = "GO"/);
-    expect(src).toMatch(/rawVerdict === "APPROVED-WITH-CONDITIONS"[^\n]*\n\s*verdict = "CONDITIONAL"/);
-    expect(src).toMatch(/rawVerdict === "REJECTED"[^\n]*\n\s*verdict = "NO-GO"/);
+    expect(src).toContain('const DECISIONS = new Set(["approved", "approved-with-conditions", "rejected"]);');
+    expect(src).not.toMatch(/"NO-GO"|"CONDITIONAL"|verdict = "GO"/);
   });
 });
 
@@ -72,8 +56,16 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     const text = read(COLLECTOR);
     const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
     expect(cov).toContain(
-      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, noData? }`',
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, descoped?, noData? }`',
     );
+    expect(cov).toMatch(/`counts` is `\{ designed, attempted, passed, failed, partial, blocked, skipped, unknown, notAttempted, outOfScope\? \}`/);
+    expect(cov).toMatch(/Counts are computed by the command from the case files, never by hand/);
+    expect(cov).toContain('`{ byCause: { environment, testingSide, requirementGap, notAttempted, other }, rows: [{ id, cause, via }] }`');
+    expect(cov).toContain('You never classify a row by hand');
+    expect(cov).toContain("the first match of the command's keyword table on the text of its result files");
+    expect(cov).toContain("else on the origin text of that check's row in the closure's table of uncovered test cases");
+    expect(cov).toContain('a `cause` written on a closure row is ignored');
+    expect(cov).toContain('`blocked` plus `skipped` plus `unknown` plus `notAttempted`');
     expect(cov).toMatch(/`codeCoverage` is a number or null/);
     expect(cov).toMatch(/percentages from 0 to 100/);
   });
@@ -86,7 +78,7 @@ describe('M2: the closure SPV maps each metric to its source file', () => {
     expect(check2).toContain('`coverage.json` → requirementsCoverage, testExecutionCoverage');
     expect(check2).toContain('`defect-trend.json` → defectDensity, escapeRate, reopenRate, MTTD, MTTR');
     expect(check2).toContain('`effectiveness.json` → DRE');
-    expect(check2).toContain('`execution-summary.json` → passRate');
+    expect(check2).toContain('`coverage.json` → requirementsCoverage, testExecutionCoverage and passRate');
     expect(check2).toContain('`cases/*.json` → automationCoverage');
     expect(check2).toMatch(/excused only when its source file is listed in `closure\.json#unavailableMetrics` or holds `"noData": true`/);
   });

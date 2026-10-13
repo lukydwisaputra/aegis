@@ -569,6 +569,25 @@ export const RunResumedEventSchema = EventBase.extend({
   taskId: z.string().optional(),
 });
 
+export const RunReissuedEventSchema = EventBase.extend({
+  type: z.literal("run.reissued"),
+  runId: RunIdSchema,
+  phase: PhaseIdSchema,
+  reason: z.string().min(1),
+  // Optional, so run.reissued lines written before the reissue of earlier phases still parse.
+  reopenedPhases: z.array(PhaseIdSchema).optional(),
+  reopenedGates: z.array(GateIdSchema).optional(),
+  cases: z.array(TestCaseIdSchema).min(1).optional(),
+});
+
+// aegis run descope: the owner recorded a test case as out of scope, with the reason the reports quote.
+export const RunDescopedEventSchema = EventBase.extend({
+  type: z.literal("run.descoped"),
+  runId: RunIdSchema,
+  caseId: TestCaseIdSchema,
+  reason: z.string().min(1),
+});
+
 export const RunStopRequestedEventSchema = EventBase.extend({
   type: z.literal("run.stop.requested"),
   runId: RunIdSchema,
@@ -1745,6 +1764,8 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RunPhaseFailedEventSchema,
   RunPromotionFailedEventSchema,
   RunResumedEventSchema,
+  RunReissuedEventSchema,
+  RunDescopedEventSchema,
   RunStopRequestedEventSchema,
   BlockingDependencyEventSchema,
   ExecutionBlockedEventSchema,

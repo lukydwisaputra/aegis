@@ -56,6 +56,8 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 /qa-start --env=development --module=AUTH   # full STLC cycle
 /qa-smoke --env=testing                     # 10-min PR-gate cycle
 /qa-resume --run=RUN-...                    # continue interrupted cycle
+/qa-reissue --phase=execution --reason=...  # reopen a phase after G1 of a done run
+/qa-descope --case=TC-... --reason="..."    # record a test case as out of scope
 /qa-rerun-failed                            # re-run only failed TCs
 /qa-status --watch                          # live cycle view
 /qa-health                                  # system integrity check
@@ -120,7 +122,7 @@ Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) ar
 - **taskmaster-client** — task claim/release protocol with file-lock serialization
 - **run-state** — run lifecycle, task claims, submissions and integrity checks behind the `aegis` CLI
 - **alignment** — static alignment checker behind `pnpm aegis align`
-- **metrics** — token logger and cycle-time tracker; writes rollup JSON from `events.jsonl`
+- **metrics** — token logger, cycle-time tracker and the coverage rollup (`aegis metrics coverage` writes `reports/metrics/coverage.json`); writes rollup JSON from `events.jsonl`
 - **eslint-plugin** — custom ESLint rules for QA code
 - **test-helpers** and **supabase** — QA helpers (HAR sanitising, evidence naming, factory cleanup; Supabase role JWTs, migrations, RLS checks) that `aegis helpers vendor` copies into the target's `tests/qa/support/`
 - **reporters** — PDF and Markdown report rendering

@@ -40,6 +40,8 @@ const ENTRY: Record<string, string> = {
   'phase.start': 'startPhase',
   'phase.complete': 'completePhase',
   'run.complete': 'completeRun',
+  'run.reissue': 'reissueRun',
+  'run.descope': 'descopeRun',
   'gate.open': 'openGate',
   'gate.decide': 'decideGate',
   'gate.auto-decide': 'autoDecideGate',

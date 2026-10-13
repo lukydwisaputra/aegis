@@ -1,0 +1,416 @@
+import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { staleBuild } from '@qa/alignment';
+import { classifyUncovered, computeCoverage, descopedCases, scanChecks } from '@qa/metrics';
+import { assertCallerAllowed, createRun, runContextFor, runDir, writeCoverage } from '@qa/run-state';
+import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+
+const ROOT = path.join(__dirname, '..');
+const CLI = path.join(ROOT, 'apps', 'cli', 'dist', 'index.js');
+const stale = process.env.CI ? null : staleBuild(ROOT);
+if (stale) console.warn(`metrics-coverage CLI test skipped: ${stale} (run pnpm build)`);
+
+const dirs: string[] = [];
+afterAll(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
+
+/** A run directory holding `files` (run-relative path -> JSON body). */
+function runWith(files: Record<string, unknown>): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-cov-'));
+  dirs.push(dir);
+  for (const [rel, body] of Object.entries(files)) {
+    const p = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(body));
+  }
+  return dir;
+}
+const row = (n: number, testStatus?: string) => ({
+  requirementId: `REQ-AUTH-${String(n).padStart(2, '0')}`, description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' },
+  testCaseIds: [], defectIds: [], ...(testStatus === undefined ? {} : { testStatus }),
+});
+const rows = (covered: number, partial: number, other = 0) => [
+  ...Array.from({ length: covered }, (_, i) => row(i + 1, 'Covered')),
+  ...Array.from({ length: partial }, (_, i) => row(covered + i + 1, 'Partial')),
+  ...Array.from({ length: other }, (_, i) => row(covered + partial + i + 1, 'Not Covered')),
+];
+const designed = (...ids: string[]) => Object.fromEntries(ids.map((id) => [`cases/${id}.json`, { id }]));
+const result = (id: string, body: unknown, viewport?: string) => [`cases/${id}${viewport === undefined ? '' : `-${viewport}`}-result.json`, body] as const;
+
+describe('computeCoverage: requirements coverage', () => {
+  it('is the Covered rows over all rows, one decimal, with Partial reported apart (35 of 38 is 92.1)', () => {
+    const base = designed('TC-AUTH-001');
+    const asObject = computeCoverage(runWith({ 'rtm.json': { runId: 'RUN-20261006-001', rows: rows(35, 3) }, ...base }));
+    const asArray = computeCoverage(runWith({ 'rtm.json': rows(35, 3), ...base }));
+    expect(asObject).toMatchObject({ requirementsCoverage: 92.1, partialRequirements: 3 });
+    expect(asArray).toEqual(asObject);
+  });
+
+  it('rounds to one decimal and counts Not Covered, Blocked and a missing testStatus as not covered', () => {
+    const r = computeCoverage(runWith({ 'rtm.json': { rows: [row(1, 'Covered'), row(2, 'Blocked'), row(3)] }, ...designed('TC-AUTH-001') }));
+    expect(r).toMatchObject({ requirementsCoverage: 33.3, partialRequirements: 0 });
+  });
+});
+
+describe('computeCoverage: test execution coverage', () => {
+  const rtm = { 'rtm.json': { rows: rows(1, 0) } };
+
+  it('reads plain result files, status synonyms and results[] arrays (worst sub-result wins, no-op is neutral)', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004', 'TC-AUTH-005', 'TC-AUTH-006', 'TC-AUTH-007'),
+      ...Object.fromEntries([
+        result('TC-AUTH-001', { status: 'pass' }),
+        result('TC-AUTH-002', { status: 'passed' }),
+        result('TC-AUTH-003', { status: 'blocked' }),
+        result('TC-AUTH-004', { status: 'failed' }),
+        result('TC-AUTH-005', { results: [{ status: 'pass' }, { status: 'no-op' }, { status: 'partial' }] }),
+        result('TC-AUTH-006', { results: [{ status: 'pass' }, { status: 'blocked' }] }),
+      ]),
+    });
+    // executed: 001, 002, 004, 005 (partial); not: 003 blocked, 006 blocked, 007 has no result file
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(57.1);
+  });
+
+  it('per-viewport files win over a plain file; a scoped viewport with no result means not executed', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003', 'TC-RSP-004'),
+      'cases/TC-RSP-003.json': { id: 'TC-RSP-003', viewportScope: 'desktop' },
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'blocked' }), // plain, ignored: its viewport files exist
+        result('TC-RSP-001', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-001', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-001', { status: 'pass' }, 'mobile'),
+        result('TC-RSP-002', { status: 'pass' }, 'desktop'), // scope all, tablet and mobile missing
+        result('TC-RSP-003', { status: 'pass' }, 'desktop'), // scope desktop, complete
+        result('TC-RSP-004', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-004', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-004', { status: 'blocked' }, 'mobile'),
+      ]),
+    });
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(50);
+  });
+
+  it('a TC whose viewports all have results is executed even when one failed or was partial, but a blocked viewport is not', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003'),
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-001', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-001', { status: 'fail' }, 'mobile'), // all present, one failed: executed
+        result('TC-RSP-002', { status: 'partial' }, 'desktop'),
+        result('TC-RSP-002', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-002', { status: 'pass' }, 'mobile'), // partial: executed
+        result('TC-RSP-003', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-003', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-003', { status: 'blocked' }, 'mobile'), // blocked: not executed
+      ]),
+    });
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(66.7);
+  });
+
+  it('the worst outcome decides: fail beats blocked and beats a missing viewport, so those TCs are executed but not passed', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003', 'TC-RSP-004', 'TC-AUTH-001'),
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'fail' }, 'desktop'),
+        result('TC-RSP-001', { status: 'blocked' }, 'tablet'),
+        result('TC-RSP-001', { status: 'pass' }, 'mobile'), // fail + blocked + pass: worst is fail, executed
+        result('TC-RSP-002', { status: 'fail' }, 'desktop'), // tablet and mobile missing: fail beats unknown, executed
+        result('TC-RSP-003', { status: 'blocked' }, 'desktop'),
+        result('TC-RSP-003', { status: 'partial' }, 'tablet'),
+        result('TC-RSP-003', { status: 'pass' }, 'mobile'), // blocked outranks partial: not executed
+        result('TC-RSP-004', { status: 'partial' }, 'desktop'), // partial beats the two missing viewports: executed
+        result('TC-AUTH-001', { results: [{ status: 'fail' }, { status: 'blocked' }] }), // fail beats blocked: executed
+      ]),
+    });
+    // executed: RSP-001, RSP-002, RSP-004, AUTH-001; not: RSP-003. 4 of 5.
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(80);
+  });
+
+  it('reads the plain-file synonyms noop (executed, neutral) and skip (not executed)', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003'),
+      ...Object.fromEntries([
+        result('TC-AUTH-001', { status: 'noop' }),
+        result('TC-AUTH-002', { status: 'skip' }),
+        result('TC-AUTH-003', { status: 'no-op' }),
+      ]),
+    });
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(66.7);
+  });
+
+  it('ignores a result whose test case was never designed, and a result with no determinable status', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-002', { note: 'no status here' }), result('TC-AUTH-099', { status: 'pass' })]),
+    });
+    expect(computeCoverage(dir).testExecutionCoverage).toBe(50);
+  });
+});
+
+describe('computeCoverage: counts', () => {
+  const rtm = { 'rtm.json': { rows: rows(1, 0) } };
+  const sum = (c: { passed: number; failed: number; partial: number; blocked: number; skipped: number; unknown: number }) =>
+    c.passed + c.failed + c.partial + c.blocked + c.skipped + c.unknown;
+
+  it('counts one outcome per TC: results[] worst-of, synonyms, no-op as passed, a TC with no result as not attempted', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004', 'TC-AUTH-005', 'TC-AUTH-006', 'TC-AUTH-007', 'TC-AUTH-008', 'TC-AUTH-009', 'TC-AUTH-010'),
+      ...Object.fromEntries([
+        result('TC-AUTH-001', { status: 'pass' }),
+        result('TC-AUTH-002', { status: 'passed' }),
+        result('TC-AUTH-003', { status: 'blocked' }),
+        result('TC-AUTH-004', { status: 'failed' }),
+        result('TC-AUTH-005', { results: [{ status: 'pass' }, { status: 'no-op' }, { status: 'partial' }] }),
+        result('TC-AUTH-006', { results: [{ status: 'pass' }, { status: 'blocked' }] }),
+        result('TC-AUTH-007', { status: 'no-op' }),
+        result('TC-AUTH-008', { status: 'skip' }),
+        result('TC-AUTH-009', { note: 'no status' }),
+      ]),
+    });
+    const { counts } = computeCoverage(dir);
+    expect(counts).toEqual({ designed: 10, attempted: 9, passed: 3, failed: 1, partial: 1, blocked: 2, skipped: 1, unknown: 1, notAttempted: 1 });
+    expect(sum(counts)).toBe(counts.attempted);
+  });
+
+  it('per-viewport files win over a plain file; a missing scoped viewport makes the TC unknown unless a worse outcome exists', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-RSP-001', 'TC-RSP-002', 'TC-RSP-003', 'TC-RSP-004'),
+      'cases/TC-RSP-003.json': { id: 'TC-RSP-003', viewportScope: 'desktop' },
+      ...Object.fromEntries([
+        result('TC-RSP-001', { status: 'blocked' }),
+        result('TC-RSP-001', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-001', { status: 'pass' }, 'tablet'),
+        result('TC-RSP-001', { status: 'pass' }, 'mobile'),
+        result('TC-RSP-002', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-003', { status: 'pass' }, 'desktop'),
+        result('TC-RSP-004', { status: 'partial' }, 'desktop'),
+      ]),
+    });
+    expect(computeCoverage(dir).counts).toEqual({ designed: 4, attempted: 4, passed: 2, failed: 0, partial: 1, blocked: 0, skipped: 0, unknown: 1, notAttempted: 0 });
+  });
+
+  it('a result with no design file is ignored, so attempted never exceeds designed', () => {
+    const dir = runWith({
+      ...rtm,
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-099', { status: 'pass' }), result('TC-AUTH-098', { status: 'fail' })]),
+    });
+    expect(computeCoverage(dir).counts).toEqual({ designed: 2, attempted: 1, passed: 1, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 1 });
+  });
+
+  // Set AEGIS_REAL_RUN_DIR to the reissued run's directory to run this against real data; unset or absent, it skips.
+  const REAL = process.env.AEGIS_REAL_RUN_DIR ?? '';
+  (REAL !== '' && fs.existsSync(path.join(REAL, 'cases')) ? it : it.skip)('the real reissued run: 100 designed, 98 attempted, 61 passed, 5 failed, 1 partial, 31 blocked, 2 not attempted', () => {
+    expect(computeCoverage(REAL).counts).toEqual({ designed: 100, attempted: 98, passed: 61, failed: 5, partial: 1, blocked: 31, skipped: 0, unknown: 0, notAttempted: 2 });
+  });
+});
+
+describe('computeCoverage: descoped cases (run.json#descoped)', () => {
+  const runJson = (...ids: string[]) => ({
+    'run.json': { runId: 'RUN-20261006-001', descoped: ids.map((caseId) => ({ caseId, reason: `Out of scope: ${caseId}`, at: '2026-10-09T00:00:00.000Z' })) },
+  });
+
+  it('drops a descoped case from designed and attempted even when it has a result, counts it as out of scope and lists its reason', () => {
+    const dir = runWith({
+      'rtm.json': { rows: rows(1, 0) },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-002', { status: 'blocked' }), result('TC-AUTH-003', { status: 'fail' })]),
+      ...runJson('TC-AUTH-004', 'TC-AUTH-002', 'TC-AUTH-099'),
+    });
+    const r = computeCoverage(dir);
+    expect(r.counts).toEqual({ designed: 2, attempted: 2, passed: 1, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0, outOfScope: 2 });
+    expect(r.testExecutionCoverage).toBe(100);
+    expect(r.descoped).toEqual([{ caseId: 'TC-AUTH-002', reason: 'Out of scope: TC-AUTH-002' }, { caseId: 'TC-AUTH-004', reason: 'Out of scope: TC-AUTH-004' }]);
+    expect(r.uncovered).toEqual({ rows: [], byCause: { environment: 0, testingSide: 0, requirementGap: 0, notAttempted: 0, other: 0 } });
+    expect(Object.keys(r)).toEqual(['requirementsCoverage', 'testExecutionCoverage', 'codeCoverage', 'partialRequirements', 'counts', 'uncovered', 'descoped']);
+  });
+
+  it('keeps the shape when nothing designed is descoped: no outOfScope count and no descoped list', () => {
+    const r = computeCoverage(runWith({ 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001'), ...runJson('TC-AUTH-099') }));
+    expect(r.counts).not.toHaveProperty('outOfScope');
+    expect(r).not.toHaveProperty('descoped');
+  });
+
+  it('requirements coverage: a row whose cases are all descoped leaves the denominator; a row with some uses only the in-scope ones', () => {
+    const req = (n: number, testStatus: string, testCaseIds: string[]) => ({ ...row(n, testStatus), testCaseIds });
+    const dir = runWith({
+      'rtm.json': { rows: [
+        req(1, 'Covered', ['TC-AUTH-001']),
+        req(2, 'Not Covered', ['TC-AUTH-002']), // every case descoped: out of the denominator
+        req(3, 'Partial', ['TC-AUTH-001', 'TC-AUTH-003']), // in scope 001, passed: Covered
+        req(4, 'Partial', ['TC-AUTH-004', 'TC-AUTH-005']), // nothing descoped: recorded Partial stands
+        req(5, 'Covered', ['TC-AUTH-005', 'TC-AUTH-006']), // in scope 005, failed: not covered
+      ] },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004', 'TC-AUTH-005', 'TC-AUTH-006'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'pass' }), result('TC-AUTH-003', { status: 'blocked' }), result('TC-AUTH-004', { status: 'pass' }), result('TC-AUTH-005', { status: 'fail' })]),
+      ...runJson('TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-006'),
+    });
+    // 4 rows in scope: 1 and 3 covered, 4 partial, 5 not covered.
+    expect(computeCoverage(dir)).toMatchObject({ requirementsCoverage: 50, partialRequirements: 1 });
+  });
+
+  it('every row out of scope: requirements coverage is 0, never NaN', () => {
+    const dir = runWith({
+      'rtm.json': { rows: [{ ...row(1, 'Covered'), testCaseIds: ['TC-AUTH-002'] }] },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      ...runJson('TC-AUTH-002'),
+    });
+    expect(computeCoverage(dir).requirementsCoverage).toBe(0);
+  });
+});
+
+describe('computeCoverage: every designed case descoped', () => {
+  const stamp = (caseId: string, reason: string) => ({ caseId, reason, at: '2026-10-09T00:00:00.000Z' });
+
+  it('stays noData but still states the out-of-scope count and the descoped list', () => {
+    const dir = runWith({
+      'rtm.json': { rows: rows(1, 0) },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002'),
+      'run.json': { descoped: [stamp('TC-AUTH-002', 'Second'), stamp('TC-AUTH-001', 'First'), stamp('TC-AUTH-099', 'No design file')] },
+    });
+    expect(computeCoverage(dir)).toEqual({
+      requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: null, partialRequirements: 0, noData: true,
+      counts: { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0, outOfScope: 2 },
+      uncovered: { rows: [], byCause: { environment: 0, testingSide: 0, requirementGap: 0, notAttempted: 0, other: 0 } },
+      descoped: [{ caseId: 'TC-AUTH-001', reason: 'First' }, { caseId: 'TC-AUTH-002', reason: 'Second' }],
+    });
+  });
+
+  it('a noData run with nothing descoped keeps the old shape: no outOfScope, no descoped', () => {
+    const r = computeCoverage(runWith({ ...designed('TC-AUTH-001'), 'run.json': { descoped: [stamp('TC-AUTH-099', 'No design file')] } }));
+    expect(r).toMatchObject({ noData: true });
+    expect(r.counts).not.toHaveProperty('outOfScope');
+    expect(r).not.toHaveProperty('descoped');
+  });
+});
+
+describe('descoped cases: junk entries and one snapshot per compute', () => {
+  it.each<[string, unknown]>([
+    ['a non-array', { caseId: 'TC-AUTH-002', reason: 'x' }],
+    ['null', null],
+    ['a string', 'TC-AUTH-002'],
+  ])('run.json#descoped as %s is ignored without throwing', (_why, descoped) => {
+    const dir = runWith({ 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001', 'TC-AUTH-002'), 'run.json': { descoped } });
+    expect(descopedCases(dir).size).toBe(0);
+    const r = computeCoverage(dir);
+    expect(r.counts.designed).toBe(2);
+    expect(r).not.toHaveProperty('descoped');
+  });
+
+  it('skips entries with a non-string reason, an empty or missing case id, or a non-object, and keeps the first reason of a repeated id', () => {
+    const dir = runWith({
+      'rtm.json': { rows: rows(1, 0) },
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003'),
+      'run.json': { descoped: [
+        { caseId: 'TC-AUTH-001', reason: 42 }, { caseId: '', reason: 'empty id' }, { reason: 'no id' }, null, 'TC-AUTH-001', [],
+        { caseId: 'TC-AUTH-002', reason: 'Kept' }, { caseId: 'TC-AUTH-002', reason: 'Later duplicate' },
+      ] },
+    });
+    expect([...descopedCases(dir)]).toEqual([['TC-AUTH-002', 'Kept']]);
+    const r = computeCoverage(dir);
+    expect(r.counts).toMatchObject({ designed: 2, outOfScope: 1 });
+    expect(r.descoped).toEqual([{ caseId: 'TC-AUTH-002', reason: 'Kept' }]);
+  });
+
+  it('scanChecks and classifyUncovered use the descoped map they are given instead of re-reading run.json', () => {
+    const dir = runWith({ ...designed('TC-AUTH-001', 'TC-AUTH-002'), 'run.json': { descoped: [{ caseId: 'TC-AUTH-002', reason: 'x' }] } });
+    expect([...scanChecks(dir).keys()]).toEqual(['TC-AUTH-001']);
+    expect([...scanChecks(dir, new Map()).keys()]).toEqual(['TC-AUTH-001', 'TC-AUTH-002']);
+    expect([...scanChecks(dir, new Map([['TC-AUTH-001', 'y']])).keys()]).toEqual(['TC-AUTH-002']);
+    const checks = scanChecks(dir, new Map());
+    expect(classifyUncovered(dir, checks, new Map()).rows.map((r) => r.id)).toEqual(['TC-AUTH-001', 'TC-AUTH-002']);
+    expect(classifyUncovered(dir, checks).rows.map((r) => r.id)).toEqual(['TC-AUTH-001']);
+  });
+});
+
+describe('computeCoverage: code coverage and noData', () => {
+  const full = { 'rtm.json': { rows: rows(1, 0) }, ...designed('TC-AUTH-001') };
+
+  it('reads reports/unit-coverage.json (lines, else statements) to one decimal, null when absent or not a number', () => {
+    expect(computeCoverage(runWith({ ...full, 'reports/unit-coverage.json': { lines: 88.06, statements: 70 } })).codeCoverage).toBe(88.1);
+    expect(computeCoverage(runWith({ ...full, 'reports/unit-coverage.json': { statements: 70 } })).codeCoverage).toBe(70);
+    expect(computeCoverage(runWith(full)).codeCoverage).toBeNull();
+    expect(computeCoverage(runWith({ ...full, 'reports/unit-coverage.json': { lines: 'high' } })).codeCoverage).toBeNull();
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['no rtm.json', designed('TC-AUTH-001')],
+    ['an rtm.json with no rows', { 'rtm.json': { rows: [] }, ...designed('TC-AUTH-001') }],
+    ['an rtm.json that is neither array nor {rows}', { 'rtm.json': { runId: 'x' }, ...designed('TC-AUTH-001') }],
+    ['no case files', { 'rtm.json': { rows: rows(1, 0) } }],
+  ])('flags noData with %s and zeros, never a computed 0 of 0', (_why, files) => {
+    expect(computeCoverage(runWith({ ...files, 'reports/unit-coverage.json': { lines: 50 } }))).toEqual({
+      requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: 50, partialRequirements: 0, noData: true,
+      counts: { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 },
+      uncovered: { rows: [], byCause: { environment: 0, testingSide: 0, requirementGap: 0, notAttempted: 0, other: 0 } },
+    });
+  });
+
+  it('does not write anything', () => {
+    const dir = runWith(full);
+    computeCoverage(dir);
+    expect(fs.readdirSync(dir).sort()).toEqual(['cases', 'rtm.json']);
+  });
+});
+
+describe('writeCoverage and aegis metrics coverage', () => {
+  let t: TmpAegis;
+  beforeEach(() => { t = makeAegisRoot(); });
+  afterEach(() => t.cleanup());
+
+  async function seeded(): Promise<string> {
+    const { runId } = await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner');
+    fs.writeFileSync(path.join(runDir(t.root, runId), 'rtm.json'), JSON.stringify({ rows: rows(3, 1) }));
+    fs.mkdirSync(path.join(runDir(t.root, runId), 'cases'));
+    fs.writeFileSync(path.join(runDir(t.root, runId), 'cases', 'TC-AUTH-001.json'), JSON.stringify({ id: 'TC-AUTH-001' }));
+    return runId;
+  }
+
+  it('writes reports/metrics/coverage.json for the owner and for qa-metrics-collector', async () => {
+    const runId = await seeded();
+    for (const caller of ['owner', 'qa-metrics-collector']) {
+      const out = writeCoverage(t.root, runId, caller);
+      expect(out.path).toBe('reports/metrics/coverage.json');
+      expect(JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8'))).toEqual(out.coverage);
+      expect(out.coverage).toMatchObject({ requirementsCoverage: 75, partialRequirements: 1, testExecutionCoverage: 0 });
+      expect(out.coverage.counts).toEqual({ designed: 1, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 1 });
+      expect(Object.keys(JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8')))).toEqual(
+        ['requirementsCoverage', 'testExecutionCoverage', 'codeCoverage', 'partialRequirements', 'counts', 'uncovered'],
+      );
+    }
+  });
+
+  it('refuses every other agent and leaves no file', async () => {
+    const runId = await seeded();
+    expect(() => writeCoverage(t.root, runId, 'qa-ui-specialist')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
+    expect(() => assertCallerAllowed('qa-closure-reporter', 'metrics.coverage')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'))).toBe(false);
+  });
+
+  it('the collector is told the command in its run context; the orchestrator is not', async () => {
+    await seeded();
+    expect(runContextFor(t.root, 'qa-metrics-collector', 'm1')).toContain('`AEGIS_AGENT=qa-metrics-collector pnpm aegis metrics coverage [--run <id>]`');
+    expect(runContextFor(t.root, 'qa-orchestrator', 'o1')).not.toContain('metrics coverage');
+  });
+
+  (stale ? it.skip : it)('the built CLI runs it for the collector and refuses another agent with exit 2', async () => {
+    const runId = await seeded();
+    const aegis = (agent: string) => {
+      const env = { ...process.env, AEGIS_AGENT: agent, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+      const r = spawnSync(process.execPath, [CLI, 'metrics', 'coverage', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
+      return { status: r.status, out: r.stdout ? JSON.parse(r.stdout) : null, err: r.stderr ? JSON.parse(r.stderr) : null };
+    };
+    expect(aegis('qa-metrics-collector')).toMatchObject({ status: 0, out: { path: 'reports/metrics/coverage.json', coverage: { requirementsCoverage: 75 } } });
+    expect(aegis('qa-ui-specialist')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
+  }, 60_000);
+});

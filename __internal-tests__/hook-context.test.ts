@@ -48,6 +48,15 @@ describe('H4 run context (spec §4.2)', () => {
     expect(runContextFor(t.root, 'general-purpose', 'g1')).toBeNull();
   });
 
+  it('lists no run reissue or run descope command to any agent: both are owner-only', async () => {
+    await create();
+    for (const agent of ['qa-orchestrator', 'qa-executive-reporter', 'qa-test-executor']) {
+      const text = runContextFor(t.root, agent, 'r1');
+      expect(text).not.toContain('run reissue');
+      expect(text).not.toContain('run descope');
+    }
+  });
+
   it('CLI_USAGE covers every CLI command', () => {
     expect(Object.keys(CLI_USAGE).sort()).toEqual([...CLI_COMMANDS].sort());
   });
@@ -106,6 +115,22 @@ describe('H3 router context', () => {
     expect(text).toContain(`Active run: ${runId}`);
     expect(text).toContain('Open gate: G1');
     expect(text).toContain('Open escalation: T-1');
+  });
+
+  it('lists a reset gate apart from an open one, with what it needs', async () => {
+    const runId = await create();
+    const file = path.join(t.root, 'runs', runId, 'run.json');
+    const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+    s.gates = { G1: { status: 'approved', decisions: 1 }, G2: { status: 'reset', decisions: 2 }, G3: { status: 'reset', decisions: 1 } };
+    fs.writeFileSync(file, JSON.stringify(s));
+    const text = routingContext(t.root);
+    expect(text).toContain('Reset gate: G2, G3 — the earlier decision no longer stands; it needs a new owner decision (/qa-gate-decide) once it is opened.');
+    expect(text).not.toContain('Open gate');
+    s.gates.G2 = { status: 'open', openedAt: s.createdAt, decisions: 2 };
+    fs.writeFileSync(file, JSON.stringify(s));
+    const mixed = routingContext(t.root);
+    expect(mixed).toContain('Open gate: G2');
+    expect(mixed).toContain('Reset gate: G3');
   });
 
   it('stays well under the 10,000-character additionalContext cap even with many blocks', async () => {

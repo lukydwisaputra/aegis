@@ -6,7 +6,7 @@ description: Re-render all reports from an existing run's events log without re-
 # /qa-regenerate-report
 
 ## Purpose
-Replays a run's `events.jsonl` through the report-generation agents to produce fresh HTML/Markdown reports. Useful after fixing a report template, adding a new metric, or recovering from a partial write. No test agents are dispatched unless `--rerun-tests` is specified.
+Replays a run's `events.jsonl` through the report-generation agents to produce fresh HTML/Markdown reports. Useful after fixing a report template, adding a new metric, or recovering from a partial write. No test agents are dispatched unless `--rerun-tests` is specified. To regenerate the executive reports of a completed run, use `/qa-reissue --phase=executive` instead: it reopens the phase through the CLI, so the new reports are reviewed and the reissue is audited in the event log.
 
 ## Usage
 ```

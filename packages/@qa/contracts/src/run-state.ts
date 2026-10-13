@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RunIdSchema } from "./ids.js";
+import { RunIdSchema, TestCaseIdSchema } from "./ids.js";
 import { Sha256HexSchema } from "./chain.js";
 import { GateIdSchema, PhaseIdSchema, PhaseStatusSchema } from "./phases.js";
 import { GateDecisionValueSchema } from "./gate-decision.js";
@@ -25,7 +25,9 @@ export const PhaseRecordSchema = z
   })
   .strict();
 
-export const GateStatusSchema = z.enum(["open", ...GateDecisionValueSchema.options]);
+// reset: decided before, needs a new owner decision (aegis run reissue). It is neither open nor satisfied; the record keeps
+// `decisions`, so the gate's next decision takes the next sequence and archives the old decision file.
+export const GateStatusSchema = z.enum(["open", "reset", ...GateDecisionValueSchema.options]);
 export const GateRecordSchema = z
   .object({ status: GateStatusSchema, openedAt: Iso.optional(), decidedAt: Iso.optional(), decisions: z.number().int().nonnegative() })
   .strict();
@@ -65,6 +67,21 @@ export const RunStateSchema = z
     // Gate rejections (spec §3.2): task id -> agent -> the highest work-report attempt the rejection superseded.
     // The phase barrier and gate open accept only a later attempt, so a reopened task needs new work.
     supersededAttempts: z.record(z.string().min(1), z.record(z.string().min(1), z.number().int().positive())).optional(),
+    // The latest owner reissue (aegis run reissue), replaced by the next one; the event log keeps every reissue.
+    reissue: z
+      .object({
+        phase: PhaseIdSchema,
+        reason: z.string().min(1),
+        at: Iso,
+        // A reissued Execution re-runs only these cases; every other case keeps its recorded result.
+        cases: z.array(TestCaseIdSchema).min(1).optional(),
+        reopenedPhases: z.array(PhaseIdSchema),
+        reopenedGates: z.array(GateIdSchema),
+      })
+      .strict()
+      .optional(),
+    // Cases the owner recorded as out of scope (aegis run descope), one entry per case id; metrics leave them out of every count.
+    descoped: z.array(z.object({ caseId: TestCaseIdSchema, reason: z.string().min(1), at: Iso }).strict()).optional(),
     createdAt: Iso,
     updatedAt: Iso,
   })
@@ -77,3 +94,5 @@ export type PhaseRecord = z.infer<typeof PhaseRecordSchema>;
 export type GateRecord = z.infer<typeof GateRecordSchema>;
 export type BlockCause = z.infer<typeof BlockCauseSchema>;
 export type BlockKind = z.infer<typeof BlockKindSchema>;
+export type ReissueRecord = NonNullable<RunState["reissue"]>;
+export type DescopedCase = NonNullable<RunState["descoped"]>[number];

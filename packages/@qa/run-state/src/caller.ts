@@ -11,6 +11,8 @@ export const CLI_COMMANDS = [
   "run.status",
   "run.stop",
   "run.resume",
+  "run.reissue",
+  "run.descope",
   "event.append",
   "id.next",
   "task.add",
@@ -35,6 +37,7 @@ export const CLI_COMMANDS = [
   "messaging.check",
   "messaging.scan-secrets",
   "messaging.exec",
+  "metrics.coverage",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -45,6 +48,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.status",
   "run.stop",
   "run.resume",
+  "run.reissue",
+  "run.descope",
   "task.list",
   "integrity.verify",
   "integrity.repair-tail",
@@ -52,6 +57,7 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "escalation.decide",
   // NEW-07: read-only, presence only — the owner checks where to put the messaging key.
   "messaging.check",
+  "metrics.coverage",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -70,7 +76,7 @@ export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
 
 // Commands only the main thread may run; agents reach them through the matching /qa-* skill.
 export const OWNER_ONLY: ReadonlySet<CliCommand> = new Set<CliCommand>([
-  "run.create", "run.stop", "run.resume", "gate.decide", "escalation.decide", "integrity.repair-tail",
+  "run.create", "run.stop", "run.resume", "run.reissue", "run.descope", "gate.decide", "escalation.decide", "integrity.repair-tail",
 ]);
 
 export const ORCHESTRATOR = "qa-orchestrator";
@@ -86,6 +92,7 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "messaging.plan": "qa-messaging-specialist",
   "messaging.exec": "qa-messaging-specialist",
   "messaging.check": "qa-environment-engineer",
+  "metrics.coverage": "qa-metrics-collector",
 };
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {

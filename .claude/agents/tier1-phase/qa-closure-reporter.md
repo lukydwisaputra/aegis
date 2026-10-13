@@ -60,10 +60,14 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
   },
   "defectMetrics": {
     "totalLogged": 16,
-    "confirmedOpen": 14                 // the index publishes OPEN, not logged
+    "confirmedOpen": 14,                // the index publishes OPEN, not logged
+    "confirmedDefectsBySeverity": { "Sev1": 0, "Sev2": 2, "Sev3": 7, "Sev4": 4, "Sev5": 1 }
+                                        // the confirmed open defects by severity code; the five counts sum to `confirmedOpen`
   }
 }
 ```
+
+`confirmedDefectsBySeverity` is an object with the five keys `Sev1` to `Sev5`, each the count of confirmed open defects of that severity (0 when none). The sign-off and the executive deck take their per-severity open counts from it: when the run has flagged-for-owner open questions, the open records outnumber the confirmed open defects, and without this object the sign-off prints that the severity breakdown is not available.
 
 Two rules that matter more than they look:
 
@@ -86,13 +90,19 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 `closure.json` always carries `exitCriteria`, which the sign-off document prints as its Met/Not met checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against this cycle's results, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
 
+### closure.json: uncovered test cases and residual risk
+
+`closure.json` carries `uncoveredTestCases`, one `{ "id", "module", "status", "origin" }` per check that gave no verdict (blocked, skipped, undeterminable, or designed with no result file), `origin` being one plain sentence on why; the cases listed in `coverage.json#descoped` are not among them, they are stated apart as out of scope. The closure states no split of them by cause: no `cause` on a row and no total by cause. The split is computed from the result files into `uncovered` of `coverage.json` and is stated only by the executive reports, from that file.
+
+`closure.json` carries the residual risk summary as `residualRiskSummary`, an array with one object per risk testing did not fully mitigate: `{ "riskId", "title", "originalLikelihoodImpactScore", "mitigationStatus", "residualExposure" }`, optionally with `rating` (Critical, High, Medium or Low; else the word in parentheses at the end of the score is used). `rating`, when present, is the rating the risk had BEFORE testing, on the same scale as the word in parentheses at the end of the score, and never the residual or current level (the closure carries no current-exposure rating; `residualExposure` and `mitigationStatus` describe what remains). A `severity` field is read as the same original rating. A rating is the closure's rating of a risk, not a defect severity. The sign-off document prints it when the risk register holds no residual data of its own.
+
 ## Process
 
 You run twice per cycle, and your brief names the `pass`. The draft pass (Closure-draft, before Compliance) runs steps 1–4 and 6; the final pass (Closure-final, after Compliance) runs steps 5 and 6.
 
 1. **Read context.** Load the input files — all but the compliance reports and your own draft, which the final pass reads — and your lessons.md.
 
-2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. You may derive simple presentational figures (e.g. a headline pass rate) from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If a required metric file is missing, record its file name in `closure.json#unavailableMetrics` and continue: the metrics it feeds read "not available" in `closure.md` and are absent from `closure.json`, and the comprehensiveness assessment names the gap. A file holding `"noData": true` exists but had no source data: state its figures as not available too. Never stop for a missing file, and never recompute or fabricate a metric.
+2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. The counts of checks (designed, attempted, passed, failed, partial, blocked, skipped, not attempted) come from the `counts` object of `coverage.json`, not from `execution-summary.json`, which counts a partial case as a pass: the Results summary and the flat `passed`, `failed` and `blocked` of `closure.json#metrics` use them, and the partial count is stated apart. Checks the owner descoped are in none of these counts: the Results summary states `coverage.json#counts.outOfScope` apart, with each case and its recorded reason from `coverage.json#descoped`, never as a gap or a blocked check. The headline `passRate` is the `passed` count divided by the `attempted` count of `coverage.json`, 100 ×, one decimal (never the executor's roll-up, which counts a partial case as a pass). You may derive other simple presentational figures from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If a required metric file is missing, record its file name in `closure.json#unavailableMetrics` and continue: the metrics it feeds read "not available" in `closure.md` and are absent from `closure.json`, and the comprehensiveness assessment names the gap. A file holding `"noData": true` exists but had no source data: state its figures as not available too. Never stop for a missing file, and never recompute or fabricate a metric.
 
 3. **Write ISTQB closure sections.** All required sections:
    - **Summary**: 2-3 sentences on scope, duration, overall outcome. No verdict.
@@ -124,6 +134,7 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
 - A metric neither reported nor stated as not available (listed in `unavailableMetrics` or backed by a `noData` file)
 - `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `closure.report-drafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
 - Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
+- `confirmedDefectsBySeverity` missing from `defectMetrics`, or its five counts do not sum to `confirmedOpen`
 - `closure.json` omits `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, or `defectMetrics.confirmedOpen` — see "closure.json keys the collector index reads". A run missing these still closes, but publishes em dashes in the collector index and blocks the next export
 - A `metrics` value is a nested object where the index expects a scalar (e.g. `passRate: { unconditional, inclBlockedDimension }`) — write the headline figure flat and put variants under distinct keys
 - Work report does not cite lessons applied

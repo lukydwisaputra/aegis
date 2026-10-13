@@ -20,7 +20,7 @@ export const JARGON_RULES: Array<{
   {
     pattern: /p95 latency (\d+)ms/gi,
     rewrite: (m) => {
-      const ms = m.match(/\d+/)?.[0];
+      const ms = m.match(/(\d+)ms/i)?.[1];
       return `the slowest 5% of requests take ${ms}ms`;
     },
   },
@@ -30,24 +30,24 @@ export const JARGON_RULES: Array<{
   },
   { pattern: /\bp95\b/gi, rewrite: () => "95th-percentile response time" },
   { pattern: /\bp99\b/gi, rewrite: () => "99th-percentile response time" },
-  { pattern: /LCP/g, rewrite: () => "page load time" },
-  { pattern: /INP/g, rewrite: () => "user interaction speed" },
-  { pattern: /CLS/g, rewrite: () => "visual layout stability" },
-  { pattern: /TTFB/g, rewrite: () => "server response time" },
-  { pattern: /FCP/g, rewrite: () => "time until first content appears" },
-  { pattern: /MTTR/g, rewrite: () => "average time to recover from an incident" },
-  { pattern: /MTTD/g, rewrite: () => "average time to detect an issue" },
-  { pattern: /DORA/gi, rewrite: () => "industry deployment performance" },
+  { pattern: /\bLCPs?\b/g, rewrite: () => "page load time" },
+  { pattern: /\bINPs?\b/g, rewrite: () => "user interaction speed" },
+  { pattern: /\bCLSs?\b/g, rewrite: () => "visual layout stability" },
+  { pattern: /\bTTFBs?\b/g, rewrite: () => "server response time" },
+  { pattern: /\bFCPs?\b/g, rewrite: () => "time until first content appears" },
+  { pattern: /\bMTTR\b/g, rewrite: () => "average time to recover from an incident" },
+  { pattern: /\bMTTD\b/g, rewrite: () => "average time to detect an issue" },
+  { pattern: /\bDORA\b/gi, rewrite: () => "industry deployment performance" },
   {
-    pattern: /CFR|change failure rate/gi,
+    pattern: /\bCFR\b|change failure rate/gi,
     rewrite: () => "percentage of deploys that cause incidents",
   },
   {
-    pattern: /DRE|defect removal efficiency/gi,
+    pattern: /\bDRE\b|defect removal efficiency/gi,
     rewrite: () => "percentage of bugs caught before release",
   },
   {
-    pattern: /RTM|requirements traceability matrix/gi,
+    pattern: /\bRTMs?\b|requirements traceability matrix/gi,
     rewrite: () => "test coverage map",
   },
   { pattern: /RBAC/gi, rewrite: () => "role-based access control" },
@@ -57,10 +57,10 @@ export const JARGON_RULES: Array<{
     rewrite: () => "version numbering",
   },
   { pattern: /\bAPI\b/g, rewrite: () => "application interface" },
-  { pattern: /CVE/g, rewrite: () => "known security vulnerability" },
-  { pattern: /CVSS/gi, rewrite: () => "security severity score" },
+  { pattern: /\bCVEs?\b/g, rewrite: () => "known security vulnerability" },
+  { pattern: /\bCVSS\b/gi, rewrite: () => "security severity score" },
   { pattern: /\baxe\b/gi, rewrite: () => "accessibility scanner" },
-  { pattern: /WCAG/g, rewrite: () => "accessibility standard" },
+  { pattern: /\bWCAG\b/g, rewrite: () => "accessibility standard" },
   { pattern: /ISO 25010/gi, rewrite: () => "software quality standard" },
   { pattern: /ISO 5055/gi, rewrite: () => "code quality standard" },
 ];
@@ -131,8 +131,14 @@ export interface TechnicalReportSpec {
     totalTests: number | null;
     passed: number | null;
     failed: number | null;
+    /** Checks that passed in part; omitted by callers that do not know it, null prints "not available". */
+    partial?: number | null;
     blocked: number | null;
     skipped: number | null;
+    /** Checks with a result whose outcome could not be determined; omitted by callers that do not know it, null prints "not available". */
+    undetermined?: number | null;
+    /** Designed checks the owner descoped; printed as its own row only when above 0, and never part of totalTests. */
+    outOfScope?: number | null;
     passRate: number | null;
     coveragePercent: number | null;
     openDefects: number | null;
@@ -145,9 +151,6 @@ export interface TechnicalReportSpec {
     status: string;
   }>;
   compliance: Record<string, { covered: number | null; gapped: number | null }>;
-  tokenCostUsd: number | null;
-  /** Total cycle wall-clock in milliseconds; null when no cycle-time data exists. */
-  cycleTimeMs?: number | null;
   /** Optional evidence index — base64-encoded PNG data URIs keyed by defect ID */
   evidenceScreenshots?: Array<{
     defectId: string;
@@ -160,13 +163,26 @@ export interface TechnicalReportSpec {
 
 // ─── Sign-off document spec ───────────────────────────────────────────────────
 
+/** The owner's Gate 3 decision as recorded in gates/gate-3-decision.json#decision. */
+export type SignoffDecision = "approved" | "approved-with-conditions" | "rejected";
+
+/** What the banner prints for each decision. */
+export const SIGNOFF_DECISION_TEXT: Readonly<Record<SignoffDecision, string>> = {
+  approved: "APPROVED",
+  "approved-with-conditions": "APPROVED WITH CONDITIONS",
+  rejected: "REJECTED",
+};
+
+/** The banner label: the decision is the owner's, not the QA team's release judgement. */
+export const SIGNOFF_DECISION_LABEL = "GATE 3 DECISION (owner)";
+
 export interface SignoffSpec {
   projectName: string;
   version: string;
   signoffDate: string;
   documentId: string;
   scope: string;
-  verdict: "GO" | "NO-GO" | "CONDITIONAL";
+  decision: SignoffDecision;
   exitCriteria: Array<{ criterion: string; met: boolean }>;
   /** The line printed when exitCriteria is empty; defaults to "Exit criteria: not available". */
   exitCriteriaNote?: string;
@@ -260,17 +276,17 @@ const baseStyles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     marginRight: 6,
   },
-  verdictGo: {
+  decisionApproved: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: "#1e8449",
   },
-  verdictNoGo: {
+  decisionRejected: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: "#c0392b",
   },
-  verdictConditional: {
+  decisionConditions: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
     color: "#d68910",
@@ -404,13 +420,6 @@ function SlideDeckDocument({ spec }: { spec: SlideSpec }) {
 export const NOT_AVAILABLE = "not available";
 const formatCount = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : String(v));
 const formatPercent = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : `${v.toFixed(1)}%`);
-function formatDuration(ms: number | null | undefined): string {
-  if (ms == null) return NOT_AVAILABLE;
-  const totalMinutes = Math.round(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
-}
 
 function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
   return React.createElement(
@@ -448,16 +457,6 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
           Text,
           { style: baseStyles.body },
           `Scope: ${spec.scope}`
-        ),
-        React.createElement(
-          Text,
-          { style: baseStyles.body },
-          `Token Cost: ${spec.tokenCostUsd == null ? NOT_AVAILABLE : `$${spec.tokenCostUsd.toFixed(4)}`}`
-        ),
-        React.createElement(
-          Text,
-          { style: baseStyles.body },
-          `Cycle Time: ${formatDuration(spec.cycleTimeMs)}`
         )
       )
     ),
@@ -478,8 +477,11 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ["Total Tests", formatCount(spec.metrics.totalTests)],
         ["Passed", formatCount(spec.metrics.passed)],
         ["Failed", formatCount(spec.metrics.failed)],
+        ...(spec.metrics.partial === undefined ? [] : [["Partial", formatCount(spec.metrics.partial)]]),
         ["Blocked", formatCount(spec.metrics.blocked)],
         ["Skipped", formatCount(spec.metrics.skipped)],
+        ...(spec.metrics.undetermined === undefined ? [] : [["Undetermined", formatCount(spec.metrics.undetermined)]]),
+        ...(typeof spec.metrics.outOfScope === "number" && Number.isInteger(spec.metrics.outOfScope) && spec.metrics.outOfScope > 0 ? [["Out of scope", formatCount(spec.metrics.outOfScope)]] : []),
         ["Pass Rate", formatPercent(spec.metrics.passRate)],
         ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
         ["Open Defects", formatCount(spec.metrics.openDefects)],
@@ -612,12 +614,12 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
 // ─── Sign-off document component ──────────────────────────────────────────────
 
 function SignoffDocument({ spec }: { spec: SignoffSpec }) {
-  const verdictStyle =
-    spec.verdict === "GO"
-      ? baseStyles.verdictGo
-      : spec.verdict === "NO-GO"
-        ? baseStyles.verdictNoGo
-        : baseStyles.verdictConditional;
+  const decisionStyle =
+    spec.decision === "approved"
+      ? baseStyles.decisionApproved
+      : spec.decision === "rejected"
+        ? baseStyles.decisionRejected
+        : baseStyles.decisionConditions;
 
   return React.createElement(
     Document,
@@ -687,7 +689,7 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
           React.createElement(Text, { style: baseStyles.cell }, spec.scope)
         )
       ),
-      // Verdict
+      // Gate 3 decision
       React.createElement(
         View,
         {
@@ -702,9 +704,9 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
         React.createElement(
           Text,
           { style: { ...baseStyles.label, marginBottom: 6 } },
-          "RELEASE VERDICT"
+          SIGNOFF_DECISION_LABEL
         ),
-        React.createElement(Text, { style: verdictStyle }, spec.verdict)
+        React.createElement(Text, { style: decisionStyle }, SIGNOFF_DECISION_TEXT[spec.decision])
       ),
       // Exit criteria checklist
       React.createElement(
@@ -737,6 +739,9 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
             {
               style: {
                 ...baseStyles.body,
+                // flex: 1 gives the text the width left beside the status column, so a long criterion wraps inside the page
+                // instead of running past its right edge.
+                flex: 1,
                 color: criterion.met ? "#1a1a1a" : "#c0392b",
               },
             },

@@ -118,13 +118,15 @@ describe('result files are read in both layouts', () => {
     expect(paths(contractOf(read('.claude/agents/tier2-specialist/qa-responsive-specialist.md')).writes)).toContain('{run}/cases/{TC-ID}-{viewport}-result.json');
   });
 
-  it('the collector counts a TC once, per-viewport files win, one flaky row, missing viewport = not passed', () => {
+  it('the collector counts a TC once, per-viewport files win, one flaky row, missing viewport = undeterminable (not passed)', () => {
     const c = read(COLLECTOR);
     expect(c).toContain('`^TC-[A-Z]{2,8}-\\d{3,}$`');
     expect(c).toContain('one of `desktop`, `tablet` or `mobile`');
     expect(c).toContain('A TC counts once, however many of its files exist');
     expect(c).toContain('the per-viewport files win and the plain file is ignored');
-    expect(c).toContain('a viewport with no result file means the TC is not passed, never a viewport that is dropped');
+    expect(c).toContain('The outcome of a TC is its worst outcome, in this order, worst first: `fail`, `blocked`, `partial`, `skipped`, undeterminable (a result with no determinable status), `pass`, `no-op`');
+    expect(c).toContain('plus one undeterminable outcome for every viewport in its `viewportScope`');
+    expect(c).toContain('that has no result file, so a missing viewport is never dropped: it makes the TC not passed');
     expect(c).toContain('a TC yields ONE flaky row, with `retryCount` the maximum across its viewport results');
   });
 

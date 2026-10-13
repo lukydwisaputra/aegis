@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, parse } from "node:path";
-import { RunIdSchema } from "@qa/contracts";
+import { RunIdSchema, gateNumber, type GateId } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
 import { atomicWrite } from "./util.js";
 
@@ -19,6 +19,9 @@ export const runDir = (root: string, runId: string): string => join(runsDir(root
 export const runJsonPath = (root: string, runId: string): string => join(runDir(root, runId), "run.json");
 export const busPath = (root: string, runId: string): string => join(runDir(root, runId), "events.jsonl");
 export const taskmasterDir = (root: string, runId: string): string => join(runDir(root, runId), "taskmaster");
+export const gatesDir = (root: string, runId: string): string => join(runDir(root, runId), "gates");
+export const gateDecisionPath = (root: string, runId: string, gate: GateId): string =>
+  join(gatesDir(root, runId), `gate-${gateNumber(gate)}-decision.json`);
 
 const activePointer = (root: string): string => join(runsDir(root), ".active");
 

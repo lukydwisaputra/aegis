@@ -9,7 +9,7 @@ const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8')
 const body = (md: string): string => md.slice(0, md.indexOf('## Contract (machine-checked)'));
 const TS = '2026-10-04T00:00:00.000Z';
 
-describe('B1: the metrics collector pins cycle-time.json and keeps rollups out of token-usage.jsonl', () => {
+describe('B1: the metrics collector pins cycle-time.json and writes no token file', () => {
   const text = body(read('.claude/agents/crosscutting/qa-metrics-collector.md'));
 
   it('names the exact cycle-time.json shape and what the total covers', () => {
@@ -19,9 +19,13 @@ describe('B1: the metrics collector pins cycle-time.json and keeps rollups out o
     expect(text).toMatch(/`totalWallClockMs` runs from the run's start[^\n]*to the last `completedAt`[^\n]*including the time spent waiting at gates/);
   });
 
-  it('never writes a rollup into token-usage.jsonl, which holds rows only', () => {
-    expect(text).toMatch(/never written into `token-usage\.jsonl`/i);
-    expect(text).toContain('`{ agent, model, inputTokens, outputTokens, cachedTokens, usdCost, ts }`');
+  it('writes no token-usage.jsonl: not in the prose, the description or the contract, and totalTokensUsed is the only token figure', () => {
+    const full = read('.claude/agents/crosscutting/qa-metrics-collector.md');
+    expect(full).not.toMatch(/token-usage|usdCost/i);
+    expect(full).not.toMatch(/token usage,/i);
+    expect(read('.claude/pipeline.yaml')).not.toMatch(/token-usage/);
+    expect(text).toContain('the sum of `input`, `output` and `cached` over every `token.used` event');
+    expect(text).toContain('`{"totalDurationMs": n, "totalTokensUsed": n}`');
   });
 });
 
