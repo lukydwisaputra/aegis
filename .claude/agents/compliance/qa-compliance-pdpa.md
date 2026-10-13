@@ -74,12 +74,12 @@ You evaluate whether the test cycle adequately covers Singapore PDPA obligations
 ## Outputs
 
 - `runs/{runId}/reports/compliance/pdpa.{md,json}` — gap report. `runs/{runId}/reports/compliance/pdpa.json` is `{ "regulation": "pdpa", "sectionsCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
-- `PDPA-Sec{N}` tags on TCs and defects (e.g., `PDPA-Sec24`)
+- PDPA tags on TCs and defects: `PDPA-Sec{N}` (e.g., `PDPA-Sec24`), `PDPA-Sec{N}{L}` for a letter-suffixed section (e.g., `PDPA-Sec26C`) or `PDPA-Part{Roman}` for a Part (e.g., `PDPA-PartIX`)
 
 ## Quality Standards
 
 - Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
-- Tag format: `PDPA-Sec{N}` (e.g., `PDPA-Sec24`, `PDPA-Sec13`)
+- Tag format: `PDPA-Sec{N}` (e.g., `PDPA-Sec24`, `PDPA-Sec13`); a provision added by the 2020 amendment keeps its letter (`PDPA-Sec26C`, `PDPA-Sec26D`) and a whole Part is tagged by its Roman numeral (`PDPA-PartIX` for the Do Not Call provisions); cite a section or Part only after checking it against the Act; never fold a lettered section into a number (`PDPA-Sec26` is not `PDPA-Sec26C`)
 - PDPA applies to Singapore operations — note if the target app is SG-facing
 - Do not assert whether the app IS PDPA-compliant — identify testing coverage gaps
 - Singapore-specific data (NRIC pattern `[STFG]XXXXXXX[A-Z]`) must NEVER appear in test data — flag as Sev1 if found

@@ -187,7 +187,7 @@ Tags are validated in `@qa/contracts/tags.ts`. Each regulation has a named regex
 | ISTQB | `/^ISTQB-[A-Za-z]+-[\d.]+$/` |
 | CMMI | `/^CMMI-[A-Za-z&]+-SP[\d.]+$/` |
 | GDPR | `/^GDPR-Art\d+$/` |
-| PDPA | `/^PDPA-Sec\d+$/` |
+| PDPA | `/^PDPA-(Sec\d+[A-Z]{0,2}\|Part[IVXL]+[A-Z]?)$/` (section `PDPA-Sec24`, amendment section `PDPA-Sec26C`, Part `PDPA-PartIX`) |
 
 The `@qa/reporters.writeArtifact` pipeline runs tag validation at step 3. Malformed tags reject the entire write and emit `compliance.tag.invalid`.
 

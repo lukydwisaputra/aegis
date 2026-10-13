@@ -136,7 +136,7 @@ Source: ch-07 (listed as a parallel regulation alongside GDPR), ch-05 (PII handl
 The Personal Data Protection Act governs personal data of Singapore residents. Ch-07 notes that governments enforce data privacy through regulations such as GDPR and PDPA and that both require the same category of security and privacy controls in testing.
 
 - Section references: Sec 24 (protection of personal data — obligation to protect data by reasonable security measures)
-- Tag format: `PDPA-Sec{N}` — example: `PDPA-Sec24`
+- Tag format: `PDPA-Sec{N}` — example: `PDPA-Sec24`; letter-suffixed sections keep the letter (`PDPA-Sec26C`) and a Part is `PDPA-Part{Roman}` (`PDPA-PartIX`)
 - PDPA mirrors GDPR principles for SG jurisdictions: lawful collection, purpose limitation, data accuracy, retention limits, access rights, and security obligations
 - The same data-layer controls described under GDPR apply: no real PII in test environments, pseudonymisation, encryption at rest and in transit, least-privilege access (ch-05, ch-07)
 - Ch-05 groups GDPR and PDPA together when stating that copying production data into test environments violates both regulations

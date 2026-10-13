@@ -1,5 +1,5 @@
 import { STAKEHOLDER_FORBIDDEN_PATTERNS, checkBrandExposure } from '@qa/contracts';
-import { LessonEntrySchema } from '@qa/contracts';
+import { ComplianceTagSchema, LessonEntrySchema, classifyTag } from '@qa/contracts';
 
 describe('@qa/contracts — brand-exposure', () => {
   it('STAKEHOLDER_FORBIDDEN_PATTERNS is a non-empty array of RegExp', () => {
@@ -62,5 +62,22 @@ describe('@qa/contracts — LessonEntrySchema', () => {
     expect(() =>
       LessonEntrySchema.parse({ ...validLesson, mistake: 'Too short' })
     ).toThrow();
+  });
+});
+
+describe('PDPA compliance tags (gap 3)', () => {
+  const ok = (tag: string) => ComplianceTagSchema.safeParse(tag).success;
+  it('keeps every numeric section valid', () => {
+    for (const tag of ['PDPA-Sec24', 'PDPA-Sec13', 'PDPA-Sec1', 'PDPA-Sec26']) expect(ok(tag)).toBe(true);
+  });
+  it('accepts a letter-suffixed section and a Part in Roman numerals', () => {
+    for (const tag of ['PDPA-Sec26C', 'PDPA-Sec26B', 'PDPA-Sec13A', 'PDPA-PartIX', 'PDPA-PartVI', 'PDPA-PartVIA']) expect(ok(tag)).toBe(true);
+  });
+  it('still rejects malformed PDPA tags', () => {
+    for (const tag of ['PDPA-Sec', 'PDPA-Sec26c', 'PDPA-Sec26C1', 'PDPA-Sec26-C', 'PDPA-Part', 'PDPA-Part9', 'PDPA-Partix', 'PDPA-26C', 'PDPA-SecC26']) expect(ok(tag)).toBe(false);
+  });
+  it('classifies every PDPA form as pdpa', () => {
+    for (const tag of ['PDPA-Sec24', 'PDPA-Sec26C', 'PDPA-PartIX']) expect(classifyTag(tag)).toBe('pdpa');
+    expect(classifyTag('GDPR-Art5')).toBe('gdpr');
   });
 });
