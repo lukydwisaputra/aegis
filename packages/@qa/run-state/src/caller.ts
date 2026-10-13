@@ -41,6 +41,7 @@ export const CLI_COMMANDS = [
   "defect.amend",
   "rtm.unlink",
   "metrics.defects",
+  "metrics.rollups",
   "rtm.sync-defects",
   "rtm.render",
 ] as const;
@@ -68,6 +69,7 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "rtm.unlink",
   // Gap 7: read-only, the defect headline numbers of the run's records.
   "metrics.defects",
+  "metrics.rollups",
   "rtm.sync-defects",
   "rtm.render",
 ]);
@@ -115,6 +117,8 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
 // the agent that states them.
 export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly string[]>>> = {
   "metrics.defects": ["qa-metrics-collector", "qa-defect-manager", "qa-closure-reporter"],
+  // The collector writes the rollups; the defect manager may only check them (--check writes nothing, enforced in writeRollups).
+  "metrics.rollups": ["qa-metrics-collector", "qa-defect-manager"],
 };
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {

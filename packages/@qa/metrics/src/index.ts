@@ -294,6 +294,7 @@ function derivePhase(taskId: string): string {
 
 export * from "./coverage.js";
 export * from "./defect-records.js";
+export * from "./rollups.js";
 export * from "./outcomes.js";
 export * from "./uncovered.js";
 export * from "./test-events.js";

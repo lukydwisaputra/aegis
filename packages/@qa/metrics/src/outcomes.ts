@@ -5,7 +5,7 @@ import { join } from "node:path";
 export type Outcome = "fail" | "blocked" | "partial" | "skipped" | "unknown" | "pass" | "no-op";
 
 const CASE_FILE = /^(TC-[A-Z]{2,8}-\d{3,})\.json$/;
-const RESULT_FILE = /^(TC-[A-Z]{2,8}-\d{3,})(?:-(desktop|tablet|mobile))?-result\.json$/;
+export const RESULT_FILE = /^(TC-[A-Z]{2,8}-\d{3,})(?:-(desktop|tablet|mobile))?-result\.json$/;
 /**
  * A further result file of a case, `TC-X-result-<label>.json` (for example `TC-COMMS-007-result-messaging.json`, the messaging stub's
  * angle next to the API angle's `TC-COMMS-007-result.json`). It never takes part in the worst-first rule: it counts only when it
@@ -24,7 +24,7 @@ const SYNONYMS: Readonly<Record<string, Outcome>> = {
   skipped: "skipped", skip: "skipped", "no-op": "no-op", noop: "no-op",
 };
 
-const outcomeOf = (status: unknown): Outcome => (typeof status === "string" ? (SYNONYMS[status.trim().toLowerCase()] ?? "unknown") : "unknown");
+export const outcomeOf = (status: unknown): Outcome => (typeof status === "string" ? (SYNONYMS[status.trim().toLowerCase()] ?? "unknown") : "unknown");
 
 function worst(outcomes: readonly Outcome[]): Outcome {
   if (outcomes.length === 0) return "unknown";
@@ -32,7 +32,7 @@ function worst(outcomes: readonly Outcome[]): Outcome {
 }
 
 /** One result file: its status, or the worst status of its results[] array. */
-function resultOutcome(doc: unknown): Outcome {
+export function resultOutcome(doc: unknown): Outcome {
   if (doc === null || typeof doc !== "object") return "unknown";
   const o = doc as { status?: unknown; results?: unknown };
   if (Array.isArray(o.results) && o.results.length > 0) {
