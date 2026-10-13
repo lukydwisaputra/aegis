@@ -127,7 +127,15 @@ async function load(url, what) {
 }
 
 const { renderSlideDeck, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure } = await load(CONTRACTS, "the brand check");
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits } = await load(CONTRACTS, "the brand check");
+
+// Customer-facing wording guard on the deck content, before the tone-check and before rendering: the same list as the H1 hook and the
+// two report scripts. Exits with the first 5 offending phrases and their fields.
+const toolingHits = findToolingWordsIn(deckSource, "executive-deck.json");
+if (toolingHits.length > 0) {
+  console.error(`ERROR: ${describeToolingHits(toolingHits)}\nThe deck content must be corrected before it is rendered.`);
+  process.exit(10);
+}
 
 // ─── tone-check pass ──────────────────────────────────────────────────────────
 // Rewrite jargon in place across every string field. Mutates a deep copy

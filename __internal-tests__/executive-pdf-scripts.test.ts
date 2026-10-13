@@ -569,7 +569,7 @@ describe('B3: exit criteria from closure.json#exitCriteria', () => {
         metrics: {},
         exitCriteria: [
           { criterion: 'No open Sev1 defects', met: true, evidence: 'defectMetrics.confirmedOpen by severity' },
-          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'coverage.json' },
+          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'the coverage summary' },
         ],
       },
     });
@@ -588,7 +588,7 @@ describe('B3: exit criteria from closure.json#exitCriteria', () => {
         metrics: {},
         exitCriteria: [
           { criterion: 'No open Sev1 defects', met: true, evidence: 'defectMetrics' },
-          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'coverage.json' },
+          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'the coverage summary' },
         ],
       },
     });

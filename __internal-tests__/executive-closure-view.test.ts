@@ -36,7 +36,7 @@ const CLOSURE = {
   variancesFromPlan: [{ variance: 'The first execution round was rejected at Gate 2; a second round ran.', reason: 'Owner Gate 2 note.' }],
   exitCriteria: [
     { criterion: 'All defects carry one verdict.', met: true, evidence: 'Every record holds a verdict.' },
-    { criterion: 'Traceability matrix updated; see rtm.json and the API list.', met: false, evidence: 'Not met: the matrix summary counts 24 defects against 28 in rtm.json.' },
+    { criterion: 'Traceability matrix updated; see the traceability matrix and the API list.', met: false, evidence: 'Not met: the matrix summary counts 24 defects against 28 in the traceability matrix.' },
   ],
   openQuestions: [
     { id: 'OQ-10', priority: 'medium', question: 'Do the developers confirm the current fix? If yes the record closes; if no it stays open.', audience: 'developers', status: 'open' },
@@ -159,7 +159,7 @@ describe('the technical report', () => {
   it('adds the closure narrative: exit criteria with reasons, variances, open questions by audience, passes that did not hold, residual risks', () => {
     expect(f).toContain('Exit Criteria');
     expect(f).toMatch(/Met All defects carry one verdict\./);
-    expect(f).toMatch(/Not met Traceability matrix updated; see rtm\.json and the API list\. Not met: the matrix summary counts 24 defects/);
+    expect(f).toMatch(/Not met Traceability matrix updated; see the traceability matrix and the API list\. Not met: the matrix summary counts 24 defects/);
     expect(f).toContain('Variances from the Test Plan');
     expect(f).toContain('Open Questions');
     expect(f.indexOf('For PM (2)')).toBeLessThan(f.indexOf('For owner (1)'));
@@ -201,7 +201,7 @@ describe('the technical report', () => {
     const { root, runDir } = fixture({ ...FILES, 'reports/closure/closure.json': bad });
     const r = run(SCRIPT.technical, root);
     expect(r.status).toBe(7);
-    expect(r.stderr).toMatch(/tooling wording/);
+    expect(r.stderr).toMatch(/tooling phrases? in customer-facing text/);
     expect(fs.existsSync(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toBe(false);
   });
 });
@@ -235,13 +235,13 @@ describe('the sign-off', () => {
     expect(f).toContain('COMPLIANCE COVERAGE');
     expect(f).toContain('2 coverage reports list 29 test-coverage gaps, 5 rated high: ISO/IEC 25010 20 (3 rated high), CMMI 9 (2 rated high). These are gaps in test coverage; no compliance verdict is given.');
     expect(f).toContain('EXIT CRITERIA NOT MET: THE DIFFERENCES STATED');
-    expect(f).toContain('Criterion 2: Not met: the matrix summary counts 24 defects against 28 in rtm.json.');
+    expect(f).toContain('Criterion 2: Not met: the matrix summary counts 24 defects against 28 in the traceability matrix.');
     expect(f).toContain('OUT OF SCOPE');
     expect(f).toContain('TC-REG-012: Singpass login out of scope for this release (owner decision)');
   });
 
   it('prints the closure\'s words as written: nothing quoted from it is rewritten, and ids stay intact', () => {
-    expect(f).toContain('see rtm.json and the API list');
+    expect(f).toContain('see the traceability matrix and the API list');
     expect(f).not.toContain('test coverage map');
     expect(f).toContain('Criterion 2');
   });
@@ -257,7 +257,7 @@ describe('the sign-off', () => {
     const { root } = fixture({ ...FILES, 'reports/closure/closure.json': bad });
     const x = run(SCRIPT.signoff, root);
     expect(x.status).toBe(9);
-    expect(x.stderr).toMatch(/tooling wording/);
+    expect(x.stderr).toMatch(/tooling phrases? in customer-facing text/);
   });
 });
 

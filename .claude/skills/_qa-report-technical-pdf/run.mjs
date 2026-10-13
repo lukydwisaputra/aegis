@@ -106,10 +106,22 @@ async function load(url, what) {
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
 const { computeCoverage } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, checkToolingWords, buildClosureView } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView } = await load(
   CONTRACTS,
   "the brand check",
 );
+
+// Customer-facing wording guard, BEFORE anything renders: the same list as the H1 hook (TOOLING_WORD_RULES in @qa/contracts). It reads
+// every string of closure.json (a value that is only a path, such as a list of metric file names, is data and exempt) and the printed
+// fields of the defect records, and exits with the first 5 offending phrases, each with its field, so the orchestrator can report them.
+const toolingHits = [
+  ...findToolingWordsIn(closure, "closure.json"),
+  ...(defects ?? []).flatMap((d) => findToolingWordsIn({ id: d?.id, title: d?.title }, `defects/${typeof d?.id === "string" ? d.id : "record"}.json`)),
+];
+if (toolingHits.length > 0) {
+  console.error(`ERROR: ${describeToolingHits(toolingHits)}\nThe closure report must be corrected before this document is rendered.`);
+  process.exit(7);
+}
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 // An absent input is null, which the renderer prints as "not available" — never a silent 0.
@@ -236,9 +248,9 @@ if (leak) {
   process.exit(4);
 }
 // Customer-facing wording: the report carries no tooling words (CLI, defect map, event numbers, review or attempt counts, record owner).
-const tooling = checkToolingWords(JSON.stringify(spec));
-if (tooling) {
-  console.error(`ERROR: tooling wording in the report data — it matches ${tooling}; the closure report must be corrected first`);
+const finalHits = findToolingWordsIn(spec, "document");
+if (finalHits.length > 0) {
+  console.error(`ERROR: ${describeToolingHits(finalHits)}\nThe closure report must be corrected before this document is rendered.`);
   process.exit(7);
 }
 

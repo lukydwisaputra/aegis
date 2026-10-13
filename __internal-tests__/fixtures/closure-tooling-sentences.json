@@ -1,0 +1,11 @@
+[
+ "Source: the coverage metrics (reports/metrics/coverage.json) and rtm.json.",
+ "Source: defects/*.json, defects/triage-summary.md sections 3 and 6.",
+ "All 18 failed result files carry a classification. Source: cases/*-result.json, execution-summary.md.",
+ "Re-measured against rtm.json, rtm.md and the 28 defect records after the matrix was synchronised.",
+ "TC-AUTH-004 was approved to run once, last, as a second instance on port 3011; the run at 11:51Z left port 3002 unhealthy for 30 to 60 s.",
+ "Wave 2 ran against a QA stand-in feed on port 3998 (24 QA-authored sessions).",
+ "The listener on :3002 changed worker process several times; the app served http://localhost:3002/login.",
+ "See reports/closure/closure.md and evidence/TC-REG-013/TC-REG-013_step5.json for the screenshots.",
+ "Counts follow the coverage rollup in closure.json; run.json holds the state and events.jsonl the log."
+]

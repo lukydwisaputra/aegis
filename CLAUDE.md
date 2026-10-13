@@ -232,7 +232,7 @@ Never write the word "Aegis", internal agent names (e.g. `qa-director`,
 - `runs/*/plan.*`
 - `runs/*/rtm.*`
 
-Customer-facing reports must read as if produced by the project's own QA team. `defects/`, `reports/closure/` and `reports/compliance/` also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", review or attempt counts, "record owner"): HANDBOOK/13 lists them and H1 refuses them.
+Customer-facing reports must read as if produced by the project's own QA team. `defects/`, `reports/closure/` and `reports/compliance/` also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", review or attempt counts, "record owner", file paths or names such as `reports/...` or `coverage.json`, local ports and hosts): HANDBOOK/13 lists them and H1 refuses them.
 Use neutral language: "QA team", "automated pipeline", or the project name from
 `aegis.config.json#dashboard.projectName`.
 
