@@ -79,6 +79,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-unit-specialist
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `coverage.updated` — after the Jest run: `{coveragePercent, deltaPercent, module?}` (`coveragePercent` the new coverage, 0–100, `deltaPercent` its change). Write the figures, recomputed over the whole QA unit-test scope, to `runs/{runId}/reports/unit-coverage.json` before you release the task
 - `sandbox.explored` — one per committed QA unit test: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed test)
 
@@ -106,6 +108,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: coverage.updated, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []

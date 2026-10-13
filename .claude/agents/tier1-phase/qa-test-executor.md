@@ -109,7 +109,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
    
    A test that "passed" without evidence of Configure + Operate + Observe + Evaluate is an unreliable result. Flag it.
 
-8. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention.
+8. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention. When a result file you aggregate shows a status other than the `test.*` event already on the chain for that TC (a TC reported `test.passed` whose result is `blocked` or `partial`, including the TCs of an accepted-with-risk task), append the matching `test.blocked` or `test.partial` event; the last `test.*` event of a TC is its outcome.
 
 9. **Dispatch the paired SPV only after a `done` release.** A specialist returns after `aegis task release`. When it released `done`, use the `Agent` tool (`run_in_background: false`, and wait for it to return) to dispatch its SPV (`qa-{specialist}-spv`) with the task id, the artefact/evidence paths and the specialist's `agent-memory/{specialist}/lessons.md`. The SPV records its verdict through the CLI, which pipes its corrective instructions into the specialist's lessons — you never write lessons. Then:
    - `passed` or `passed-with-notes` → the task is done.
@@ -169,6 +169,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 - `specialist.completed` — appended when a specialist returns with its task released; exactly specialistName, taskId, passCount, failCount and optionally durationMs: `{specialistName, taskId, passCount, failCount, durationMs?}`
 - `test.passed` — one per passing TC: `{testCaseId, specialist?}`
 - `test.failed` — one per failing TC: `{testCaseId, specialist?, firstAssertionFailure?, evidencePaths}` (`evidencePaths` the run-relative evidence files)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist?, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist?, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `har.sanitization-required` — flags unsafe evidence: `{path, unsafeHeaders}`
 - `manual.test.required` — one per manual TC: `{tcId, steps, justification, criticality}` (`justification` the automation blocker; `criticality` is `critical`, `important` or `nice-to-have`)
 - `execution.blocked` — if the environment's `health` is FAILED: `{reason}`
@@ -220,6 +222,8 @@ emits:
   - {event: specialist.completed, via: append}
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: har.sanitization-required, via: append}
   - {event: manual.test.required, via: append}
   - {event: execution.blocked, via: append}

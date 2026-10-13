@@ -747,6 +747,27 @@ export const TestFailedEventSchema = EventBase.extend({
   evidencePaths: z.array(z.string()).default([]),
 });
 
+// The four test outcome events share one rule: the LAST test.* event of a testCaseId is its outcome (latestTestOutcomes in
+// @qa/metrics). A case that moves from test.passed to blocked or partial appends test.blocked or test.partial; it never
+// leaves the earlier test.passed standing.
+export const TestBlockedEventSchema = EventBase.extend({
+  type: z.literal("test.blocked"),
+  testCaseId: TestCaseIdSchema,
+  specialist: z.string().optional(),
+  // Why the case could not reach a verdict (an unreachable dependency, a missing credential, a forbidden environment).
+  reason: z.string().min(1),
+  evidencePaths: z.array(z.string()).default([]),
+});
+
+export const TestPartialEventSchema = EventBase.extend({
+  type: z.literal("test.partial"),
+  testCaseId: TestCaseIdSchema,
+  specialist: z.string().optional(),
+  // What was verified and what was not (one angle passed, another could not be checked).
+  reason: z.string().min(1),
+  evidencePaths: z.array(z.string()).default([]),
+});
+
 export const TestIdProposalCreatedEventSchema = EventBase.extend({
   type: z.literal("test.id-proposal-created"),
   selector: z.string(),
@@ -1792,8 +1813,10 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   TestCaseDraftedEventSchema,
   TestConfigWrittenEventSchema,
   TestDesignCompleteEventSchema,
+  TestBlockedEventSchema,
   TestFailedEventSchema,
   TestIdProposalCreatedEventSchema,
+  TestPartialEventSchema,
   TestPassedEventSchema,
   TestPlanDraftedEventSchema,
   CredentialsMissingEventSchema,

@@ -137,6 +137,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-exploratory-spe
 - `sandbox.experiment-completed` — when the session sandbox is removed: `{path, agent}` (`agent` your name)
 - `test.passed` — Execution sessions only, per passing test case in the brief: `{testCaseId, specialist}`
 - `test.failed` — Execution sessions only, per failing test case in the brief: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 
 ## Contract (machine-checked)
 
@@ -165,6 +167,8 @@ emits:
   - {event: sandbox.experiment-completed, via: append}
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]
 runs: [playwright-cli]

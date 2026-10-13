@@ -81,6 +81,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-security-specia
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `security.finding-critical` — for any Critical severity finding; immediate escalation: `{tool, cwe?, summary}`
 - `secret.leak-detected` — for any Gitleaks hit; immediate Sev1: `{path, rule, severity}` (`severity` is `{"code": "Sev1", "name": "Blocker"}`)
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
@@ -107,6 +109,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: security.finding-critical, via: append}
   - {event: secret.leak-detected, via: append}
   - {event: sandbox.explored, via: append}

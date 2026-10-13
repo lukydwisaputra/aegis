@@ -90,6 +90,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-responsive-spec
 
 - `test.passed` — per passing TC per viewport: `{testCaseId, specialist}`
 - `test.failed` — per failing TC per viewport: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names the viewport)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `breakpoint.defect-found` — `{viewport, selector, defectType}` (`selector` the element selector)
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
@@ -115,6 +117,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: breakpoint.defect-found, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
