@@ -1,0 +1,14 @@
+{
+  "requirementsCoverage": 66.7,
+  "testExecutionCoverage": 60,
+  "codeCoverage": null,
+  "partialRequirements": 0,
+  "counts": { "designed": 5, "attempted": 4, "passed": 1, "failed": 1, "partial": 1, "blocked": 1, "skipped": 0, "unknown": 0, "notAttempted": 1 },
+  "uncovered": {
+    "rows": [
+      { "id": "TC-ENG-005", "cause": "not-attempted", "via": "no result file" },
+      { "id": "TC-REG-015", "cause": "environment", "via": "keyword: Schedule App" }
+    ],
+    "byCause": { "environment": 1, "testingSide": 0, "requirementGap": 0, "notAttempted": 1, "other": 0 }
+  }
+}

@@ -33,7 +33,8 @@ export interface Role {
   readonly mutatesEnvIn: readonly PhaseId[] | "any";
 }
 
-const SPECIALIST_COMMON: readonly string[] = ["{run}/cases/*-result.json", "{run}/evidence/TC-*/**", "sandbox/**"];
+// `*-result-*.json` is a further result file of a case (TC-X-result-messaging.json); it counts only as a declared case of record (@qa/metrics).
+const SPECIALIST_COMMON: readonly string[] = ["{run}/cases/*-result.json", "{run}/cases/*-result-*.json", "{run}/evidence/TC-*/**", "sandbox/**"];
 
 function row(agent: string, kind: RoleKind, writes: readonly string[], spv: string | null, mutatesEnvIn: Role["mutatesEnvIn"] = []): Role {
   return { agent, kind, writes, spv, mutatesEnvIn };
@@ -77,7 +78,7 @@ export const ROLES: readonly Role[] = [
   {
     ...reviewed("qa-test-designer", "phase", ["{run}/cases/*", "{run}/scenarios/**", "{run}/rtm.*", "{run}/proposed-changes/**"]),
     // Result files belong to the specialists; the designer owns the case files only.
-    excludes: ["{run}/cases/*-result.json"],
+    excludes: ["{run}/cases/*-result.json", "{run}/cases/*-result-*.json"],
   },
   // execution-summary is rollup-owned from P0c; until then the executor writes it (Execution barrier output).
   reviewed("qa-test-executor", "phase", ["{run}/execution-summary.*", "{run}/evidence/TC-*/**"]),

@@ -6,6 +6,12 @@ export type Outcome = "fail" | "blocked" | "partial" | "skipped" | "unknown" | "
 
 const CASE_FILE = /^(TC-[A-Z]{2,8}-\d{3,})\.json$/;
 const RESULT_FILE = /^(TC-[A-Z]{2,8}-\d{3,})(?:-(desktop|tablet|mobile))?-result\.json$/;
+/**
+ * A further result file of a case, `TC-X-result-<label>.json` (for example `TC-COMMS-007-result-messaging.json`, the messaging stub's
+ * angle next to the API angle's `TC-COMMS-007-result.json`). It never takes part in the worst-first rule: it counts only when it
+ * declares itself the case of record (`"caseOfRecord": true`), and is otherwise ignored as it always was.
+ */
+const EXTRA_RESULT_FILE = /^(TC-[A-Z]{2,8}-\d{3,})(?:-(desktop|tablet|mobile))?-result-([A-Za-z0-9][A-Za-z0-9-]*)\.json$/;
 export const VIEWPORTS = ["desktop", "tablet", "mobile"] as const;
 export type Viewport = (typeof VIEWPORTS)[number];
 
@@ -33,6 +39,11 @@ function resultOutcome(doc: unknown): Outcome {
     return worst(o.results.map((r) => outcomeOf((r as { status?: unknown } | null | undefined)?.status)));
   }
   return outcomeOf(o.status);
+}
+
+/** A result file declares itself the case of record with `"caseOfRecord": true` (and a `caseOfRecordReason`). */
+function declaresCaseOfRecord(doc: unknown): boolean {
+  return doc !== null && typeof doc === "object" && (doc as { caseOfRecord?: unknown }).caseOfRecord === true;
 }
 
 const TEXT_KEYS = ["notes", "note", "blocker", "blockedReason", "reason"] as const;
@@ -83,6 +94,34 @@ export function descopedCases(runDir: string): Map<string, string> {
   return out;
 }
 
+/** A refusal of a case-of-record declaration: two files declare it for one case, or a declaring file gives no reason. */
+export class CaseOfRecordError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CaseOfRecordError";
+  }
+}
+
+/** A result file of a case whose case of record is another file: listed in coverage.json, never counted. */
+export interface ObservedResult {
+  /** The result file name in cases/. */
+  file: string;
+  /** What the file says (its worst entry for a results[] file). */
+  status: Outcome;
+  /** The case-of-record file that stands for the case. */
+  supersededBy: string;
+  /** The file's own `observationOf`, when it names one. */
+  observationOf?: string;
+}
+
+/** The result file the owner's gate decision made the case of record, with the reason it declared (caseOfRecordReason). */
+export interface CaseOfRecord {
+  file: string;
+  reason: string;
+  /** The result files it says it supersedes (`supersedes`), when it names any. */
+  supersedes?: string[];
+}
+
 /** One designed check: its outcome (undefined when it has no result file) and the free text of its no-verdict result files. */
 export interface CheckState {
   /** Worst outcome across result files and unreported scoped viewports; undefined = no result file. */
@@ -91,6 +130,10 @@ export interface CheckState {
   texts: string[];
   /** A scoped viewport has no result file (the check is then at best undeterminable). */
   missingViewport: boolean;
+  /** Set when a result file declared itself the case of record: the outcome above is that file's alone. */
+  caseOfRecord?: CaseOfRecord;
+  /** With a case of record: every other result file of the case and its status, uncounted. */
+  observations?: ObservedResult[];
 }
 
 /**
@@ -107,15 +150,25 @@ export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string>
     if (m !== null && !descoped.has(m[1]!)) scopeOf.set(m[1]!, (readJson(join(casesDir, f)) as { viewportScope?: unknown } | undefined)?.viewportScope);
   }
 
-  interface Results { plain?: Outcome; byViewport: Map<Viewport, Outcome>; texts: string[] }
+  interface Results { plain?: Outcome; byViewport: Map<Viewport, Outcome>; texts: string[]; files: ResultDoc[] }
+  interface ResultDoc { file: string; doc: unknown; outcome: Outcome }
   const results = new Map<string, Results>();
+  const extras = new Map<string, ResultDoc[]>();
   for (const f of files) {
     const m = RESULT_FILE.exec(f);
-    if (m === null || !scopeOf.has(m[1]!)) continue;
-    const entry = results.get(m[1]!) ?? { byViewport: new Map<Viewport, Outcome>(), texts: [] };
+    const extra = m === null ? EXTRA_RESULT_FILE.exec(f) : null;
+    if ((m === null && extra === null) || !scopeOf.has((m ?? extra)![1]!)) continue;
     const doc = readJson(join(casesDir, f));
     const outcome = resultOutcome(doc);
+    if (m === null) {
+      const list = extras.get(extra![1]!) ?? [];
+      list.push({ file: f, doc, outcome });
+      extras.set(extra![1]!, list);
+      continue;
+    }
+    const entry = results.get(m[1]!) ?? { byViewport: new Map<Viewport, Outcome>(), texts: [], files: [] };
     entry.texts.push(...noVerdictTexts(doc));
+    entry.files.push({ file: f, doc, outcome });
     if (m[2] === undefined) entry.plain = outcome;
     else entry.byViewport.set(m[2] as Viewport, outcome);
     results.set(m[1]!, entry);
@@ -124,14 +177,39 @@ export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string>
   const out = new Map<string, CheckState>();
   for (const [id, scope] of scopeOf) {
     const entry = results.get(id);
+    const all = [...(entry?.files ?? []), ...(extras.get(id) ?? [])];
+    const declared = all.filter((r) => declaresCaseOfRecord(r.doc));
+    if (declared.length > 1) {
+      throw new CaseOfRecordError(`${id}: result files ${declared.map((r) => r.file).sort().join(" and ")} both declare "caseOfRecord": true; only one result file of a case may be its case of record`);
+    }
+    if (declared.length === 1) {
+      const record = declared[0]!;
+      const reason = (record.doc as { caseOfRecordReason?: unknown }).caseOfRecordReason;
+      if (typeof reason !== "string" || reason.trim() === "") {
+        throw new CaseOfRecordError(`${id}: ${record.file} declares "caseOfRecord": true without a "caseOfRecordReason"; the reason (the owner's gate decision) is required`);
+      }
+      const supersedes = (record.doc as { supersedes?: unknown }).supersedes;
+      const names = Array.isArray(supersedes) ? supersedes.filter((n): n is string => typeof n === "string") : [];
+      out.set(id, {
+        outcome: record.outcome,
+        texts: noVerdictTexts(record.doc),
+        missingViewport: false,
+        caseOfRecord: { file: record.file, reason: reason.trim(), ...(names.length > 0 ? { supersedes: names } : {}) },
+        observations: all.filter((r) => r !== record).sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0)).map((r) => {
+          const of = (r.doc as { observationOf?: unknown } | null)?.observationOf;
+          return { file: r.file, status: r.outcome, supersededBy: record.file, ...(typeof of === "string" && of !== "" ? { observationOf: of } : {}) };
+        }),
+      });
+      continue;
+    }
     if (entry === undefined) { out.set(id, { texts: [], missingViewport: false }); continue; }
     let outcome: Outcome;
     let missingViewport = false;
     if (entry.byViewport.size > 0) {
       const required: readonly Viewport[] = VIEWPORTS.includes(scope as Viewport) ? [scope as Viewport] : VIEWPORTS;
-      const all = [...entry.byViewport.values()];
-      for (const v of required) if (!entry.byViewport.has(v)) { all.push("unknown"); missingViewport = true; }
-      outcome = worst(all);
+      const outcomes = [...entry.byViewport.values()];
+      for (const v of required) if (!entry.byViewport.has(v)) { outcomes.push("unknown"); missingViewport = true; }
+      outcome = worst(outcomes);
     } else {
       outcome = entry.plain ?? "unknown";
     }

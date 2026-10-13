@@ -31,7 +31,7 @@ You are a read-write agent against the test database. You never touch the produc
 ## Outputs
 
 - `tests/qa/integration/db/{feature}.db.test.ts` — database test files
-- `runs/{runId}/cases/{TC-ID}-result.json` — migration outcomes, RLS test results, query performance
+- `runs/{runId}/cases/{TC-ID}-result.json` — migration outcomes, RLS test results, query performance A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/migration-log.txt` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/query-explain.json`
 

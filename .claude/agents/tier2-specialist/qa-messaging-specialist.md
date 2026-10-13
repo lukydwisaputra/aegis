@@ -35,7 +35,7 @@ You run only in the `development` environment; the task claim and `aegis messagi
 ## Outputs
 
 - `tests/qa/messaging/{flow}.messaging.spec.ts` — one spec file per messaging flow
-- `runs/{runId}/cases/{TC-ID}-result.json` — per TC: layer results, findings with file:line, live message ids
+- `runs/{runId}/cases/{TC-ID}-result.json` — per TC: layer results, findings with file:line, live message ids A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 
 ## Process
 

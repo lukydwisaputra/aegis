@@ -28,7 +28,7 @@ If no flag system is detected, emit `specialist.no-op`, then submit your work re
 ## Outputs
 
 - `tests/qa/specs/{url-path}/flags.spec.ts` — matrix test specs organised by URL path
-- `runs/{runId}/cases/{TC-ID}-result.json` — results per flag state
+- `runs/{runId}/cases/{TC-ID}-result.json` — results per flag state A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 
 ## Process
 

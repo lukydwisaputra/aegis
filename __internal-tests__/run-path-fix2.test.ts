@@ -56,7 +56,7 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     const text = read(COLLECTOR);
     const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
     expect(cov).toContain(
-      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, descoped?, noData? }`',
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, descoped?, caseOfRecord?, observations?, noData? }`',
     );
     expect(cov).toMatch(/`counts` is `\{ designed, attempted, passed, failed, partial, blocked, skipped, unknown, notAttempted, outOfScope\? \}`/);
     expect(cov).toMatch(/Counts are computed by the command from the case files, never by hand/);

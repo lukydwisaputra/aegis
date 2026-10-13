@@ -28,7 +28,7 @@ If `target-profile.json#hasRealtimeFeatures` is false (the scanner found no `ws:
 ## Outputs
 
 - `tests/qa/api/{feature}.realtime.test.ts` — realtime test specs
-- `runs/{runId}/cases/{TC-ID}-result.json` — connection timings, message ordering results
+- `runs/{runId}/cases/{TC-ID}-result.json` — connection timings, message ordering results A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 
 ## Process
 

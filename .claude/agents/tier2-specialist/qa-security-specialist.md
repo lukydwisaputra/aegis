@@ -28,7 +28,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 ## Outputs
 
 - `tests/qa/security/{surface}.security.spec.ts` — Playwright-based DAST trigger scripts
-- `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC
+- `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/zap-report.html` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/semgrep-results.json`
 - `runs/{runId}/evidence/{TC-ID}/dependency-audit.json`

@@ -30,7 +30,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 - `tests/qa/api/{endpoint}.api.test.ts` — API test files
 - `tests/qa/contract/{consumer}-{provider}.pact.ts` — contract test files
-- `runs/{runId}/cases/{TC-ID}-result.json` — results with response body excerpts
+- `runs/{runId}/cases/{TC-ID}-result.json` — results with response body excerpts A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/` — sanitised HAR, response logs; overwrites previous run's evidence for the same TC
 
 ## Process

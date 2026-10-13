@@ -30,7 +30,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 ## Outputs
 
 - `tests/qa/perf/{scenario}.perf.ts` — k6 test scripts
-- `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric
+- `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/k6-results.json` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/lighthouse-report.html`
 - `runs/{runId}/evidence/{TC-ID}/baseline/` — preserved baseline results (one copy per run, never overwritten) for SPV baseline delta comparison

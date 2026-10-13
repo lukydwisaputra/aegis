@@ -73,7 +73,7 @@ At session end (durable):
 - `runs/{runId}/reports/exploratory/{session-id}-notes.md` — the session notes: charter, what was explored, what was observed, what was noticed but not explored
 - `runs/{runId}/defect-candidates/{slug}.json` — one suspected defect per file (`DefectCandidateSchema` in `@qa/contracts`, `proposedType: EXP`); qa-defect-manager confirms its origin in Triage
 - `runs/{runId}/evidence/exploratory/{session-id}/` — the screenshots and snapshots a candidate cites, copied from the sandbox as `{session-id}_{step}_{ISO8601-Z}.{ext}`
-- `runs/{runId}/cases/{TC-ID}-result.json` — Execution-phase sessions only: the outcome of each `Usability` / `Exploratory` test case in the brief
+- `runs/{runId}/cases/{TC-ID}-result.json` — Execution-phase sessions only: the outcome of each `Usability` / `Exploratory` test case in the brief A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - Events and one work report per attempt through the CLI — see Task Protocol
 
 ## Process

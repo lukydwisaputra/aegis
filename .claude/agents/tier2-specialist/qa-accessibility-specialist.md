@@ -39,7 +39,7 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 ## Outputs
 
 - `tests/qa/specs/{url-path}/a11y.spec.ts` — axe-core Playwright specs organised by URL path
-- `runs/{runId}/cases/{TC-ID}-result.json` — axe violations list
+- `runs/{runId}/cases/{TC-ID}-result.json` — axe violations list A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/axe-results.json` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/pa11y-report.json` — overwrites previous run's evidence for the same TC
 

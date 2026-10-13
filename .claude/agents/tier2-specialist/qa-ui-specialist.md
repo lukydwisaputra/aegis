@@ -44,7 +44,7 @@ The handoff is always: **MCP/CLI → inspect → decide selector → back to spe
 
 - `tests/qa/specs/{url-path}/ui.spec.ts` — Playwright E2E spec file organised by URL path
 - `tests/qa/pages/{url-path}/{page}.page.ts` — extended/created Page Object files organised by URL path
-- `runs/{runId}/cases/{TC-ID}-result.json` — pass/fail result + evidence paths
+- `runs/{runId}/cases/{TC-ID}-result.json` — pass/fail result + evidence paths A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, console log, HAR (sanitised); overwrites previous run's evidence for the same TC
 - `runs/{runId}/proposed-changes/testid-additions.md` — missing testid proposals (never modifies app code)
 
