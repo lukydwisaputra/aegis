@@ -111,7 +111,7 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
    - **Defect metrics**: Severity breakdown, open/closed/deferred counts. Any Sev1/Sev2 that are still open must be explicitly called out.
    - **Evaluation**: What was found, framed as information (not verdict). "DEF-001-AUTH-UI affects plus-aliased email users on the SSO path. Fix is in review. Risk accepted by product owner pending Gate 3."
    - **Open questions**: The most valuable section. List what the testing did NOT answer — what remains unknown after this cycle. Example: "We did not test the SSO path with Singpass due to biometric constraint (TC-AUTH-035 manual). Real-user Singpass flows are untested in this cycle."
-   - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
+   - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Only lessons about the application and the test process: the customer-facing closure never narrates its own drafting history, so no bullet about how the report was drafted or revised, no review statistics, no attempt or rejection counts and no mention of drafts, reviews or passes of the report itself. Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
    - **Approvals**: Signature block for Gate 3. QA lead, engineering lead, product owner.
    - **Exit criteria**: each exit criterion of the test plan, met or not, with its evidence — written to `closure.json#exitCriteria` (see "closure.json: exit criteria").
 
@@ -123,6 +123,7 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
 
 ## Quality Standards (SPV rejects if violated)
 
+- `closure.md` or `closure.json` narrates its own drafting history (Lessons Learned bullets about how the report was drafted, review statistics, attempt counts)
 - Report contains a ship/no-ship recommendation — you present evidence and open questions; humans decide (Kaner ch-08)
 - Any ISTQB section is blank or says "N/A" without explanation
 - Open questions section is absent or empty — every cycle has unknowns

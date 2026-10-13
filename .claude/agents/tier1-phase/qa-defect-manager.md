@@ -95,7 +95,9 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 
    **Untraced defects.** A defect whose parent TC, candidate or charter traces to no requirement (the TC's `traceability` names no `requirementId`, and the candidate or charter names none either) gets no `rtm.json` row and no `defect.linked` event: never invent a requirement or a row for it. Its record leaves `requirementId` and `userStory` unset (the defect schema has no untraced field). List it in your work report as one `uncertainties[]` entry whose `topic` starts with `untraced:` and names the defect id and why nothing traces it (for example `untraced: DEF-004-NAV-EXP — the charter covered no written requirement`), with `wouldUnblockBy` naming the requirement that would cover it.
 
-8. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
+8. **Re-read the triage summary before the work report.** `runs/{runId}/defects/triage-summary.md` (and any section or table you wrote that states a result) must say what the latest result files say. Whenever a later test result, retest or correction changes a statement (for example a sentence that a document type "was not scanned" once a later result scanned it), re-read the whole summary, correct every sentence that depends on it, and check each section statement against the current `cases/*-result*.json` and `defects/*.json` before you submit; a statement you cannot check is removed or marked as unverified.
+
+8b. **Write the work report.** Total defects opened (scripted + EXP-type), duplicates found, variation axes exercised, lessons applied.
 
 9. **Submit, release, stop.** Run `AEGIS_AGENT=qa-defect-manager pnpm aegis metrics defects` once the records are final, and append `defect.management-complete` as your last event with its `openApplicationDefects`, `fixed`, `partiallyFixed`, `reframed`, `reportWithdrawn`, `cannotVerify` and `notFixed` copied in (never `totalOpened` as the number of open defects: it counts only the defects you opened in this run), then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
@@ -115,6 +117,7 @@ Examples: `DEF-001-AUTH-UI`, `DEF-002-FORM-A11Y`, `DEF-001-REFERRAL-DATA`, `DEF-
 - Reproduction steps contain non-deterministic language ("sometimes fails") without evidence
 - Expected result is "no error" or "should work" (must be a concrete, specific outcome)
 - Root cause asserted as definite when evidence supports only inference
+- A section of `defects/triage-summary.md` (or any defect text) that a later test result has made stale, left uncorrected; statements not checked against the latest result files before the work report was submitted
 - Work report does not cite lessons applied
 - A defect record or RTM link corrected after a gate decision by editing the file, or by the closure reporter, instead of `aegis defect amend` / `aegis rtm unlink`; a correction with no reason or outside the allow-list
 
@@ -180,6 +183,7 @@ reads:
   - "agent-memory/qa-defect-manager/lessons.md"
 writes:
   - "{run}/defects/{DEF-ID}.{md,json}"
+  - "{run}/defects/triage-summary.md"
   - "{run}/rtm.json"
   - "{run}/evidence/{DEF-ID}/**"
 emits:
