@@ -414,3 +414,30 @@ describe('writeCoverage and aegis metrics coverage', () => {
     expect(aegis('qa-ui-specialist')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
   }, 60_000);
 });
+
+describe('ruling statuses (out_of_scope, deferred, not_verified) are counted apart, not as unknown', () => {
+  const dir = () => runWith({
+    'rtm.json': rows(5, 0),
+    ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004', 'TC-AUTH-005', 'TC-AUTH-006'),
+    ...Object.fromEntries([
+      result('TC-AUTH-001', { status: 'passed' }), result('TC-AUTH-002', { status: 'passed' }), result('TC-AUTH-003', { status: 'failed' }),
+      result('TC-AUTH-004', { status: 'out_of_scope' }), result('TC-AUTH-005', { status: 'deferred' }), result('TC-AUTH-006', { status: 'not_verified' }),
+    ]),
+  });
+
+  it('keeps them out of unknown and reports each ruling count', () => {
+    const { counts } = computeCoverage(dir());
+    expect(counts).toMatchObject({ designed: 6, attempted: 6, passed: 2, failed: 1, unknown: 0, ruledOutOfScope: 1, deferred: 1, notVerified: 1 });
+  });
+
+  it('a ruling is no test verdict: it does not count as executed', () => {
+    expect(computeCoverage(dir()).testExecutionCoverage).toBe(50); // 3 of 6 ran to a verdict
+  });
+
+  it('a run with no ruling status has no ruling counts', () => {
+    const { counts } = computeCoverage(runWith({ 'rtm.json': rows(1, 0), ...designed('TC-AUTH-001'), ...Object.fromEntries([result('TC-AUTH-001', { status: 'passed' })]) }));
+    expect(counts).not.toHaveProperty('deferred');
+    expect(counts).not.toHaveProperty('ruledOutOfScope');
+    expect(counts).not.toHaveProperty('notVerified');
+  });
+});

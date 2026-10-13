@@ -163,6 +163,9 @@ export interface TechnicalReportSpec {
     undetermined?: number | null;
     /** Designed checks the owner descoped; printed as its own row only when above 0, and never part of totalTests. */
     outOfScope?: number | null;
+    /** Checks whose result records a ruling instead of a verdict; each printed only when above 0 and never in the pass rate. */
+    deferred?: number | null;
+    notVerified?: number | null;
     passRate: number | null;
     coveragePercent: number | null;
     openDefects: number | null;
@@ -596,6 +599,8 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ["Skipped", formatCount(spec.metrics.skipped)],
         ...(spec.metrics.undetermined === undefined ? [] : [["Undetermined", formatCount(spec.metrics.undetermined)]]),
         ...(typeof spec.metrics.outOfScope === "number" && Number.isInteger(spec.metrics.outOfScope) && spec.metrics.outOfScope > 0 ? [["Out of scope", formatCount(spec.metrics.outOfScope)]] : []),
+        ...(typeof spec.metrics.deferred === "number" && spec.metrics.deferred > 0 ? [["Deferred", formatCount(spec.metrics.deferred)]] : []),
+        ...(typeof spec.metrics.notVerified === "number" && spec.metrics.notVerified > 0 ? [["Not verified", formatCount(spec.metrics.notVerified)]] : []),
         ["Pass Rate", formatPercent(spec.metrics.passRate)],
         ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
         ...(spec.defectHeadline === undefined

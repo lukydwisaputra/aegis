@@ -5,7 +5,7 @@ import { classifyUncovered, emptyUncovered, type UncoveredRollup } from "./uncov
 
 /**
  * Check counts computed from the case design files and case result files: one outcome per in-scope TC (its worst outcome, see
- * testExecutionCoverage). passed + failed + partial + blocked + skipped + unknown = attempted; attempted + notAttempted = designed.
+ * testExecutionCoverage). passed + failed + partial + blocked + skipped + unknown + the ruled counts (ruledOutOfScope, deferred, notVerified) = attempted; attempted + notAttempted = designed.
  */
 export interface CoverageCounts {
   /** TCs with a design file (cases/{TC-ID}.json), descoped ones left out. */
@@ -24,6 +24,13 @@ export interface CoverageCounts {
   notAttempted: number;
   /** Designed TCs the owner descoped (run.json#descoped); in none of the counts above. Present only when above 0. */
   outOfScope?: number;
+  /**
+   * Checks whose result file records a ruling instead of a verdict (status out_of_scope, deferred or not_verified). They are in
+   * `attempted` (they have a result) but not in `unknown`; the pass rate leaves them out. Each is present only when above 0.
+   */
+  ruledOutOfScope?: number;
+  deferred?: number;
+  notVerified?: number;
 }
 
 /** A case whose result is the one result file that declared itself the case of record. */
@@ -153,6 +160,9 @@ export function computeCoverage(runDir: string): CoverageRollup {
     counts.attempted++;
     if (outcome === "pass" || outcome === "no-op") counts.passed++;
     else if (outcome === "fail") counts.failed++;
+    else if (outcome === "out-of-scope") counts.ruledOutOfScope = (counts.ruledOutOfScope ?? 0) + 1;
+    else if (outcome === "deferred") counts.deferred = (counts.deferred ?? 0) + 1;
+    else if (outcome === "not-verified") counts.notVerified = (counts.notVerified ?? 0) + 1;
     else counts[outcome]++;
   }
   counts.notAttempted = Math.max(0, counts.designed - counts.attempted);
