@@ -33,7 +33,7 @@ Evaluate coverage for each:
 3. **Compatibility** — Co-existence, interoperability
 4. **Usability** — Recognisability, learnability, operability, user error protection, user interface aesthetics, accessibility
 5. **Reliability** — Maturity, availability, fault tolerance, recoverability
-6. **Security** — Confidentiality, integrity, non-repudiation, authenticity, accountability
+6. **Security** — Confidentiality, integrity, non-repudiation, authenticity, accountability, resistance (ISO/IEC 25010:2023: the degree to which the product sustains operation while under attack from a malicious actor; tag `ISO25010-Security-Resistance`)
 7. **Maintainability** — Modularity, reusability, analysability, modifiability, testability
 8. **Portability** — Adaptability, installability, replaceability
 

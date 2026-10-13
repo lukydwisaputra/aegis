@@ -135,7 +135,7 @@ Source: ch-07 (listed as a parallel regulation alongside GDPR), ch-05 (PII handl
 
 The Personal Data Protection Act governs personal data of Singapore residents. Ch-07 notes that governments enforce data privacy through regulations such as GDPR and PDPA and that both require the same category of security and privacy controls in testing.
 
-- Section references: Sec 24 (protection of personal data — obligation to protect data by reasonable security measures)
+- Section references (mirror of the consolidated Act, lawplayer.com/sg/act/PDPA2012; the owner is to confirm them on sso.agc.gov.sg): s13 Consent required; s14 Provision of consent; s15 Deemed consent; s15A Deemed consent by notification; s16 Withdrawal of consent; s17 Collection, use and disclosure without consent (including the legitimate-interests exception; Schedule citation to be checked by the owner); s18 Limitation of purpose and extent; s19 Personal data collected before 2 July 2014; s20 Notification of purpose; s21 Access to personal data; s22 Correction of personal data; s23 Accuracy of personal data; s24 Protection of personal data (obligation to protect data by reasonable security measures); s25 Retention of personal data; s26 Transfer of personal data outside Singapore. Part 6A: s26A Interpretation; s26B Notifiable data breaches; s26C Duty to conduct assessment of data breach; s26D Duty to notify occurrence of notifiable data breach; s26E Obligations of data intermediary of public agency. Part 9 Do Not Call: ss36-48 (tag `PDPA-PartIX`). Data porting is referred to as s26H (Part 6B), to be cited only when in force. The catalogue the reviewer cites from is in `.claude/agents/compliance/qa-compliance-pdpa.md`
 - Tag format: `PDPA-Sec{N}` — example: `PDPA-Sec24`; letter-suffixed sections keep the letter (`PDPA-Sec26C`) and a Part is `PDPA-Part{Roman}` (`PDPA-PartIX`)
 - PDPA mirrors GDPR principles for SG jurisdictions: lawful collection, purpose limitation, data accuracy, retention limits, access rights, and security obligations
 - The same data-layer controls described under GDPR apply: no real PII in test environments, pseudonymisation, encryption at rest and in transit, least-privilege access (ch-05, ch-07)
@@ -157,7 +157,7 @@ ISO 25010 defines eight product quality characteristics used by ch-10 as the con
 | Compatibility | Compatibility, Portability | `ISO25010-Compatibility-Interoperability` |
 | Usability | Usability, Accessibility, Localization | `ISO25010-Usability-Accessibility` |
 | Reliability | Reliability, Recoverability, Resilience, Availability | `ISO25010-Reliability-Recoverability` |
-| Security | Security, Authentication, Authorization, Privacy, Auditability | `ISO25010-Security-Authenticity` |
+| Security | Security, Authentication, Authorization, Privacy, Auditability | `ISO25010-Security-Authenticity` (subcharacteristics: confidentiality, integrity, non-repudiation, accountability, authenticity, resistance) |
 | Maintainability | Maintainability, Testability, Extensibility, Reusability | `ISO25010-Maintainability-Testability` |
 | Portability | Portability, Installability | `ISO25010-Portability-Installability` |
 

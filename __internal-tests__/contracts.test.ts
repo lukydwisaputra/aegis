@@ -71,7 +71,7 @@ describe('PDPA compliance tags (gap 3)', () => {
     for (const tag of ['PDPA-Sec24', 'PDPA-Sec13', 'PDPA-Sec1', 'PDPA-Sec26']) expect(ok(tag)).toBe(true);
   });
   it('accepts a letter-suffixed section and a Part in Roman numerals', () => {
-    for (const tag of ['PDPA-Sec26C', 'PDPA-Sec26B', 'PDPA-Sec13A', 'PDPA-PartIX', 'PDPA-PartVI', 'PDPA-PartVIA']) expect(ok(tag)).toBe(true);
+    for (const tag of ['PDPA-Sec26C', 'PDPA-Sec26B', 'PDPA-Sec15A', 'PDPA-Sec26D', 'PDPA-Sec13A', 'PDPA-PartIX', 'PDPA-PartVI', 'PDPA-PartVIA']) expect(ok(tag)).toBe(true);
   });
   it('still rejects malformed PDPA tags', () => {
     for (const tag of ['PDPA-Sec', 'PDPA-Sec26c', 'PDPA-Sec26C1', 'PDPA-Sec26-C', 'PDPA-Part', 'PDPA-Part9', 'PDPA-Partix', 'PDPA-26C', 'PDPA-SecC26']) expect(ok(tag)).toBe(false);

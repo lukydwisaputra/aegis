@@ -11,7 +11,7 @@ const iso5055Tag = z.string().regex(/^ISO5055-[A-Za-z]+-CWE-\d+$/, "ISO 5055 tag
 const istqbTag = z.string().regex(/^ISTQB-(Foundation|Advanced|Expert)-\d+\.\d+(\.\d+)?$/, "ISTQB tag: ISTQB-{Level}-{section}");
 const cmmiTag = z.string().regex(/^CMMI-[A-Z&]+-SP\d+\.\d+$/, "CMMI tag: CMMI-{ProcessArea}-{Practice}");
 const gdprTag = z.string().regex(/^GDPR-Art\d+$/, "GDPR tag: GDPR-Art{N}");
-// A section (PDPA-Sec24), a letter-suffixed amendment section (PDPA-Sec26C, the 2020 breach notification) or a Part
+// A section (PDPA-Sec24), a letter-suffixed section (PDPA-Sec26C, the duty to assess a data breach; PDPA-Sec15A) or a Part
 // in Roman numerals (PDPA-PartIX, Do Not Call; PDPA-PartVIA). Every tag valid before the Part and letter forms stays valid.
 const pdpaTag = z.string().regex(/^PDPA-(Sec\d+[A-Z]{0,2}|Part[IVXL]+[A-Z]?)$/, "PDPA tag: PDPA-Sec{N}, PDPA-Sec{N}{L} (for example PDPA-Sec26C) or PDPA-Part{Roman} (for example PDPA-PartIX)");
 
