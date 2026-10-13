@@ -490,6 +490,8 @@ export const RtmLinkRemovedEventSchema = EventBase.extend({
   defectId: DefectIdSchema,
   // Additive: how many defectMap entries of this defect and requirement were removed with the row link (absent when there were none).
   defectMapEntriesRemoved: z.number().int().positive().optional(),
+  // Additive: present when a defectMap entry for the pair existed; true when it was kept (the default: only the row link goes), false when removed.
+  defectMapEntryKept: z.boolean().optional(),
   agent: z.string(),
   reason: z.string().min(1),
 });
@@ -500,6 +502,8 @@ export const RtmDefectMapSyncedEventSchema = EventBase.extend({
   reason: z.string().min(1),
   // Defect ids whose defectMap entry was added from its record, updated from it, or removed because the defect has no record.
   added: z.array(DefectIdSchema),
+  // Present only when an added entry replaces one that rtm unlink --drop-map-entry removed: those entries have default plan-time columns.
+  recreatedWithDefaults: z.array(DefectIdSchema).optional(),
   updated: z.array(DefectIdSchema),
   removed: z.array(z.string()),
   duplicatesRemoved: z.number().int().nonnegative(),
