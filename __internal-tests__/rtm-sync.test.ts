@@ -172,6 +172,67 @@ describe('aegis rtm sync-defects', () => {
   });
 });
 
+describe('rtm sync-defects adds row links only for open application defects (gap 5 of round 4)', () => {
+  const seedVerdicts = () => {
+    seed();
+    const rtm = readJson('rtm.json');
+    rtm.rows[1].defectIds = ['DEF-007-REFRAMED-UI', 'DEF-008-GONE-API'];
+    writeJson('rtm.json', rtm);
+    writeJson('defects/DEF-004-FIXED-UI.json', record('DEF-004-FIXED-UI', { requirementId: 'REQ-REG-05', userStory: 'STORY-REG-005', retestVerdict: { verdict: 'FIXED' }, status: { code: 'Verified', transitionedAt: '2026-10-02T00:00:00Z' } }));
+    writeJson('defects/DEF-007-REFRAMED-UI.json', record('DEF-007-REFRAMED-UI', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'REFRAMED' } }));
+    writeJson('defects/DEF-008-GONE-API.json', record('DEF-008-GONE-API', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'REPORT WITHDRAWN' }, status: { code: 'Not a Bug', transitionedAt: '2026-10-02T00:00:00Z' } }));
+    writeJson('defects/DEF-009-PART-UI.json', record('DEF-009-PART-UI', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'PARTIALLY FIXED' } }));
+  };
+
+  it('never adds a link for a FIXED, REFRAMED or REPORT WITHDRAWN record, and does add one for an open one (PARTIALLY FIXED, no verdict)', async () => {
+    seed();
+    writeJson('defects/DEF-004-FIXED-UI.json', record('DEF-004-FIXED-UI', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'FIXED' }, status: { code: 'Verified', transitionedAt: '2026-10-02T00:00:00Z' } }));
+    writeJson('defects/DEF-007-REFRAMED-UI.json', record('DEF-007-REFRAMED-UI', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'REFRAMED' } }));
+    writeJson('defects/DEF-008-GONE-API.json', record('DEF-008-GONE-API', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'REPORT WITHDRAWN' } }));
+    writeJson('defects/DEF-009-PART-UI.json', record('DEF-009-PART-UI', { requirementId: 'REQ-REG-05', retestVerdict: { verdict: 'PARTIALLY FIXED' } }));
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'sync' }, DM);
+    expect(res.rowLinksAdded.map((l) => l.defectId).sort()).toEqual(['DEF-003-REG-SEC', 'DEF-005-NEW-EXP', 'DEF-009-PART-UI']);
+    const linked = readJson('rtm.json').rows.flatMap((r: any) => r.defectIds);
+    for (const gone of ['DEF-004-FIXED-UI', 'DEF-007-REFRAMED-UI', 'DEF-008-GONE-API']) expect(linked).not.toContain(gone);
+    expect(linked).toContain('DEF-009-PART-UI');
+    // They still get their defectMap entry: one entry per record.
+    expect(readJson('rtm.json').defectMap.map((e: any) => e.defectId)).toEqual(expect.arrayContaining(['DEF-004-FIXED-UI', 'DEF-007-REFRAMED-UI', 'DEF-008-GONE-API']));
+  });
+
+  it('does not re-add a link the owner unlinked on purpose, on a second sync', async () => {
+    seed();
+    writeJson('defects/DEF-007-REFRAMED-UI.json', record('DEF-007-REFRAMED-UI', { requirementId: 'REQ-REG-04', retestVerdict: { verdict: 'REFRAMED' } }));
+    await syncRtmDefectMap(t.root, runId, { reason: 'sync' }, DM);
+    expect(readJson('rtm.json').rows[0].defectIds).not.toContain('DEF-007-REFRAMED-UI');
+    expect((await syncRtmDefectMap(t.root, runId, { reason: 'again' }, DM)).changed).toBe(false);
+  });
+
+  it('--prune-rows also removes the row links of REFRAMED and REPORT WITHDRAWN defects, lists them, and keeps the open and fixed ones', async () => {
+    seedVerdicts();
+    const rtm = readJson('rtm.json');
+    rtm.rows[0].defectIds.push('DEF-004-FIXED-UI', 'DEF-007-REFRAMED-UI');
+    writeJson('rtm.json', rtm);
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'Gate 3: reframed defects leave the requirement rows', pruneRows: true }, DM);
+    expect(res.rowLinksRemoved).toEqual(expect.arrayContaining([{ requirementId: 'REQ-REG-05', defectId: 'DEF-007-REFRAMED-UI' }, { requirementId: 'REQ-REG-04', defectId: 'DEF-007-REFRAMED-UI' }, { requirementId: 'REQ-REG-05', defectId: 'DEF-008-GONE-API' }]));
+    const after = readJson('rtm.json');
+    const linked = after.rows.flatMap((r: any) => r.defectIds);
+    expect(linked).not.toContain('DEF-007-REFRAMED-UI');
+    expect(linked).not.toContain('DEF-008-GONE-API');
+    expect(linked).toContain('DEF-004-FIXED-UI');
+    expect(linked).toContain('DEF-009-PART-UI');
+    expect(events().find((e) => e.type === 'rtm.defect-map-synced')!.rowLinksRemoved).toHaveLength(3);
+    expect(AegisEventSchema.safeParse({ ...events().find((e) => e.type === 'rtm.defect-map-synced'), runId }).success).toBe(true);
+  });
+
+  it('without --prune-rows nothing is removed and the event has no rowLinksRemoved', async () => {
+    seedVerdicts();
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'sync' }, DM);
+    expect(res.rowLinksRemoved).toEqual([]);
+    expect(readJson('rtm.json').rows[1].defectIds).toEqual(expect.arrayContaining(['DEF-007-REFRAMED-UI', 'DEF-008-GONE-API']));
+    expect(events().find((e) => e.type === 'rtm.defect-map-synced')).not.toHaveProperty('rowLinksRemoved');
+  });
+});
+
 describe('aegis rtm render', () => {
   it('renders the defect table from the map, records rtm.rendered only when the file changed, and refuses without the section', async () => {
     seed();
@@ -198,7 +259,7 @@ describe('aegis rtm render', () => {
       expect(() => assertCallerAllowed('owner', c)).not.toThrow();
       expect(() => assertCallerAllowed('qa-closure-reporter', c)).toThrow(/run only by qa-defect-manager/);
     }
-    expect(runContextFor(t.root, DM, 'a1')).toContain('pnpm aegis rtm sync-defects --reason <text> [--run <id>]');
+    expect(runContextFor(t.root, DM, 'a1')).toContain('pnpm aegis rtm sync-defects --reason <text> [--prune-rows] [--run <id>]');
     expect(runContextFor(t.root, DM, 'a2')).toContain('pnpm aegis rtm render [--run <id>]');
   });
 });
@@ -214,5 +275,6 @@ describe('aegis rtm render', () => {
     expect(run('rtm', 'sync-defects', '--reason', 'Gate 2 condition')).toMatchObject({ status: 0, out: { changed: true, added: ['DEF-005-NEW-EXP', 'DEF-006-UNTRACED-EXP'] } });
     expect(run('rtm', 'render')).toMatchObject({ status: 0, out: { changed: false } });
     expect(run('rtm', 'sync-defects')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+    expect(run('rtm', 'sync-defects', '--reason', 'prune', '--prune-rows')).toMatchObject({ status: 0, out: { changed: false, rowLinksRemoved: [] } });
   }, 60_000);
 });

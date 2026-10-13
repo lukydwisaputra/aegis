@@ -505,6 +505,8 @@ export const RtmDefectMapSyncedEventSchema = EventBase.extend({
   duplicatesRemoved: z.number().int().nonnegative(),
   // Row links added to a requirement row's defectIds from the record's own requirementId.
   rowLinksAdded: z.array(z.object({ requirementId: z.string(), defectId: DefectIdSchema })),
+  // Present only with --prune-rows: row links removed because their defect is REFRAMED or REPORT WITHDRAWN.
+  rowLinksRemoved: z.array(z.object({ requirementId: z.string(), defectId: DefectIdSchema })).optional(),
   rtmMdUpdated: z.boolean(),
 });
 

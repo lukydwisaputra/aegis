@@ -67,11 +67,12 @@ export function rtmCommand(): Command {
     .command("sync-defects")
     .description("Make rtm.json#defectMap match the defect records (one entry per record; severity, title, requirement and story from the record) and re-render the defect table of rtm.md")
     .requiredOption("--reason <text>", "why the map is synced (the gate decision or finding behind it)")
+    .option("--prune-rows", "also remove the row links of REFRAMED and REPORT WITHDRAWN defects (listed in the event)")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
-      action((o: { reason: string; run?: string }) => {
+      action((o: { reason: string; pruneRows?: boolean; run?: string }) => {
         const ctx = context();
-        return syncRtmDefectMap(ctx.root, runIdFor(ctx, o.run), { reason: o.reason }, ctx.caller);
+        return syncRtmDefectMap(ctx.root, runIdFor(ctx, o.run), { reason: o.reason, pruneRows: o.pruneRows === true }, ctx.caller);
       })
     );
   rtm

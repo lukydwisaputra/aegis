@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure } from "@qa/contracts";
+import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure, defectRetestVerdict, isOpenApplicationDefect } from "@qa/contracts";
 import { readdirSync } from "node:fs";
 import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed, OWNER } from "./caller.js";
@@ -356,9 +356,11 @@ export interface SyncResult {
   removed: string[];
   /** Extra entries of a defect that already had one (one entry per defect record is kept). */
   duplicatesRemoved: number;
-  /** Row links added from the records' requirementId. */
+  /** Row links added from the records' requirementId (open application defects only). */
   rowLinksAdded: Array<{ requirementId: string; defectId: string }>;
-  /** Records whose requirementId has no row in rtm.json, or that name none: not linked, for the defect manager to decide. */
+  /** With pruneRows: row links removed because their defect is REFRAMED or REPORT WITHDRAWN. */
+  rowLinksRemoved: Array<{ requirementId: string; defectId: string }>;
+  /** Open records whose requirementId has no row in rtm.json, or that name none: not linked, for the defect manager to decide. */
   unlinked: Array<{ defectId: string; requirementId: string | null }>;
   rtmMdUpdated: boolean;
   reason: string;
@@ -371,11 +373,14 @@ export interface SyncResult {
  * kept; a new entry gets retestCaseId from the record's testCaseId, empty acIds and verdictOracle, a null wave and fixPr, and a note saying
  * those were not recorded. An entry whose defect has no record is removed (and a second entry of one defect). A record that names no
  * requirement (an untraced defect) keeps an existing entry's requirement and story. The `defectIds` of the requirement row named by a
- * record's requirementId gain the defect when it is missing: that is the record's own explicit link, so nothing is guessed; a link in
- * another row is never removed (use `rtm unlink`: a defect may legitimately sit on several rows). Nothing else in rtm.json changes. The
+ * record's requirementId gain the defect when it is missing, but ONLY for a defect that is open as an application defect (the
+ * openApplicationDefects rule): that is the record's own explicit link, so nothing is guessed, and a FIXED, REFRAMED or REPORT WITHDRAWN
+ * defect gets no row link, because the owner may have unlinked it on purpose. A link in another row is never removed (use `rtm unlink`: a
+ * defect may legitimately sit on several rows) unless `pruneRows` is set: then the row links of REFRAMED and REPORT WITHDRAWN defects
+ * are removed too and listed in the event. Nothing else in rtm.json changes. The
  * defect table of rtm.md is re-rendered. One `rtm.defect-map-synced` event carries the counts and defect ids. Lock order: run.lock -> bus.
  */
-export async function syncRtmDefectMap(root: string, runId: string, input: { reason: string; now?: Date }, caller: string): Promise<SyncResult> {
+export async function syncRtmDefectMap(root: string, runId: string, input: { reason: string; pruneRows?: boolean; now?: Date }, caller: string): Promise<SyncResult> {
   assertCallerAllowed(caller, "rtm.sync-defects");
   const reason = requireReason(input.reason);
   const file = join(runDir(root, runId), "rtm.json");
@@ -409,6 +414,7 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
     const added: string[] = [];
     const updated: string[] = [];
     const rowLinksAdded: Array<{ requirementId: string; defectId: string }> = [];
+    const rowLinksRemoved: Array<{ requirementId: string; defectId: string }> = [];
     const unlinked: Array<{ defectId: string; requirementId: string | null }> = [];
     const sev = (r: Record<string, unknown>): string | undefined => (isPlain(r["severity"]) && typeof r["severity"]["code"] === "string" ? (r["severity"]["code"] as string) : typeof r["severity"] === "string" ? r["severity"] : undefined);
     for (const [id, rec] of records) {
@@ -430,6 +436,16 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
         Object.assign(existing, wanted);
         updated.push(id);
       }
+      const verdict = defectRetestVerdict(rec);
+      if (input.pruneRows === true && (verdict === "REFRAMED" || verdict === "REPORT WITHDRAWN")) {
+        for (const row of rows) {
+          if (!isPlain(row) || !Array.isArray(row["defectIds"]) || !(row["defectIds"] as unknown[]).includes(id)) continue;
+          row["defectIds"] = (row["defectIds"] as unknown[]).filter((d) => d !== id);
+          rowLinksRemoved.push({ requirementId: String(row["requirementId"]), defectId: id });
+        }
+      }
+      // A row link is added only for an open application defect; the others are traced by their record and their map entry.
+      if (!isOpenApplicationDefect(rec)) continue;
       const reqId = typeof rec["requirementId"] === "string" ? rec["requirementId"] : null;
       const row = reqId === null ? undefined : rows.find((r): r is Record<string, unknown> => isPlain(r) && r["requirementId"] === reqId);
       if (reqId === null || row === undefined) unlinked.push({ defectId: id, requirementId: reqId });
@@ -442,8 +458,8 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
       }
     }
     const newMap = [...byId.values()].sort((a, b) => String(a["defectId"]).localeCompare(String(b["defectId"])));
-    const changed = added.length + updated.length + removed.length + duplicatesRemoved + rowLinksAdded.length > 0;
-    const base = { runId, added, updated, removed, duplicatesRemoved, rowLinksAdded, unlinked, reason };
+    const changed = added.length + updated.length + removed.length + duplicatesRemoved + rowLinksAdded.length + rowLinksRemoved.length > 0;
+    const base = { runId, added, updated, removed, duplicatesRemoved, rowLinksAdded, rowLinksRemoved, unlinked, reason };
     if (!changed) return { ...base, changed: false, rtmMdUpdated: false };
     doc["defectMap"] = newMap;
     atomicWrite(file, JSON.stringify(doc, null, 2) + "\n");
@@ -451,7 +467,7 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
     try {
       priorMd = rerenderMd(mdFile, newMap);
       await appendChained(
-        { type: "rtm.defect-map-synced", ts: iso(input.now), agent: caller, reason, added, updated, removed, duplicatesRemoved, rowLinksAdded, rtmMdUpdated: priorMd !== null },
+        { type: "rtm.defect-map-synced", ts: iso(input.now), agent: caller, reason, added, updated, removed, duplicatesRemoved, rowLinksAdded, ...(input.pruneRows === true ? { rowLinksRemoved } : {}), rtmMdUpdated: priorMd !== null },
         busPath(root, runId),
         { emittedBy: caller, runId }
       );
