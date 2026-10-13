@@ -22,7 +22,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 ## Inputs
 
-- `runs/{runId}/intake/**` — every requirement document the run copied from the target (PRDs, feature specs, user stories, AC lists), each at its target-relative path (for example `docs/prd.md` lands at `intake/docs/prd.md`)
+- `runs/{runId}/intake/**` — every requirement document the run copied from the target (PRDs, feature specs, user stories, AC lists), each at its target-relative path (for example `docs/prd.md` lands at `intake/docs/prd.md`), plus any pinned reference repositories under `intake/references/{name}/` with `intake/references/{name}.provenance.json` naming the commit they were copied at
 - `target-profile.json` — stack context (framework, roles, auth method) AND `sourceInventory` (routes, components, API handlers, exported functions, existing tests) for source-code grounding
 - `aegis/aegis.config.json` — compliance flags, scope filter
 - `runs/{runId}/dev-test-review.json` — the developer-test review, when the Dev-test-review phase ran: which behaviour developer tests already pin, and which tests contradict a requirement
@@ -37,7 +37,7 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 
 ## Process
 
-1. **Inventory all requirements.** Read every file under `runs/{runId}/intake/**` — the intake sources the run copied, at their target-relative paths. Extract: requirement ID, description, acceptance criteria, compliance tags, linked user stories.
+1. **Inventory all requirements.** Read every file under `runs/{runId}/intake/**` — the intake sources the run copied, at their target-relative paths. Extract: requirement ID, description, acceptance criteria, compliance tags, linked user stories. A reference repository under `intake/references/{name}/` is the baseline the target is built to (a shared product wiki, for example): treat its rules as requirements, cite them as `intake/references/{name}/{path}#{anchor}` with the provenance sha, and where the target's own documents disagree with it, record the contradiction as a finding instead of choosing one.
 
 2. **Apply testability heuristics per requirement.** For each:
    - **Observable**: Is the expected output concrete enough to assert? Red flag: "the system should behave correctly."
@@ -50,16 +50,18 @@ You apply four Kaner ch-01 testability heuristics to every requirement: Observab
 4. **Score each requirement.** Each O/C/D/U dimension gets PASS / FLAG / BLOCK:
    - PASS: no testability concern
    - FLAG: minor concern; test-designer can proceed with a note
-   - BLOCK: requirement cannot be reliably tested in its current form; qa-test-planner plans it out of scope and the owner resolves it at Gate 1 (a BLOCK never stops the cycle)
+   - BLOCK: requirement cannot be reliably tested in its current form. This is a rating, not a status: it never means Blocked or Out of scope. qa-test-planner decides the requirement's scope status from the owner's ruling, and treats a BLOCK-rated requirement with no ruling as Not verified; the owner resolves it at Gate 1 (a BLOCK never stops the cycle)
 
-5. **Draft the ambiguity report.** For every FLAG and every BLOCK, write:
+   A requirement is **BLOCK-rated** when any of its four dimensions is BLOCK, and **FLAG-rated** when none is BLOCK and any is FLAG. `testability-scores.json` is the authority for which requirements are BLOCK-rated. When an owner ruling in the gate notes (or a developer ruling they quote) resolves a requirement, re-score its dimensions from the ruling: a decided requirement is no longer Understandable-BLOCK.
+
+5. **Draft the ambiguity report.** Write one finding per requirement that has a FLAG or BLOCK dimension. The finding's `severity` is the requirement's worst dimension score: `BLOCK` when any dimension is BLOCK, never lower; a BLOCK dimension with a FLAG finding is a misalignment the reviewer rejects. Set `summary` so its counts are unambiguous: `requirementsAnalysed`; `blockCount`, `flagCount` and `passCount` count **dimension scores** across all requirements, so they add up to 4 × `requirementsAnalysed`; `findingsCount` counts findings (at most one per requirement). State the number of BLOCKed requirements in the markdown report next to these counts, since it differs from `blockCount` whenever one requirement has more than one BLOCK dimension. The `requirements.analysis-complete` event carries the same three dimension counts. For every finding, write:
    - Requirement ID and short title
    - Which heuristic(s) failed
    - The specific phrase or clause that triggers the flag
    - A clarifying question (not a solution — that's the product team's job)
    - Proposed acceptance-criterion rewrite (advisory only; marked "proposed, not authoritative")
 
-6. **Identify compliance gaps.** Cross-reference each requirement's compliance tags against the active compliance flags in `aegis.config.json`. If a requirement touches PII handling but carries no GDPR tag, flag it.
+6. **Identify compliance gaps.** Cross-reference each requirement's compliance tags against the active compliance flags in `aegis.config.json`. If a requirement touches PII handling but carries no tag for an active regulation, flag it.
 
 7. **Cross-reference against source code.** Read `target-profile.json#sourceInventory`. For each requirement, verify the feature it describes maps to a real route/component/API-handler/exported-function in the source inventory. Flag any requirement that references a feature NOT found in source as `BLOCK` with message "feature not found in source code — verify implementation exists." This grounds testing in the actual codebase, not just documentation, and catches "story built but not implemented" gaps early (the documentation-over-source-code failure mode). A BLOCK does not stop the cycle: the planner lists the requirement out of scope with your clarifying question, and Gate 1 asks the owner to resolve it.
 

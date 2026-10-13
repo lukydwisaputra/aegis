@@ -84,10 +84,10 @@ describe('I2: the orchestrator SPV exempts the SPV-less agents the barrier exemp
   });
 });
 
-describe('I3: a BLOCKed requirement is planned out of scope and resolved at G1', () => {
+describe('I3: a BLOCK rating never stops the plan; open decisions and Blocked items are resolved at G1', () => {
   it('the planner always writes the plan and names the reopen option the CLI offers', () => {
     const text = prose('tier1-phase/qa-test-planner.md');
-    expect(text).toMatch(/A BLOCK never stops the plan/);
+    expect(text).toMatch(/A BLOCK rating never stops the plan/);
     expect(text).toContain('`--reopen-phase requirements`');
     expect(text).toMatch(/Never release `done` without a plan/);
     expect(text).not.toMatch(/do not produce a plan/);
@@ -95,12 +95,12 @@ describe('I3: a BLOCKed requirement is planned out of scope and resolved at G1',
     const gate = fs.readFileSync(path.join(__dirname, '..', 'apps', 'cli', 'src', 'commands', 'gate.ts'), 'utf8');
     expect(gate).toContain('.option("--reopen-phase <id>"');
   });
-  it('planning.blocked still validates with the BLOCKed requirement ids', () => {
-    expect(ok(AegisEventSchema, { type: 'planning.blocked', ts: TS, reason: 'REQ-AUTH-04 planned out of scope', blockingRequirementIds: ['REQ-AUTH-04'] })).toBe(true);
+  it('planning.blocked still validates with the ids of requirements that have a Blocked item', () => {
+    expect(ok(AegisEventSchema, { type: 'planning.blocked', ts: TS, reason: 'REQ-AUTH-04 has a Blocked item: fixture missing', blockingRequirementIds: ['REQ-AUTH-04'] })).toBe(true);
   });
-  it('the orchestrator lists the BLOCKed requirements at G1', () => {
-    expect(prose('orchestrator/qa-orchestrator.md')).toMatch(/one entry per BLOCKed requirement the planner listed out of scope/);
-    expect(prose('spv/qa-orchestrator-spv.md')).toMatch(/every BLOCKed requirement the planner listed out of scope/);
+  it('the orchestrator lists non-In-scope requirements and Blocked items at G1', () => {
+    expect(prose('orchestrator/qa-orchestrator.md')).toMatch(/one entry per requirement the planner placed Out of scope, Deferred, Being built or Not verified, and one per Blocked item/);
+    expect(prose('spv/qa-orchestrator-spv.md')).toMatch(/every requirement the planner placed Out of scope, Deferred, Being built or Not verified/);
   });
 });
 

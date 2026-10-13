@@ -31,21 +31,22 @@ You review the ambiguity reports and testability scores produced by `qa-requirem
 
 1. **O/C/D/U coverage.** Every requirement has a score entry for all four dimensions. Missing dimension = requested-changes.
 2. **Consistency oracle check.** At least 7 consistency checks were applied (non-contradictory, complete, unambiguous, testable, traceable, non-redundant, correct). Report documents which checks passed/failed per requirement.
-3. **BLOCK classification accuracy.** BLOCK-level requirements have a documented explanation of WHY the test cycle cannot proceed without resolution (e.g., "cannot determine expected outcome", "no oracle available"). Vague BLOCKs without evidence = requested-changes.
+3. **BLOCK classification accuracy.** BLOCK-rated requirements have a documented explanation of WHY they cannot be tested as written (e.g., "cannot determine expected outcome", "no oracle available"); a BLOCK is a rating, not a status, and a requirement the owner's gate notes already ruled on is re-scored from the ruling. Vague BLOCKs without evidence, or a ruled requirement still rated BLOCK on the question the ruling answered = requested-changes.
 4. **FLAG classification accuracy.** FLAG items have actionable clarification questions — not open-ended "is this correct?" but specific "does X happen before or after Y?".
 5. **PASS correctness.** Spot-check 3 PASS-rated requirements: are they genuinely testable? If a PASS requirement has an unmeasurable expected result (e.g., "fast", "intuitive"), that is a false PASS.
-6. **Compliance gap detection.** If the requirements cover user data, authentication, or payments, at least one compliance tag (GDPR-Art32, ISO25010, etc.) must be noted.
+6. **Compliance gap detection.** If the requirements cover user data, authentication, or payments, at least one compliance tag of an active regulation (`aegis.config.json#compliance`, for example PDPA or ISO25010) must be noted.
 7. **No test cases.** The analyst must not propose test cases — only flag requirements. Proposed test cases in this report = requested-changes.
 8. **Acceptance-criteria categories.** Every story has a happy criterion, and a rejection and an edge criterion unless `notApplicable` gives a reason that holds for this story. A silent omission, or a reason that does not hold, = requested-changes.
 9. **Derived stories.** Every story written from source or developer tests without intake text is `derived: true` with `source` naming what it came from, so Gate 1 can confirm it. An unflagged derived story = requested-changes.
 10. **Developer tests used.** When `dev-test-review.json` exists, behaviour pinned by adequate developer tests but absent from the requirements appears as a derived story or an ambiguity, and no criterion copies a `wrong` test. A miss = passed-with-notes.
 11. **Developer-test links.** Every `adequate` or `weak` developer test whose `requirementRefs`, `coversRequirementRefs` or `coversAcIds` points at a requirement that became a criterion is listed in that criterion's `devTestRefs`, and every `devTestRefs` entry is a `ref` in `dev-test-review.json` rated `adequate` or `weak`. A missing or unknown link = requested-changes.
+12. **Severity and counts agree with the scores.** For every requirement with a BLOCK dimension in `testability-scores.json`, the ambiguity report has a finding with `severity: BLOCK`; no finding is lower than its requirement's worst dimension score. The summary's `blockCount`, `flagCount` and `passCount` equal the dimension-score tallies in `testability-scores.json`, add up to 4 × `requirementsAnalysed`, and `findingsCount` equals the number of findings. The `requirements.analysis-complete` event carries the same three counts. A BLOCK dimension without a BLOCK finding, or a count that does not match the scores = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — thin clarification questions or 1-2 dimension scores missing; emit CorrectiveInstruction
-- `requested-changes` — BLOCK without evidence, false PASS, or test cases proposed; block
+- `requested-changes` — BLOCK without evidence, false PASS, a BLOCK score without a BLOCK finding or a summary count that does not match the scores, or test cases proposed; block
 
 ## Submitting Your Verdict
 
@@ -82,5 +83,5 @@ awaits: []
 cli: [review.submit]
 runs: []
 dispatches: []
-config: []
+config: ["aegis.config.json#compliance"]
 ```
