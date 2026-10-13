@@ -83,6 +83,12 @@ const defects = readJsonGlob(join(runDir, "defects"));
 const plan = readJson(join(runDir, "plan.json")) ?? {};
 const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
 const complianceReports = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
+const executionSummary = readJson(join(runDir, "execution-summary.json"));
+// The customer-readable sentence of a risk by its riskId, when the executive reporter wrote reports/executive/residual-risks.json.
+const plainRisk = new Map();
+for (const e of Array.isArray(readJson(join(runDir, "reports", "executive", "residual-risks.json"))) ? readJson(join(runDir, "reports", "executive", "residual-risks.json")) : []) {
+  if (e && typeof e.riskId === "string" && typeof e.plain === "string" && e.plain.trim() !== "" && !plainRisk.has(e.riskId)) plainRisk.set(e.riskId, e.plain.trim());
+}
 
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
@@ -100,7 +106,7 @@ async function load(url, what) {
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
 const { computeCoverage } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, resolveDefectFigures, defectSeverityCode, defectStatusCode } = await load(
+const { checkBrandExposure, checkToolingWords, buildClosureView } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -140,6 +146,8 @@ function resolveCounts() {
   return computed.counts;
 }
 const rollupCounts = resolveCounts();
+// With a case of record the closure's figures win and the rollup is shown only in the reconciliation note (view.cases.note).
+const onCaseOfRecord = () => view.cases.source === "case-of-record";
 // Total Tests is every check that has a result (the attempted count). Partial and Undetermined have their own cells, so passed,
 // failed, partial, blocked, skipped and undetermined add up to it.
 const passed = rollupCounts ? rollupCounts.passed : metric("passed");
@@ -156,10 +164,24 @@ const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && fa
 // roll-up counting a partial case as a pass can skew) is used only without counts.
 const passRate = rollupCounts ? (rollupCounts.attempted > 0 ? Math.round((1000 * rollupCounts.passed) / rollupCounts.attempted) / 10 : null) : metric("passRate");
 
-// Open/closed defects: the resolver the sign-off uses too. Open is closure.json#defectMetrics first, then the defect records'
-// status codes (DefectSchema `status.code`); closed is the records with a closed status (Closed, Verified, Resolved,
-// Won't Fix, …), never a record flagged for the owner, and total minus open only when the run has no records.
-const { open: openDefects, closed: closedDefects } = resolveDefectFigures(closure, defects);
+// The closure is the source of truth for what the report prints; the metric files and the defect records only fill what it does not
+// carry. buildClosureView reads, from closure.json: the case figures (the case-of-record block when it has one, else the rollup counts),
+// the defect headline (open application defects, how many are PARTIALLY FIXED, fixed, reframed, report withdrawn), the exit criteria with
+// the closure's stated reasons, the variances, the open questions by audience, the passes that did not hold, the residual risks and the
+// compliance totals. The sign-off script calls the same function, so the two documents state the same figures.
+const COMPLIANCE_FALLBACK = complianceReports
+  .filter(({ doc }) => doc !== null && typeof doc === "object" && !Array.isArray(doc))
+  .map(({ name, doc }) => ({ name, regulation: doc.regulation, gaps: Array.isArray(doc.gaps) ? doc.gaps.length : num(doc.gaps), highGaps: num(doc.highSeverityGapCount) }));
+const view = buildClosureView({
+  closure,
+  defects,
+  rollupCounts: rollupCounts && completeCounts(rollupCounts) ? { ...rollupCounts, attempted: rollupCounts.attempted } : null,
+  executionSummary,
+  plainRisk,
+  complianceReports: COMPLIANCE_FALLBACK,
+  descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
+});
+const openDefects = view.defects.open;
 
 // Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
 const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
@@ -167,48 +189,43 @@ const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
 // closure.json written before the figure was right.
 const rollupCoverage = recomputed !== null ? num(recomputed.requirementsCoverage) : hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
 
-// Compliance: each report names its regulation and lists gaps[]; its covered list is the regulation's
-// own key (characteristicsCovered, articlesCovered, practicesCovered or sectionsCovered). A report
-// without a regulation is listed under its file name (istqb.json → istqb).
-const COVERED_KEYS = ["characteristicsCovered", "articlesCovered", "practicesCovered", "sectionsCovered"];
-const countOf = (v) => (Array.isArray(v) ? v.length : num(v));
+// Compliance: the closure's findings (per standard: gaps and gaps rated high, with the totals) when it carries them, else each report
+// of reports/compliance (its regulation name, else its file name) with its own gap counts; names are the standards' proper names.
 const compliance = {};
-for (const { name, doc: report } of complianceReports) {
-  if (typeof report !== "object" || Array.isArray(report)) continue;
-  const key = typeof report.regulation === "string" && report.regulation.trim() !== "" ? report.regulation : name;
-  const coveredKey = COVERED_KEYS.find((k) => report[k] !== undefined);
-  compliance[key] = {
-    covered: coveredKey ? countOf(report[coveredKey]) : null,
-    gapped: countOf(report.gaps),
-  };
-}
+for (const row of view.compliance?.rows ?? []) compliance[row.regulation] = { covered: null, gapped: row.gaps, highGaps: row.highGaps };
 
+const cor = onCaseOfRecord();
+const c = view.cases;
 const spec = {
   runId,
   projectName,
   generatedAt: new Date().toISOString(),
   scope: plan.scope ?? closure.scope ?? "Full cycle",
   metrics: {
-    totalTests,
-    passed,
-    failed,
-    partial: partialCount,
-    blocked,
-    skipped: skippedCount,
-    undetermined: undeterminedCount,
+    totalTests: cor ? c.total : totalTests,
+    passed: cor ? c.passed : passed,
+    failed: cor ? c.failed : failed,
+    partial: cor ? c.partial : partialCount,
+    blocked: cor ? c.blocked : blocked,
+    skipped: cor ? c.skipped : skippedCount,
+    undetermined: cor ? c.unknown : undeterminedCount,
     ...(outOfScopeCount !== undefined ? { outOfScope: outOfScopeCount } : {}),
-    passRate,
+    passRate: cor ? c.passRate : passRate,
     coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,
-    closedDefects,
   },
-  defects: (defects ?? []).map((d) => ({
-    id: typeof d.id === "string" ? d.id : "not available",
-    title: typeof d.title === "string" ? d.title : "not available",
-    severity: defectSeverityCode(d) ?? "not available",
-    status: defectStatusCode(d) ?? "not available",
-  })),
+  defectHeadline: view.defects,
+  caseNote: view.cases.note,
+  reconciliation: view.cases.reconciliation,
+  outOfScopeCases: view.outOfScope,
+  defects: view.defectLog.map((d) => ({ id: d.id, title: d.title, severity: d.severity, status: d.state })),
   compliance,
+  ...(view.compliance === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps, note: view.compliance.note } }),
+  variances: view.variances,
+  exitCriteria: view.exitCriteria,
+  openQuestions: view.openQuestions,
+  falsePasses: view.falsePasses,
+  residualRisks: view.residualRisks,
 };
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
@@ -217,6 +234,12 @@ const leak = checkBrandExposure(JSON.stringify(spec));
 if (leak) {
   console.error(`ERROR: brand-clean violation — the report data matches ${leak}`);
   process.exit(4);
+}
+// Customer-facing wording: the report carries no tooling words (CLI, defect map, event numbers, review or attempt counts, record owner).
+const tooling = checkToolingWords(JSON.stringify(spec));
+if (tooling) {
+  console.error(`ERROR: tooling wording in the report data — it matches ${tooling}; the closure report must be corrected first`);
+  process.exit(7);
 }
 
 // ─── render ───────────────────────────────────────────────────────────────────

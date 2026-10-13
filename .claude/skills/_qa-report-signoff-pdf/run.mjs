@@ -95,7 +95,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+const { checkBrandExposure, checkToolingWords, buildClosureView, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -131,6 +131,75 @@ const exitCriteria = Array.isArray(closure.exitCriteria)
 const exitCriteriaNote = Array.isArray(closure.exitCriteria)
   ? "Exit criteria: not defined in the test plan"
   : "Exit criteria: not available";
+
+// The same closure view as the technical report (buildClosureView), so the two documents state the same figures. The closure is the
+// source of truth: a case-of-record block or reconciliation it carries wins over the metric files, which only fill what it lacks.
+const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
+const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
+const rollupCounts =
+  coverageDoc && coverageDoc.noData !== true && coverageDoc.counts && COUNT_KEYS.every((k) => typeof coverageDoc.counts[k] === "number") ? coverageDoc.counts : null;
+const plainRisk = new Map();
+try {
+  const plainDoc = readJson(join(runDir, "reports", "executive", "residual-risks.json"));
+  for (const e of Array.isArray(plainDoc) ? plainDoc : []) {
+    if (e && typeof e.riskId === "string" && typeof e.plain === "string" && e.plain.trim() !== "" && !plainRisk.has(e.riskId)) plainRisk.set(e.riskId, e.plain.trim());
+  }
+} catch {
+  // unreadable: the closure titles print (the residual risk block below treats it the same way)
+}
+const view = buildClosureView({
+  closure,
+  defects,
+  rollupCounts,
+  executionSummary: readJson(join(runDir, "execution-summary.json")),
+  plainRisk,
+  complianceReports: complianceReports.filter((d) => d && typeof d === "object" && !Array.isArray(d)).map((d, i) => ({ name: `report-${i + 1}`, regulation: d.regulation, gaps: Array.isArray(d.gaps) ? d.gaps.length : null, highGaps: typeof d.highSeverityGapCount === "number" ? d.highSeverityGapCount : null })),
+  descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
+});
+
+// Further blocks printed after the exit criteria. Each is built from view fields only; a block with nothing to say is left out.
+const n = (v) => (v === null || v === undefined ? "not available" : String(v));
+const sections = [];
+{
+  const c = view.cases;
+  const lines = [];
+  if (c.passed !== null || c.failed !== null || c.blocked !== null) {
+    lines.push(`${n(c.total)} checks were executed to a result: ${n(c.passed)} passed, ${n(c.failed)} failed, ${n(c.partial)} partly passed, ${n(c.blocked)} blocked${c.passRate === null ? "" : `; ${c.passRate}% passed`}.`);
+  }
+  if (c.note) lines.push({ quote: c.note });
+  if (c.reconciliation) lines.push({ quote: `Reconciliation: ${c.reconciliation}` });
+  if (lines.length > 0) sections.push({ title: "Tests executed", lines });
+}
+if (view.variances.length > 0) sections.push({ title: "Variances from the test plan", lines: view.variances.map((v) => ({ quote: `- ${v.variance}${v.reason ? ` Reason: ${v.reason}` : ""}` })) });
+{
+  const d = view.defects;
+  if (d.open !== null || d.fixed !== null || d.reframed !== null || d.reportWithdrawn !== null) {
+    const lines = [
+      `Open application defects: ${n(d.open)}${d.openPartiallyFixed === null ? "" : ` (${d.openPartiallyFixed} partially fixed, open until the developers fix the rest or confirm the current fix resolves everything)`}. Fixed: ${n(d.fixed)}. Reframed, a requirement or hardening question and not an open defect: ${n(d.reframed)}. Report withdrawn: ${n(d.reportWithdrawn)}.`,
+    ];
+    if (d.closedWithoutVerdict !== null) lines.push(`Closed without a retest verdict: ${d.closedWithoutVerdict}.`);
+    sections.push({ title: "Defects", lines });
+  }
+}
+if (view.compliance !== null) {
+  const k = view.compliance;
+  const per = k.rows.filter((r) => r.gaps !== null).map((r) => `${r.regulation} ${r.gaps}${r.highGaps === null ? "" : ` (${r.highGaps} rated high)`}`).join(", ");
+  sections.push({
+    title: "Compliance coverage",
+    lines: [
+      `${n(k.reports)} coverage reports list ${n(k.totalGaps)} test-coverage gaps, ${n(k.totalHighGaps)} rated high${per === "" ? "" : `: ${per}`}. These are gaps in test coverage; no compliance verdict is given.`,
+      ...(k.note ? [{ quote: k.note }] : []),
+    ],
+  });
+}
+if (view.unmetCriteria.length > 0) {
+  // Each unmet criterion is named by its number in the Exit Criteria list above (its text is not repeated), with the closure's stated reason.
+  sections.push({
+    title: "Exit criteria not met: the differences stated",
+    lines: view.exitCriteria.flatMap((c, i) => (c.met ? [] : [{ quote: `Criterion ${i + 1}: ${c.evidence ? c.evidence : "no difference recorded in the closure report."}` }])),
+  });
+}
+if (view.outOfScope.length > 0) sections.push({ title: "Out of scope", lines: view.outOfScope.map((o) => ({ quote: `${o.caseId}: ${o.reason}` })) });
 
 // The same resolver as the technical report: closure.json#defectMetrics.confirmedOpen first, then the
 // defect records' status codes; neither present → "Open defects: not available".
@@ -224,7 +293,10 @@ const scope = plan.scope ?? closure.scope ?? "Full cycle";
 // The same rewrite and survivor rule as the deck, applied to the free text of the attestation (never to the
 // project name, version, document id or signature roles).
 
-const sourceTexts = [scope, exitCriteriaNote, openDefectsSummary, residualRisk, ...exitCriteria.map((c) => c.criterion)];
+// Lines quoted from the closure ({ quote }) are printed as the closure wrote them: the tone-check rewrites only what this script writes.
+const ownText = (l) => (typeof l === "string" ? l : null);
+const sectionLines = sections.flatMap((x) => [x.title, ...x.lines.map(ownText).filter((l) => l !== null)]);
+const sourceTexts = [scope, exitCriteriaNote, openDefectsSummary, residualRisk, ...sectionLines];
 const jargonBefore = detectJargon(sourceTexts.join("\n")).length;
 
 const spec = {
@@ -234,15 +306,17 @@ const spec = {
   documentId,
   scope: applyJargonRewrites(scope),
   decision,
-  exitCriteria: exitCriteria.map((c) => ({ ...c, criterion: applyJargonRewrites(c.criterion) })),
+  // The exit criteria are the closure's own text: printed as written, never rewritten (only wrapped to the page).
+  exitCriteria,
   exitCriteriaNote: applyJargonRewrites(exitCriteriaNote),
   openDefectsSummary: applyJargonRewrites(openDefectsSummary),
   residualRisk: applyJargonRewrites(residualRisk),
+  sections: sections.map((x) => ({ title: x.title, lines: x.lines.map((l) => (typeof l === "string" ? applyJargonRewrites(l) : l.quote)) })),
   signatoryRoles,
 };
 
 const survivors = detectJargon(
-  [spec.scope, spec.exitCriteriaNote, spec.openDefectsSummary, spec.residualRisk, ...spec.exitCriteria.map((c) => c.criterion)].join("\n"),
+  [spec.scope, spec.exitCriteriaNote, spec.openDefectsSummary, spec.residualRisk, ...sections.flatMap((x) => [x.title, ...x.lines.map(ownText).filter((l) => l !== null).map((l) => applyJargonRewrites(l))])].join("\n"),
 );
 if (survivors.length > maxJargonSurvivors) {
   console.error(`ERROR: tone-check failed — ${survivors.length} jargon terms survived rewrite (threshold: ${maxJargonSurvivors})`);
@@ -256,6 +330,12 @@ const leak = checkBrandExposure(JSON.stringify(spec));
 if (leak) {
   console.error(`ERROR: brand-clean violation — the sign-off data matches ${leak}`);
   process.exit(5);
+}
+// Customer-facing wording: no tooling words (CLI, defect map, event numbers, review or attempt counts, record owner).
+const tooling = checkToolingWords(JSON.stringify(spec));
+if (tooling) {
+  console.error(`ERROR: tooling wording in the sign-off data — it matches ${tooling}; the closure report must be corrected first`);
+  process.exit(9);
 }
 
 // ─── render ───────────────────────────────────────────────────────────────────

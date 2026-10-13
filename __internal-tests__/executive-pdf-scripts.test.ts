@@ -143,8 +143,8 @@ describe('technical report (Deliverable 1)', () => {
     expect(text).toContain('Blocked\n2');
     expect(text).toContain('Pass Rate\n88.9%');
     expect(text).toContain('Requirements Coverage\n92.5%');
-    expect(text).toContain('Open Defects\n3');
-    expect(text).toContain('Closed Defects\n0'); // the run holds one record, not closed: closed is read from the records, not total minus open
+    expect(text).toContain('Open application defects\n3');
+    expect(text).not.toContain('Closed Defects'); // the headline is open / fixed / reframed / withdrawn, never "closed"
   });
 
   it('prints neither a token cost nor a cycle time, although the run holds both metric files', () => {
@@ -156,8 +156,10 @@ describe('technical report (Deliverable 1)', () => {
 
   it('reads compliance coverage from each report\'s own covered key and gaps[]', () => {
     const text = pdfText(pdf);
-    expect(text).toContain('iso25010\n6\n2');
-    expect(text).toContain('gdpr\n4\n3');
+    // Proper standard names; gaps and gaps rated high (the old Covered column had no unit and is gone).
+    expect(text).toContain('ISO/IEC 25010\n2\n1');
+    expect(text).toContain('GDPR\n3\n0');
+    expect(text).not.toMatch(/\nCovered\n|iso25010|gdpr\n/);
   });
 
   it('prints no framework or agent name', () => {
@@ -178,7 +180,7 @@ describe('technical report with absent inputs', () => {
     expect(text).toContain('Blocked\nnot available');
     expect(text).toContain('Pass Rate\nnot available');
     expect(text).toContain('Requirements Coverage\nnot available');
-    expect(text).toContain('Open Defects\nnot available');
+    expect(text).toContain('Open application defects\nnot available');
     expect(text).toContain('Compliance reports: not available');
     expect(text).not.toContain('$0.0000');
   });
@@ -350,10 +352,11 @@ describe('A1/A2: real DefectSchema records', () => {
     expect(tech.stderr).toBe('');
     expect(tech.status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('Open Defects\n2');
-    expect(text).toContain('Closed Defects\n2');
-    expect(text).toContain('Sev2');
-    expect(text).toContain('Triaged');
+    expect(text).toContain('Open application defects\n2');
+    expect(text).toContain('Closed without a retest verdict\n2');
+    expect(text).not.toContain('Closed Defects');
+    expect(text).toContain('Sev2 (Critical)');
+    expect(flat(text)).toContain('Open (new this cycle)');
     expect(text).not.toContain('[object Object]');
   });
 
@@ -371,7 +374,7 @@ describe('A2: the technical report and the sign-off agree on open defects', () =
     const { root, runDir } = fixture(FULL_RUN);
     expect(run(SCRIPT.technical, root).status).toBe(0);
     expect(run(SCRIPT.signoff, root).status).toBe(0);
-    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open Defects\n3');
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open application defects\n3');
     expect(flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('3 open defects; severity breakdown: not available');
   });
 
@@ -483,7 +486,7 @@ describe('A4: a compliance report without regulation', () => {
     });
     expect(run(SCRIPT.technical, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('istqb\n3\n1');
+    expect(text).toContain('ISTQB\n1\nnot available');
     expect(text).not.toContain('Compliance reports: not available');
   });
 });
@@ -496,8 +499,7 @@ describe('the technical report no longer prints token cost or cycle time', () =>
     'Blocked\n2',
     'Pass Rate\n88.9%',
     'Requirements Coverage\n92.5%',
-    'Open Defects\n3',
-    'Closed Defects\n0',
+    'Open application defects\n3',
   ];
 
   it('ignores unreliable metric files: a negative wall clock and priced rows leave no trace, the other cells are unchanged', () => {
@@ -912,12 +914,13 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Partial\nnot available');
   });
 
-  it('Closed Defects counts only closed records: a flagged-for-owner record is neither open nor closed', () => {
+  it('closed records without a retest verdict are stated apart, and a flagged-for-owner record is neither open nor closed', () => {
     const { root, runDir } = fixture({ ...base, 'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts: COUNTS } });
     expect(run(SCRIPT.technical, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('Open Defects\n3');
-    expect(text).toContain('Closed Defects\n2');
+    expect(text).toContain('Open application defects\n3');
+    expect(text).toContain('Closed without a retest verdict\n2');
+    expect(text).not.toContain('Closed Defects');
   });
 });
 
