@@ -466,6 +466,32 @@ export const RtmAppendLinkEventSchema = EventBase.extend({
   testCaseId: TestCaseIdSchema.optional(),
 });
 
+// ─── Record corrections after a gate decision (aegis defect amend, aegis rtm unlink) ───────────────────────
+
+export const DefectRecordAmendedEventSchema = EventBase.extend({
+  type: z.literal("defect.record-amended"),
+  defectId: DefectIdSchema,
+  agent: z.string(),
+  reason: z.string().min(1),
+  // One entry per changed field path (retestVerdict.*, status.*, g2Triage.*): the value before (null when the field was absent)
+  // and after, and the SHA-256 of each value's JSON text so a later reader can check a value without trusting the file.
+  changes: z.array(z.object({
+    path: z.string(),
+    oldValue: z.unknown(),
+    newValue: z.unknown(),
+    oldDigest: z.string(),
+    newDigest: z.string(),
+  })).min(1),
+});
+
+export const RtmLinkRemovedEventSchema = EventBase.extend({
+  type: z.literal("rtm.link-removed"),
+  requirementId: z.string(),
+  defectId: DefectIdSchema,
+  agent: z.string(),
+  reason: z.string().min(1),
+});
+
 // ─── Threshold override ───────────────────────────────────────────────────────
 
 export const ThresholdOverriddenEventSchema = EventBase.extend({
@@ -1783,6 +1809,8 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   AppDiscoveredEventSchema,
   MigrationAppliedEventSchema,
   RtmAppendLinkEventSchema,
+  RtmLinkRemovedEventSchema,
+  DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,
   RunGateCheckTriggeredEventSchema,

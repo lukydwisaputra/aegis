@@ -21,6 +21,8 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "escalation.decide": ["escalation.decided"],
   "messaging.fetch-contract": ["messaging.contract-fetched"],
   "messaging.exec": ["messaging.live-preflight"],
+  "defect.amend": ["defect.record-amended"],
+  "rtm.unlink": ["rtm.link-removed"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {

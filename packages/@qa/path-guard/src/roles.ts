@@ -81,6 +81,8 @@ export const ROLES: readonly Role[] = [
   },
   // execution-summary is rollup-owned from P0c; until then the executor writes it (Execution barrier output).
   reviewed("qa-test-executor", "phase", ["{run}/execution-summary.*", "{run}/evidence/TC-*/**"]),
+  // Corrections a gate decision demands go through aegis defect amend and aegis rtm unlink (event-recorded); qa-closure-reporter has no
+  // defects/** or rtm.json glob and gets none, so a gate-demanded record correction is never the closure reporter's.
   reviewed("qa-defect-manager", "phase", ["{run}/defects/**", "{run}/rtm.json", "{run}/evidence/DEF-*/**"]),
   reviewed("qa-closure-reporter", "phase", ["{run}/reports/closure/closure.*"]),
   reviewed("qa-executive-reporter", "phase", ["{run}/reports/executive/**"]),

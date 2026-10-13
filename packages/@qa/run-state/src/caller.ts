@@ -38,6 +38,8 @@ export const CLI_COMMANDS = [
   "messaging.scan-secrets",
   "messaging.exec",
   "metrics.coverage",
+  "defect.amend",
+  "rtm.unlink",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -58,6 +60,9 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   // NEW-07: read-only, presence only — the owner checks where to put the messaging key.
   "messaging.check",
   "metrics.coverage",
+  // Gap 5: the owner may correct a record too; qa-defect-manager is the only agent that may (SINGLE_AGENT_COMMANDS).
+  "defect.amend",
+  "rtm.unlink",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -93,6 +98,8 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "messaging.exec": "qa-messaging-specialist",
   "messaging.check": "qa-environment-engineer",
   "metrics.coverage": "qa-metrics-collector",
+  "defect.amend": "qa-defect-manager",
+  "rtm.unlink": "qa-defect-manager",
 };
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
@@ -114,8 +121,9 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
 // Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
 export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity.", "escalation."];
 // cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
-// recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2).
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected"]);
+// recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2); the last two by
+// aegis defect amend and aegis rtm unlink (gap 5).
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));
