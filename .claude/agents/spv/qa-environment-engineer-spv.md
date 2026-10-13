@@ -2,7 +2,8 @@
 name: qa-environment-engineer-spv
 description: Reviews qa-environment-engineer work reports. Validates auth fixture correctness (per-role storageState, teardown, halt-on-login-fail), factory create+cleanup pairs, smoke-ping results, gitignored state files, and Playwright configuration completeness. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

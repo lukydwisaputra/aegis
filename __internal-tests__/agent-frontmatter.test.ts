@@ -258,6 +258,16 @@ function pickRequiredSections(tierDir: string, name: string): string[] {
 const agents = findAgents();
 const policy = loadModelPolicy();
 
+/** Reads a top-level `tiers:` / `efforts:` map of the policy as tier -> value. */
+function policyMap(key: "tiers" | "efforts"): Record<string, string> {
+  const block = new RegExp(`^${key}:\\n((?:[ \\t]+\\S.*\\n|[ \\t]*#.*\\n)+)`, "m").exec(readFileSync(MODEL_POLICY_PATH, "utf-8"));
+  const out: Record<string, string> = {};
+  for (const m of (block?.[1] ?? "").matchAll(/^\s+([a-z-]+):\s+(\S+)/gm)) out[m[1]!] = m[2]!;
+  return out;
+}
+const tierModels = policyMap("tiers");
+const tierEfforts = policyMap("efforts");
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("agent frontmatter — sanity", () => {
@@ -299,6 +309,12 @@ describe.each(agents)("agent file: $relPath", (agent) => {
   it("modelTier in frontmatter matches the tier in model-policy.yaml", () => {
     const policyTier = policy.agentToTier.get(fm.name!);
     expect(fm.modelTier).toBe(policyTier);
+  });
+
+  it("model and effort in frontmatter are the ones model-policy.yaml gives its tier", () => {
+    const tier = policy.agentToTier.get(fm.name!)!;
+    expect(fm.raw["model"]).toBe(tierModels[tier]);
+    expect(fm.raw["effort"]).toBe(tierEfforts[tier]);
   });
 
   it("declares only allowed tools", () => {
@@ -405,6 +421,15 @@ describe.each(agents)("agent file: $relPath", (agent) => {
       );
     }
     expect(true).toBe(true); // assertion lives in the throw above for a clearer message
+  });
+});
+
+describe("model-policy.yaml — effort floor", () => {
+  it("gives every tier a model and an effort, and never low", () => {
+    for (const tier of policy.validTiers) {
+      expect(tierModels[tier]).toMatch(/^claude-/);
+      expect(["medium", "high", "xhigh", "max"]).toContain(tierEfforts[tier]);
+    }
   });
 });
 

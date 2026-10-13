@@ -2,7 +2,8 @@
 name: qa-executive-reporter-spv
 description: Reviews qa-executive-reporter work reports. Validates Minto/Pyramid Principle slide structure, tone-check jargon elimination, business-language rewrites, no ship/no-ship verdict, brand-clean PDFs, ≤7 slides, slide 1 = KEY FINDING punchline, and sign-off document signature block completeness. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md

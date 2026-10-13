@@ -14,7 +14,7 @@ Each entry shows the agent name, its model and its primary output. Every full cy
 
 | Agent | Tier | Model | Output |
 |---|---|---|---|
-| `qa-orchestrator` | Orchestrator | Opus | Run plan, phase dispatch, gate management, SPV dispatch (Tier-1), run summary |
+| `qa-orchestrator` | Orchestrator | Sonnet | Run plan, phase dispatch, gate management, SPV dispatch (Tier-1), run summary |
 
 The Orchestrator is always active.
 
@@ -24,14 +24,14 @@ The Orchestrator is always active.
 
 | Agent | Model | Primary Output |
 |---|---|---|
-| `qa-dev-test-reviewer` | Opus | Developer-test review (`dev-test-review.json`), Stryker mutation scores |
+| `qa-dev-test-reviewer` | Sonnet | Developer-test review (`dev-test-review.json`), Stryker mutation scores |
 | `qa-requirements-analyst` | Sonnet | Source-grounded requirements, RTM skeleton |
-| `qa-test-planner` | Opus | Test strategy doc, risk matrix, test case plan |
+| `qa-test-planner` | Sonnet | Test strategy doc, risk matrix, test case plan |
 | `qa-test-designer` | Sonnet | Test design coordination |
 | `qa-test-executor` | Sonnet | Execution coordination, Tier-2 fan-out, SPV dispatch (Tier-2) |
 | `qa-defect-manager` | Sonnet | Defect lifecycle coordination |
 | `qa-environment-engineer` | Sonnet | `playwright.config.ts`, fixtures, data factories |
-| `qa-curator` | Opus | Lesson queue management, promotion proposals |
+| `qa-curator` | Sonnet | Lesson queue management, promotion proposals |
 
 > Compliance and reporting are **not** single Tier-1 managers: compliance is six `qa-compliance-*` agents (§6.7), and reporting is split between `qa-closure-reporter` and `qa-executive-reporter` (§6.4). There is no DevOps tier (§6.5).
 
@@ -54,9 +54,9 @@ The Orchestrator is always active.
 | `qa-feature-flag-specialist` | Sonnet | Feature-flag matrix test cases |
 | `qa-realtime-specialist` | Sonnet | Realtime / websocket test cases |
 | `qa-defect-reporter` | Sonnet | Structured defect reports |
-| `qa-rtm-builder` | Haiku | RTM JSON/CSV updates |
+| `qa-rtm-builder` | Sonnet | RTM JSON/CSV updates |
 | `qa-closure-reporter` | Sonnet | `closure.md` + `closure.json` |
-| `qa-executive-reporter` | Opus | Three executive PDFs |
+| `qa-executive-reporter` | Sonnet | Three executive PDFs |
 
 ---
 
@@ -125,7 +125,7 @@ The compliance agents run in parallel during the Compliance phase of a full cycl
 
 ### 6.8 Cross-Cutting Agents
 
-Cross-cutting agents operate across the whole run. `qa-context-scanner` and `qa-metrics-collector` are Haiku-tier utilities; the Discovery and curation agents run at specific phases:
+Cross-cutting agents operate across the whole run. `qa-context-scanner` and `qa-metrics-collector` are read-only-tier utilities; the Discovery and curation agents run at specific phases:
 
 | Agent | Role |
 |---|---|

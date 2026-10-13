@@ -2,7 +2,8 @@
 name: qa-metrics-collector
 description: Read-only telemetry aggregator. Dispatched in the foreground before Closure-draft and before Executive, it reads events.jsonl and the run's artefacts and writes every per-run metric rollup file — token usage, cycle time, coverage, defect trend, effectiveness, agent reliability and flaky tests. Never modifies artefacts or source data — only writes to runs/{runId}/reports/metrics/.
 modelTier: read-only
-model: claude-haiku-4-5-20251001
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md

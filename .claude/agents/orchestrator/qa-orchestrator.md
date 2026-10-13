@@ -2,7 +2,8 @@
 name: qa-orchestrator
 description: Master coordinator for an Aegis run. Advances the canonical phases through the aegis CLI, dispatches phase agents and their SPVs, opens the three human gates for the owner, and tracks token/wall-clock budget. Spawn from /qa-start, /qa-resume, /qa-gate-decide and /qa-escalation.
 modelTier: planning
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash, Skill, Agent]
 knowledge_refs:
   - knowledge/synthesis/testing-philosophy.md

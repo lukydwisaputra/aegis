@@ -2,7 +2,8 @@
 name: qa-orchestrator-spv
 description: Reviews qa-orchestrator gate work reports before each gate opens. Validates gate positions, canonical phase order, SPV coverage, stop handling and the absence of ship/no-ship verdicts. Submits its verdict with aegis review submit.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

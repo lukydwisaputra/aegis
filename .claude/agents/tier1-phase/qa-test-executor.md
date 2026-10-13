@@ -2,7 +2,8 @@
 name: qa-test-executor
 description: Runs all automated test cases by creating one task per Tier-2 specialist dispatch and dispatching the specialists in parallel up to the configured specialist cap. Dispatches each specialist's SPV, aggregates results into the execution summary, and feeds results to qa-defect-manager. Runs after Env-data. Dispatched by qa-orchestrator.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash, Agent]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

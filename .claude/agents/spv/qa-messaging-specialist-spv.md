@@ -2,7 +2,8 @@
 name: qa-messaging-specialist-spv
 description: Reviews qa-messaging-specialist work reports. Validates the static contract check, stub-spec assertions, the simulated preflight before any live send, fake-only recipients, the secret scan, no-op legitimacy and the development-only rule. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

@@ -2,7 +2,8 @@
 name: qa-compliance-spv
 description: Reviews the work of the six compliance agents (ISO 25010, ISO 5055, ISTQB, CMMI, GDPR, PDPA), one task at a time. Validates that the report exists and parses, exact tag formats, cited clauses that exist, evidence-backed gaps, coverage language with no compliance or ship verdict, brand-clean output, the data checks and the completion event. Submits its verdict with aegis review submit.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

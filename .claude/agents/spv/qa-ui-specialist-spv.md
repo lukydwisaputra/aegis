@@ -2,7 +2,8 @@
 name: qa-ui-specialist-spv
 description: Reviews qa-ui-specialist work reports. Validates auth fixture import, POM usage, semantic locator hierarchy, HAR sanitisation, testid-proposal pattern (no direct app code edits), and evidence naming. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

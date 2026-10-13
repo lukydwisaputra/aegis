@@ -2,7 +2,8 @@
 name: qa-requirements-analyst
 description: Analyses requirements for testability, ambiguity, and completeness, and writes them as user stories with happy, rejection and edge acceptance criteria. Surfaces unclear acceptance criteria, missing edge cases, and testability blockers. Runs after Scan and Dev-test-review. Dispatched by qa-orchestrator.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

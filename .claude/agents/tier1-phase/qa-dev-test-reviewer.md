@@ -2,7 +2,8 @@
 name: qa-dev-test-reviewer
 description: Reviews the target's developer tests before Requirements. Maps each test to acceptance-criterion candidates, rates it adequate, weak, wrong or unmapped, and backs unit-test adequacy with Stryker mutation testing run on a sandbox copy. Writes dev-test-review.json. Dispatched by qa-orchestrator in the Dev-test-review phase.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

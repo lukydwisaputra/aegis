@@ -2,7 +2,8 @@
 name: qa-ui-specialist
 description: Writes and runs Playwright E2E tests for web UI flows. Implements Page Object Model pattern, uses per-role auth fixtures, follows the semantic locator hierarchy. Dispatched by qa-test-executor for E2E and UI test cases.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md
