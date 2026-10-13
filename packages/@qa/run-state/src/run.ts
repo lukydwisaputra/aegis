@@ -6,7 +6,7 @@ import { nextId } from "@qa/ids";
 import { assertCallerAllowed, OWNER } from "./caller.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
-import { copyIntake } from "./intake.js";
+import { copyIntake, copyIntakeReferences } from "./intake.js";
 import { acknowledgementOf, checkpointOfRecord, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
 import { CYCLE_PHASES } from "./phase-map.js";
 import { busPath, runDir, runJsonPath, runsDir, taskmasterDir, writeActiveRun } from "./paths.js";
@@ -155,6 +155,7 @@ export async function createRun(root: string, input: CreateRunInput, caller: str
   const runId = await allocateRunDir(root, ts.slice(0, 10).replace(/-/g, ""));
   mkdirSync(taskmasterDir(root, runId), { recursive: true });
   copyIntake(root, config.targetProjectRoot, input.intake ?? config.intakeSources, join(runDir(root, runId), "intake"));
+  copyIntakeReferences(root, config.intakeReferences, join(runDir(root, runId), "intake"));
 
   // CO-03: record run.created before run.json exists, so a concurrent verify finds no run (not an empty log),
   // and seed the integrity checkpoint from that first line.
