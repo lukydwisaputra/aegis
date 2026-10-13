@@ -43,6 +43,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "messaging.scan-secrets": "messaging scan-secrets <paths...> [--run <id>]",
   "messaging.exec": "messaging exec [--run <id>] -- <command...>",
   "metrics.coverage": "metrics coverage [--run <id>]",
+  "metrics.defects": "metrics defects [--run <id>]",
   "defect.amend": "defect amend --defect <id> (--set <field>=<value> (repeat) | --json '{\"<field>\":<value>}') --reason <text> [--run <id>]",
   "rtm.unlink": "rtm unlink --defect <id> --requirement <REQ-id> --reason <text> [--run <id>]",
 };

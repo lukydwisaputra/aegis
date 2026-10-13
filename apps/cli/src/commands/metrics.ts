@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { writeCoverage } from "@qa/run-state";
+import { readDefectCounts, writeCoverage } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 /** Per-run metric rollups computed by code from the run's records. */
@@ -14,6 +14,17 @@ export function metricsCommand(): Command {
       action((o: { run?: string }) => {
         const ctx = context();
         return writeCoverage(ctx.root, runIdFor(ctx, o.run), ctx.caller);
+      })
+    );
+
+  metrics
+    .command("defects")
+    .description("Print the defect headline numbers (openApplicationDefects and the per-verdict counts) computed from defects/*.json; writes nothing")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(
+      action((o: { run?: string }) => {
+        const ctx = context();
+        return readDefectCounts(ctx.root, runIdFor(ctx, o.run), ctx.caller);
       })
     );
 

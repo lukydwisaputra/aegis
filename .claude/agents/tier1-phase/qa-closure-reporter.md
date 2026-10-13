@@ -71,7 +71,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 Two rules that matter more than they look:
 
 - **`metrics` values must be flat scalars.** A run that reports several honest readings of the same figure (e.g. an unconditional pass rate plus a blocked-inclusive one) writes the headline as `passRate` and any variant under a distinct key such as `passRateInclBlockedDimension` — never a nested object under `passRate`. Nesting there once caused the index to publish the wrong branch.
-- **State `defectMetrics.confirmedOpen`.** The index reports outstanding defects, not the historical total. Without this key it falls back to scanning `defects/*.json` for a non-resolved status, and a run whose records carry no status at all publishes the logged count under an "open" label.
+- **State `defectMetrics.confirmedOpen`.** The index reports outstanding defects, not the historical total. Its value is the open application defects: `reports/metrics/defect-trend.json#openApplicationDefects` when that file carries it (the count of defect records still open as application defects, which leaves out defects retested FIXED, REFRAMED or REPORT WITHDRAWN; a PARTIALLY FIXED defect stays open until it is fixed or the developers confirm the current fix resolves everything). List each open item from `AEGIS_AGENT=qa-closure-reporter pnpm aegis metrics defects` (read-only; `openItems`, grouped by verdict, each with what is awaited) in the report's open-questions and defect sections rather than counting by hand. Never write `totalOpened` there or anywhere as the defect headline: it counts only the defects this run raised, not the open ones. Without this key it falls back to scanning `defects/*.json` for a non-resolved status, and a run whose records carry no status at all publishes the logged count under an "open" label.
 
 Do not invent new shapes for these figures. `gen-index.ts` carries compatibility resolvers for several historical layouts (`metrics.items[]` matched by prose `name`, `resultsSummary.overallTally`, `passRatePct` objects, `reports/test-status-inventory.json`). Those exist to read runs that are already closed — they are not a menu. A shape no resolver recognizes renders as `—`, and `export-run.sh` then refuses to publish the index rather than overwrite good values with dashes.
 
@@ -197,7 +197,7 @@ writes:
 emits:
   - {event: closure.report-drafted, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append, run.status]
+cli: [task.claim, work-report.submit, task.release, event.append, run.status, metrics.defects]
 runs: []
 dispatches: []
 config: [aegis.config.json#compliance]

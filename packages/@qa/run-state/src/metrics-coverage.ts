@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { CaseOfRecordError, computeCoverage, type CoverageRollup } from "@qa/metrics";
+import { CaseOfRecordError, computeCoverage, computeDefectRecordCounts, type CoverageRollup, type DefectRecordCounts } from "@qa/metrics";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { runDir } from "./paths.js";
@@ -27,4 +27,20 @@ export function writeCoverage(root: string, runId: string, caller: string): Cove
   mkdirSync(dir, { recursive: true });
   atomicWrite(join(dir, "coverage.json"), JSON.stringify(coverage, null, 2) + "\n");
   return { path: "reports/metrics/coverage.json", coverage };
+}
+
+export interface DefectCountsRead {
+  runId: string;
+  /** The counts of the run's defect records; null when the run has no defects directory. Nothing is written. */
+  counts: DefectRecordCounts | null;
+}
+
+/**
+ * `aegis metrics defects`: read-only. The defect headline numbers computed from the run's defect records (openApplicationDefects and the
+ * per-verdict counts), for the defect manager's `defect.management-complete` event and the metrics collector's defect-trend.json, so both
+ * state the same figures. Run it after any record correction.
+ */
+export function readDefectCounts(root: string, runId: string, caller: string): DefectCountsRead {
+  assertCallerAllowed(caller, "metrics.defects");
+  return { runId, counts: computeDefectRecordCounts(runDir(root, runId)) };
 }

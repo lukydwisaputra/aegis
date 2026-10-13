@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { DefectSchema } from '@qa/contracts';
+import { AegisEventSchema, DefectSchema } from '@qa/contracts';
 import { computeCoverage } from '@qa/metrics';
 
 // Framework gaps 5 to 7 are additive: what earlier runs wrote still parses. Each fixture is the shape an earlier run left on disk.
@@ -52,5 +52,21 @@ describe('old coverage.json (before caseOfRecord)', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('old defect.management-complete event (before the headline counts)', () => {
+  const line = fixture('old-defect-management-complete.json');
+
+  it('still parses, with none of the new counts', () => {
+    const r = AegisEventSchema.safeParse(line);
+    expect(r.success).toBe(true);
+    expect(r.success && r.data).toMatchObject({ type: 'defect.management-complete', totalOpened: 4, duplicates: 2 });
+    expect(r.success && Object.keys(r.data)).not.toContain('openApplicationDefects');
+  });
+
+  it('a new event with the counts parses beside it', () => {
+    const r = AegisEventSchema.safeParse({ ...line, totalOpened: 12, openApplicationDefects: 2, fixed: 14, partiallyFixed: 3, reframed: 7, reportWithdrawn: 2, cannotVerify: 0, notFixed: 0 });
+    expect(r.success).toBe(true);
   });
 });

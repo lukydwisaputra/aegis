@@ -924,9 +924,25 @@ export const DefectLinkedEventSchema = EventBase.extend({
 
 export const DefectManagementCompleteEventSchema = EventBase.extend({
   type: z.literal("defect.management-complete"),
+  // WHAT totalOpened COUNTS: the defect records this run opened (the new defects, one per `defect.opened` event). It is NOT the number
+  // of open application defects: defects carried from an earlier run and retested are not "opened" here, and a defect opened here can be
+  // reframed or withdrawn afterwards. Use openApplicationDefects for any "how many defects are open" headline.
   totalOpened: z.number().int().nonnegative(),
   duplicates: z.number().int().nonnegative(),
   severityBreakdown: z.record(z.string(), z.number().int().nonnegative()),
+  // Additive, derived from the defect records (`aegis metrics defects`; HANDBOOK 13.10). An event written before they existed has none of them.
+  // openApplicationDefects = notFixed + partiallyFixed + cannotVerify + the open records with no retest verdict (a status neither closed
+  // nor flagged for the owner). PARTIALLY FIXED is open until the remainder is fixed or the developers confirm the current fix resolves
+  // everything. FIXED, REFRAMED and REPORT WITHDRAWN are not open.
+  openApplicationDefects: z.number().int().nonnegative().optional(),
+  // Records per retest verdict (RetestVerdictCodeSchema), by their `retestVerdict.verdict`; partiallyFixed, cannotVerify and notFixed are
+  // subsets of openApplicationDefects, fixed, reframed and reportWithdrawn are not.
+  fixed: z.number().int().nonnegative().optional(),
+  partiallyFixed: z.number().int().nonnegative().optional(),
+  reframed: z.number().int().nonnegative().optional(),
+  reportWithdrawn: z.number().int().nonnegative().optional(),
+  cannotVerify: z.number().int().nonnegative().optional(),
+  notFixed: z.number().int().nonnegative().optional(),
 });
 
 export const DefectOriginConfirmedEventSchema = EventBase.extend({

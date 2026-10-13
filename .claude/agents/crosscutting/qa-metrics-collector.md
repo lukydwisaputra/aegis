@@ -55,7 +55,7 @@ Output: `runs/{runId}/reports/metrics/coverage.json`, exactly `{ requirementsCov
 - By severity: Sev1-Sev5 breakdown
 - By phase-introduced: where defects were injected
 - Defect density (defects per story point if available, else per 100 TCs)
-Output: `runs/{runId}/reports/metrics/defect-trend.json`, exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, noData? }`. `bySeverity` has the keys `Sev1` to `Sev5`. `reopenRate` = reopened / closed; `escapeRate` = defects whose `phaseIntroduced` is after release / total defects; `mttdMs` = mean time from the first failing result of a defect's test case to its `defect.opened`; `mttrMs` = mean time from `defect.opened` to `defect.closed`. Each rate or mean is a number, or null when it cannot be computed (no closed defects, no timestamps) — never 0 for "unknown". A log with no `defect.opened` event gives zero counts (0 opened, closed and reopened, every severity 0, density 0) with the rates and means null, written without `noData`. Write `"noData": true` only when `events.jsonl` is absent or unreadable. The closure reporter reports these as escapeRate, reopenRate, MTTD and MTTR.
+Output: `runs/{runId}/reports/metrics/defect-trend.json`, exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, openApplicationDefects?, fixed?, partiallyFixed?, reframed?, reportWithdrawn?, cannotVerify?, notFixed?, noData? }`. `bySeverity` has the keys `Sev1` to `Sev5`. `reopenRate` = reopened / closed; `escapeRate` = defects whose `phaseIntroduced` is after release / total defects; `mttdMs` = mean time from the first failing result of a defect's test case to its `defect.opened`; `mttrMs` = mean time from `defect.opened` to `defect.closed`. Each rate or mean is a number, or null when it cannot be computed (no closed defects, no timestamps) — never 0 for "unknown". `totalOpened` counts only the `defect.opened` events of this run, the defects it raised; it is not the number of open application defects (defects carried from an earlier run and retested are not opened here, and a defect opened here can be reframed or withdrawn). The headline defect figure is `openApplicationDefects`: run `AEGIS_AGENT=qa-metrics-collector pnpm aegis metrics defects` after the defect records are final and copy its `openApplicationDefects` (which already includes `notFixed`, `partiallyFixed` and `cannotVerify`), `fixed`, `partiallyFixed`, `reframed`, `reportWithdrawn`, `cannotVerify` and `notFixed` into the file as they are (the command counts the records' `retestVerdict.verdict`; never count them by hand); when it prints `counts: null` the run has no defect records and you omit the seven fields. A log with no `defect.opened` event gives zero counts (0 opened, closed and reopened, every severity 0, density 0) with the rates and means null, written without `noData`. Write `"noData": true` only when `events.jsonl` is absent or unreadable. The closure reporter reports these as escapeRate, reopenRate, MTTD and MTTR.
 
 ### Test Effectiveness
 - Tests that found defects / total tests executed
@@ -128,7 +128,7 @@ awaits:
   - defect.opened
   - defect.closed
   - defect.reopened
-cli: [event.append, metrics.coverage]
+cli: [event.append, metrics.coverage, metrics.defects]
 runs: []
 dispatches: []
 config: []

@@ -70,7 +70,14 @@ export interface CycleTimeReport {
   generatedAt: string;
 }
 
-/** Written to runs/{runId}/reports/defect-trend.json */
+/**
+ * Written to runs/{runId}/reports/defect-trend.json by collectRunMetrics. The qa-metrics-collector agent writes the same file as
+ * `{ totalOpened, totalClosed, totalReopened, ... }` plus the additive record-derived fields of DefectRecordCounts
+ * (openApplicationDefects, fixed, partiallyFixed, reframed, reportWithdrawn, cannotVerify, notFixed; openApplicationDefects includes
+ * the last three): `opened` and `totalOpened`
+ * both count only `defect.opened` events, the defects raised in this run, never the open application defects, which
+ * `openApplicationDefects` counts from the defect records.
+ */
 export interface DefectTrendReport {
   runId: string;
   opened: number;
@@ -286,6 +293,7 @@ function derivePhase(taskId: string): string {
 }
 
 export * from "./coverage.js";
+export * from "./defect-records.js";
 export * from "./outcomes.js";
 export * from "./uncovered.js";
 export * from "./test-events.js";

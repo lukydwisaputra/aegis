@@ -40,6 +40,7 @@ export const CLI_COMMANDS = [
   "metrics.coverage",
   "defect.amend",
   "rtm.unlink",
+  "metrics.defects",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -63,6 +64,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   // Gap 5: the owner may correct a record too; qa-defect-manager is the only agent that may (SINGLE_AGENT_COMMANDS).
   "defect.amend",
   "rtm.unlink",
+  // Gap 7: read-only, the defect headline numbers of the run's records.
+  "metrics.defects",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -102,6 +105,12 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "rtm.unlink": "qa-defect-manager",
 };
 
+// Read-only commands several named agents run (the owner always may, as OWNER_COMMANDS says): the agent that writes the figures and
+// the agent that states them.
+export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly string[]>>> = {
+  "metrics.defects": ["qa-metrics-collector", "qa-defect-manager", "qa-closure-reporter"],
+};
+
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller === OWNER && !OWNER_COMMANDS.has(command)) {
     throw new RunStateError("caller-forbidden", `"${command}" is agent-only; the main thread cannot run it`);
@@ -115,6 +124,10 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   const only = SINGLE_AGENT_COMMANDS[command];
   if (caller !== OWNER && only !== undefined && caller !== only) {
     throw new RunStateError("caller-forbidden", `${command} is run only by ${only}`);
+  }
+  const set = AGENT_SET_COMMANDS[command];
+  if (caller !== OWNER && set !== undefined && !set.includes(caller)) {
+    throw new RunStateError("caller-forbidden", `${command} is run only by ${set.join(" and ")}`);
   }
 }
 
