@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
+import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, TaskRefSchema, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
 import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy, roleOf } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
@@ -40,6 +40,21 @@ function assertTaskId(taskId: string): void {
   if (!TASK_ID.test(taskId)) {
     throw new RunStateError("invalid-input", `task id "${taskId}" must match ${TASK_ID.source}`);
   }
+}
+
+/**
+ * Gap 1: a task id is later spliced into WR-<id> and RV-<agent>-<id>, whose schemas accept only T-<n>, T-<phase>-<n>
+ * and T-GATE-G<N>. A new task that could never form one would be accepted here and refused at submit time, so it is
+ * refused at creation. Strict early refusal was chosen over relaxing the regex: the trailing number keeps ids unique
+ * per phase and the WR/RV ids stay parseable by every consumer of existing runs.
+ */
+function assertTaskRefShape(taskId: string): void {
+  if (TaskRefSchema.safeParse(taskId).success) return;
+  throw new RunStateError(
+    "invalid-input",
+    `task id "${taskId}" cannot form a valid work-report or review id (WR-${taskId}, RV-<agent>-${taskId}); name it T-<n>, T-<phase>-<n> (for example T-execution-3, T-compliance-2) or T-GATE-G<N>. ` +
+      `Put the subject in --title, not in the id (one compliance task per regulation by number: T-compliance-1 with the title "GDPR review")`
+  );
 }
 
 /**
@@ -106,6 +121,7 @@ function assertGateTaskPhase(state: RunState, taskId: string): void {
 export async function addTask(root: string, runId: string, input: AddTaskInput, caller: string): Promise<Task> {
   assertCallerAllowed(caller, "task.add");
   assertTaskId(input.id);
+  assertTaskRefShape(input.id);
   if (!AGENT_ID.test(input.agent)) throw new RunStateError("invalid-input", `--agent "${input.agent}" must be a qa-* agent (${AGENT_ID.source})`);
   // A retired or unknown agent could never be dispatched, so its task would block the phase barrier (P2a final review).
   if (roleOf(input.agent) === undefined) {
