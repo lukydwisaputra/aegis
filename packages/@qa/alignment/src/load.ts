@@ -8,6 +8,12 @@ import type { Pipeline } from "./schema.js";
 import { violation, type Model, type Section, type Tracked, type Unit, type Violation } from "./types.js";
 import { CONTRACT_HEADING, frontmatterLite } from "./markdown.js";
 
+/**
+ * Skills a third-party tool installs into .claude/skills/ (gitignored, reinstalled by the tool, not framework units):
+ * `playwright-cli install --skills` (qa-environment-engineer step 6) writes playwright-cli/.
+ */
+export const EXTERNAL_SKILLS: ReadonlySet<string> = new Set(["playwright-cli"]);
+
 export function extractContract(source: string): { yaml: string; line: number } | "missing" | "duplicate" | "no-fence" {
   const lines = source.split("\n");
   const heads = lines.flatMap((l, i) => (l.trim() === CONTRACT_HEADING ? [i] : []));
@@ -236,6 +242,7 @@ export function loadModel(root: string): Model {
     skillDirs = [];
   }
   for (const dir of skillDirs) {
+    if (EXTERNAL_SKILLS.has(dir)) continue; // installed by a third-party tool, carries no contract
     try {
       if (!statSync(join(skillsDir, dir)).isDirectory()) continue; // README.md, .DS_Store: not skill units
     } catch {

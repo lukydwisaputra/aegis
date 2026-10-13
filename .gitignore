@@ -101,3 +101,7 @@ runs/*/locks/*.lock
 
 # ─── Subagent-driven-development scratch state ───────────────────────────────
 **/.superpowers/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+# Third-party skill installed by `playwright-cli install --skills` in Env-auth (reinstalled each run)
+.claude/skills/playwright-cli/
