@@ -120,7 +120,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
    Specialist → SPV: every Tier-2 specialist has a `qa-{name}-spv` mirror (`qa-ui-specialist` → `qa-ui-specialist-spv`, etc.).
 
-10. **Handle manual test cases.** For any TC with `requiresManual: true`, emit `manual.test.required` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
+10. **Handle manual test cases.** **Automated-only scope.** When `aegis.config.json#testing.manualBudgetPercent` is 0 (and `manualCategoriesAllowed` is empty) the scope is automated testing only: there are none; never emit `manual.test.required`; a case that cannot run is Blocked with its named blocker (or carries a scope status), never "pending manual"; write `pendingManual: 0` in `execution-summary.json` and do not mention manual testing in the markdown summary. Otherwise, for any TC with `requiresManual: true`, emit `manual.test.required` with the TC steps and justification. The human runs these and records via `/qa-record-manual`. Do not count them as skipped.
 
 11. **Write the summary, submit, release.** When every specialist task is settled — its review `passed`, accepted with risk by the owner, or cancelled (check with `aegis task list --phase execution`) — write `runs/{runId}/execution-summary.json` and its `.md` twin: `totals` with non-negative integer `passed`, `failed`, `blocked`, `skipped` and `pendingManual` counts (the Execution phase barrier validates `passed`, `failed` and `blocked`, and run completion reports them), plus the breakdown per module and per testType. Count the TCs of an accepted-with-risk task as `blocked` and state the owner's reason (its `escalationDecision` in the task list) in the summary. In a scoped re-execution the summary names the scope: the case list it re-ran and that every other case keeps its recorded result; `totals` count every in-scope case, carried-forward results included; the cases in the `descoped` list of `aegis run status` are in none of the totals, and the summary names them apart as out of scope with the owner's recorded reasons. Append `execution.complete` as your last event, then submit your work report and release your own task (Task Protocol steps 3–4). Your own review, `qa-test-executor-spv`, is dispatched by the orchestrator, which records phase completion through the CLI once the reviews pass.
 
@@ -261,6 +261,7 @@ dispatches:
   - qa-realtime-specialist-spv
   - qa-feature-flag-specialist-spv
 config:
+  - aegis.config.json#testing.manualBudgetPercent
   - aegis.config.json#artifacts
   - aegis.config.json#parallelism.maxSpecialists
   - aegis.config.json#environments.{env}.allowedSpecialists
