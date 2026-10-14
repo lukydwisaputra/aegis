@@ -144,7 +144,7 @@ describe('I4: a developer-covered TC has an execution path', () => {
       /every runner output and report directed under `runs\/\{runId\}\/evidence\/\{TC-ID\}\/` \(for Playwright, `--output`/,
       /Record the target's `git -C <target> status --porcelain -- \. ':!<repo dir>' ':!<QA tests dir>'` before and after the run/,
       /leave out this repo's directory and the QA tests directory/,
-      /would build or start the target in place \(such as a Playwright `webServer` that builds `\.next\/`\), do not run it: write the TC `blocked`/,
+      /would build or start the target in place \(such as a Playwright `webServer` that builds `\.next\/`\), do not run it: write the TC `skipped` with a note beginning `dev-covered:` and that reason \(a QA-side limit, never Blocked; append no `test\.blocked` event for it\)/,
     ]) expect(sentence).toMatch(fact);
     const checks = ['spv/qa-unit-specialist-spv.md', 'spv/qa-api-specialist-spv.md', 'spv/qa-ui-specialist-spv.md'].map(
       (f) => prose(f).split('\n').find((l) => /^\d+\. \*\*Developer-covered TCs\.\*\*/.test(l))!.replace(/^\d+\. /, ''),
@@ -154,9 +154,11 @@ describe('I4: a developer-covered TC has an execution path', () => {
       expect(text).toMatch(/`CI=true`, no snapshot update and no coverage flag/);
       expect(text).toMatch(/`git -C <target> status --porcelain -- \. ':!<repo dir>' ':!<QA tests dir>'` before and after \(this repo's directory and the QA tests directory left out\),? with no change/);
       expect(text).not.toMatch(/`git status --porcelain`/);
-      expect(text).toMatch(/build or start the target in place .*`blocked`/);
+      // A QA-side limit is skipped with the reason, never Blocked (the Blocked rule allows a product dependency or a requirement gap only).
+      expect(text).toMatch(/build or start the target in place .*`skipped` with a note beginning `dev-covered:`.*never Blocked/);
       expect(text).toMatch(/any change in the target = requested-changes/);
     }
+    expect(checks[0]).not.toMatch(/`blocked`/);
     for (const f of ['spv/qa-unit-specialist-spv.md', 'spv/qa-api-specialist-spv.md', 'spv/qa-ui-specialist-spv.md']) {
       expect(read(f, '{run}/cases/{TC-ID}-result.json')).toBeDefined();
     }

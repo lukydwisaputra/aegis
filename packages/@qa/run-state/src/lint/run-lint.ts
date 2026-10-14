@@ -12,6 +12,7 @@ import { scanPii } from "./pii.js";
 import { resolveRules } from "./rules.js";
 import { hasLongLine, MAX_LINE, maskPath } from "./mask.js";
 import { scanWithRules, type Finding } from "./text.js";
+import { dataFindings, dataRuleGroup, type DataStage } from "./data.js";
 
 export interface LintReport {
   runId: string;
@@ -98,23 +99,84 @@ export const notScannedCount = (skipped: ReadonlyArray<{ reason: string }>): num
 /** The sentence that makes a skipped file visible at the gate: a skipped file never blocks, but nobody should believe it was read. */
 export const notScannedNote = (n: number): string => `${n} file(s) were not scanned (see skipped in the report)`;
 
-/**
- * The one text of a refusal by the lint, shared by the phase barrier and the gate opening so the two cannot drift:
- * the count and the first 10 findings as file:line rule, and what can be done about them. While the phase is active a correction task fixes the
- * files; once it is complete nothing can be corrected inside the run, so the gate-open variant names the owner's recovery.
- */
-export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "file" | "line" | "rule">[], at: "phase-complete" | "gate-open", notScanned = 0): string {
-  const shown = errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ");
-  const head = `${errors.length} lint error(s) in the customer-facing files (${shown}${errors.length > 10 ? "; ..." : ""})`;
-  const tail =
-    at === "phase-complete"
-      ? `Gate ${gate} cannot open with them: fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`
-      : `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json; the orchestrator then opens the gate again; if the files still need rewriting, the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`;
-  return `${head}. ${tail}${notScanned > 0 ? `. ${notScannedNote(notScanned)}` : ""}`;
+/** Where a refusal by the lint is raised: a phase barrier while the phase is active, the Execution barrier (data checks only), or the gate opening. */
+export type LintBlockStage = "phase-complete" | "gate-open" | "execution";
+
+const listed = (errors: readonly Pick<Finding, "file" | "line" | "rule">[]): string =>
+  `${errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ")}${errors.length > 10 ? "; ..." : ""}`;
+
+/** What fixes a data error, per rule, while its phase is still active (stated truthfully: who can write what). */
+function dataRemedies(rules: ReadonlySet<string>): string[] {
+  const out: string[] = [];
+  const inGroup = (group: string, except: readonly string[] = []): boolean => [...rules].some((r) => dataRuleGroup(r) === group && !except.includes(r));
+  if (inGroup("blocked-qa-side", ["blocked-unreadable"])) {
+    out.push("for a Blocked result, add a correction task for the specialist that wrote the result file to the active phase (the defect manager cannot write result files): it fixes the QA-side cause and re-runs the check, or records blockedCause honestly (product-dependency with blockedDependency naming the dependency, or requirement-gap)");
+  }
+  if (rules.has("blocked-unreadable")) {
+    out.push("for blocked-unreadable, which result file is the case of record comes from the owner's gate decision, so a specialist correction task does not fix it: the owner settles the declaration (one result file with caseOfRecord and its caseOfRecordReason); the other Blocked checks run once it is fixed");
+  }
+  if (inGroup("defect-origin")) {
+    out.push("for the origin fields of a defect, add a correction task for the defect manager in Triage (its earlier task is already done): it edits the record (aegis defect amend cannot change originConfirmation)");
+  }
+  if (inGroup("defect-counts")) {
+    out.push("for defect counts, status or the RTM defect map, aegis defect amend corrects a status or retest verdict, aegis rtm sync-defects rebuilds the map, and the defect manager re-records the defect management summary with the figures of aegis metrics defects");
+  }
+  if (inGroup("env-probe")) {
+    out.push("for the environment probe, fix the environment (the environment engineer fixes a cause in the QA setup) and run aegis env probe --stage g2 again; a probe is never retried without a fix");
+  }
+  return out;
 }
 
-/** The findings over the run's customer-facing files; reads only. */
-export function lintFindings(root: string, runId: string): { filesScanned: number; skipped: LintReport["skipped"]; findings: Finding[] } {
+/**
+ * The one text of a refusal by the lint, shared by the phase barriers and the gate opening so they cannot drift: per kind (wording and
+ * personal data in the customer-facing files; data checks over the run's records) the count and the first 10 findings as file:line rule,
+ * and what can be done about them. While the phase is active a correction task fixes them; once it is complete nothing can be corrected
+ * inside the run, so the gate-open variant names the owner's recovery. The Execution barrier (stage `execution`) refuses on data errors
+ * only and says nothing about a gate or customer-facing files. The not-scanned note, when there is one, is always last.
+ */
+export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "file" | "line" | "rule" | "kind">[], at: LintBlockStage, notScanned = 0): string {
+  const text = errors.filter((f) => f.kind !== "data");
+  const data = errors.filter((f) => f.kind === "data");
+  const parts: string[] = [];
+  if (text.length > 0) {
+    const head = `${text.length} lint error(s) in the customer-facing files (${listed(text)})`;
+    const tail =
+      at === "gate-open"
+        ? `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json; the orchestrator then opens the gate again; if the files still need rewriting, the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`
+        : `Gate ${gate} cannot open with them: fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
+    parts.push(`${head}. ${tail}`);
+  }
+  if (data.length > 0) {
+    const head = `${data.length} data check error(s) in the run's records (${listed(data)})`;
+    const rules = new Set(data.map((f) => f.rule));
+    const groups = new Set(data.map((f) => dataRuleGroup(f.rule) ?? ""));
+    let tail: string;
+    if (at === "gate-open") {
+      // The environment is fixed outside the run's records, and the g2 probe window stays open after Triage: no owner step is needed.
+      const recordGroups = [...groups].filter((g) => g !== "" && g !== "env-probe").sort();
+      const sentences: string[] = [];
+      if (recordGroups.length > 0) {
+        sentences.push(`The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.disable with the rule group: ${recordGroups.join(", ")}) in aegis.config.json and the orchestrator opens the gate again, or the owner rejects the open gate and reopens the phase`);
+      }
+      if (groups.has("env-probe")) {
+        sentences.push("For the environment probe, fix the environment, run aegis env probe --stage g2 again (its window stays open after Triage has completed) and open the gate again");
+      }
+      tail = `${sentences.join(". ")}. Run aegis lint run --gate ${gate} for the detail`;
+    } else if (at === "execution") {
+      tail = `Execution cannot complete with them: ${dataRemedies(rules).join("; ")}; then complete the phase again`;
+    } else {
+      tail = `Gate ${gate} cannot open with them: ${dataRemedies(rules).join("; ")}; run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
+    }
+    parts.push(`${head}. ${tail}`);
+  }
+  return `${parts.join(". ")}${notScanned > 0 ? `. ${notScannedNote(notScanned)}` : ""}`;
+}
+
+/**
+ * The findings over the run's customer-facing files and, with a `stage`, the data checks of that stage after them (lint/data.ts; G2 only:
+ * G3 has none); reads only.
+ */
+export function lintFindings(root: string, runId: string, stage?: DataStage): { filesScanned: number; skipped: LintReport["skipped"]; findings: Finding[] } {
   const dir = runDir(root, runId);
   const config = readRunConfig(root);
   const rules = resolveRules(config.reportRules, config.manualBudgetPercent);
@@ -152,14 +214,15 @@ export function lintFindings(root: string, runId: string): { filesScanned: numbe
   // A path is the handle for the fix and stays, but a personal-data value in it (S1234567D.md) is masked like any other.
   const shownSkipped = skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file));
   const shownFindings = findings.map((f) => ({ ...f, file: maskPath(f.file) })).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));
-  return { filesScanned, skipped: shownSkipped, findings: shownFindings };
+  const data = stage === undefined ? [] : dataFindings(root, runId, stage, new Set(config.reportRules.disable));
+  return { filesScanned, skipped: shownSkipped, findings: [...shownFindings, ...data] };
 }
 
 export async function lintRun(root: string, runId: string, gate: string, caller: string, now?: Date): Promise<LintReport> {
   assertCallerAllowed(caller, "lint.run");
   if (gate !== "G2" && gate !== "G3") throw new RunStateError("invalid-input", `lint runs before G2 or G3, not ${gate}`);
   readRun(root, runId);
-  const { filesScanned, skipped, findings } = lintFindings(root, runId);
+  const { filesScanned, skipped, findings } = lintFindings(root, runId, gate === "G2" ? "G2" : undefined);
   const errors = findings.filter((f) => f.severity === "error").length;
   const report: LintReport = { runId, gate, ok: errors === 0, errors, warnings: findings.length - errors, filesScanned, skipped, ...(notScannedCount(skipped) > 0 ? { note: notScannedNote(notScannedCount(skipped)) } : {}), findings };
   const rel = `reports/lint/gate-${gate}.json`;

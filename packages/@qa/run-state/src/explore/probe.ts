@@ -12,7 +12,7 @@ import { reopenPhaseTasks } from "../supersede.js";
 import { atomicWrite, iso } from "../util.js";
 import { explorerAccepted, isExplorerTask } from "./explorer.js";
 import {
-  compareSignatures, decideProbe, identityDiffers, observe, redactError, selectPages, sourceIdentity,
+  compareSignatures, decideProbe, identityDiffers, observe, redactError, selectPages, sourceHead, sourceIdentity,
   type Observed, type PageRef, type PageSignature, type ProbeDecision, type ProbeDiff, type RawObservation, type SourceIdentity,
 } from "./identity.js";
 
@@ -84,7 +84,7 @@ interface Baseline {
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** aegis.config.json as a plain object; an unreadable file is reported, never thrown. */
-function rawConfig(root: string): { config: Record<string, unknown> } | { error: string } {
+export function rawConfig(root: string): { config: Record<string, unknown> } | { error: string } {
   try {
     const parsed: unknown = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8"));
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return { error: "aegis.config.json is not an object" };
@@ -94,7 +94,7 @@ function rawConfig(root: string): { config: Record<string, unknown> } | { error:
   }
 }
 
-const objectAt = (value: unknown): Record<string, unknown> | null =>
+export const objectAt = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 
 /** A JSON file of the run read leniently: null when it is missing or not valid JSON. */
@@ -107,10 +107,10 @@ function readRunJson(root: string, runId: string, rel: string): unknown {
 }
 
 /**
- * The origin of the run environment's `url` in aegis.config.json, with each `${VAR}` replaced from the process environment.
+ * The run environment's `url` in aegis.config.json, with each `${VAR}` replaced from the process environment, as a parsed URL.
  * An unset variable, a missing url or one that is not an http(s) address gives the reason instead (it names the variable, never a value).
  */
-export function environmentBaseUrl(root: string, environment: string): { url: string } | { error: string } {
+export function environmentUrl(root: string, environment: string): { url: URL } | { error: string } {
   const raw = rawConfig(root);
   if ("error" in raw) return raw;
   const url = objectAt(objectAt(raw.config["environments"])?.[environment])?.["url"];
@@ -128,10 +128,16 @@ export function environmentBaseUrl(root: string, environment: string): { url: st
   try {
     const u = new URL(resolved);
     if (u.protocol !== "http:" && u.protocol !== "https:") return { error: `the ${environment} url is not an http(s) address` };
-    return { url: u.origin };
+    return { url: u };
   } catch {
     return { error: `the ${environment} url is not a valid address` };
   }
+}
+
+/** The origin of the run environment's `url` (environmentUrl), or the reason it has none. */
+export function environmentBaseUrl(root: string, environment: string): { url: string } | { error: string } {
+  const r = environmentUrl(root, environment);
+  return "error" in r ? r : { url: r.url.origin };
 }
 
 /** The target directory: aegis.config.json#targetProjectRoot (default `..`) resolved against the aegis root. Never throws. */
@@ -144,13 +150,29 @@ export function targetDirOf(root: string): string {
 /** Where the target source stands, with the aegis directory and the tests directory left out. Never throws. */
 export function exploreIdentity(root: string): SourceIdentity {
   try {
-    const raw = rawConfig(root);
-    const config = "config" in raw ? raw.config : {};
-    const target = targetDirOf(root);
-    const testsDir = typeof config["testsDir"] === "string" ? config["testsDir"] : "../tests/qa";
-    return sourceIdentity(target, [relative(target, root), relative(target, resolve(root, testsDir))]);
+    const { target, excluded } = identityScope(root);
+    return sourceIdentity(target, excluded);
   } catch {
     return { head: null, dirtyHash: null };
+  }
+}
+
+/** The target and the directories its identity leaves out: this repository and the tests directory, which change every round. */
+function identityScope(root: string): { target: string; excluded: string[] } {
+  const raw = rawConfig(root);
+  const config = "config" in raw ? raw.config : {};
+  const target = targetDirOf(root);
+  const testsDir = typeof config["testsDir"] === "string" ? config["testsDir"] : "../tests/qa";
+  return { target, excluded: [relative(target, root), relative(target, resolve(root, testsDir))] };
+}
+
+/** Only the head of exploreIdentity (same target and exclusions), without hashing the uncommitted changes: what the environment probe records. Never throws. */
+export function exploreHead(root: string): string | null {
+  try {
+    const { target, excluded } = identityScope(root);
+    return sourceHead(target, excluded);
+  } catch {
+    return null;
   }
 }
 

@@ -15,6 +15,7 @@ export * from "./phases.js";
 export * from "./compliance.js";
 export * from "./intake.js";
 export * from "./env-exec.js";
+export * from "./env-probe.js";
 export * from "./gates.js";
 export * from "./supersede.js";
 export * from "./cases.js";
@@ -33,5 +34,11 @@ export * from "./lint/rules.js";
 export * from "./lint/pii.js";
 export * from "./lint/mask.js";
 export * from "./lint/run-lint.js";
+export * from "./lint/data.js";
 export * from "./explore/identity.js";
-export * from "./explore/probe.js";
+// The explore probe; its config helpers (rawConfig, objectAt, environmentUrl) are internal to this package.
+export {
+  BASELINE_REL, PROBE_BUDGET_MS, PROBE_REL, environmentBaseUrl, exploreHead, exploreIdentity, exploreProbe, probeExplore, settleWithin, takeBaseline, targetDirOf,
+  type BaselineResult, type FetcherFactory, type PageFetcher, type ProbeOptions, type ProbeResult,
+} from "./explore/probe.js";
+export * from "./reissue-scope.js";

@@ -19,6 +19,7 @@ import {
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
+import { removeStaleProbeReports } from "./env-probe.js";
 import { RunStateError } from "./errors.js";
 import { explorerAccepted, isExplorerTask } from "./explore/explorer.js";
 import { BASELINE_REL, PROBE_REL } from "./explore/probe.js";
@@ -52,7 +53,7 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
       throw new RunStateError("barrier", `gate ${gate} needs a passing qa-orchestrator-spv review of task ${gateTaskId(gate)}`);
     }
     if (gate === "G2" || gate === "G3") {
-      const scan = lintFindings(root, runId);
+      const scan = lintFindings(root, runId, gate === "G2" ? "G2" : undefined);
       const lint = scan.findings.filter((f) => f.severity === "error");
       if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open", notScannedCount(scan.skipped))}`);
     }
@@ -207,6 +208,9 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
         }
       }
     }
+    // An environment probe belongs to the round it was taken in: the execution one goes when Execution reopens, the g2 one when Triage
+    // does (always, for a G2 rejection). Removed only once the decision is recorded; a failure to remove never undoes it.
+    removeStaleProbeReports(root, runId, reopened);
     return decision;
   });
 }
@@ -236,7 +240,11 @@ function readSmokeThresholds(root: string): SmokeThresholds {
 // Resolved counts as open: fixed but not verified, so it still blocks the smoke gate until it is Verified.
 const OPEN_DEFECT = new Set(["New", "Triaged", "In Progress", "Resolved", "Reopened"]);
 
-/** Measured smoke inputs: pass rate from execution-summary.json#totals, open Sev1/Sev2 from defects/*.json. */
+/**
+ * Measured smoke inputs: pass rate from execution-summary.json#totals, open Sev1/Sev2 from defects/*.json. The pass rate is passed over
+ * passed + failed + blocked + skipped (skipped when the totals carry it), so recording a case skipped instead of blocked or failed never
+ * raises it.
+ */
 function smokeMetrics(root: string, runId: string, t: SmokeThresholds): GateMetric[] {
   const summaryFile = join(runDir(root, runId), "execution-summary.json");
   if (!existsSync(summaryFile)) throw new RunStateError("barrier", "execution-summary.json is missing; the smoke gate has nothing to evaluate");
@@ -247,7 +255,10 @@ function smokeMetrics(root: string, runId: string, t: SmokeThresholds): GateMetr
   if (typeof passed !== "number" || typeof failed !== "number" || typeof blocked !== "number") {
     throw new RunStateError("barrier", "execution-summary.json#totals must hold numeric passed, failed and blocked counts");
   }
-  const executed = passed + failed + blocked;
+  // A skipped case did not pass: it stays in the denominator (an absent or invalid skipped count is 0, as older summaries carry none).
+  const rawSkipped = totals["skipped"];
+  const skipped = typeof rawSkipped === "number" && Number.isFinite(rawSkipped) && rawSkipped > 0 ? rawSkipped : 0;
+  const executed = passed + failed + blocked + skipped;
   const passRate = executed === 0 ? 0 : (100 * passed) / executed;
   const dir = join(runDir(root, runId), "defects");
   let sev1 = 0;

@@ -36,6 +36,7 @@ You review performance test scripts and results from `qa-performance-specialist`
 7. **File naming.** Perf test files match `*.perf.ts`. Incorrect extension = passed-with-notes.
 8. **Sandbox-first compliance.** A final spec exists under `tests/qa/**` with no matching `sandbox.explored` event / sandbox artifact (sandbox-first rule) = requested-changes.
 9. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
+10. **Blocked cause.** Every Blocked result in the work carries `blockedCause`: `product-dependency` with `blockedDependency` naming the real product dependency that exists now (exactly, never a generic word such as api, service or data), or `requirement-gap`. A Blocked result whose cause is on the QA side (a spec error, auth, missing test or seed data, a missing factory env name or credential, a budget, the harness, an environment fault), or with no valid cause, = requested-changes: the fault is fixed and the case run, never recorded as Blocked.
 
 **Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
@@ -59,7 +60,7 @@ Prefix every command with your name: `AEGIS_AGENT=<your-name> pnpm aegis`, for e
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: spv
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-orchestrator, qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-performance-specialist]
 reads:

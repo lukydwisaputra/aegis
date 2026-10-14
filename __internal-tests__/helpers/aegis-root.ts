@@ -7,8 +7,12 @@ export interface TmpAegis {
   cleanup(): void;
 }
 
-/** A throwaway aegis root with a minimal config and isolated ID counters. */
-export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Record<string, unknown> } = {}): TmpAegis {
+/**
+ * A throwaway aegis root with a minimal config and isolated ID counters. The config disables the env-probe data rules
+ * (reportRules.disable), which also lifts the startPhase execution guard: a fixture has no environment to probe. A test of the
+ * probe barriers passes `envProbe: true` (or rewrites reportRules) to get them back.
+ */
+export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Record<string, unknown>; envProbe?: boolean } = {}): TmpAegis {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rs-'));
   fs.writeFileSync(
     path.join(root, 'aegis.config.json'),
@@ -18,6 +22,7 @@ export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Re
         development: { url: 'http://localhost:5173', mutating: true },
         production: { url: 'https://example.com', mutating: false },
       },
+      ...(opts.envProbe === true ? {} : { reportRules: { disable: ['env-probe'] } }),
     }),
   );
   process.env['AEGIS_COUNTERS_PATH'] = path.join(root, '.aegis', '.counters.json');

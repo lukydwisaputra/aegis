@@ -21,12 +21,14 @@ import { parseCaseIds } from "./cases.js";
 import { relevantRegulations, showsPersonalData } from "./compliance.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
+import { executionProbeProblems, removeStaleProbeReports } from "./env-probe.js";
 import { readEscalationDecision } from "./escalation.js";
 import { exploreIdentity } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
+import { dataFindings } from "./lint/data.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, reviewPassed, workDir } from "./submit.js";
@@ -118,6 +120,17 @@ export async function startPhase(root: string, runId: string, phase: string, cal
     const step = nextStep(state);
     if (step.kind !== "start-phase" || step.phase !== id) {
       throw new RunStateError("out-of-order", `cannot start ${id}: ${describeStep(step)}`);
+    }
+    // A full cycle's Execution starts on an environment probed healthy after Env-data (reads the report only; the probe ran outside the
+    // lock). reportRules.disable with the env-probe group is the owner's recorded exception; a smoke run is never guarded.
+    if (id === "execution" && state.cycleType === "full" && !readRunConfig(root).reportRules.disable.includes("env-probe")) {
+      const probe = executionProbeProblems(root, runId, state);
+      if (probe.length > 0) {
+        throw new RunStateError(
+          "barrier",
+          `cannot start execution: ${probe.join("; ")}. Fix the environment and run aegis env probe --stage execution until it is ok, then start the phase again`
+        );
+      }
     }
     // Production is never used for mutating tests: on a read-only environment Env-data is only ever not-applicable.
     const readOnly = id === "env-data" ? notApplicableReason(root, runId, id) : null;
@@ -238,6 +251,11 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
   }
   // A gated phase of a full cycle ends with its gate-precondition task (spec §3.2); smoke's G2 is auto-decided.
   if (state.cycleType === "full") {
+    // The Blocked data checks while Execution is still active, where a specialist can still fix the result: no wording or personal-data rule here.
+    if (phase === "execution") {
+      const data = dataFindings(root, runId, "execution", new Set(readRunConfig(root).reportRules.disable)).filter((f) => f.severity === "error");
+      if (data.length > 0) problems.push(lintBlockMessage("G2", data, "execution"));
+    }
     for (const gate of GATE_IDS) {
       if (GATE_AFTER[gate] !== phase) continue;
       const id = gateTaskId(gate);
@@ -250,7 +268,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       // The lint is a barrier while the phase is still active: once it completes, nothing can reopen it to fix a file.
       // openGate checks again (a file may change between the two), as the safety net.
       if (gate === "G2" || gate === "G3") {
-        const scan = lintFindings(root, runId);
+        const scan = lintFindings(root, runId, gate === "G2" ? "G2" : undefined);
         const lint = scan.findings.filter((f) => f.severity === "error");
         if (lint.length > 0) problems.push(lintBlockMessage(gate, lint, "phase-complete", notScannedCount(scan.skipped)));
       }
@@ -506,6 +524,8 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
       writeActiveRun(root, runId);
     } finally {
       archiveResetDecisions(root, runId, reopenedGates);
+      // An environment probe of the old round is not fresh for the new one (never throws).
+      removeStaleProbeReports(root, runId, reopenedPhases);
     }
     return next;
   });

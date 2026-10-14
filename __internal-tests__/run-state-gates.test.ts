@@ -276,6 +276,14 @@ describe('smoke auto-decision (fix round 1)', () => {
     });
   });
 
+  it('skipped cases stay in the pass-rate denominator: moving a case to skipped never raises the rate; a summary without skipped counts 0', async () => {
+    writeRunFile(t.root, runId, 'execution-summary.json', { totals: { passed: 8, failed: 0, blocked: 0, skipped: 2 } });
+    expect(await autoDecideGate(t.root, runId, 'G2', ORCH)).toMatchObject({
+      decision: 'rejected',
+      metrics: expect.arrayContaining([expect.objectContaining({ name: 'passRate', actual: 80, passed: false })]),
+    });
+  });
+
   it('a Verified Sev1 does not block the gate', async () => {
     writeRunFile(t.root, runId, 'defects/DEF-001-AUTH-UI.json', { ...DEFECT, status: { code: 'Verified', transitionedAt: '2026-09-30T08:00:00.000Z' } });
     expect(await autoDecideGate(t.root, runId, 'G2', ORCH)).toMatchObject({ decision: 'approved' });

@@ -80,7 +80,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | Planning | `planning` | `qa-test-planner` | Followed by Gate 1. |
    | Design | `design` | `qa-test-designer` | |
    | Env-data | `env-data` | `qa-environment-engineer` (scope=data) | Factories and seed data for the approved cases. |
-   | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs; you never dispatch a specialist in Execution. |
+   | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs; you never dispatch a specialist in Execution, except for a Blocked correction task the Execution barrier names (step 3, Blocked correction in Execution or Triage). |
    | Triage | `triage` | `qa-defect-manager` | Followed by Gate 2. |
    | Closure-draft | `closure-draft` | `qa-closure-reporter` (draft pass) | Dispatch `qa-metrics-collector` in the foreground first (Metrics below). |
    | Compliance | `compliance` | `qa-compliance-*` from `aegis.config.json#compliance` | GDPR and PDPA only when the target profile shows personal data. Not-applicable when no listed regulation applies. |
@@ -105,6 +105,10 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    Dispatch `qa-curator` during Curator.
 
    **Metrics.** Dispatch `qa-metrics-collector` in the foreground, in its on-demand mode, immediately before `aegis phase start --phase closure-draft` and again immediately before `aegis phase start --phase executive`, and wait for it to return before you start the phase (pass `run_in_background: false` on the Agent call). It writes every metric file the closure and executive reporters read. It has no task and no SPV: add no task for it. A dispatch that returns with an error does not hold the phase back: start it anyway, and the closure reporter records any metric file still missing as unavailable. A smoke cycle runs neither phase and has no metrics dispatch.
+
+   **Environment probe.** In a full cycle the environment is probed twice, as `AEGIS_AGENT=qa-orchestrator pnpm aegis env probe --stage <stage>` with a Bash timeout of 180000 ms. (1) The execution stage: after Env-data has completed (or was recorded not-applicable) and before `aegis phase start --phase execution`, which refuses (`barrier`) until `runs/{runId}/reports/env/probe-execution.json` says ok and was taken after Env-data completed. (2) The g2 stage: after Execution has completed, then the G2 lint (step 5.4), then `aegis phase complete --phase triage`: in that order the lint report never holds a stale environment finding. The g2 report (`runs/{runId}/reports/env/probe-g2.json`) is part of the G2 data checks: a missing or stale report and each failed check are errors that refuse the Triage barrier and `aegis gate open --gate G2`; a not-checked check is a warning. When `aegis gate open --gate G2` refuses on a probe finding after Triage has completed, fix the environment, run the g2 probe again (its window stays open) and open the gate again: no owner step is needed. The CLI refuses a stage outside its window (the execution probe once Execution has started, the g2 probe before Execution has completed). A failed probe is fixed, never retried blindly: read its failed checks in the report, fix the cause (stop the duplicate server on the port, restore the build under test, restore the Vault, add the missing names to the QA secrets), and when the cause is the QA setup re-dispatch `qa-environment-engineer` to fix it; then run the probe again. A gate rejection or a reissue that reopens Execution removes the execution report and one that reopens Triage removes the g2 report, so the next round probes again. A smoke cycle is not probed. The owner may record the project exception reportRules disable with the env-probe group in aegis.config.json; you never do.
+
+   **Blocked correction in Execution or Triage.** When the Execution barrier (`aegis phase complete --phase execution`) or the G2 data checks (the Triage barrier, the G2 lint or the gate) name a Blocked result without a valid cause, add a correction task to the active phase, Execution or Triage, for the specialist that wrote the result file (`aegis task add --id T-<phase>-<n> --title "Correct the Blocked cause of <cases>" --agent <that specialist>`), then dispatch that specialist with the cases in its brief and, once it releases the task done, its paired SPV (the specialist and SPV pairs of qa-test-executor's routing). The specialist fixes the QA-side cause and re-runs the case, records it `skipped` with the reason when it is a QA-side limit no fix inside the run removes, or records the cause honestly (`blockedCause` with `blockedDependency`); the defect manager cannot write result files. A corrected result changes the counts, and run completion reads the totals of `execution-summary.json`: once the corrections pass their reviews, add a correction task for `qa-test-executor` to the same active phase to rewrite those totals from the corrected result files (its aggregation step, case of record included, so the totals match the counts the coverage rollup computes from the same files), dispatch it and `qa-test-executor-spv`, and only then complete the phase again. A defect origin or count finding is a correction task for `qa-defect-manager` in Triage in the same way. After a Blocked correction in Triage, read the corrected result files: when a corrected case now fails, add a correction task for `qa-defect-manager` to the active Triage phase (it confirms the origin and opens or links the defect, re-syncs the RTM defect map and re-records the defect management summary) and complete Triage only after its review passes.
 
 4. **Run one phase.** For the phase named by `next`:
    1. `aegis phase start --phase <id>`. It refuses while a stop is requested, while the run is blocked or awaiting a gate, while an earlier gate is undecided or rejected, and out of order. Never work around a refusal.
@@ -139,7 +143,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | `qa-compliance-*` (one task per regulation) | `qa-compliance-spv` |
    | `qa-context-scanner`, `qa-curator` | none: `SPV_NONE` in `@qa/run-state`. The Scan barrier validates the profile; the owner reviews the curator's proposals. |
 
-   Tier-2 specialist SPVs are dispatched by `qa-test-executor`, not by you, except `qa-exploratory-specialist-spv` in Explore.
+   Tier-2 specialist SPVs are dispatched by `qa-test-executor`, not by you, except `qa-exploratory-specialist-spv` in Explore and the SPV of a specialist's Blocked correction task in Execution or Triage (step 3, Blocked correction in Execution or Triage).
 
 5. **Open the gates; never decide them.** Steps 5.1–5.5 apply to a full cycle only; a smoke cycle is at the end of this step. The three locked gates: after Planning (Gate 1 — Plan approval), after Triage (Gate 2 — Defect triage), before Executive (Gate 3 — Closure). Files and events name them `G1`, `G2`, `G3`. In the gated phase (Planning, Triage, Closure-final), after its workers' reviews pass and before `aegis phase complete` — the barrier of a gated phase refuses without a passed gate task:
    1. `aegis task add --id T-GATE-G<N> --title "Gate <N> preconditions" --agent qa-orchestrator`, then `aegis task claim --task T-GATE-G<N>`. When `T-GATE-G<N>` already exists as `pending` (after an SPV rejection or a gate rejection), skip the add and only re-claim it. When it already exists as `done` with a passing `qa-orchestrator-spv` review, go to step 5.4 (phase complete, then gate open); when it is `done` but not yet reviewed, go to step 5.3 (dispatch the SPV).
@@ -153,7 +157,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
       Then `aegis task release --task T-GATE-G<N> --result done`.
    3. Dispatch `qa-orchestrator-spv` for task `T-GATE-G<N>`. On `requested-changes` the CLI has reopened the task: it is `pending` and unclaimed. Re-claim it with `aegis task claim --task T-GATE-G<N>`, fix what the review names, submit a new work report (5.2), release it again with `aegis task release --task T-GATE-G<N> --result done`, and re-dispatch `qa-orchestrator-spv`. A third rejection escalates like any task (step 4.3); for a gate task the owner can only retry or abort — the CLI refuses `accept-with-risk` on `T-GATE-*`.
-   4. `aegis phase complete --phase <gated phase>`, then `aegis gate open --gate G<N>`. When `next` is `open-gate` the phase is already complete: skip the `aegis phase complete` and only open the gate. For Gate 2 and Gate 3, run the lint of the customer-facing files (`aegis lint run --gate G<N>`, as `AEGIS_AGENT=qa-orchestrator pnpm aegis lint run --gate G<N>`) after the SPV passes and BEFORE `aegis phase complete` of Triage or Closure-final: once the phase is completed nothing can reopen it to fix a file. For each finding, add a correction task in the active phase for the agent that wrote the file (defects: qa-defect-manager; closure: qa-closure-reporter; compliance: the compliance agent the file names; case designs, cases/TC-*.json and .md: qa-test-designer; result records, cases/*-result*.json: the specialist that wrote the result, named in the result record, else the specialist for the case's test type in the routing table (qa-test-designer cannot write them); the plan: qa-test-planner; the RTM: qa-test-designer for its prose, but the defect table inside rtm.md is rendered by the CLI from the defect records, so a finding there is fixed by correcting the defect record (qa-defect-manager) and running the RTM sync and render commands, never by the designer; executive: qa-executive-reporter), with the finding list in its brief. It fixes the SOURCE data and rewrites the file; its SPV reviews it; run the lint again; complete the phase only when it reports `ok`. `aegis phase complete` and `aegis gate open` both refuse (`barrier` and `lint-failed`) while an error remains. The owner can declare a project exception (reportRules allow, or the pii syntheticValues list); you never do. If the gate refuses to open (a file changed after the phase completed, so the phase is already complete and no correction task can be added), stop and tell the owner: the owner records a project exception (reportRules allow or pii syntheticValues) in aegis.config.json, you then open the gate again, and if the files still need rewriting the owner rejects the open gate and reopens the phase. The gate refuses without a passing `qa-orchestrator-spv` review of `T-GATE-G<N>`, without the completed gated phase, when the event log fails to verify, or (Gate 2 and Gate 3) when a fresh lint of the customer-facing files has an error, whatever an earlier lint report says. The run is now `awaiting-gate`.
+   4. `aegis phase complete --phase <gated phase>`, then `aegis gate open --gate G<N>`. When `next` is `open-gate` the phase is already complete: skip the `aegis phase complete` and only open the gate. For Gate 2 and Gate 3, run the lint of the customer-facing files (`aegis lint run --gate G<N>`, as `AEGIS_AGENT=qa-orchestrator pnpm aegis lint run --gate G<N>`) after the SPV passes and BEFORE `aegis phase complete` of Triage or Closure-final: once the phase is completed nothing can reopen it to fix a file. For Gate 2 the g2 environment probe runs first (step 3, Environment probe), and the G2 lint also reports the data checks over the run's records (Blocked causes, defect origin and counts, the g2 probe): a Blocked finding is a specialist correction task and a defect finding a `qa-defect-manager` correction task (step 3, Blocked correction in Execution or Triage), a probe finding is fixed in the environment and probed again. For each finding, add a correction task in the active phase for the agent that wrote the file (defects: qa-defect-manager; closure: qa-closure-reporter; compliance: the compliance agent the file names; case designs, cases/TC-*.json and .md: qa-test-designer; result records, cases/*-result*.json: the specialist that wrote the result, named in the result record, else the specialist for the case's test type in the routing table (qa-test-designer cannot write them); the plan: qa-test-planner; the RTM: qa-test-designer for its prose, but the defect table inside rtm.md is rendered by the CLI from the defect records, so a finding there is fixed by correcting the defect record (qa-defect-manager) and running the RTM sync and render commands, never by the designer; executive: qa-executive-reporter), with the finding list in its brief. It fixes the SOURCE data and rewrites the file; its SPV reviews it; run the lint again; complete the phase only when it reports `ok`. `aegis phase complete` and `aegis gate open` both refuse (`barrier` and `lint-failed`) while an error remains. The owner can declare a project exception (reportRules allow, or the pii syntheticValues list); you never do. If the gate refuses to open (a file changed after the phase completed, so the phase is already complete and no correction task can be added), stop and tell the owner: the owner records a project exception (reportRules allow or pii syntheticValues) in aegis.config.json, you then open the gate again, and if the files still need rewriting the owner rejects the open gate and reopens the phase. The gate refuses without a passing `qa-orchestrator-spv` review of `T-GATE-G<N>`, without the completed gated phase, when the event log fails to verify, or (Gate 2 and Gate 3) when a fresh lint of the customer-facing files has an error, whatever an earlier lint report says. The run is now `awaiting-gate`.
    5. Stop and tell the owner the gate waits for `/qa-gate-decide --gate=<N>`. Never approve, reject or defer a gate yourself; a gate cannot be deferred.
 
    `/qa-gate-decide` dispatches you again after the decision. `approved` or `approved-with-conditions` → carry the conditions from `gate-{N}-decision.json` into the next briefs and continue. `rejected` → the CLI has reset the phases from the decision's `reopenPhase` onward, and their tasks — `T-GATE-G<N>` included — are `pending` again. Continue from the `next` step without `aegis task add` for those tasks: re-dispatch each worker for its existing task id with the owner's note in its brief, and re-claim `T-GATE-G<N>` (5.1) when the gated phase is reached again. Inside a reissued cycle a rejection also lapses the reissue's case list: step 9 says what the `qa-test-executor` brief then states.
@@ -241,6 +245,8 @@ reads:
   - "{run}/stories/*.json"
   - "{run}/gates/gate-{N}-decision.json"
   - "{run}/reports/explore/probe.json"
+  - "{run}/reports/env/probe-execution.json"
+  - "{run}/reports/env/probe-g2.json"
   - "agent-memory/qa-orchestrator/lessons.md"
   - "agent-memory/{worker}/lessons.md"
 writes: []
@@ -283,6 +289,7 @@ cli:
   - work-report.submit
   - event.append
   - explore.probe
+  - env.probe
 runs: []
 dispatches:
   - qa-metrics-collector
@@ -318,6 +325,28 @@ dispatches:
   - qa-compliance-gdpr
   - qa-compliance-pdpa
   - qa-curator
+  - qa-ui-specialist
+  - qa-api-specialist
+  - qa-unit-specialist
+  - qa-accessibility-specialist
+  - qa-database-specialist
+  - qa-feature-flag-specialist
+  - qa-messaging-specialist
+  - qa-performance-specialist
+  - qa-realtime-specialist
+  - qa-responsive-specialist
+  - qa-security-specialist
+  - qa-ui-specialist-spv
+  - qa-api-specialist-spv
+  - qa-unit-specialist-spv
+  - qa-accessibility-specialist-spv
+  - qa-database-specialist-spv
+  - qa-feature-flag-specialist-spv
+  - qa-messaging-specialist-spv
+  - qa-performance-specialist-spv
+  - qa-realtime-specialist-spv
+  - qa-responsive-specialist-spv
+  - qa-security-specialist-spv
 config:
   - aegis.config.json#compliance
   - aegis.config.json#environments.{env}.readOnly

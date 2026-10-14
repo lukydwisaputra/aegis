@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { BLOCKED_CAUSES, type BlockedCause } from "@qa/contracts";
 
 /** What one check came to: worst first, see WORST_FIRST. */
 export type Outcome = "fail" | "blocked" | "partial" | "skipped" | "unknown" | "not-verified" | "deferred" | "out-of-scope" | "pass" | "no-op";
@@ -58,6 +59,80 @@ function pick(o: unknown): string[] {
     const v = (o as Record<string, unknown>)[k];
     return typeof v === "string" && v.trim() !== "" ? [v.trim()] : [];
   });
+}
+
+/** One Blocked entry of a result file that counts (see scanChecks): its structured cause, the dependency it names and its free text. */
+export interface BlockedInfo {
+  caseId: string;
+  /** The result file name in cases/. */
+  file: string;
+  /** `blockedCause` as recorded: one of BLOCKED_CAUSES, `invalid` (a value outside them) or `missing` (absent or empty). */
+  cause: BlockedCause | "invalid" | "missing";
+  /** The trimmed `blockedDependency`; empty when absent. */
+  dependency: string;
+  /** The entry's free text (notes, note, blocker, blockedReason, reason, blockedBy, environmentNote), for hints only. */
+  text: string;
+}
+
+const BLOCKED_TEXT_KEYS = [...TEXT_KEYS, "blockedBy", "environmentNote"] as const;
+
+/** A field value that counts as absent: undefined, null or a blank string. */
+const absent = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+
+function field(o: unknown, key: string): unknown {
+  return o !== null && typeof o === "object" ? (o as Record<string, unknown>)[key] : undefined;
+}
+
+/** Each free-text field is read up to this many characters: a hint never needs more, and a huge note never costs a barrier. */
+const TEXT_FIELD_CAP = 2048;
+
+function texts(o: unknown): string[] {
+  if (o === null || typeof o !== "object") return [];
+  return BLOCKED_TEXT_KEYS.flatMap((k) => {
+    const v = (o as Record<string, unknown>)[k];
+    return typeof v === "string" && v.trim() !== "" ? [v.trim().slice(0, TEXT_FIELD_CAP)] : [];
+  });
+}
+
+/**
+ * The structured cause of one Blocked entry. `blockedCause` is read case-insensitively with `_` accepted for `-`; a present value
+ * outside BLOCKED_CAUSES is `invalid`, an absent one `missing`. A results[] entry that lacks `blockedCause` or `blockedDependency`
+ * takes the field from `inherited` (the file object); its text is its own followed by the file's.
+ */
+export function blockedInfoOf(entry: unknown, inherited?: unknown): Omit<BlockedInfo, "caseId" | "file"> {
+  return infoOf(entry, inherited, inherited === undefined ? [] : texts(inherited));
+}
+
+/** blockedInfoOf with the file's text computed once by the caller (blockedEntries reads it once per file, not once per entry). */
+function infoOf(entry: unknown, inherited: unknown, inheritedTexts: readonly string[]): Omit<BlockedInfo, "caseId" | "file"> {
+  const own = (key: string): unknown => (absent(field(entry, key)) ? field(inherited, key) : field(entry, key));
+  const rawCause = own("blockedCause");
+  let cause: BlockedInfo["cause"];
+  if (absent(rawCause)) cause = "missing";
+  else {
+    const norm = typeof rawCause === "string" ? rawCause.trim().toLowerCase().replace(/_/g, "-") : "";
+    cause = (BLOCKED_CAUSES as readonly string[]).includes(norm) ? (norm as BlockedCause) : "invalid";
+  }
+  const rawDependency = own("blockedDependency");
+  const dependency = typeof rawDependency === "string" ? rawDependency.trim() : "";
+  const text = [...new Set([...texts(entry), ...inheritedTexts])].join(" ");
+  return { cause, dependency, text };
+}
+
+/**
+ * The Blocked entries of one result file that counts: each blocked results[] entry when results[] is a non-empty array (as
+ * resultOutcome reads it), else the file itself when it is blocked.
+ */
+function blockedEntries(caseId: string, file: string, doc: unknown): BlockedInfo[] {
+  if (doc === null || typeof doc !== "object") return [];
+  const list = (doc as { results?: unknown }).results;
+  if (Array.isArray(list) && list.length > 0) {
+    const blockedList = list.filter((r) => outcomeOf(field(r, "status")) === "blocked");
+    if (blockedList.length === 0) return [];
+    const fileTexts = texts(doc);
+    return blockedList.map((r) => ({ caseId, file, ...infoOf(r, doc, fileTexts) }));
+  }
+  return outcomeOf(field(doc, "status")) === "blocked" ? [{ caseId, file, ...blockedInfoOf(doc) }] : [];
 }
 
 /**
@@ -137,6 +212,11 @@ export interface CheckState {
   caseOfRecord?: CaseOfRecord;
   /** With a case of record: every other result file of the case and its status, uncounted. */
   observations?: ObservedResult[];
+  /**
+   * The Blocked entries of the result files that count for the case (the case of record alone; else the viewport files when any
+   * exist, else the plain file), one per blocked entry, in file-name order. Absent when there is none. Never serialized.
+   */
+  blocked?: BlockedInfo[];
 }
 
 /**
@@ -154,7 +234,7 @@ export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string>
   }
 
   interface Results { plain?: Outcome; byViewport: Map<Viewport, Outcome>; texts: string[]; files: ResultDoc[] }
-  interface ResultDoc { file: string; doc: unknown; outcome: Outcome }
+  interface ResultDoc { file: string; doc: unknown; outcome: Outcome; viewport?: Viewport }
   const results = new Map<string, Results>();
   const extras = new Map<string, ResultDoc[]>();
   for (const f of files) {
@@ -171,13 +251,18 @@ export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string>
     }
     const entry = results.get(m[1]!) ?? { byViewport: new Map<Viewport, Outcome>(), texts: [], files: [] };
     entry.texts.push(...noVerdictTexts(doc));
-    entry.files.push({ file: f, doc, outcome });
+    entry.files.push({ file: f, doc, outcome, ...(m[2] === undefined ? {} : { viewport: m[2] as Viewport }) });
     if (m[2] === undefined) entry.plain = outcome;
     else entry.byViewport.set(m[2] as Viewport, outcome);
     results.set(m[1]!, entry);
   }
 
   const out = new Map<string, CheckState>();
+  /** The Blocked entries of the files that count, as an optional field: absent when there is none. */
+  const blockedOf = (id: string, counted: readonly ResultDoc[]): { blocked?: BlockedInfo[] } => {
+    const list = counted.flatMap((r) => blockedEntries(id, r.file, r.doc));
+    return list.length > 0 ? { blocked: list } : {};
+  };
   for (const [id, scope] of scopeOf) {
     const entry = results.get(id);
     const all = [...(entry?.files ?? []), ...(extras.get(id) ?? [])];
@@ -202,6 +287,7 @@ export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string>
           const of = (r.doc as { observationOf?: unknown } | null)?.observationOf;
           return { file: r.file, status: r.outcome, supersededBy: record.file, ...(typeof of === "string" && of !== "" ? { observationOf: of } : {}) };
         }),
+        ...blockedOf(id, [record]),
       });
       continue;
     }
@@ -216,7 +302,9 @@ export function scanChecks(runDir: string, descoped: ReadonlyMap<string, string>
     } else {
       outcome = entry.plain ?? "unknown";
     }
-    out.set(id, { outcome, texts: entry.texts, missingViewport });
+    // The files the outcome counts: the viewport files when any exist (the plain file is then ignored), else the plain file.
+    const counted = entry.files.filter((r) => (entry.byViewport.size > 0) === (r.viewport !== undefined));
+    out.set(id, { outcome, texts: entry.texts, missingViewport, ...blockedOf(id, counted) });
   }
   return out;
 }

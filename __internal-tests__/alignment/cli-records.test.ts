@@ -57,6 +57,7 @@ const ENTRY: Record<string, string> = {
   'env.exec': 'execWithEnv',
   'lint.run': 'lintRun',
   'explore.probe': 'exploreProbe',
+  'env.probe': 'probeEnvironment',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

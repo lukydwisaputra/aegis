@@ -1,5 +1,6 @@
-import { Command } from "commander";
-import { assertCallerAllowed, envExecInfo, execWithEnv } from "@qa/run-state";
+import { Command, Option } from "commander";
+import { assertCallerAllowed, envExecInfo, execWithEnv, PROBE_STAGES, probeEnvironment, type ProbeStage } from "@qa/run-state";
+import { makeProbeSystem } from "../env-probe-system.js";
 import { action, context, runIdFor } from "./_io.js";
 
 /** Test runners get the QA environment's Supabase credentials without an agent ever reading the secrets file. */
@@ -30,5 +31,26 @@ export function envCommand(): Command {
       return r;
     }));
 
+  env
+    .command("probe")
+    .description(
+      "Probe the environment under test (health url and declared health paths, listeners on a local port, declared required env names, build under test); writes reports/env/probe-{stage}.json"
+    )
+    .addOption(new Option("--stage <stage>", "execution (after Env-data, before Execution starts) or g2 (after Execution)").choices([...PROBE_STAGES]).makeOptionMandatory())
+    .option("--run <runId>", "run id (default: the active run)")
+    .action(async (...args: [{ stage: ProbeStage; run?: string }, Command]) => {
+      await action((o: { stage: ProbeStage; run?: string }, _cmd: Command) => {
+        const ctx = context();
+        return probeEnvironment(ctx.root, runIdFor(ctx, o.run), ctx.caller, o.stage, makeProbeSystem());
+      })(...args);
+      // A keep-alive socket or a child that outlived its timeout must not keep the CLI alive: the result is printed, the process ends.
+      await flushed(process.stdout);
+      await flushed(process.stderr);
+      process.exit();
+    });
+
   return env;
 }
+
+/** Resolves once everything written to `stream` so far has been handed to the OS (a pipe on macOS is asynchronous). */
+const flushed = (stream: NodeJS.WriteStream): Promise<void> => new Promise((res) => stream.write("", () => res()));

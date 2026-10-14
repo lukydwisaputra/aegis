@@ -44,6 +44,7 @@ You review messaging test results from `qa-messaging-specialist`. You verify tha
 11. **Naming and sandbox.** Specs are `tests/qa/messaging/{flow}.messaging.spec.ts`, each with a `sandbox.explored` event; otherwise requested-changes.
 12. **Env names in force.** The env names in the work report match `plan.json#env`, and any stub wiring line quoted uses them; otherwise requested-changes.
 13. **Fake recipients in stub-layer data.** Every flow a `*.messaging.spec.ts` triggers uses test data whose recipients are the `fakeRecipients` of `runs/{runId}/messaging/plan.json`, so an app that is not pointed at the stub can only reach a fake. A stub-layer spec that triggers a flow with any other recipient = requested-changes.
+14. **Blocked cause.** Every Blocked result in the work carries `blockedCause`: `product-dependency` with `blockedDependency` naming the real product dependency that exists now (exactly, never a generic word such as api, service or data), or `requirement-gap`. A Blocked result whose cause is on the QA side (a spec error, auth, missing test or seed data, a missing factory env name or credential, a budget, the harness, an environment fault), or with no valid cause, = requested-changes: the fault is fixed and the case run, never recorded as Blocked.
 
 **Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
 
@@ -67,7 +68,7 @@ Prefix every command with your name: `AEGIS_AGENT=<your-name> pnpm aegis`, for e
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: spv
-dispatchedBy: [qa-test-executor]
+dispatchedBy: [qa-orchestrator, qa-test-executor]
 reviewedBy: {none: "not stated in prose"}
 reviews: [qa-messaging-specialist]
 reads:

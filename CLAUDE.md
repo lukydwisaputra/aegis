@@ -81,12 +81,12 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
 - `intake.references` — pinned repositories outside the target (`{name, root, sha?, sources}`), copied into `intake/references/{name}/` at run create (a reference with a `sha` must be clean: uncommitted or untracked files are refused, since the working tree is what is copied); a checkout not at `sha` is refused
-- `environments` — per-env URLs, allowed specialists, and `mutating` flag
+- `environments` — per-env URLs, allowed specialists, and `mutating` flag; optional `buildIdPath`, the target-relative path of the Next build id file that `aegis env probe` reads (default .next/BUILD_ID at the target root; for a monorepo, for example apps/web/.next/BUILD_ID; an absolute path or one that leaves the target is ignored and the build check is not-checked); optional `healthChecks`, a list of `{name, path, expectStatus?}` the probe GETs on the environment origin (expectStatus defaults to 200; a check named vault covers the Vault, which is otherwise not-checked); optional `requiredEnv`, the env names the app needs, checked by name only against the QA secrets file of the environment (no list: not-checked). `aegis env probe --stage execution|g2` (orchestrator, Bash timeout 180000 ms) writes `reports/env/probe-{stage}.json`: Execution does not start without an ok execution probe taken after Env-data, and Triage and G2 refuse a missing, stale or failed g2 probe (`reportRules.disable` with `env-probe` lifts both)
 - `ports` — dashboard (3030), dashboardApi (3031), k6 (5665); the messaging stub port is messaging.stubPort (4010)
 - `dashboard.projectName` — appears in all customer-facing report output
 - `reportRules` — what the pre-gate lint (`aegis lint run`, run before G2 and G3) checks in the customer-facing files; each key is optional:
   - `extend` — extra wording rules (`{id, pattern, message, severity?}`)
-  - `disable` — ids of built-in rules the project turns off
+  - `disable` — ids of built-in rules the project turns off, or a data rule group (`blocked-qa-side`, `defect-origin`, `defect-counts`, `env-probe`) checked at Execution, Triage and G2
   - `allow` — phrases the project uses on purpose, so the wording rules skip them
   - `pii.syntheticValues` — exact personal-data values declared as test data that cannot be real
   - `pii.syntheticEmailDomains` — email domains that are always synthetic
@@ -153,6 +153,7 @@ runs/{runId}/
   reports/review/       # SPV reviews (CLI-written)
   reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json (CLI-written, aegis lint run)
   reports/explore/      # Explore baseline.json and probe.json: page signatures and the reuse decision (CLI-written, aegis explore probe)
+  reports/env/          # probe-execution.json and probe-g2.json: environment health and the build under test (CLI-written, aegis env probe)
   reports/.locks/       # submit and claim locks (CLI-owned)
   gates/gate-{N}-decision.json  # owner gate decisions (CLI-written)
   taskmaster/           # the run's task tree and claim locks (CLI-written)
@@ -222,7 +223,7 @@ this directory.
 | `../tests/**` | WRITE by `qa-*` agents under `testsDir`, per their role row; never by the main thread |
 | `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
 | `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
-| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
+| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
 | `aegis/packages/**`, `aegis/apps/**`, `aegis/.claude/**` | Framework source: owner branch work only; agents are denied |
 | `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |
