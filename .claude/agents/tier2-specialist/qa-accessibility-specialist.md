@@ -62,9 +62,11 @@ The handoff is always: **MCP/CLI → inspect ARIA tree → identify missing role
 
 ## Credentials for specs
 
-When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked without first trying `aegis env exec`; a name `env check` lists as missing is the one thing to report.
+When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked: try `aegis env exec` first; a name `env check` lists as missing is a QA-side fault, named in your work report so it is added and the case is run.
 
 The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
+
+**Blocked result.** A Blocked result is allowed only for a real product dependency that exists now, or a requirement gap. The result record (each blocked entry, or the file when every entry shares it) carries `blockedCause`: `product-dependency` with `blockedDependency` naming that dependency exactly (for example Singpass, MyInfo, Stripe; never a generic word such as api, service or data), or `requirement-gap` (the requirement is ambiguous; the ambiguity also goes to the requirement ambiguity report). A QA-side fault (a spec error, auth or session setup, missing test or seed data, a missing factory env name or credential, a time or token budget, the harness, an environment fault) is fixed and the case run, never recorded as Blocked: the Execution barrier and the G2 data checks refuse a Blocked result without a valid cause.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -90,7 +92,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-accessibility-s
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` states the violation count by impact level)
-- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict because of a real product dependency that exists now or a requirement gap (never a QA-side fault; see Blocked result): `{testCaseId, specialist, reason, evidencePaths}`
 - `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `a11y.violation-critical` — for any critical axe finding: `{ruleId, impact, selector, wcagCriterion?}` (`impact` is `critical` or `serious`)
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)

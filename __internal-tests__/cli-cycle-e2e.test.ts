@@ -34,7 +34,8 @@ class Sim {
     fs.writeFileSync(path.join(this.base, 'target', 'package.json'), '{"name":"fake-target"}');
     fs.writeFileSync(path.join(this.base, 'target', 'docs', 'prd.md'), '# PRD');
     const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'aegis.config.json'), 'utf8'));
-    Object.assign(cfg, { targetProjectRoot: '../target', compliance: ['iso25010'], intake: { sources: ['docs/**/*.md'] } });
+    // No environment to probe here: the env-probe rules (and the Execution start guard) are the owner's recorded exception.
+    Object.assign(cfg, { targetProjectRoot: '../target', compliance: ['iso25010'], intake: { sources: ['docs/**/*.md'] }, reportRules: { ...cfg.reportRules, disable: [...(cfg.reportRules?.disable ?? []), 'env-probe'] } });
     fs.writeFileSync(path.join(this.root, 'aegis.config.json'), JSON.stringify(cfg, null, 2));
     fs.copyFileSync(path.join(ROOT, 'thresholds.yaml'), path.join(this.root, 'thresholds.yaml'));
   }

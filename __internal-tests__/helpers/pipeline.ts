@@ -107,3 +107,28 @@ export function fastForward(root: string, runId: string, phase: string, gates: R
   }
   fs.writeFileSync(file, JSON.stringify({ ...state, status: 'running', gates: { ...state.gates, ...gates } }));
 }
+
+/**
+ * Test shortcut: a recorded environment probe report (reports/env/probe-{stage}.json) as aegis env probe writes it, ok by default.
+ * The barriers read only this file; env-probe.test.ts covers the probe itself.
+ */
+export function writeEnvProbe(
+  root: string,
+  runId: string,
+  stage: 'execution' | 'g2',
+  over: { takenAt?: string; ok?: boolean; checks?: Array<{ name: string; status: string; detail: string }>; [k: string]: unknown } = {},
+): void {
+  writeRunFile(root, runId, `reports/env/probe-${stage}.json`, {
+    runId,
+    stage,
+    environment: 'development',
+    takenAt: TS,
+    ok: true,
+    build: { kind: 'next-build-id', id: 'BUILD-1' },
+    checks: [
+      { name: 'http', status: 'ok', detail: 'GET / answered 200 (expected below 500)' },
+      { name: 'listeners', status: 'ok', detail: 'one process listens on port 5173' },
+    ],
+    ...over,
+  });
+}

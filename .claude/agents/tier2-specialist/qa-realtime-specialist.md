@@ -53,6 +53,8 @@ If `target-profile.json#hasRealtimeFeatures` is false (the scanner found no `ws:
 
 The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
 
+**Blocked result.** A Blocked result is allowed only for a real product dependency that exists now, or a requirement gap. The result record (each blocked entry, or the file when every entry shares it) carries `blockedCause`: `product-dependency` with `blockedDependency` naming that dependency exactly (for example Singpass, MyInfo, Stripe; never a generic word such as api, service or data), or `requirement-gap` (the requirement is ambiguous; the ambiguity also goes to the requirement ambiguity report). A QA-side fault (a spec error, auth or session setup, missing test or seed data, a missing factory env name or credential, a time or token budget, the harness, an environment fault) is fixed and the case run, never recorded as Blocked: the Execution barrier and the G2 data checks refuse a Blocked result without a valid cause.
+
 ## Quality Standards (SPV rejects if violated)
 
 - A `specialist.no-op` without a readable `hasRealtimeFeatures: false`, or real-time tests skipped without a `specialist.no-op` when that flag is false
@@ -74,7 +76,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-realtime-specia
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
-- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict because of a real product dependency that exists now or a requirement gap (never a QA-side fault; see Blocked result): `{testCaseId, specialist, reason, evidencePaths}`
 - `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `specialist.no-op` — `{ specialist, reason }`, when `target-profile.json#hasRealtimeFeatures` is false
 - `execution.blocked` — `{ reason }`, when the profile is missing, unreadable or has no boolean `hasRealtimeFeatures`; followed by the work report and a `failed` release

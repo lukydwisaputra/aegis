@@ -359,6 +359,87 @@ export async function probeEnvironment(
   return { runId, stage, ok, failed, report: reportRel };
 }
 
+// ─── What the barriers read ──────────────────────────────────────────────────
+
+/** The recorded report of a stage, read leniently: what a barrier needs (stage, takenAt, ok, checks) or why it cannot be used. */
+export type ProbeReportRead =
+  | { kind: "missing" }
+  | { kind: "unreadable" }
+  | { kind: "ok"; report: Pick<EnvProbeReport, "stage" | "takenAt" | "ok" | "checks"> };
+
+/** Reads reports/env/probe-{stage}.json and nothing else: no process, no network. A report of another stage is unreadable. */
+export function readProbeReport(root: string, runId: string, stage: ProbeStage): ProbeReportRead {
+  let text: string;
+  try {
+    text = readFileSync(join(runDir(root, runId), envProbeReportRel(stage)), "utf-8");
+  } catch (e) {
+    return (e as NodeJS.ErrnoException | null)?.code === "ENOENT" ? { kind: "missing" } : { kind: "unreadable" };
+  }
+  let r: Record<string, unknown> | null;
+  try {
+    r = objectAt(JSON.parse(text));
+  } catch {
+    return { kind: "unreadable" };
+  }
+  const takenAt = r?.["takenAt"];
+  if (r === null || r["stage"] !== stage || typeof r["ok"] !== "boolean" || typeof takenAt !== "string" || Number.isNaN(Date.parse(takenAt))) return { kind: "unreadable" };
+  const checks: ProbeCheck[] = [];
+  for (const c of Array.isArray(r["checks"]) ? r["checks"] : []) {
+    const o = objectAt(c);
+    const status = o?.["status"];
+    if (typeof o?.["name"] !== "string" || (status !== "ok" && status !== "failed" && status !== "not-checked" && status !== "not-applicable")) continue;
+    checks.push({ name: o["name"], status, detail: typeof o["detail"] === "string" ? o["detail"] : "" });
+  }
+  return { kind: "ok", report: { stage, takenAt, ok: r["ok"], checks } };
+}
+
+/**
+ * A probe is stale when it was taken at or before `completedAt` (the phase it must follow). A missing or unreadable `completedAt`
+ * (test fixtures, runs recorded before the field) is never a reason to call it stale.
+ */
+export function probeIsStale(takenAt: string, completedAt: string | undefined): boolean {
+  if (completedAt === undefined) return false;
+  const done = Date.parse(completedAt);
+  return !Number.isNaN(done) && Date.parse(takenAt) <= done;
+}
+
+/**
+ * Why Execution may not start yet, from the execution probe report only (the startPhase guard, inside run.lock): [] when a probe taken
+ * after Env-data completed says ok. Each entry is one failed check of the barrier.
+ */
+export function executionProbeProblems(root: string, runId: string, state: RunState): string[] {
+  const read = readProbeReport(root, runId, "execution");
+  if (read.kind === "missing") return [`no execution probe is recorded (${envProbeReportRel("execution")})`];
+  if (read.kind === "unreadable") return [`the execution probe report (${envProbeReportRel("execution")}) cannot be read`];
+  const problems: string[] = [];
+  const envData = state.phases["env-data"]?.completedAt;
+  if (probeIsStale(read.report.takenAt, envData)) problems.push(`the execution probe was taken at ${read.report.takenAt}, not after Env-data completed at ${envData}`);
+  if (!read.report.ok) {
+    const failed = read.report.checks.filter((c) => c.status === "failed").map((c) => c.name);
+    problems.push(`the execution probe failed${failed.length > 0 ? ` (${failed.join(", ")})` : ""}`);
+  }
+  return problems;
+}
+
+/** The probe reports a reopen of `reopened` makes stale: the execution one when Execution reopens, the g2 one when Triage does. */
+export function staleProbeReports(reopened: readonly string[]): string[] {
+  return [...(reopened.includes("execution") ? [envProbeReportRel("execution")] : []), ...(reopened.includes("triage") ? [envProbeReportRel("g2")] : [])];
+}
+
+/**
+ * Removes the probe reports a reopen made stale, after the reopen is recorded. Never throws: a report that cannot be removed is still
+ * compared by its takenAt with the phase it follows (which catches it whenever that phase was reopened too).
+ */
+export function removeStaleProbeReports(root: string, runId: string, reopened: readonly string[]): void {
+  for (const rel of staleProbeReports(reopened)) {
+    try {
+      rmSync(join(runDir(root, runId), rel), { force: true });
+    } catch {
+      // the decision stands
+    }
+  }
+}
+
 /** The g2 build against the execution probe's: only a Next build id that changed, appeared or vanished fails; a source head change is a hint. */
 function buildUnchanged(root: string, runId: string, now: EnvProbeReport["build"]): ProbeCheck {
   const name = "build-unchanged";

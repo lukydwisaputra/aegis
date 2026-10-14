@@ -107,6 +107,8 @@ At session end (durable):
 
 The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one. Name a session after its charter, never after a task id: an evidence path that carries a task id (the task id plus a session number) and is cited by a defect, the RTM or a compliance report is an internal task id the lint rejects.
 
+**Blocked result.** A Blocked result is allowed only for a real product dependency that exists now, or a requirement gap. The result record (each blocked entry, or the file when every entry shares it) carries `blockedCause`: `product-dependency` with `blockedDependency` naming that dependency exactly (for example Singpass, MyInfo, Stripe; never a generic word such as api, service or data), or `requirement-gap` (the requirement is ambiguous; the ambiguity also goes to the requirement ambiguity report). A QA-side fault (a spec error, auth or session setup, missing test or seed data, a missing factory env name or credential, a time or token budget, the harness, an environment fault) is fixed and the case run, never recorded as Blocked: the Execution barrier and the G2 data checks refuse a Blocked result without a valid cause.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Charter lacks a scope, technique, and goal (all three required)
@@ -140,7 +142,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-exploratory-spe
 - `sandbox.experiment-completed` — when the session sandbox is removed: `{path, agent}` (`agent` your name)
 - `test.passed` — Execution sessions only, per passing test case in the brief: `{testCaseId, specialist}`
 - `test.failed` — Execution sessions only, per failing test case in the brief: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
-- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict because of a real product dependency that exists now or a requirement gap (never a QA-side fault; see Blocked result): `{testCaseId, specialist, reason, evidencePaths}`
 - `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 
 ## Contract (machine-checked)

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { DefectIdSchema, DefectSchema, defectRetestVerdict, isOpenApplicationDefect } from "@qa/contracts";
 import { readLines } from "@qa/event-bus";
 import { CaseOfRecordError, computeDefectRecordCounts, latestDefectManagementComplete, scanChecks, type BlockedInfo, type DefectRecordCounts } from "@qa/metrics";
+import { envProbeReportRel, probeIsStale, readProbeReport } from "../env-probe.js";
 import { busPath, runDir } from "../paths.js";
 import { readRun } from "../run.js";
 import { maskPath, maskPersonalData } from "./mask.js";
@@ -11,7 +12,8 @@ import type { Finding } from "./text.js";
 /**
  * The data checks of the lint: what the run's own records say, not how a customer file is worded. They read run files only (result
  * files under cases/, defect records, events.jsonl, rtm.json) and never spawn a process. Stage `execution` (the Execution barrier) runs
- * the Blocked rules only; stage `G2` (the Triage barrier, openGate G2, aegis lint run --gate G2) runs the Blocked and the defect rules.
+ * the Blocked rules only; stage `G2` (the Triage barrier, openGate G2, aegis lint run --gate G2) runs the Blocked, the defect and the
+ * environment probe rules (the g2 probe report only: the probe itself runs outside the lock, in aegis env probe).
  * Only a full cycle is checked: a smoke run's G2 is auto-decided.
  */
 export type DataStage = "execution" | "G2";
@@ -33,6 +35,10 @@ export const DATA_RULES: Readonly<Record<string, DataRuleGroup>> = {
   "defect-counts-mismatch": "defect-counts",
   "defect-severity-mismatch": "defect-counts",
   "defect-rtm-mismatch": "defect-counts",
+  "env-probe-missing": "env-probe",
+  "env-probe-stale": "env-probe",
+  "env-probe-failed": "env-probe",
+  "env-probe-not-checked": "env-probe",
 };
 
 /** The group of a data rule id, or undefined for a wording or personal-data rule. */
@@ -260,6 +266,30 @@ function countFindings(root: string, runId: string, dir: string, counts: DefectR
   return out;
 }
 
+// ─── Environment probe ────────────────────────────────────────────────────────
+
+const PROBE_MISSING = "no g2 environment probe is recorded: run aegis env probe --stage g2 after Execution completes, before the G2 lint";
+const PROBE_STALE = "the g2 environment probe was taken before Execution completed: run aegis env probe --stage g2 again";
+const PROBE_FAILED = "the g2 environment probe failed this check: fix the environment (stop a duplicate server, restore the build, restore the Vault, add the missing names) and run aegis env probe --stage g2 again";
+const PROBE_NOT_CHECKED = "the g2 environment probe could not check this; declare what it needs in aegis.config.json (environments, healthChecks or requiredEnv) or confirm it by hand";
+
+/** The g2 probe report against the run state: missing, unreadable or stale is an error, each failed check an error, each not-checked check a warning. */
+function probeFindings(root: string, runId: string): Finding[] {
+  const rel = envProbeReportRel("g2");
+  const read = readProbeReport(root, runId, "g2");
+  if (read.kind !== "ok") return [finding("env-probe-missing", "error", rel, PROBE_MISSING, read.kind === "missing" ? "no probe-g2.json" : "probe-g2.json unreadable")];
+  const out: Finding[] = [];
+  const execution = readRun(root, runId).phases["execution"]?.completedAt;
+  if (probeIsStale(read.report.takenAt, execution)) out.push(finding("env-probe-stale", "error", rel, PROBE_STALE, `takenAt ${read.report.takenAt}, Execution completed ${execution}`));
+  const failed = read.report.checks.filter((c) => c.status === "failed");
+  for (const c of failed) out.push(finding("env-probe-failed", "error", rel, PROBE_FAILED, `${snippet(c.name)}: ${snippet(c.detail)}`));
+  if (!read.report.ok && failed.length === 0) out.push(finding("env-probe-failed", "error", rel, PROBE_FAILED, "ok false, no failed check listed"));
+  for (const c of read.report.checks.filter((x) => x.status === "not-checked")) {
+    out.push(finding("env-probe-not-checked", "warning", rel, PROBE_NOT_CHECKED, `${snippet(c.name)}: ${snippet(c.detail)}`));
+  }
+  return out;
+}
+
 /**
  * The data findings of the run at `stage`, every one with kind "data", file run-relative, line 1 and ids (never record text beyond a masked
  * 60-character cut) as context. A rule whose group or id is in `disabled` (reportRules.disable) is left out. Reads only; [] for a smoke run.
@@ -275,5 +305,6 @@ export function dataFindings(root: string, runId: string, stage: DataStage, disa
     if (on("defect-origin")) out.push(...files.findings, ...originFindings(files));
     if (on("defect-counts")) out.push(...countFindings(root, runId, dir, computeDefectRecordCounts(dir), files));
   }
+  if (stage === "G2" && on("env-probe")) out.push(...probeFindings(root, runId));
   return out.filter((f) => !disabled.has(f.rule));
 }

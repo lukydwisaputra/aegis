@@ -83,6 +83,17 @@ Where project rules live: `aegis.config.json#reportRules` (`forbiddenWords`, `fo
 
 Plan for the lint (checks that read text, and the gate block): `docs/superpowers/plans/2026-10-14-pre-gate-lint.md`.
 
+### Rulings for the G2 data checks (owner decisions pending confirmation on the PR of the G2 data checks, #35)
+
+The rulings 1 to 6 of the plan (`docs/superpowers/plans/2026-10-14-g2-data-checks.md`), made while planning the three G2 rows above; the implementation follows them, and the owner confirms or overrules each on the PR. A failed data check blocks, as decision 1 above.
+
+1. **What Blocked may mean.** From the owner's final G2 standard in slec (2026-10-08): "Blocked is allowed only for a real product dependency that exists NOW, named exactly". The only legitimate cause is `product-dependency`, with the dependency named in `blockedDependency`. `requirement-gap` (the requirement is ambiguous) is allowed with a warning: it belongs in the ambiguity report. Everything else (spec error, auth, test or seed data missing, factory env missing, time or token budget, harness, environment fault) is a QA-side fault: it is fixed, not recorded as Blocked. The old keyword table survives only as a warning-level hint (`blocked-cause-suspect`).
+2. **Environment probe scope.** The probe never opens the app's env files and never runs project commands. Required env names are an explicit list the project declares (the requiredEnv list of an environment in `aegis.config.json`); the CLI checks only that each declared name has a line in the QA secrets file of the environment (names only, never values). No list declared: the check is not-checked (a warning). The Vault is covered by the project declaring an HTTP health path that exercises it (the healthChecks list of the environment); without one the Vault check is not-checked (a warning).
+3. **Source identity is a hint.** A change of the target's source identity between the execution and g2 probes is a warning, never an error: QA writes untracked files into the target during Execution and developers commit during multi-day runs. The error cases are a Next build id that differs between the probes, or one present at g2 and absent at execution (a production build overwriting the dev build).
+4. **Smoke runs** (the 10-minute PR gate, G2 auto-decided) are not subject to any of these checks.
+5. **Project exception.** `reportRules.disable` in `aegis.config.json` may list the data rule groups (`blocked-qa-side`, `defect-origin`, `defect-counts`, `env-probe`) the same way it disables text rules: the owner's recorded exception. Disabling `env-probe` also lifts the guard that refuses to start Execution without a fresh ok execution probe.
+6. **The Scan check (the "any" row) already exists** (#29: a non-zero `existingTests.count` with an empty `files` list is refused by the Scan barrier). Nothing is added for it.
+
 ## Items 4 to 7 (smaller, independent)
 
 - **Risk-based SPV review.** Full SPV on artefacts that reach the customer (planner, designer, defect manager, closure, executive); for specialists, deterministic checks on the work report (test files exist, assertions present, evidence named) and an SPV on about 1 in 4 dispatches. Measure the rejection rate on the sampled ones before widening.

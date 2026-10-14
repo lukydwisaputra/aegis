@@ -140,7 +140,9 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 ## Credentials for specs
 
-Every specialist brief you write states: when a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys, run it as `aegis env exec -- <command>`; the specialist never reads the secrets file. A case is never recorded Blocked for missing credentials unless `aegis env check` lists the name as missing; then the blocker names that variable.
+Every specialist brief you write states: when a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys, run it as `aegis env exec -- <command>`; the specialist never reads the secrets file. A case is never recorded Blocked for missing credentials: a name `aegis env check` lists as missing is a QA-side fault, named in the work report so it is added and the case is run.
+
+**Blocked result.** Every specialist brief you write also states the Blocked rule, and you hold your own records to it: a Blocked result carries `blockedCause`, either `product-dependency` with `blockedDependency` naming the real product dependency that exists now (exactly: Singpass, MyInfo, Stripe; never a generic word), or `requirement-gap` (the ambiguity also goes to the requirement ambiguity report). A QA-side fault (a spec error, auth, missing test or seed data, a missing factory env name, a budget, the harness, an environment fault) is fixed and the case run, never recorded as Blocked. The Execution barrier refuses a Blocked result without a valid cause and names the cases: before the phase completes, a correction task for the specialist that wrote the result file (`aegis task add` in the active Execution phase, assigned to that specialist, with the cases in its brief) fixes the cause or records it honestly. When the G2 data checks find one in Triage, the orchestrator adds that specialist correction task to the active Triage phase; a specialist takes a Triage correction task for a Blocked fix like any task.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -174,7 +176,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 - `specialist.completed` — appended when a specialist returns with its task released; exactly specialistName, taskId, passCount, failCount and optionally durationMs: `{specialistName, taskId, passCount, failCount, durationMs?}`
 - `test.passed` — one per passing TC: `{testCaseId, specialist?}`
 - `test.failed` — one per failing TC: `{testCaseId, specialist?, firstAssertionFailure?, evidencePaths}` (`evidencePaths` the run-relative evidence files)
-- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist?, reason, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict because of a real product dependency that exists now or a requirement gap (never a QA-side fault; see Blocked result): `{testCaseId, specialist?, reason, evidencePaths}`
 - `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist?, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `har.sanitization-required` — flags unsafe evidence: `{path, unsafeHeaders}`
 - `manual.test.required` — one per manual TC: `{tcId, steps, justification, criticality}` (`justification` the automation blocker; `criticality` is `critical`, `important` or `nice-to-have`)

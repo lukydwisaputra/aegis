@@ -121,7 +121,9 @@ function dataRemedies(rules: ReadonlySet<string>): string[] {
   if (inGroup("defect-counts")) {
     out.push("for defect counts, status or the RTM defect map, aegis defect amend corrects a status or retest verdict, aegis rtm sync-defects rebuilds the map, and the defect manager re-records the defect management summary with the figures of aegis metrics defects");
   }
-  if (inGroup("env-probe")) out.push("for the environment probe, fix the environment and run the probe again");
+  if (inGroup("env-probe")) {
+    out.push("for the environment probe, fix the environment (the environment engineer fixes a cause in the QA setup) and run aegis env probe --stage g2 again; a probe is never retried without a fix");
+  }
   return out;
 }
 

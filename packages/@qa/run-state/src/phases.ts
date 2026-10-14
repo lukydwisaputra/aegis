@@ -21,6 +21,7 @@ import { parseCaseIds } from "./cases.js";
 import { relevantRegulations, showsPersonalData } from "./compliance.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
+import { executionProbeProblems, removeStaleProbeReports } from "./env-probe.js";
 import { readEscalationDecision } from "./escalation.js";
 import { exploreIdentity } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
@@ -119,6 +120,17 @@ export async function startPhase(root: string, runId: string, phase: string, cal
     const step = nextStep(state);
     if (step.kind !== "start-phase" || step.phase !== id) {
       throw new RunStateError("out-of-order", `cannot start ${id}: ${describeStep(step)}`);
+    }
+    // A full cycle's Execution starts on an environment probed healthy after Env-data (reads the report only; the probe ran outside the
+    // lock). reportRules.disable with the env-probe group is the owner's recorded exception; a smoke run is never guarded.
+    if (id === "execution" && state.cycleType === "full" && !readRunConfig(root).reportRules.disable.includes("env-probe")) {
+      const probe = executionProbeProblems(root, runId, state);
+      if (probe.length > 0) {
+        throw new RunStateError(
+          "barrier",
+          `cannot start execution: ${probe.join("; ")}. Fix the environment and run aegis env probe --stage execution until it is ok, then start the phase again`
+        );
+      }
     }
     // Production is never used for mutating tests: on a read-only environment Env-data is only ever not-applicable.
     const readOnly = id === "env-data" ? notApplicableReason(root, runId, id) : null;
@@ -512,6 +524,8 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
       writeActiveRun(root, runId);
     } finally {
       archiveResetDecisions(root, runId, reopenedGates);
+      // An environment probe of the old round is not fresh for the new one (never throws).
+      removeStaleProbeReports(root, runId, reopenedPhases);
     }
     return next;
   });

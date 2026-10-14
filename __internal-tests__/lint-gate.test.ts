@@ -18,9 +18,11 @@ const put = (rel: string, v: string) => {
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, v);
 };
-const setConfig = (extra: object) => {
+/** Rewrites config keys; a rewritten reportRules keeps the fixture's env-probe exception (these runs have no environment to probe). */
+const setConfig = (extra: { reportRules?: { disable?: string[]; [k: string]: unknown } } & object) => {
   const cfg = path.join(t.root, 'aegis.config.json');
-  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), ...extra }));
+  const rr = extra.reportRules === undefined ? {} : { reportRules: { ...extra.reportRules, disable: [...(extra.reportRules.disable ?? []), 'env-probe'] } };
+  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), ...extra, ...rr }));
 };
 
 /** Drive the run to the end of `gate`'s phase: its workers reviewed and its gate task passed, the phase still active. */

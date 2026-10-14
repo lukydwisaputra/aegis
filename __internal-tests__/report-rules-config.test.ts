@@ -5,7 +5,7 @@ import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
 let t: TmpAegis;
 afterEach(() => t.cleanup());
-beforeEach(() => { t = makeAegisRoot(); });
+beforeEach(() => { t = makeAegisRoot({ envProbe: true }); });
 const set = (extra: object) => {
   const f = path.join(t.root, 'aegis.config.json');
   fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(f, 'utf8')), ...extra }));

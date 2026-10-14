@@ -19,6 +19,7 @@ import {
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
+import { removeStaleProbeReports } from "./env-probe.js";
 import { RunStateError } from "./errors.js";
 import { explorerAccepted, isExplorerTask } from "./explore/explorer.js";
 import { BASELINE_REL, PROBE_REL } from "./explore/probe.js";
@@ -207,6 +208,9 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
         }
       }
     }
+    // An environment probe belongs to the round it was taken in: the execution one goes when Execution reopens, the g2 one when Triage
+    // does (always, for a G2 rejection). Removed only once the decision is recorded; a failure to remove never undoes it.
+    removeStaleProbeReports(root, runId, reopened);
     return decision;
   });
 }

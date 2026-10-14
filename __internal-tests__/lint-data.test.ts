@@ -20,9 +20,11 @@ const put = (rel: string, v: string | object) => {
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, typeof v === 'string' ? v : JSON.stringify(v, null, 2));
 };
-const setConfig = (extra: object) => {
+/** Rewrites config keys; a rewritten reportRules keeps the fixture's env-probe exception (these runs have no environment to probe). */
+const setConfig = (extra: { reportRules?: { disable?: string[]; [k: string]: unknown } } & object) => {
   const cfg = path.join(t.root, 'aegis.config.json');
-  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), ...extra }));
+  const rr = extra.reportRules === undefined ? {} : { reportRules: { ...extra.reportRules, disable: [...(extra.reportRules.disable ?? []), 'env-probe'] } };
+  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), ...extra, ...rr }));
 };
 const events = () => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l) as Record<string, any>);
 
@@ -72,7 +74,8 @@ const summary = (fields: Record<string, unknown>) =>
   appendChained({ type: 'defect.management-complete', ts: '2026-10-08T10:00:00.000Z', runId, ...fields }, busPath(t.root, runId), { emittedBy: 'qa-defect-manager', runId });
 const rtmWith = (ids: string[]) => put('rtm.json', { rows: [], defectMap: ids.map((defectId) => ({ defectId, requirementId: 'REQ-AUTH-01' })) });
 
-const data = (stage: 'execution' | 'G2' = 'G2', disabled: string[] = []) => dataFindings(t.root, runId, stage, new Set(disabled));
+// The env-probe rules are out of these tests (env-probe-barriers.test.ts covers them).
+const data = (stage: 'execution' | 'G2' = 'G2', disabled: string[] = []) => dataFindings(t.root, runId, stage, new Set([...disabled, 'env-probe']));
 const brief = (fs_: readonly Finding[]) => fs_.map((f) => `${f.rule}|${f.severity}|${f.file}|${f.context}`);
 const ofGroup = (prefix: RegExp, fs_: readonly Finding[]) => brief(fs_.filter((f) => prefix.test(f.rule)));
 
