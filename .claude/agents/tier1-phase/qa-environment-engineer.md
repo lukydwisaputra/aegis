@@ -4,6 +4,7 @@ description: Prepares the test environment in two dispatches. With scope=auth (E
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/fixtures-and-pom.md

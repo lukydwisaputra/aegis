@@ -4,6 +4,7 @@ description: Reviews qa-performance-specialist work reports. Validates Core Web 
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/performance-testing.md

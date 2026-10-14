@@ -4,6 +4,7 @@ description: Reviews qa-executive-reporter work reports. Validates Minto/Pyramid
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md

@@ -4,6 +4,7 @@ description: Manages the defect lifecycle from open through verified-fixed. Appl
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/defect-management.md

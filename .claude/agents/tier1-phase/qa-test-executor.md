@@ -4,6 +4,7 @@ description: Runs all automated test cases by creating one task per Tier-2 speci
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash, Agent]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md

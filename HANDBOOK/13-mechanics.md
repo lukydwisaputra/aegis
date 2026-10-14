@@ -177,6 +177,8 @@ Dispatcher (qa-orchestrator for phase agents, qa-test-executor for specialists):
 
 This runs as part of `aegis init` and on `aegis update`. No agent has a hardcoded model name — all assignments go through the policy file.
 
+To check what a dispatched agent really loads after merging a change that touches agent frontmatter or hook context: restart the Claude Code session (agents load at session start), run one `/qa-smoke` (its agents run at depth 2 and 3), then run `pnpm subagent-context-check --projects-dir <target copy's project dir>` (add `--last <n>` for more than the newest 5). It reads the per-subagent transcripts of the `qa-*` agents and prints, per agent, `spawnDepth`, `claudeMdLoaded`, `memoryLoaded`, `rulesCore`, `firstTurnTokens` and `turns`, never transcript text. Expect `claudeMdLoaded: no`, `rulesCore: yes` and a first-turn drop of about 4k tokens against each agent type's own BEFORE figure (the first-turn prompt of the orchestrator was about 41.6k, of the executive reporter about 37k, of the other agents 17-25k in the slec transcripts), at depth 1 and at depth 2+. `memoryLoaded: yes` is the user's auto memory (the docs say it is not loaded; observed loaded). The target copies get the change only when their aegis checkout pulls it.
+
 ## 13.7 Compliance tag regex validation
 
 Tags are validated in `@qa/contracts/tags.ts`. Each regulation has a named regex:

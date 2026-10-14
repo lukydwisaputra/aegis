@@ -4,6 +4,7 @@ description: Writes the test plan (IEEE 829 + ISTQB closure sections) for the cu
 modelTier: planning
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-strategy.md

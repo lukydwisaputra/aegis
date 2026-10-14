@@ -4,6 +4,7 @@ description: Reviews qa-security-specialist work reports. Validates all 4 tool c
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/security-testing.md

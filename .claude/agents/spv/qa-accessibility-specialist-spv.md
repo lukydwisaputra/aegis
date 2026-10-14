@@ -4,6 +4,7 @@ description: Reviews qa-accessibility-specialist work reports. Validates axe-cor
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/accessibility-testing.md

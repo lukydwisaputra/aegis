@@ -4,6 +4,7 @@ description: Runs session-based exploratory testing. In the Explore phase, befor
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/exploratory-testing.md

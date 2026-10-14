@@ -4,6 +4,7 @@ description: Reviews qa-unit-specialist work reports. Validates behaviour-not-im
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

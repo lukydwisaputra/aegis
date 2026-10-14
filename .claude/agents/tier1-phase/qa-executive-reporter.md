@@ -4,6 +4,7 @@ description: Produces three PDF artefacts after Gate 3 — a comprehensive techn
 modelTier: planning
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash, Skill]
 knowledge_refs:
   - knowledge/synthesis/test-management.md

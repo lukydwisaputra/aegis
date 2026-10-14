@@ -4,6 +4,7 @@ description: Tests database schema integrity, migration correctness (up/down ide
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/data-testing.md

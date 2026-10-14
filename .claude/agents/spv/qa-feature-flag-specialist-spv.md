@@ -4,6 +4,7 @@ description: Reviews qa-feature-flag-specialist work reports. Validates on/off m
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

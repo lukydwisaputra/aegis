@@ -4,6 +4,7 @@ description: Reviews qa-ui-specialist work reports. Validates auth fixture impor
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

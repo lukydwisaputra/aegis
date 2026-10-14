@@ -4,6 +4,7 @@ description: Reviews qa-test-designer work reports. Validates technique selectio
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-design-techniques.md

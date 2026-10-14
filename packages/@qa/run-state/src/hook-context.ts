@@ -1,8 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CorrectiveInstructionSchema, WorkReportSchema } from "@qa/contracts";
 import { ADAPTERS } from "@qa/messaging";
-import { appendLedger, CLI_ONLY_RUN_GLOBS, envVerdict, loadGuardContext, roleOf } from "@qa/path-guard";
+import { appendLedger, BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, envVerdict, loadGuardContext, roleOf, TOOLING_CLEAN_RUN_GLOBS } from "@qa/path-guard";
 import { AGENT_ID, assertCallerAllowed, CLI_COMMANDS, type CliCommand } from "./caller.js";
 import { readActiveRun } from "./paths.js";
 import { readRun } from "./run.js";
@@ -74,6 +74,35 @@ const range = (f: { minLength: number | null; maxLength: number | null }): strin
  */
 export const CLI_USAGE_NOTES_LINE = `- Run each aegis command as its own direct call, \`AEGIS_AGENT=<you> pnpm aegis ...\`: never wrap it in \`eval\` (the PreToolUse hook denies an eval of text that names aegis). Field limits the CLI enforces, in characters: work report summary ${range(WorkReportSchema.shape.summary)}, approach ${range(WorkReportSchema.shape.approach)}; review corrective instruction mistake ${range(CorrectiveInstructionSchema.shape.mistake)}, rootCause ${range(CorrectiveInstructionSchema.shape.rootCause)}, correctiveRule ${range(CorrectiveInstructionSchema.shape.correctiveRule)}. A work report or review summary or approach that runs over its limit is recorded with its last words cut to the limit (the result lists what was cut: write it tight so nothing is lost); a corrective-instruction field over its limit, or a field under its minimum, is refused with its name, limit and length, and nothing is recorded. The \`id\` of a work report or review is filled in for you (WR-{taskId}, RV-{your name}-{taskId}); leave it out or copy it from the cheat-sheet.`;
 
+/**
+ * The rules every qa-* agent must know when CLAUDE.md is not loaded into it: a restatement of CLAUDE.md (read-only target, brand
+ * rule, id formats, operating ruleset, gitignore rule) and HANDBOOK/13, adding nothing. `projectName` is the customer-facing name.
+ */
+export function subagentRulesLines(projectName?: string): string[] {
+  return [
+    "## Rules core (SubagentStart hook): CLAUDE.md may not be loaded into qa-* agents; these rules bind you",
+    "- The target's source is READ-ONLY: write only the globs your role row lists (the \"You may write\" line; QA tests under the tests directory; the environment engineer's playwright.config.ts entry is the one named exception). A fix needed in target source is a defect in your report.",
+    `- Brand rule: inside the run directory, never write the word "Aegis", an internal agent name (qa-*) or a framework identifier in ${BRAND_CLEAN_RUN_GLOBS.join(", ")}; write as the ${projectName ?? "project's"} QA team. Files under ${TOOLING_CLEAN_RUN_GLOBS.join(", ")} also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", refusal, review, attempt or rejection counts, SPV, "requested changes", work report, "record owner"); HANDBOOK/13 lists them.`,
+    "- Mint TC, DEF, STORY, REQ, RISK and AC ids with the CLI id command (never hand-number those); the formats are {KIND}-{MODULE}-{NNN} (for example TC-AUTH-031) and DEF-{NNN}-{MODULE}-{TYPE}; module codes are in module-codes.md.",
+    "- HANDBOOK/17-operating-ruleset.md is binding for every cycle.",
+    "- Your final reply to your dispatcher is terse: task id, result, where the work report is; no recap.",
+    "- Never stage or commit secrets/.env.* (except .example), test-data/credentials/*.env.local, books/raw/* or sandbox/* (except README.md and .gitignore).",
+  ];
+}
+
+/** aegis.config.json#dashboard.projectName, flattened to one short plain line; undefined when the file, the key or its type is missing or unreadable (the core then reads neutrally). */
+export function projectNameOf(root: string): string | undefined {
+  try {
+    const name = (JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as { dashboard?: { projectName?: unknown } }).dashboard?.projectName;
+    if (typeof name !== "string") return undefined;
+    // The name is pasted into agent context: one short plain line, so a hostile value cannot add a heading, a rule or a long block.
+    const clean = name.replace(/`/g, "").replace(/\s+/g, " ").trim().slice(0, 80).trim();
+    return clean === "" ? undefined : clean;
+  } catch {
+    return undefined;
+  }
+}
+
 function allowedFor(agent: string): CliCommand[] {
   return CLI_COMMANDS.filter((cmd) => {
     try {
@@ -131,6 +160,7 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
   const writes = role === undefined ? "nothing (no row in the path-guard role table)" : role.writes.length === 0 ? "nothing directly — you work through the CLI" : role.writes.join(", ");
   lines.push(`- You may write: ${writes} ({run} = the run directory, {testsDir} = the QA tests directory, {target} = the target root).`);
   lines.push(`- Never write these, which the CLI owns (the PreToolUse hook denies the write): runs/.active and, inside a run, ${CLI_ONLY_RUN_GLOBS.join(", ")}.`);
+  lines.push(...subagentRulesLines(projectNameOf(root)));
   lines.push(FRAMEWORK_DEFECT_LINE);
   lines.push(CLI_USAGE_NOTES_LINE);
   lines.push(`- Prefix every CLI call exactly as shown; the hook denies a missing or different AEGIS_AGENT. Commands you may run:`);

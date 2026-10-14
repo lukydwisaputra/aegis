@@ -373,7 +373,7 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
       return { deny: `${caller.agent} is not a qa-* agent and may not modify target source (${abs}); file the fix as a defect (CLAUDE.md read/write policy)` };
     }
     if (inCheckout(ctx, abs)) {
-      return { deny: `${caller.agent} is not a qa-* agent and may not write inside the aegis repo (territory rule); do framework work from the main thread, or in a worktree outside it` };
+      return { deny: `${caller.agent} is not a qa-* agent and may not write inside the aegis repo (territory rule); do framework work from the main thread, or in a native worktree at .claude/worktrees/<name>` };
     }
     return null;
   }

@@ -4,6 +4,7 @@ description: Analyses requirements for testability, ambiguity, and completeness,
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

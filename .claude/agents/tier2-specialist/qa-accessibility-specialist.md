@@ -4,6 +4,7 @@ description: Runs accessibility tests using @axe-core/playwright and Pa11y. Vali
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/accessibility-testing.md

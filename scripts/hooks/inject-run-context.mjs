@@ -24,9 +24,21 @@ try {
     if (rs !== null) {
       try {
         text = rs.runContextFor(ROOT, input.agent_type, typeof input.agent_id === "string" ? input.agent_id : undefined);
+        // A stale dist: the agent files drop CLAUDE.md at once but this build has no rules core to replace it.
+        if (text && typeof rs.subagentRulesLines !== "function") {
+          text += "\n- The build is older than the source (no rules core): before your first write read CLAUDE.md (Read/write policy, Brand exposure rule, ID format, Gitignore rule) and tell your dispatcher the owner must run pnpm build.";
+        }
       } catch (e) {
         // A16: the real cause (an unreadable runs/.active, run directory or hooks/ ledger), not a build problem.
-        text = `## Aegis run context unavailable (${e.message})\n- Report this to your dispatcher and stop; the owner checks it with /qa-health.`;
+        // A stale dist without the export must still print the failure line.
+        let name;
+        try {
+          name = typeof rs.projectNameOf === "function" ? rs.projectNameOf(ROOT) : undefined;
+        } catch {
+          name = undefined;
+        }
+        const core = typeof rs.subagentRulesLines === "function" ? rs.subagentRulesLines(name).join("\n") + "\n" : "";
+        text = `${core}## Aegis run context unavailable (${e.message})\n- Report this to your dispatcher and stop; the owner checks it with /qa-health.`;
       }
     }
     // Claude Code caps hook additionalContext at 10,000 characters; 9,000 leaves room for the JSON around it.

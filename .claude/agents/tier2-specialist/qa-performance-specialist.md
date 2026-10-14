@@ -4,6 +4,7 @@ description: Designs and runs performance tests using k6 (load/stress/spike/soak
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/performance-testing.md

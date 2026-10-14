@@ -100,6 +100,10 @@ assignments:
     - qa-context-scanner
     - qa-metrics-collector
 
+# qa-* agents start without CLAUDE.md (frontmatter `omitClaudeMd: true`, pinned by the agent-frontmatter test):
+# they get their rules from the SubagentStart hook (H4, the rules core in hook-context.ts).
+omitClaudeMd: true
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Book ingestion uses a multi-model per-book strategy (see docs/71-book-ingestion-model-strategy.md).
 # These are NOT single-agent assignments — they're per-phase model overrides

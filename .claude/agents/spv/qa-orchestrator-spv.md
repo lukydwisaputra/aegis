@@ -4,6 +4,7 @@ description: Reviews qa-orchestrator gate work reports before each gate opens. V
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

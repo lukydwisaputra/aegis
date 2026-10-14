@@ -119,7 +119,7 @@ Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) ar
 3. Every worker claims its task, submits its work report and releases the task through the aegis CLI (`aegis task claim`, `aegis work-report submit`, `aegis task release`). Its SPV then submits a verdict with `aegis review submit`, which pipes any `CorrectiveInstruction` into the worker's lessons and escalates the third rejection to the owner.
 4. Agents record their events with `aegis event append`, which hash-chains them into `runs/{runId}/events.jsonl` (the only crash-recovery source of truth) through `@qa/event-bus`. Nothing writes that file directly.
 5. Three locked human gates pause every full cycle: G1 Plan approval (after Planning), G2 Defect triage (after Triage), G3 Closure (after Closure-final). They cannot be disabled. The owner decides each with `/qa-gate-decide`; the CLI writes `gates/gate-{N}-decision.json`. `/qa-smoke` has no human gate — its G2 is auto-decided from `thresholds.yaml#smoke`.
-6. Hooks in `.claude/settings.json` (scripts in `scripts/hooks/`) make the rules physical. H1 (PreToolUse) checks every write, Bash command and agent dispatch against the path-guard role table (`packages/@qa/path-guard/src/roles.ts`), the CLI-only run files, the brand rule and the `AEGIS_AGENT` identity rule, and denies what breaks them. H2 (SubagentStop) keeps a `qa-*` worker from stopping with a claimed task and no work report (it releases a forgotten `done`), keeps an SPV from stopping before its review, and records `token.used`. H3 (UserPromptSubmit) gives the main thread the router rule and the active run; H4 (SubagentStart) gives each `qa-*` agent its run, environment verdict, writable paths and the CLI cheat-sheet with its exact `AEGIS_AGENT` prefix. The hooks load the built packages: without a build, run `pnpm build` (or `pnpm install` without `--ignore-scripts`); until then H1 denies every agent write.
+6. Hooks in `.claude/settings.json` (scripts in `scripts/hooks/`) make the rules physical. H1 (PreToolUse) checks every write, Bash command and agent dispatch against the path-guard role table (`packages/@qa/path-guard/src/roles.ts`), the CLI-only run files, the brand rule and the `AEGIS_AGENT` identity rule, and denies what breaks them. H2 (SubagentStop) keeps a `qa-*` worker from stopping with a claimed task and no work report (it releases a forgotten `done`), keeps an SPV from stopping before its review, and records `token.used`. H3 (UserPromptSubmit) gives the main thread the router rule and the active run; H4 (SubagentStart) gives each `qa-*` agent its run, environment verdict, writable paths and the CLI cheat-sheet with its exact `AEGIS_AGENT` prefix. H4 also carries the rules core, because `qa-*` agents start without CLAUDE.md (`omitClaudeMd`). The hooks load the built packages: without a build, run `pnpm build` (or `pnpm install` without `--ignore-scripts`); until then H1 denies every agent write.
 
 ### Key packages under `packages/@qa/`
 
@@ -198,7 +198,7 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 3. Create lessons stub: `echo '{"version":"1.0","lessons":[]}' > agent-memory/qa-{name}/lessons.json`
 4. Register both in `.claude/model-policy.yaml` under the correct tier.
 5. Add a row for each to the role table `packages/@qa/path-guard/src/roles.ts` (writable globs, SPV, `mutatesEnvIn`); the PreToolUse hook denies every write of an agent without a row.
-6. Run `_qa-build-agents` skill to stamp model names into frontmatter.
+6. Run `_qa-build-agents` skill to stamp model names into frontmatter. Frontmatter carries `omitClaudeMd: true`: add it by hand (the agent-frontmatter test pins it); the build skill scans only yaml/json.
 7. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
 
 ---
@@ -209,8 +209,8 @@ Enforced by the PreToolUse hook (`scripts/hooks/guard-writes.mjs`): a subagent w
 cannot write inside `aegis/` or any QA artefact; `qa-*` agents write only the paths of their role-table row; the
 main thread may write anywhere except `runs/**` (CLI-only), the target's `tests/**` and target source, except the direct run writes
 of the not-yet-rewritten skills in `LEGACY_MAIN_THREAD_RUN_WRITES`, which are allowed with a warning and logged in the
-run's hook ledger until P0c/P3 move them onto the CLI. Framework work by subagents happens in a git worktree outside
-this directory.
+run's hook ledger until P0c/P3 move them onto the CLI. Framework work by subagents happens in a git worktree INSIDE
+this directory at `.claude/worktrees/<name>`, the only place the path-guard recognises as a separate checkout; never create a worktree outside this directory.
 
 ---
 

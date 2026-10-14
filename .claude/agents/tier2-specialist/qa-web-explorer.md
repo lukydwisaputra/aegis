@@ -4,6 +4,7 @@ description: Runs first in the Explore phase, before planning. BFS-crawls the au
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

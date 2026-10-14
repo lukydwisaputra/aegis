@@ -4,6 +4,7 @@ description: Reviews the QA process itself against CMMI V&V (Verification and Va
 modelTier: planning
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

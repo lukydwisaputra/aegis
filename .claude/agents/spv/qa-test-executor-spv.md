@@ -4,6 +4,7 @@ description: Reviews qa-test-executor work reports. Validates COTE evidence vali
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

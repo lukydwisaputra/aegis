@@ -4,6 +4,7 @@ description: Unit testing is developer scope. Reads developer unit tests and sou
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

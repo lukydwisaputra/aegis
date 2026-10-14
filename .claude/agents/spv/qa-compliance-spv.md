@@ -4,6 +4,7 @@ description: Reviews the work of the six compliance agents (ISO 25010, ISO 5055,
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

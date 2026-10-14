@@ -4,6 +4,7 @@ description: Generates and runs on/off matrix tests for each detected feature fl
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/continuous-testing.md
