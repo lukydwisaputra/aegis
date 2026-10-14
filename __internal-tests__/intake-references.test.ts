@@ -89,6 +89,36 @@ describe('intake.references copies pinned repositories into intake/references/{n
     expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['baseline/**'] }], path.join(t.root, 'intake-i'))).toThrow(/baseline\/local\.md/);
   });
 
+  it('an untracked nested repository that the globs reach is refused: git reports the directory, not its files', () => {
+    const nested = path.join(ref, 'nested');
+    fs.mkdirSync(nested);
+    fs.writeFileSync(path.join(nested, 'x.md'), 'inside');
+    execFileSync('git', ['-C', nested, 'init', '-q']);
+    execFileSync('git', ['-C', nested, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.']);
+    execFileSync('git', ['-C', nested, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'n']);
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], path.join(t.root, 'intake-n'))).toThrow(/nested\//);
+    expect(copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['baseline/**'] }], path.join(t.root, 'intake-n2'))[0]?.files).toEqual(['baseline/booking/rules.md']);
+  });
+
+  it('an edited file inside a submodule is refused: git reports the submodule as modified', () => {
+    const sub = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-sub-'));
+    try {
+      fs.writeFileSync(path.join(sub, 'x.md'), 'one');
+      const c = ['-c', 'user.email=t@example.com', '-c', 'user.name=t'];
+      execFileSync('git', ['-C', sub, 'init', '-q']);
+      execFileSync('git', ['-C', sub, ...c, 'add', '.']);
+      execFileSync('git', ['-C', sub, ...c, 'commit', '-qm', 's']);
+      git('-c', 'protocol.file.allow=always', ...c, 'submodule', 'add', '-q', sub, 'sub');
+      git(...c, 'commit', '-qm', 'add submodule');
+      const pinned = git('rev-parse', 'HEAD');
+      expect(copyIntakeReferences(t.root, [{ name: 'ok', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s1'))[0]?.files).toEqual(['sub/x.md']);
+      fs.writeFileSync(path.join(ref, 'sub', 'x.md'), 'edited after the pin');
+      expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s2'))).toThrow(/sub/);
+    } finally {
+      fs.rmSync(sub, { recursive: true, force: true });
+    }
+  });
+
   it('a git failure is a refusal, not a clean tree', () => {
     fs.writeFileSync(path.join(ref, '.git', 'index'), 'garbage');
     expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], path.join(t.root, 'intake-g'))).toThrow(/git status failed .* the pinned reference cannot be checked/);

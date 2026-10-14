@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { constants as osConstants } from "node:os";
 import { resolve } from "node:path";
 import type { Readable } from "node:stream";
 import { readRunConfig, readSettings } from "./config.js";
@@ -75,16 +76,18 @@ export function envExecInfo(root: string, runId: string): EnvExecInfo {
  */
 export function redactionForms(secrets: readonly string[]): string[] {
   const forms = new Set<string>();
-  const derived = (f: string, raw: string): void => {
-    if (f !== raw && f.length >= 8) forms.add(f);
+  // An encoding that differs from the value is kept at 4 characters or more for the forms that keep the value's own text (a percent-encoded
+  // or JSON-escaped "p%40ss"); the hex and base64 forms are opaque, so they need 8 characters not to match by chance.
+  const derived = (f: string, raw: string, min = 8): void => {
+    if (f !== raw && f.length >= min) forms.add(f);
   };
   for (const secret of secrets) {
     if (secret.length < 4) continue;
     forms.add(secret);
     const pct = encodeURIComponent(secret);
-    derived(pct, secret);
-    derived(pct.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase()), secret);
-    derived(JSON.stringify(secret).slice(1, -1), secret);
+    derived(pct, secret, 4);
+    derived(pct.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase()), secret, 4);
+    derived(JSON.stringify(secret).slice(1, -1), secret, 4);
     const hex = Buffer.from(secret, "utf-8").toString("hex");
     derived(hex, secret);
     derived(hex.toUpperCase(), secret);
@@ -98,11 +101,21 @@ export function redactionForms(secrets: readonly string[]): string[] {
   return [...forms].sort((x, y) => y.length - x.length);
 }
 
-/** Replaces every secret value in `text` with [redacted]. */
+const redactors = new WeakMap<readonly string[], RegExp>();
+
+/**
+ * Replaces every secret form in `text` with [redacted], in one pass (longest form first at each position), so an inserted marker is
+ * never scanned again by a later form: a four-character secret cannot cut "[redacted]" itself.
+ */
 export function redactSecrets(text: string, secrets: readonly string[]): string {
-  let out = text;
-  for (const s of secrets) out = out.split(s).join("[redacted]");
-  return out;
+  if (secrets.length === 0) return text;
+  let re = redactors.get(secrets);
+  if (re === undefined) {
+    const longestFirst = [...secrets].sort((x, y) => y.length - x.length);
+    re = new RegExp(longestFirst.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+    redactors.set(secrets, re);
+  }
+  return text.replace(re, "[redacted]");
 }
 
 function pipeRedacted(from: Readable, to: NodeJS.WriteStream, forms: readonly string[]): Promise<void> {
@@ -159,19 +172,37 @@ export async function execWithEnv(root: string, runId: string, caller: string, c
   const info = envExecInfo(root, runId);
   const merged: NodeJS.ProcessEnv = { ...info.vars, ...env, ...info.forced };
   const forms = redactionForms(info.secrets);
+  const killAfterMs = Number(process.env["AEGIS_ENV_EXEC_KILL_MS"] ?? 10_000);
   const exitCode = await new Promise<number>((done, fail) => {
     const child = spawn(cmd[0]!, cmd.slice(1), { cwd: info.cwd, env: merged, stdio: ["inherit", "pipe", "pipe"] });
+    let spawned = false;
+    child.on("spawn", () => { spawned = true; });
     const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
-    const forward = (sig: NodeJS.Signals): void => void child.kill(sig);
+    let escalation: NodeJS.Timeout | undefined;
+    // A stop signal for the CLI is a stop signal for the runner: forward it once, and if the runner is still there after killAfterMs
+    // kill it, so the CLI (whose default signal exit these listeners replace) cannot be left waiting on a runner that ignores it. On a
+    // terminal Ctrl-C already reached the runner through the foreground process group, so SIGINT is not sent a second time.
+    const forward = (sig: NodeJS.Signals): void => {
+      if (!(sig === "SIGINT" && process.stdin.isTTY)) child.kill(sig);
+      escalation ??= setTimeout(() => void child.kill("SIGKILL"), killAfterMs);
+      escalation.unref();
+    };
     for (const sig of signals) process.on(sig, forward);
+    const cleanup = (): void => {
+      for (const sig of signals) process.off(sig, forward);
+      if (escalation !== undefined) clearTimeout(escalation);
+    };
     const piped = Promise.all([pipeRedacted(child.stdout!, process.stdout, forms), pipeRedacted(child.stderr!, process.stderr, forms)]);
     child.on("error", (e) => {
-      for (const sig of signals) process.off(sig, forward);
+      // Node also emits "error" when a signal cannot be delivered; only a runner that never started is a failure to report.
+      if (spawned) return;
+      cleanup();
       fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`));
     });
-    child.on("close", (code) => {
-      for (const sig of signals) process.off(sig, forward);
-      void piped.then(() => done(code ?? 1));
+    child.on("close", (code, signal) => {
+      cleanup();
+      // A runner killed by a signal has no exit code: 128 + the signal number, as a shell reports it.
+      void piped.then(() => done(code ?? (signal !== null ? 128 + (osConstants.signals[signal] ?? 0) : 1)));
     });
   });
   let auditRecorded = true;

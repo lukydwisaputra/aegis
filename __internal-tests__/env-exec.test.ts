@@ -121,6 +121,12 @@ describe('env exec redacts the usual ways a runner prints a credential', () => {
     }
   });
 
+  it('keeps the percent-encoded and JSON forms of a short secret (p@ss -> p%40ss) and never cuts its own marker', () => {
+    const forms = redactionForms(['p@ss', 'x"yz1']);
+    expect(redactSecrets('postgres://u:p%40ss@h and {"k":"x\\"yz1"}', forms)).toBe('postgres://u:[redacted]@h and {"k":"[redacted]"}');
+    expect(redactSecrets('ran test suite', ['test', 'acte'])).toBe('ran [redacted] suite');
+  });
+
   it('a secret under 8 characters is redacted as written, not injected silently', async () => {
     const file = secretsPath(t.root, 'development');
     fs.writeFileSync(file, fs.readFileSync(file, 'utf8') + 'BLIND_INDEX_DEV_KEY=devkey1\n');
@@ -157,8 +163,11 @@ describe('env exec redacts the usual ways a runner prints a credential', () => {
 });
 
 describe('env exec when the audit cannot be written, and when it is stopped', () => {
-  it('still returns the exit code, says so on stderr and reports auditRecorded false', async () => {
-    fs.chmodSync(busPath(t.root, runId), 0o444);
+  // root ignores file modes (common in a container CI), so the append cannot be made to fail this way there
+  (process.getuid?.() === 0 ? it.skip : it)('still returns the exit code, says so on stderr and reports auditRecorded false', async () => {
+    const bus = busPath(t.root, runId);
+    const mode = fs.statSync(bus).mode & 0o777;
+    fs.chmodSync(bus, 0o444);
     const err: string[] = [];
     const spy = jest.spyOn(process.stderr, 'write').mockImplementation(((c: unknown) => { err.push(String(c)); return true; }) as never);
     try {
@@ -166,21 +175,51 @@ describe('env exec when the audit cannot be written, and when it is stopped', ()
       expect(r).toMatchObject({ exitCode: 5, auditRecorded: false });
     } finally {
       spy.mockRestore();
-      fs.chmodSync(busPath(t.root, runId), 0o644);
+      fs.chmodSync(bus, mode);
     }
     expect(err.join('')).toMatch(/env\.executed could not be recorded .*the command ran and exited 5/);
   });
 
+  // Runs `code` as the runner, waits for it to print "ready", then delivers SIGTERM to the forwarder execWithEnv installed (and only to it).
+  const stopped = async (code: string, killMs?: string) => {
+    const before = process.listeners('SIGTERM');
+    let ready: () => void = () => undefined;
+    const seen = new Promise<void>((r) => { ready = r; });
+    const spy = jest.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { if (String(c).includes('ready')) ready(); return true; }) as never);
+    if (killMs !== undefined) process.env['AEGIS_ENV_EXEC_KILL_MS'] = killMs;
+    try {
+      const pending = execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
+      await seen;
+      for (const l of process.listeners('SIGTERM').filter((x) => !before.includes(x))) (l as (s: string) => void)('SIGTERM');
+      return await pending;
+    } finally {
+      spy.mockRestore();
+      delete process.env['AEGIS_ENV_EXEC_KILL_MS'];
+    }
+  };
+
   it('forwards SIGTERM to the runner and still records the run', async () => {
     const marker = path.join(t.root, 'got-sigterm');
-    const code = `process.on('SIGTERM', () => { require('fs').writeFileSync(${JSON.stringify(marker)}, 'x'); process.exit(7); }); setInterval(() => {}, 1000); console.log('ready')`;
-    const pending = execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
-    await new Promise((r) => setTimeout(r, 700));
-    process.emit('SIGTERM');
-    const r = await pending;
+    const r = await stopped(`process.on('SIGTERM', () => { require('fs').writeFileSync(${JSON.stringify(marker)}, 'x'); process.exit(7); }); setInterval(() => {}, 1000); console.log('ready')`);
     expect(fs.existsSync(marker)).toBe(true);
     expect(r).toMatchObject({ exitCode: 7, auditRecorded: true });
     expect(events(t, runId).find((e) => e.type === 'env.executed')).toMatchObject({ exitCode: 7 });
+  });
+
+  it('a runner killed by the forwarded signal is exit 143 (128 + SIGTERM), not 1', async () => {
+    const r = await stopped(`setInterval(() => {}, 1000); console.log('ready')`);
+    expect(r).toMatchObject({ exitCode: 143, auditRecorded: true });
+  });
+
+  it('a runner that ignores the signal is killed after the grace period: the CLI is not left waiting (exit 137)', async () => {
+    const r = await stopped(`process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); console.log('ready')`, '300');
+    expect(r).toMatchObject({ exitCode: 137, auditRecorded: true });
+  });
+
+  it('removes its signal listeners when the runner exits', async () => {
+    const before = process.listeners('SIGTERM').length;
+    await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', '0']);
+    expect(process.listeners('SIGTERM').length).toBe(before);
   });
 });
 

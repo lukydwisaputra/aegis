@@ -28,17 +28,17 @@ function assertSafeGlob(glob: string): void {
   }
 }
 
-// Walks the target; skips node_modules, .git, symlinks and the aegis root itself (it lives inside the target).
+// Walks the target; skips node_modules, .git (a directory, or the file a submodule has), symlinks and the aegis root itself (it lives inside the target).
 function walk(dir: string, rel: string, out: string[], skip: string): void {
   for (const name of readdirSync(dir).sort()) {
     const abs = join(dir, name);
-    if (abs === skip) continue;
+    // `.git` is a file inside a submodule: skipped whatever it is, like node_modules.
+    if (abs === skip || SKIP_DIRS.has(name)) continue;
     const path = rel === "" ? name : `${rel}/${name}`;
     const st = lstatSync(abs);
     if (st.isSymbolicLink()) continue;
-    if (st.isDirectory()) {
-      if (!SKIP_DIRS.has(name)) walk(abs, path, out, skip);
-    } else if (st.isFile()) out.push(path);
+    if (st.isDirectory()) walk(abs, path, out, skip);
+    else if (st.isFile()) out.push(path);
   }
 }
 
@@ -105,24 +105,32 @@ export interface ResolvedReference {
 }
 
 /**
- * The copied files git does not vouch for: modified, untracked or ignored (an ignored file is copied too, and the pin says nothing
- * about it). Only the files that will be copied are asked about. A git failure is a refusal: the pin cannot be trusted unchecked.
+ * The copied files git does not vouch for: modified, untracked or ignored (an ignored file is copied too, and the pin says nothing about
+ * it), including a file inside a modified submodule or an untracked nested repository, which git reports as the directory. One
+ * status of the whole reference, then the entries that name a copied file or a directory holding one. A git failure is a refusal:
+ * the pin cannot be trusted unchecked.
  */
 function dirtyPaths(dir: string, files: readonly string[]): string[] {
-  const dirty: string[] = [];
-  // In batches: a reference can hold thousands of files, more than one command line carries.
-  for (let i = 0; i < files.length; i += 200) {
+  if (files.length === 0) return [];
+  const git = (args: string[]): string => {
     try {
-      const out = execFileSync(
-        "git",
-        ["-C", dir, "status", "--porcelain", "-z", "--untracked-files=all", "--ignored=matching", "--", ...files.slice(i, i + 200).map((f) => `:(literal)${f}`)],
-        { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] }
-      );
-      dirty.push(...out.split("\0").filter((l) => l !== ""));
+      return execFileSync("git", ["-C", dir, ...args], { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 256 * 1024 * 1024 });
     } catch (e) {
       const detail = (e as { stderr?: Buffer | string }).stderr?.toString().trim() || (e as Error).message;
       throw new RunStateError("invalid-input", `git status failed in ${dir}, so the pinned reference cannot be checked: ${detail.split("\n")[0]}`);
     }
+  };
+  // Status paths are relative to the repository root; the copied files are relative to `dir`, which may be a subdirectory of it.
+  const prefix = git(["rev-parse", "--show-prefix"]).trim();
+  const copied = new Set(files.map((f) => prefix + f));
+  const fields = git(["status", "--porcelain", "-z", "--untracked-files=all", "--ignored=matching", "--", "."]).split("\0").filter((l) => l !== "");
+  const dirty: string[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const entry = fields[i]!;
+    if (/^[RC]/.test(entry)) i++; // a rename or copy carries its original path in the next field
+    const path = entry.slice(3);
+    const dirPath = path.endsWith("/") ? path : `${path}/`;
+    if (copied.has(path) || [...copied].some((f) => f.startsWith(dirPath))) dirty.push(entry);
   }
   return dirty;
 }
