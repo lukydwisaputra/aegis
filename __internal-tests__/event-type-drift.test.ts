@@ -18,7 +18,8 @@ const SCAN_ROOTS = ['.claude', 'HANDBOOK', 'docs'];
 
 // Historical planning documents record names as they were designed, not as they
 // are declared today. They are intentionally frozen and excluded.
-const EXCLUDED_DIRS = ['node_modules', 'superpowers', 'dist'];
+// playwright-cli is a third-party skill its CLI installs (EXTERNAL_SKILLS in @qa/alignment); its prose is not ours.
+const EXCLUDED_DIRS = ['node_modules', 'superpowers', 'dist', 'playwright-cli'];
 
 // Prose tokens that match the extraction patterns but are not event types.
 const NOT_EVENT_NAMES = new Set([

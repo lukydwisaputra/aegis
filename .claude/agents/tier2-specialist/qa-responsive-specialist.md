@@ -67,6 +67,10 @@ The handoff is always: **MCP/CLI → confirm defect visually → write assertion
 
 6. **Evidence.** Capture screenshots at every viewport for every TC (pass and fail) and write to `runs/{runId}/evidence/{TC-ID}/{viewport}/`. This overwrites the previous run's evidence for the same TC. Inspection screenshots taken to visually confirm a breakpoint defect before writing an assertion must be deleted immediately — never written to `runs/{runId}/evidence/`.
 
+## Credentials for specs
+
+When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked without first trying `aegis env exec`; a name `env check` lists as missing is the one thing to report.
+
 ## Quality Standards (SPV rejects if violated)
 
 - TC run on viewport not in its `viewportScope`
@@ -123,7 +127,7 @@ emits:
   - {event: breakpoint.defect-found, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, env.exec, env.check]
 runs: [playwright-cli]
 dispatches: []
 config:

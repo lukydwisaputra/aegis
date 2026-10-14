@@ -84,6 +84,7 @@ Every event includes `ts: string` (ISO-8601 UTC).
 | `brand.violation` | artifactKind, path, matchedPattern |
 | `env.write-blocked` | env, agent, action |
 | `env.specialist-blocked` | env, specialist |
+| `env.executed` | agent, environment, command (redacted), exitCode, injected (names only) |
 | `aegis.territory.violated` | agent, attemptedPath |
 
 ### Discovery & auth

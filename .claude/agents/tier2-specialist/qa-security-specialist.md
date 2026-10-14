@@ -57,6 +57,10 @@ You run application security tests across four surfaces: dynamic analysis of the
 
 10. **Assert something that can fail.** Every committed spec carries at least one assertion that can fail — no assertion-free "smoke" scripts.
 
+## Credentials for specs
+
+When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked without first trying `aegis env exec`; a name `env check` lists as missing is the one thing to report.
+
 ## Quality Standards (SPV rejects if violated)
 
 - DAST skipped (all four scan surfaces are required)
@@ -117,7 +121,7 @@ emits:
   - {event: sandbox.explored, via: append}
   - {event: execution.blocked, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, env.exec, env.check]
 runs: [zap, semgrep, pnpm, gitleaks, trivy]
 dispatches: []
 config:

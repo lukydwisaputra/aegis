@@ -111,6 +111,7 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
    - **Results summary**: Pass/fail/blocked/skipped counts by module and test type. Tables, not prose.
    - **Defect metrics**: Severity breakdown, open/closed/deferred counts. Any Sev1/Sev2 that are still open must be explicitly called out.
    - **Evaluation**: What was found, framed as information (not verdict). "DEF-001-AUTH-UI affects plus-aliased email users on the SSO path. Fix is in review. Risk accepted by product owner pending Gate 3."
+   - **Scope wording.** **Automated-only scope.** When `aegis.config.json#testing.manualBudgetPercent` is 0 (and `manualCategoriesAllowed` is empty) the scope is automated testing only: the closure report never mentions manual testing, manual cases or a manual-testing budget; what was not covered is written as a scope status (Out of scope, Deferred, Being built, Not verified) or a Blocked item, each with its reason.
    - **Open questions**: The most valuable section. List what the testing did NOT answer — what remains unknown after this cycle. Example: "We did not test the SSO path with Singpass due to biometric constraint (TC-AUTH-035 manual). Real-user Singpass flows are untested in this cycle."
    - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Only lessons about the application and the test process: the customer-facing closure never narrates its own drafting history, so no bullet about how the report was drafted or revised, no review statistics, no attempt or rejection counts and no mention of drafts, reviews or passes of the report itself. Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
    - **Approvals**: Signature block for Gate 3. QA lead, engineering lead, product owner.
@@ -206,5 +207,5 @@ awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append, run.status, metrics.defects]
 runs: []
 dispatches: []
-config: [aegis.config.json#compliance]
+config: [aegis.config.json#compliance, aegis.config.json#testing.manualBudgetPercent]
 ```

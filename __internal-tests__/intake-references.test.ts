@@ -1,0 +1,155 @@
+import { execFileSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { copyIntakeReferences, createRun, readRunConfig, runDir } from '@qa/run-state';
+import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+
+// Pinned reference repositories in intake (intake.references).
+
+let t: TmpAegis;
+let ref: string;
+let sha: string;
+const git = (...args: string[]) => execFileSync('git', ['-C', ref, ...args], { encoding: 'utf-8' }).trim();
+beforeEach(() => {
+  t = makeAegisRoot();
+  ref = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-ref-'));
+  for (const f of ['baseline/booking/rules.md', 'clients/slec/notes.md', 'clients/other/notes.md', '_sources/big.sql']) {
+    fs.mkdirSync(path.dirname(path.join(ref, f)), { recursive: true });
+    fs.writeFileSync(path.join(ref, f), f);
+  }
+  git('init', '-q');
+  git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.');
+  git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'init');
+  sha = git('rev-parse', 'HEAD');
+});
+afterEach(() => {
+  t.cleanup();
+  fs.rmSync(ref, { recursive: true, force: true });
+});
+const setConfig = (extra: object) => {
+  const cfg = path.join(t.root, 'aegis.config.json');
+  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), ...extra }));
+};
+
+describe('intake.references copies pinned repositories into intake/references/{name}/', () => {
+  it('copies the globbed files, writes provenance and is part of run create', async () => {
+    setConfig({ intake: { sources: [], references: [{ name: 'vms-wiki', root: ref, sha, sources: ['baseline/**', 'clients/slec/**'] }] } });
+    const intake = path.join(runDir(t.root, (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId), 'intake');
+    const base = path.join(intake, 'references', 'vms-wiki');
+    expect(fs.readFileSync(path.join(base, 'baseline/booking/rules.md'), 'utf8')).toBe('baseline/booking/rules.md');
+    expect(fs.existsSync(path.join(base, 'clients/other/notes.md'))).toBe(false);
+    expect(fs.existsSync(path.join(base, '_sources/big.sql'))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(path.join(intake, 'references', 'vms-wiki.provenance.json'), 'utf8'))).toMatchObject({
+      name: 'vms-wiki', sha, pinned: sha, files: ['baseline/booking/rules.md', 'clients/slec/notes.md'],
+    });
+  });
+
+  it('refuses a checkout that is not at the pinned sha, before copying anything', () => {
+    const dir = path.join(t.root, 'intake-x');
+    const wrong = 'f'.repeat(40);
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sources: ['**'] }, { name: 'b', root: ref, sha: wrong, sources: ['**'] }], dir))
+      .toThrow(`intake reference b: ${ref} is at ${sha}, pinned ${wrong}`);
+    expect(fs.existsSync(path.join(dir, 'references'))).toBe(false);
+  });
+
+  it('a refused reference leaves no run directory and burns no run id', async () => {
+    setConfig({ intake: { sources: [], references: [{ name: 'a', root: ref, sha: 'f'.repeat(40), sources: ['**'] }] } });
+    const before = fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : [];
+    await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).rejects.toThrow(/pinned f{40}/);
+    expect(fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : []).toEqual(before);
+    setConfig({ intake: { sources: [], references: [{ name: 'a', root: ref, sha, sources: ['**'] }] } });
+    const run = await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner');
+    expect(run.runId).toMatch(/-001$/);
+  });
+
+  it('a pinned reference with an edited or untracked file is refused: the pin means the commit, not the tree', () => {
+    const dir = path.join(t.root, 'intake-d');
+    fs.writeFileSync(path.join(ref, 'baseline/booking/rules.md'), 'edited after the commit');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/has 1 file\(s\) to copy that differ from the pinned commit \(baseline\/booking\/rules\.md\)/);
+    git('checkout', '--', '.');
+    fs.writeFileSync(path.join(ref, 'baseline/new.md'), 'untracked');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/new\.md/);
+    expect(fs.existsSync(path.join(dir, 'references'))).toBe(false);
+  });
+
+  it('only the files that will be copied are checked: an untracked file outside the globs is fine', () => {
+    const dir = path.join(t.root, 'intake-o');
+    fs.writeFileSync(path.join(ref, 'notes.txt'), 'untracked, never copied');
+    const [r] = copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['baseline/**'] }], dir);
+    expect(r?.files).toEqual(['baseline/booking/rules.md']);
+  });
+
+  it('a gitignored file that the globs match is refused: it would be copied and the pin says nothing about it', () => {
+    fs.writeFileSync(path.join(ref, '.gitignore'), 'baseline/local.md\n');
+    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.gitignore');
+    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'ignore');
+    const pinned = git('rev-parse', 'HEAD');
+    fs.writeFileSync(path.join(ref, 'baseline/local.md'), 'ignored but present');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['baseline/**'] }], path.join(t.root, 'intake-i'))).toThrow(/baseline\/local\.md/);
+  });
+
+  it('an untracked nested repository that the globs reach is refused: git reports the directory, not its files', () => {
+    const nested = path.join(ref, 'nested');
+    fs.mkdirSync(nested);
+    fs.writeFileSync(path.join(nested, 'x.md'), 'inside');
+    execFileSync('git', ['-C', nested, 'init', '-q']);
+    execFileSync('git', ['-C', nested, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.']);
+    execFileSync('git', ['-C', nested, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'n']);
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], path.join(t.root, 'intake-n'))).toThrow(/nested\//);
+    expect(copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['baseline/**'] }], path.join(t.root, 'intake-n2'))[0]?.files).toEqual(['baseline/booking/rules.md']);
+  });
+
+  it('an edited file inside a submodule is refused: git reports the submodule as modified', () => {
+    const sub = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-sub-'));
+    try {
+      fs.writeFileSync(path.join(sub, 'x.md'), 'one');
+      const c = ['-c', 'user.email=t@example.com', '-c', 'user.name=t'];
+      execFileSync('git', ['-C', sub, 'init', '-q']);
+      execFileSync('git', ['-C', sub, ...c, 'add', '.']);
+      execFileSync('git', ['-C', sub, ...c, 'commit', '-qm', 's']);
+      git('-c', 'protocol.file.allow=always', ...c, 'submodule', 'add', '-q', sub, 'sub');
+      git(...c, 'commit', '-qm', 'add submodule');
+      const pinned = git('rev-parse', 'HEAD');
+      expect(copyIntakeReferences(t.root, [{ name: 'ok', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s1'))[0]?.files).toEqual(['sub/x.md']);
+      fs.writeFileSync(path.join(ref, 'sub', 'x.md'), 'edited after the pin');
+      expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s2'))).toThrow(/sub/);
+      git('config', 'submodule.sub.ignore', 'all'); // a config that hides the submodule from a plain status does not hide it from the pin check
+      expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s3'))).toThrow(/sub/);
+    } finally {
+      fs.rmSync(sub, { recursive: true, force: true });
+    }
+  });
+
+  it('a git failure is a refusal, not a clean tree', () => {
+    fs.writeFileSync(path.join(ref, '.git', 'index'), 'garbage');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], path.join(t.root, 'intake-g'))).toThrow(/git status failed .* the pinned reference cannot be checked/);
+  });
+
+  it('a refused --intake glob leaves no run directory either', async () => {
+    const before = fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : [];
+    await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full', intake: ['../secrets/**'] }, 'owner')).rejects.toThrow('without ".."');
+    expect(fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : []).toEqual(before);
+  });
+
+  it('an unpinned reference is copied as it stands, edits included', () => {
+    const dir = path.join(t.root, 'intake-u');
+    fs.writeFileSync(path.join(ref, 'baseline/booking/rules.md'), 'edited');
+    const [r] = copyIntakeReferences(t.root, [{ name: 'a', root: ref, sources: ['baseline/**'] }], dir);
+    expect(fs.readFileSync(path.join(dir, 'references', 'a', 'baseline/booking/rules.md'), 'utf8')).toBe('edited');
+    expect(r?.files).toEqual(['baseline/booking/rules.md']);
+  });
+
+  it('validates the config entries', () => {
+    const bad = (references: unknown, msg: string) => {
+      setConfig({ intake: { references } });
+      expect(() => readRunConfig(t.root)).toThrow(msg);
+    };
+    bad({}, 'intake.references must be a list');
+    bad([{ name: 'Bad Name', root: ref, sources: ['**'] }], 'name must be lowercase letters, digits and hyphens');
+    bad([{ name: 'a', root: ref, sources: ['**'] }, { name: 'a', root: ref, sources: ['**'] }], 'is listed twice');
+    bad([{ name: 'a', root: ref, sha: 'abc', sources: ['**'] }], 'must be a full 40-character commit sha');
+    bad([{ name: 'a', root: ref, sources: [] }], 'must list at least one glob');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sources: ['../x'] }], path.join(t.root, 'i'))).toThrow('without ".."');
+  });
+});

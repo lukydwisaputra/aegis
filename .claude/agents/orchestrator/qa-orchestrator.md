@@ -139,7 +139,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
       - `summary` (20–300 characters): the gate and the phases completed up to it;
       - `approach`: the mission ranking;
       - `decisions[]`: one entry per dispatch since the previous gate decision (the run's start for G1) or the latest `run.reissued`, whichever is later — `choice` names the task id and the agent, `reason` names the mission goal served and the lessons excerpts passed in the brief;
-      - `uncertainties[]`: the open risks for the owner, each with an `impact`; at G1 also one entry per story with `derived: true` in `runs/{runId}/stories/`, so the owner confirms it by approving the gate, and one entry per BLOCKed requirement the planner listed out of scope (its work report's `uncertainties[]`), so the owner can have it clarified and reject G1 with the reopen phase `requirements`;
+      - `uncertainties[]`: the open risks for the owner, each with an `impact`; at G1 also one entry per story with `derived: true` in `runs/{runId}/stories/`, so the owner confirms it by approving the gate, and one entry per requirement the planner placed Out of scope, Deferred, Being built or Not verified, and one per Blocked item (its work report's `uncertainties[]`), each with its status, never calling a scope status "blocked" and never calling a Blocked item "out of scope", so the owner can have an open decision answered and reject G1 with the reopen phase `requirements`;
       - `lessonsApplied`: your own lesson ids that shaped the run;
       - no ship/no-ship verdict anywhere.
 

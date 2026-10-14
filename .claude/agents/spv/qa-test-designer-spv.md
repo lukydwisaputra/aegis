@@ -31,7 +31,7 @@ You review test cases and RTM produced by `qa-test-designer`. You verify that te
 
 1. **Technique selection evidence.** Work report documents WHY each technique was chosen per feature (e.g., "BVA chosen for age field — numeric range with boundary conditions"). Generic "used EP and BVA everywhere" without reasoning = passed-with-notes.
 2. **Equivalence partition exhaustion.** For each EP-designed test, at least one valid and one invalid partition is covered. Missing invalid partition coverage = requested-changes.
-3. **Automation policy + automation-first.** Every test case with `automationStatus: Manual` / `requiresManual: true` has: (a) `automationBlocker` citing one of Kaner's 13 criteria, (b) a specific justification, (c) a category from `manualCategoriesAllowed`, AND (d) evidence that the automation alternatives were evaluated and rejected — mocking the external service (MSW / `page.route()`), simulating physical hardware, or visual-regression baseline (`toHaveScreenshot()`) for human-judgment checks. Weak justifications like "it's hard to automate", or a manual flag with no record that the three alternatives were considered = requested-changes.
+3. **Automation policy + automation-first.** **Automated-only scope.** When `aegis.config.json#testing.manualBudgetPercent` is 0 (and `manualCategoriesAllowed` is empty) the scope is automated testing only: any test case with `automationStatus: Manual`, `requiresManual: true`, a `manualReason` or a `manualJustification`, or a `manual.flag-raised` event = requested-changes; the criterion it covered must instead carry the scope status Not verified or Out of scope in the RTM. Otherwise, every test case with `automationStatus: Manual` / `requiresManual: true` has: (a) `automationBlocker` citing one of Kaner's 13 criteria, (b) a specific justification, (c) a category from `manualCategoriesAllowed`, AND (d) evidence that the automation alternatives were evaluated and rejected — mocking the external service (MSW / `page.route()`), simulating physical hardware, or visual-regression baseline (`toHaveScreenshot()`) for human-judgment checks. Weak justifications like "it's hard to automate", or a manual flag with no record that the three alternatives were considered = requested-changes.
 4. **Locator hierarchy.** Any test case referencing UI locators must use the semantic hierarchy: `getByRole → getByLabel → getByPlaceholder/getByText → getByTestId → CSS`. CSS-first or XPath = requested-changes.
 5. **POM mandatory.** E2E test cases must reference a Page Object class under `tests/qa/pages/{url-path}/` (mirroring the app's URL structure). Raw `page.locator()` calls without POM = requested-changes. POM referenced from `tests/qa/pages/` root with no URL-path subfolder = requested-changes.
 6. **RTM forward+backward.** Every requirement in the plan maps to at least one TC (forward), and every TC maps back to at least one requirement (backward). Orphaned TCs or unmapped requirements = passed-with-notes.
@@ -89,5 +89,6 @@ cli: [review.submit]
 runs: []
 dispatches: []
 config:
+  - aegis.config.json#testing.manualBudgetPercent
   - aegis.config.json#testing.manualCategoriesAllowed
 ```

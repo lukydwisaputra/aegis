@@ -51,6 +51,8 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "rtm.render": "rtm render [--run <id>]",
   "defect.amend": "defect amend --defect <id> (--set <field>=<value> (repeat) | --json '{\"<field>\":<value>}') --reason <text> [--run <id>]",
   "rtm.unlink": "rtm unlink --defect <id> --requirement <REQ-id> --reason <text> [--run <id>]",
+  "env.exec": "env exec [--run <id>] -- <command...>",
+  "env.check": "env check [--run <id>]",
 };
 
 /** NEW-07: each messaging adapter with the hints that identify it in a target, so the scanner never hard-codes a provider. */

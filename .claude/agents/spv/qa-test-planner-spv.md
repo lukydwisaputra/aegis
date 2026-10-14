@@ -23,6 +23,8 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 - `runs/{runId}/plan.{md,json}` — the test plan
 - `runs/{runId}/risk-register.{md,json}`
 - `runs/{runId}/requirements/ambiguity-report.json` — preceding analyst output
+- `runs/{runId}/requirements/testability-scores.json` — the O/C/D/U ratings (a score, not a status)
+- `runs/{runId}/gates/gate-*-decision.json` — the owner's rulings that decide each requirement's scope status
 - `aegis/thresholds.yaml`
 - `agent-memory/qa-test-planner/lessons.md`
 
@@ -34,7 +36,7 @@ You review test plans and risk registers produced by `qa-test-planner`. You veri
 4. **Strategy / logistics / work-products separation.** Plan clearly separates what-to-test (strategy), how-to-organise (logistics), and what-will-be-produced (work-products). Conflated sections = passed-with-notes.
 5. **Schedule realism.** Phase budgets (e.g., execution ~30-60 min) are within the CI/CD stage map limits from `aegis/thresholds.yaml`. If schedule is wildly over budget, flag with specific excess.
 6. **No ship/no-ship.** Plan conclusion section does not use language like "ready to ship", "recommend release", or "do not release". Findings + open questions are fine; verdicts are not.
-7. **BLOCK items planned out of scope.** If the ambiguity report had BLOCK-level items, the plan exists and lists every BLOCKed requirement out of scope with its clarifying question, and the work report's `uncertainties[]` names each one. A BLOCKed requirement planned in scope, or a missing plan = requested-changes.
+7. **Scope statuses and Blocked items.** Every acceptance criterion has exactly one scope status (In scope, Out of scope, Deferred, Being built, Not verified), and a requirement whose ACs differ is listed once per status with its ACs under each; status counts count ACs. The status is taken from the owner's ruling first, then source evidence, then the testability rating; a BLOCK rating alone never makes a requirement Out of scope, and a BLOCK-rated requirement with no ruling is Not verified. Each non-In-scope requirement is listed with its reason and trigger, and the work report's `uncertainties[]` names it. Blocked items (in-scope tests that cannot run now) are listed separately, each with the blocker and the unblock condition, and are never reported as Failed. An environment-affected defect candidate is never a blocker and never changes a scope status. An AC without exactly one status, a requirement counted In scope for ACs that are not, a status that contradicts a ruling, a Blocked item without blocker and unblock condition, a not-In-scope requirement planned as pass/fail work, or a missing plan = requested-changes.
 
 ## Verdict
 
@@ -64,6 +66,8 @@ reads:
   - "{run}/plan.{md,json}"
   - "{run}/risk-register.{md,json}"
   - "{run}/requirements/ambiguity-report.json"
+  - "{run}/requirements/testability-scores.json"
+  - "{run}/gates/gate-*-decision.json"
   - thresholds.yaml
   - "agent-memory/qa-test-planner/lessons.md"
 writes: []

@@ -227,8 +227,8 @@ export function buildPlan(root: string, runId: string): MessagingPlan {
 }
 
 /** KEY=VALUE lines of the aegis secrets file for the development environment; {} when absent. */
-function secretsFile(root: string): Record<string, string> {
-  const file = join(root, "secrets", [".env", "development"].join("."));
+export function secretsFile(root: string, environment = "development"): Record<string, string> {
+  const file = join(root, "secrets", [".env", environment].join("."));
   if (!existsSync(file)) return {};
   const out: Record<string, string> = {};
   for (const line of readFileSync(file, "utf-8").split(/\r?\n/)) {

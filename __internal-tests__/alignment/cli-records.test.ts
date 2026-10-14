@@ -53,6 +53,7 @@ const ENTRY: Record<string, string> = {
   'rtm.unlink': 'unlinkRtmDefect',
   'rtm.sync-defects': 'syncRtmDefectMap',
   'rtm.render': 'renderRtmDefects',
+  'env.exec': 'execWithEnv',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

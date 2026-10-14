@@ -80,6 +80,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `compliance` — which standards are audited per run
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
+- `intake.references` — pinned repositories outside the target (`{name, root, sha?, sources}`), copied into `intake/references/{name}/` at run create (a reference with a `sha` must be clean: uncommitted or untracked files are refused, since the working tree is what is copied); a checkout not at `sha` is refused
 - `environments` — per-env URLs, allowed specialists, and `mutating` flag
 - `ports` — dashboard (3030), dashboardApi (3031), k6 (5665); the messaging stub port is messaging.stubPort (4010)
 - `dashboard.projectName` — appears in all customer-facing report output

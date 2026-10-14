@@ -41,6 +41,7 @@ export interface RunConfig {
   compliance: string[];
   preCycleHealthCheck: boolean;
   intakeSources: string[];
+  intakeReferences: IntakeReference[];
   /** NEW-07: aegis.config.json#messaging, null when absent. */
   messaging: MessagingConfig | null;
 }
@@ -51,6 +52,44 @@ function stringList(value: unknown, key: string): string[] {
     throw new RunStateError("invalid-input", `aegis.config.json#${key} must be a list of strings`);
   }
   return value as string[];
+}
+
+/**
+ * A pinned repository outside the target (a shared wiki, a baseline spec) whose files are copied into
+ * `intake/references/{name}/` at run create. `root` is absolute or relative to the aegis root; `sha`, when set,
+ * must equal the checkout's HEAD or the run is refused.
+ */
+export interface IntakeReference {
+  name: string;
+  root: string;
+  sha?: string;
+  sources: string[];
+}
+
+const REFERENCE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const GIT_SHA = /^[0-9a-f]{40}$/;
+
+function intakeReferences(value: unknown): IntakeReference[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new RunStateError("invalid-input", "aegis.config.json#intake.references must be a list");
+  const seen = new Set<string>();
+  return value.map((entry, i) => {
+    const key = `intake.references[${i}]`;
+    if (entry === null || typeof entry !== "object") throw new RunStateError("invalid-input", `aegis.config.json#${key} must be an object`);
+    const e = entry as Record<string, unknown>;
+    if (typeof e["name"] !== "string" || !REFERENCE_NAME.test(e["name"])) {
+      throw new RunStateError("invalid-input", `aegis.config.json#${key}.name must be lowercase letters, digits and hyphens`);
+    }
+    if (seen.has(e["name"])) throw new RunStateError("invalid-input", `aegis.config.json#${key}.name ${e["name"]} is listed twice`);
+    seen.add(e["name"]);
+    if (typeof e["root"] !== "string" || e["root"].trim() === "") throw new RunStateError("invalid-input", `aegis.config.json#${key}.root must be a path`);
+    if (e["sha"] !== undefined && (typeof e["sha"] !== "string" || !GIT_SHA.test(e["sha"]))) {
+      throw new RunStateError("invalid-input", `aegis.config.json#${key}.sha must be a full 40-character commit sha`);
+    }
+    const sources = stringList(e["sources"], `${key}.sources`);
+    if (sources.length === 0) throw new RunStateError("invalid-input", `aegis.config.json#${key}.sources must list at least one glob`);
+    return { name: e["name"], root: e["root"], ...(e["sha"] !== undefined ? { sha: e["sha"] as string } : {}), sources };
+  });
 }
 
 export function readRunConfig(root: string): RunConfig {
@@ -75,6 +114,7 @@ export function readRunConfig(root: string): RunConfig {
     compliance,
     preCycleHealthCheck: raw["preCycleHealthCheck"] === true,
     intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
+    intakeReferences: intakeReferences(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["references"] : undefined),
     messaging,
   };
 }

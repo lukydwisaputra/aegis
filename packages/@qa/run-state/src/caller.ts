@@ -45,6 +45,8 @@ export const CLI_COMMANDS = [
   "metrics.rollups",
   "rtm.sync-defects",
   "rtm.render",
+  "env.exec",
+  "env.check",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -57,9 +59,9 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.resume",
   "run.reissue",
   "run.descope",
+  "task.abandon",
   "task.list",
   "integrity.verify",
-  "task.abandon",
   "integrity.repair-tail",
   "gate.decide",
   "escalation.decide",
@@ -115,12 +117,28 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "rtm.render": "qa-defect-manager",
 };
 
-// Read-only commands several named agents run (the owner always may, as OWNER_COMMANDS says): the agent that writes the figures and
-// the agent that states them.
+const ENV_EXEC_AGENTS: readonly string[] = [
+  "qa-environment-engineer",
+  "qa-test-executor",
+  "qa-accessibility-specialist",
+  "qa-api-specialist",
+  "qa-database-specialist",
+  "qa-messaging-specialist",
+  "qa-responsive-specialist",
+  "qa-security-specialist",
+  "qa-ui-specialist",
+  "qa-unit-specialist",
+];
+
+// Commands several named agents run (the owner always may where OWNER_COMMANDS says so): the agent that writes the figures and
+// the agent that states them; and, for env.exec / env.check, the agents that run a test runner with the QA credentials injected:
+// the environment engineer, the executor and the specialists whose contract lists them. No reviewer, compliance agent or scanner may.
 export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly string[]>>> = {
   "metrics.defects": ["qa-metrics-collector", "qa-defect-manager", "qa-closure-reporter"],
   // The collector writes the rollups; the defect manager may only check them (--check writes nothing, enforced in writeRollups).
   "metrics.rollups": ["qa-metrics-collector", "qa-defect-manager"],
+  "env.exec": ENV_EXEC_AGENTS,
+  "env.check": ENV_EXEC_AGENTS,
 };
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
@@ -148,7 +166,7 @@ export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.
 // cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
 // recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2); the last two by
 // aegis defect amend and aegis rtm unlink (gap 5).
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered"]);
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered", "env.executed"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

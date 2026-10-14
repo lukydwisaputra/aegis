@@ -87,6 +87,8 @@ You translate approved requirements and the test plan into concrete, executable 
    3. Can a human-judgment check (visual quality, layout) be replaced by a visual-regression baseline (`toHaveScreenshot()`)?
    Only set `requiresManual: true` if NONE of these apply AND the test has material value. The goal is that every test case is executable by automation.
 
+   **Automated-only scope.** When `aegis.config.json#testing.manualBudgetPercent` is 0 (and `manualCategoriesAllowed` is empty) the scope is automated testing only: never set `requiresManual` or `automationStatus: Manual`, never write a `manualReason` or `manualJustification`, and never emit `manual.flag-raised`. A behaviour no automated test can reach is not written as a manual case: the acceptance criterion it would cover takes the scope status Not verified (the decision or behaviour is unproven) or Out of scope (with its ruling or source evidence), recorded in the RTM with its trigger; every test case is Automated and gets a script. `test.design-complete` carries `manualCount: 0`.
+
 5. **Write each test case** using the canonical schema:
    - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], order, traceability{}, compliance[], author, createdAt, scenarioId, gherkin{given[], when[], then[]} (conditional — see below)
 
@@ -199,5 +201,5 @@ awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]
 runs: []
 dispatches: []
-config: []
+config: ["aegis.config.json#testing.manualBudgetPercent"]
 ```

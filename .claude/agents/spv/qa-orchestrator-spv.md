@@ -36,7 +36,7 @@ You review the work reports produced by `qa-orchestrator`. You verify, before ea
 6. **Production rule.** No mutating phase agent (Env-data seeding, or any phase that writes to the target) was dispatched on an environment whose `aegis.config.json#environments.{env}.readOnly` is `true`, and production was never used for mutating tests. A violation is `requested-changes`.
 7. **Stop conditions.** After `task.escalated`, a task released `failed` (the CLI blocks the run), `preflight.failed` or `run.stop.requested`, the orchestrator dispatched nothing further until the owner acted.
 8. **Budget warnings.** If `budget.warning` was emitted, it was at the orchestrator's 90% projected threshold, with `percentProjected` and `dimension` set.
-9. **Derived stories and BLOCKed requirements at G1.** The G1 work report lists in `uncertainties[]` every story with `derived: true` under `runs/{runId}/stories/` and every BLOCKed requirement the planner listed out of scope. A missing one = requested-changes.
+9. **Derived stories, non-In-scope requirements and Blocked items at G1.** The G1 work report lists in `uncertainties[]` every story with `derived: true` under `runs/{runId}/stories/`, every requirement the planner placed Out of scope, Deferred, Being built or Not verified (with its status), and every Blocked item (with its blocker and unblock condition). A missing one, or a Blocked item described as Out of scope (or the reverse) = requested-changes.
 
 ## Verdict
 

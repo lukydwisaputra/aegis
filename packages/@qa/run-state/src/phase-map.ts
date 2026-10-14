@@ -18,7 +18,12 @@ export const CYCLE_PHASES: Readonly<Record<CycleType, readonly PhaseId[]>> = {
 
 // The one schema the Scan barrier, preflight and not-applicable use for target-profile.json: the full, top-level
 // strict TargetProfileSchema. The strict schema is the scanner's review (AUD-052); a refusal names the field to fix.
-export const ScanProfileSchema = TargetProfileSchema;
+// A count with no file list would make Dev-test-review skip tests that exist (its skip rule and the reviewer read `files`).
+export const ScanProfileSchema = TargetProfileSchema.superRefine((p, ctx) => {
+  if (p.existingTests.count > 0 && p.existingTests.files.length === 0) {
+    ctx.addIssue({ code: "custom", path: ["existingTests", "files"], message: `existingTests.count is ${p.existingTests.count} but files[] is empty: list every test file path` });
+  }
+});
 
 // Every phase except Intake needs at least one released task before it can complete.
 export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake"]);

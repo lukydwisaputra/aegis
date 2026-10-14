@@ -46,7 +46,7 @@ describe('P0a-1 contracts', () => {
 it('aegis.config.json has no gates switch and declares intake.sources (AUD-007, spec §6.3)', () => {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'aegis.config.json'), 'utf8'));
   expect(cfg).not.toHaveProperty('gates');
-  expect(cfg.intake).toEqual({ sources: [] });
+  expect(cfg.intake).toMatchObject({ sources: expect.any(Array) });
 });
 
 it('new event families and preflight.failed are CLI-recorded', () => {

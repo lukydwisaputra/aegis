@@ -54,6 +54,10 @@ You run only in the `development` environment; the task claim and `aegis messagi
 
 7. **Scan before you submit.** Write results per TC to `runs/{runId}/cases/{TC-ID}-result.json` and draft your work report in your sandbox directory, then run `aegis messaging scan-secrets <QA tests>/messaging <run>/cases/<each of your result files> <sandbox>/<your work-report draft>` with every path absolute: `<QA tests>`, `<run>` and `<sandbox>` are the absolute paths on the Paths line of your run context. The command resolves a relative path against the directory it runs in, not the target, so a relative specs path is skipped as missing and the scan finds nothing. A scan whose `skipped` list is not empty is not clean: rescan with the correct paths; a `too-large` file is reported as an uncertainty in the work report; a skipped symlink is not clean: scan its target path explicitly. Any hit is removed before you submit. Your work report lists the adapter, the contract repo, path, ref and sha (from `runs/{runId}/messaging/contract.json`), the env names in force, the layers run and not run with reasons, and every live message id.
 
+## Credentials for specs
+
+When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked without first trying `aegis env exec`; a name `env check` lists as missing is the one thing to report.
+
 ## Quality Standards (SPV rejects if violated)
 
 - A `specialist.no-op` without a readable `hasMessagingIntegration: false`, or messaging tests skipped without a `specialist.no-op` when that flag is false
@@ -116,7 +120,7 @@ emits:
   - {event: messaging.live-preflight, via: "cli:messaging.exec"}
   - {event: messaging.contract-fetched, via: "cli:messaging.fetch-contract"}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append, messaging.fetch-contract, messaging.plan, messaging.exec, messaging.scan-secrets]
+cli: [task.claim, work-report.submit, task.release, event.append, messaging.fetch-contract, messaging.plan, messaging.exec, messaging.scan-secrets, env.exec, env.check]
 runs: []
 dispatches: []
 config:

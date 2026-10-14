@@ -13,6 +13,7 @@ export * from "./outputs.js";
 export * from "./phases.js";
 export * from "./compliance.js";
 export * from "./intake.js";
+export * from "./env-exec.js";
 export * from "./gates.js";
 export * from "./supersede.js";
 export * from "./cases.js";
