@@ -46,11 +46,11 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 5. **Sanitise all captured request/response logs.** Strip Authorization, Cookie, Set-Cookie, and API key headers from any HAR or log saved to evidence. Sanitise a HAR with `sanitizeHar` from `tests/qa/support/test-helpers.ts`.
 
-6. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
+6. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) send only read-only requests (GET/HEAD) for smoke checks: no factory `create()`, no state-changing request, no write to the target. Run-side results and evidence are still written. Write `skipped` for every other TC, with the note `production is read-only` (a QA-side limit, never Blocked; no `test.blocked` event).
 
 7. **Contract tests.** For consumer-driven contracts: write Pact consumer tests in `tests/qa/contract/`. Schema assertions only — not behaviour tests (behaviour belongs in integration/E2E).
 
-8. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after the run in that evidence — scoped to leave out this repo's directory and the QA tests directory (derived as for the dev-test reviewer's sandbox copy), which the run's evidence and parallel specialists write; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `blocked` with that reason. Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
+8. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after the run in that evidence — scoped to leave out this repo's directory and the QA tests directory (derived as for the dev-test reviewer's sandbox copy), which the run's evidence and parallel specialists write; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `skipped` with a note beginning `dev-covered:` and that reason (a QA-side limit, never Blocked; append no `test.blocked` event for it). Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
 
 ## Credentials for specs
 
@@ -93,7 +93,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-api-specialist 
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
+dispatchedBy: [qa-orchestrator, qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
 reviewedBy: qa-api-specialist-spv
 reads:
   - "{run}/target-profile.json"

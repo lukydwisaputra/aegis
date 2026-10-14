@@ -99,7 +99,7 @@ tests/qa/
    - CSS selector — sparingly, structural-agnostic only
    - **Never**: XPath, CSS combinators that rely on DOM depth, class names that look auto-generated
 
-5. **Seed test data.** On a read-only (`readOnly: true` or `mutating: false`) environment (production) a factory `create()` is refused: seed nothing there and write `blocked` for any TC that needs seeded data. Elsewhere, for every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/qa/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
+5. **Seed test data.** On a read-only (`readOnly: true` or `mutating: false`) environment (production) a factory `create()` is refused: seed nothing there and write `skipped` for any TC that needs seeded data, with the note `production is read-only, needs seeded data` (a QA-side limit, never Blocked; no `test.blocked` event). Elsewhere, for every TC that has non-empty `preconditions` or `testData` in its schema, implement a `test.beforeEach` hook that calls the relevant factory's `create()` method (factories live in `tests/qa/factories/`). Factory output (IDs, credentials, state) must be available as fixture variables in the test. Implement `test.afterEach` to call `factory.cleanup()`. Never rely on pre-existing database state — each test seeds its own data.
 
 6. **Mock external services and visual-regression.** Use Playwright `page.route()` to mock external services. Use `toHaveScreenshot()` for visual-regression checks instead of human-judgment checks.
 
@@ -113,9 +113,9 @@ tests/qa/
 
 8. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
 
-9. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write to the target. Run-side results and evidence are still written. Write `blocked` for every other TC.
+9. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write to the target. Run-side results and evidence are still written. Write `skipped` for every other TC, with the note `production is read-only` (a QA-side limit, never Blocked; no `test.blocked` event).
 
-10. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after the run in that evidence — scoped to leave out this repo's directory and the QA tests directory (derived as for the dev-test reviewer's sandbox copy), which the run's evidence and parallel specialists write; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `blocked` with that reason. Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
+10. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, run the developer test it names read-only with the target's own test command: the `package.json` script that runs that kind of test (usually `test` for unit tests and `test:e2e` for e2e tests), filtered to that test, with `CI=true`, no snapshot update and no coverage flag, and every runner output and report directed under `runs/{runId}/evidence/{TC-ID}/` (for Playwright, `--output` and the reporter output directories), so the run writes nothing into the target tree. Record the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after the run in that evidence — scoped to leave out this repo's directory and the QA tests directory (derived as for the dev-test reviewer's sandbox copy), which the run's evidence and parallel specialists write; the two must match. When the test's config would build or start the target in place (such as a Playwright `webServer` that builds `.next/`), do not run it: write the TC `skipped` with a note beginning `dev-covered:` and that reason (a QA-side limit, never Blocked; append no `test.blocked` event for it). Never edit, copy or re-implement that test, and write no QA script for the TC. Then write `runs/{runId}/cases/{TC-ID}-result.json` with the `coveredBy` ref as its evidence.
 
 ## Credentials for specs
 
@@ -165,7 +165,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-ui-specialist p
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
+dispatchedBy: [qa-orchestrator, qa-test-executor, qa-run-specialist, qa-smoke, qa-watch]
 reviewedBy: qa-ui-specialist-spv
 reads:
   - "{run}/target-profile.json"

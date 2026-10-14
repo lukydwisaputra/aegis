@@ -2,8 +2,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { PHASE_IDS } from '@qa/contracts';
+import { appendChained } from '@qa/event-bus';
+import { CAUSE_RULES, classifyUncovered, computeCoverage } from '@qa/metrics';
 import {
-  completePhase, createRun, dataFindings, decideGate, lintFindings, nextStep, openGate, probeEnvironment, readRun, readRunConfig, reissueRun, runDir,
+  busPath, completePhase, createRun, dataFindings, decideGate, lintBlockMessage, reissueCaseScope, lintFindings, nextStep, openGate, probeEnvironment, readRun, readRunConfig, reissueRun, runDir,
   startPhase, writeRun, type ListenerInfo, type ProbeSystem,
 } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
@@ -156,7 +158,7 @@ describe('the G2 env-probe rules', () => {
     writeEnvProbe(root(), runId, 'g2', { takenAt: '2026-09-30T08:00:00.000Z' });
     expect(g2()).toEqual([]);
     completedAt('execution', '2026-09-30T08:00:00.000Z');
-    expect(brief(g2())).toEqual(['env-probe-stale|error|takenAt 2026-09-30T08:00:00.000Z, Execution completed 2026-09-30T08:00:00.000Z']);
+    expect(brief(g2())).toEqual(['env-probe-stale|error|taken at 2026-09-30T08:00:00.000Z, not after Execution completed at 2026-09-30T08:00:00.000Z']);
     await expect(completePhase(root(), runId, 'triage', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringContaining('env-probe-stale') });
     writeEnvProbe(root(), runId, 'g2', { takenAt: '2026-09-30T08:00:00.001Z' });
     expect(g2()).toEqual([]);
@@ -249,7 +251,7 @@ describe('a reopen deletes the probes it makes stale', () => {
     expect(fs.existsSync(probeFile('execution'))).toBe(false);
     expect(nextStep(readRun(root(), runId))).toEqual({ kind: 'start-phase', phase: 'execution' });
     await expect(startPhase(root(), runId, 'execution', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringContaining('no execution probe') });
-    writeEnvProbe(root(), runId, 'execution');
+    writeEnvProbe(root(), runId, 'execution', { takenAt: new Date(Date.now() + 1000).toISOString() });
     await expect(startPhase(root(), runId, 'execution', ORCH)).resolves.toMatchObject({ currentPhase: 'execution' });
   });
 
@@ -356,5 +358,169 @@ describe('end to end', () => {
     expect(await probeEnvironment(root(), runId, ORCH, 'g2', machine, { now: at('10:30') })).toMatchObject({ ok: true });
     await completePhase(root(), runId, 'triage', ORCH, { now: at('10:40') });
     await expect(openGate(root(), runId, 'G2', ORCH, at('10:45'))).resolves.toMatchObject({ status: 'awaiting-gate' });
+  });
+});
+
+/** A completed full run as run.json records it (every phase done, the three gates approved), ready for a reissue. */
+function completeRunState(): void {
+  const s = readRun(root(), runId);
+  const phases = { ...s.phases };
+  for (const id of PHASE_IDS) if (phases[id]?.status === 'pending') phases[id] = { status: 'completed' };
+  writeRun(root(), { ...s, status: 'completed', phases, gates: { G1: APPROVED, G2: APPROVED, G3: APPROVED } } as never);
+}
+
+describe('a probe older than the last reopen is stale, even when its delete failed', () => {
+  it('after a Triage-only G2 rejection the old g2 report left behind is env-probe-stale; a probe taken after the decision is fresh; no reopen time never marks it stale', async () => {
+    await newRun();
+    await activeTriage();
+    writeEnvProbe(root(), runId, 'g2', { takenAt: '2026-09-30T08:00:00.000Z' });
+    expect(g2()).toEqual([]); // no rejection yet, no completedAt: nothing makes it stale
+    writeEnvProbe(root(), runId, 'execution');
+    await completePhase(root(), runId, 'triage', ORCH);
+    await openGate(root(), runId, 'G2', ORCH);
+    await decideGate(root(), runId, { gate: 'G2', decision: 'rejected', note: 'Triage again', now: new Date('2026-09-30T12:00:00.000Z') }, 'owner');
+    // The delete failed: the old report is still there.
+    writeEnvProbe(root(), runId, 'g2', { takenAt: '2026-09-30T08:00:00.000Z' });
+    expect(brief(g2())).toEqual(['env-probe-stale|error|taken at 2026-09-30T08:00:00.000Z, not after the run was reopened at 2026-09-30T12:00:00.000Z']);
+    writeEnvProbe(root(), runId, 'g2', { takenAt: '2026-09-30T12:00:00.001Z' });
+    expect(g2()).toEqual([]);
+  });
+
+  it('after a reissue of Execution an execution report left behind refuses the start until a probe taken after the reissue', async () => {
+    await newRun();
+    completeRunState();
+    await reissueRun(root(), runId, { phase: 'execution', reason: 'Retest after the fix', now: new Date('2026-09-30T12:00:00.000Z') }, 'owner');
+    writeEnvProbe(root(), runId, 'execution', { takenAt: '2026-09-30T11:59:59.000Z' });
+    await expect(startPhase(root(), runId, 'execution', ORCH)).rejects.toMatchObject({
+      code: 'barrier', message: expect.stringContaining('the execution probe was taken at 2026-09-30T11:59:59.000Z, not after the run was reopened at 2026-09-30T12:00:00.000Z'),
+    });
+    writeEnvProbe(root(), runId, 'execution', { takenAt: '2026-09-30T12:00:01.000Z' });
+    await expect(startPhase(root(), runId, 'execution', ORCH)).resolves.toMatchObject({ currentPhase: 'execution' });
+  });
+});
+
+describe('a scoped reissue: Blocked results outside the case list are carried, so a warning', () => {
+  it('while the list is in force the cases outside it are warnings and the listed ones errors; a G2 rejection after the reissue lapses the list', async () => {
+    await newRun();
+    for (const id of ['TC-AUTH-001', 'TC-AUTH-002']) {
+      writeRunFile(root(), runId, `cases/${id}.json`, { id });
+      writeRunFile(root(), runId, `cases/${id}-result.json`, { status: 'blocked', notes: 'login fixture not ready' });
+    }
+    completeRunState();
+    const exec = () => brief(dataFindings(root(), runId, 'execution', new Set()) as never);
+    expect(exec()).toEqual(['blocked-no-cause|error|TC-AUTH-001: blockedCause missing', 'blocked-no-cause|error|TC-AUTH-002: blockedCause missing']);
+    await reissueRun(root(), runId, { phase: 'execution', reason: 'Re-run the login case', cases: ['TC-AUTH-001'] }, 'owner');
+    expect([...reissueCaseScope(root(), runId, readRun(root(), runId))!]).toEqual(['TC-AUTH-001']);
+    expect(exec()).toEqual([
+      'blocked-no-cause|error|TC-AUTH-001: blockedCause missing',
+      'blocked-no-cause|warning|TC-AUTH-002: blockedCause missing (carried result, outside the reissued cases)',
+    ]);
+    // The Execution barrier is held by the listed case only.
+    writeEnvProbe(root(), runId, 'execution', { takenAt: new Date(Date.now() + 1000).toISOString() });
+    await startPhase(root(), runId, 'execution', ORCH);
+    await workTask(root(), runId, 'T-execution-1', 'qa-test-executor', 'qa-test-executor-spv');
+    writeRunFile(root(), runId, 'execution-summary.json', { totals: { passed: 0, failed: 0, blocked: 2 } });
+    await expect(completePhase(root(), runId, 'execution', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/1 data check error\(s\).*TC-AUTH-001-result\.json/) });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-001-result.json', { status: 'pass' });
+    await expect(completePhase(root(), runId, 'execution', ORCH)).resolves.toBeDefined();
+    // A rejection after the reissue lapses the list: every case is checked in full again.
+    await appendChained({ type: 'gate.decided', ts: new Date().toISOString(), runId, gate: 'G2', decision: 'rejected', sequence: 2, note: 'Retest everything' }, busPath(root(), runId), { emittedBy: 'owner', runId });
+    expect(reissueCaseScope(root(), runId, readRun(root(), runId))).toBeNull();
+    expect(exec()).toEqual(['blocked-no-cause|error|TC-AUTH-002: blockedCause missing']);
+  });
+
+  it('a reissue without a case list, or of a phase after Execution, checks every case in full', async () => {
+    await newRun();
+    completeRunState();
+    await reissueRun(root(), runId, { phase: 'triage', reason: 'Triage again' }, 'owner');
+    expect(reissueCaseScope(root(), runId, readRun(root(), runId))).toBeNull();
+  });
+});
+
+describe('the gate-open refusal names the environment remedy on its own', () => {
+  it('an env-probe error at gate open says to fix the environment and re-run the g2 probe, not that nothing can be corrected', async () => {
+    await newRun();
+    await activeTriage();
+    writeEnvProbe(root(), runId, 'execution');
+    writeEnvProbe(root(), runId, 'g2');
+    await completePhase(root(), runId, 'triage', ORCH);
+    writeEnvProbe(root(), runId, 'g2', { ok: false, checks: [{ name: 'listeners', status: 'failed', detail: 'nothing listens on port 5173' }] });
+    const err = await openGate(root(), runId, 'G2', ORCH).then(() => new Error('opened'), (e: Error) => e);
+    expect(err.message).toContain('For the environment probe, fix the environment, run aegis env probe --stage g2 again (its window stays open after Triage has completed) and open the gate again. Run aegis lint run --gate G2 for the detail');
+    expect(err.message).not.toContain('nothing can be corrected inside the run');
+    expect(err.message).not.toContain('reportRules.disable');
+  });
+
+  it('with a record finding as well, each gets its sentence and the exception names only the record groups', () => {
+    const msg = lintBlockMessage('G2', [
+      { file: 'reports/env/probe-g2.json', line: 1, rule: 'env-probe-failed', kind: 'data' },
+      { file: 'rtm.json', line: 1, rule: 'defect-rtm-mismatch', kind: 'data' },
+    ], 'gate-open');
+    expect(msg).toContain('reportRules.disable with the rule group: defect-counts)');
+    expect(msg).toContain('nothing can be corrected inside the run');
+    expect(msg).toContain('For the environment probe, fix the environment, run aegis env probe --stage g2 again');
+  });
+});
+
+describe('a case QA cannot run for a limit of its own is skipped, never Blocked', () => {
+  it('a dev-covered skipped result passes the Execution barrier, is counted skipped and is listed as a testing-side uncovered row', async () => {
+    await newRun();
+    writeRunFile(root(), runId, 'rtm.json', { rows: [{ requirementId: 'REQ-AUTH-01', testStatus: 'Covered' }] });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-010.json', { id: 'TC-AUTH-010' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-010-result.json', { status: 'skipped', notes: 'dev-covered: the test config builds .next in place', coveredBy: 'src/auth.test.ts' });
+    fastForward(root(), runId, 'execution', { G1: APPROVED });
+    writeEnvProbe(root(), runId, 'execution');
+    await startPhase(root(), runId, 'execution', ORCH);
+    await workTask(root(), runId, 'T-execution-1', 'qa-test-executor', 'qa-test-executor-spv');
+    writeRunFile(root(), runId, 'execution-summary.json', { totals: { passed: 0, failed: 0, blocked: 0, skipped: 1 } });
+    expect(dataFindings(root(), runId, 'execution', new Set())).toEqual([]);
+    await expect(completePhase(root(), runId, 'execution', ORCH)).resolves.toBeDefined();
+    const dir = runDir(root(), runId);
+    expect(computeCoverage(dir).counts).toMatchObject({ designed: 1, skipped: 1, blocked: 0 });
+    expect(classifyUncovered(dir).rows).toEqual([{ id: 'TC-AUTH-010', cause: 'testing-side', via: 'keyword: dev-covered' }]);
+  });
+
+  it('the suspect hint reads the testing-side rules of the uncovered-cause table plus seed data and service-role', async () => {
+    await newRun();
+    const testingSide = CAUSE_RULES.filter((r) => r.cause === 'testing-side');
+    const notes: Record<string, string> = { 'TC-AUTH-020': 'mutation score below threshold', 'TC-AUTH-021': 'needs a service-role key', 'TC-AUTH-022': 'the harness timed out' };
+    for (const [id, note] of Object.entries(notes)) {
+      writeRunFile(root(), runId, `cases/${id}.json`, { id });
+      writeRunFile(root(), runId, `cases/${id}-result.json`, { status: 'blocked', blockedCause: 'product-dependency', blockedDependency: 'Stripe', notes: note });
+    }
+    const hints = dataFindings(root(), runId, 'execution', new Set()).filter((f) => f.rule === 'blocked-cause-suspect').map((f) => f.context);
+    expect(hints).toEqual(['TC-AUTH-020: note names mutation score', 'TC-AUTH-021: note names service-role', 'TC-AUTH-022: note names harness']);
+    expect(testingSide.map((r) => r.label)).toEqual(expect.arrayContaining(['mutation score', 'harness', 'dev-covered']));
+  });
+});
+
+describe('agent prose for the Blocked rule and its corrections', () => {
+  const agent = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', rel), 'utf8');
+  const SPECIALISTS = ['ui', 'api', 'unit', 'accessibility', 'database', 'feature-flag', 'messaging', 'performance', 'realtime', 'responsive', 'security'].map((s) => `qa-${s}-specialist`);
+
+  it('the orchestrator owns the Blocked correction in Execution and in Triage, dispatches the specialist and its SPV, and lists both in its contract', () => {
+    const o = agent('orchestrator/qa-orchestrator.md');
+    expect(o).toMatch(/\*\*Blocked correction in Execution or Triage\.\*\* When the Execution barrier .* add a correction task to the active phase, Execution or Triage, for the specialist that wrote the result file/);
+    expect(o).toMatch(/you never dispatch a specialist in Execution, except for a Blocked correction task the Execution barrier names/);
+    // Item 7: a corrected case that now fails goes to the defect manager before Triage completes.
+    expect(o).toMatch(/when a corrected case now fails, add a correction task for `qa-defect-manager` to the active Triage phase .* complete Triage only after its review passes/);
+    const dispatches = o.slice(o.indexOf('dispatches:'), o.indexOf('config:'));
+    for (const s of SPECIALISTS) {
+      expect(dispatches).toContain(`  - ${s}\n`);
+      expect(dispatches).toContain(`  - ${s}-spv\n`);
+      expect(agent(`tier2-specialist/${s}.md`)).toMatch(/^dispatchedBy: \[qa-orchestrator, /m);
+      expect(agent(`spv/${s}-spv.md`)).toMatch(/^dispatchedBy: \[qa-orchestrator, /m);
+    }
+  });
+
+  it('a case QA cannot run is skipped with its reason, never Blocked: developer-covered, production without seeding, and the executor rule', () => {
+    for (const s of ['ui', 'api', 'unit']) expect(agent(`tier2-specialist/qa-${s}-specialist.md`)).toMatch(/do not run it: write the TC `skipped` with a note beginning `dev-covered:`/);
+    const ui = agent('tier2-specialist/qa-ui-specialist.md');
+    expect(ui).toMatch(/write `skipped` for any TC that needs seeded data, with the note `production is read-only, needs seeded data`/);
+    expect(ui).not.toMatch(/[Ww]rite `blocked`/);
+    expect(agent('tier2-specialist/qa-api-specialist.md')).not.toMatch(/[Ww]rite `blocked`/);
+    expect(agent('spv/qa-ui-specialist-spv.md')).toMatch(/the TC is `skipped` with the note `production is read-only, needs seeded data` \(never Blocked\)/);
+    expect(agent('tier1-phase/qa-test-executor.md')).toMatch(/a case that cannot run is Blocked only under the Blocked rule \(Blocked result, below\); otherwise it is `skipped` with the reason/);
+    expect(agent('spv/qa-test-executor-spv.md')).toMatch(/is not run and is `skipped` with a note beginning `dev-covered:`, never Blocked/);
   });
 });

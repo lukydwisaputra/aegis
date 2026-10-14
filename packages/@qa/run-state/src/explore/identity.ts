@@ -227,6 +227,18 @@ function git(dir: string, args: string[]): string | null {
   }
 }
 
+/** The head part of sourceIdentity, from normalised `dirs`: two git calls, no file is read or hashed. */
+function scopedHead(targetDir: string, dirs: readonly string[]): string | null {
+  const headOfAll = git(targetDir, ["rev-parse", "HEAD"])?.trim() ?? null;
+  const scoped = git(targetDir, ["log", "-1", "--format=%H", "HEAD", "--", ".", ...dirs.map((d) => `:(exclude,literal)${d}`)])?.trim() ?? "";
+  return headOfAll === null ? null : /^[0-9a-f]{40}$/.test(scoped) ? scoped : headOfAll;
+}
+
+/** Only the `head` of sourceIdentity (the same rule: the last commit outside `excludeDirs`), without hashing the uncommitted changes. Never throws. */
+export function sourceHead(targetDir: string, excludeDirs: readonly string[]): string | null {
+  return scopedHead(targetDir, excludeDirs.map(normaliseDir).filter((d): d is string => d !== null));
+}
+
 /** Target-relative, forward slashes, no leading `./` or trailing `/`; an empty entry or one with a `..` segment is dropped. */
 function normaliseDir(d: string): string | null {
   let n = d.replace(/\\/g, "/");
@@ -247,9 +259,7 @@ function normaliseDir(d: string): string | null {
  */
 export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]): SourceIdentity {
   const dirs = excludeDirs.map(normaliseDir).filter((d): d is string => d !== null);
-  const headOfAll = git(targetDir, ["rev-parse", "HEAD"])?.trim() ?? null;
-  const scoped = git(targetDir, ["log", "-1", "--format=%H", "HEAD", "--", ".", ...dirs.map((d) => `:(exclude,literal)${d}`)])?.trim() ?? "";
-  const head = headOfAll === null ? null : /^[0-9a-f]{40}$/.test(scoped) ? scoped : headOfAll;
+  const head = scopedHead(targetDir, dirs);
   const changed = git(targetDir, ["diff", "HEAD", "--name-only", "--no-renames", "--relative", "-z"]);
   const untracked = git(targetDir, ["ls-files", "--others", "--exclude-standard", "-z"]);
   if (head === null || changed === null || untracked === null) return { head, dirtyHash: null };

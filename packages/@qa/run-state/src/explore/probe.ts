@@ -12,7 +12,7 @@ import { reopenPhaseTasks } from "../supersede.js";
 import { atomicWrite, iso } from "../util.js";
 import { explorerAccepted, isExplorerTask } from "./explorer.js";
 import {
-  compareSignatures, decideProbe, identityDiffers, observe, redactError, selectPages, sourceIdentity,
+  compareSignatures, decideProbe, identityDiffers, observe, redactError, selectPages, sourceHead, sourceIdentity,
   type Observed, type PageRef, type PageSignature, type ProbeDecision, type ProbeDiff, type RawObservation, type SourceIdentity,
 } from "./identity.js";
 
@@ -150,13 +150,29 @@ export function targetDirOf(root: string): string {
 /** Where the target source stands, with the aegis directory and the tests directory left out. Never throws. */
 export function exploreIdentity(root: string): SourceIdentity {
   try {
-    const raw = rawConfig(root);
-    const config = "config" in raw ? raw.config : {};
-    const target = targetDirOf(root);
-    const testsDir = typeof config["testsDir"] === "string" ? config["testsDir"] : "../tests/qa";
-    return sourceIdentity(target, [relative(target, root), relative(target, resolve(root, testsDir))]);
+    const { target, excluded } = identityScope(root);
+    return sourceIdentity(target, excluded);
   } catch {
     return { head: null, dirtyHash: null };
+  }
+}
+
+/** The target and the directories its identity leaves out: this repository and the tests directory, which change every round. */
+function identityScope(root: string): { target: string; excluded: string[] } {
+  const raw = rawConfig(root);
+  const config = "config" in raw ? raw.config : {};
+  const target = targetDirOf(root);
+  const testsDir = typeof config["testsDir"] === "string" ? config["testsDir"] : "../tests/qa";
+  return { target, excluded: [relative(target, root), relative(target, resolve(root, testsDir))] };
+}
+
+/** Only the head of exploreIdentity (same target and exclusions), without hashing the uncommitted changes: what the environment probe records. Never throws. */
+export function exploreHead(root: string): string | null {
+  try {
+    const { target, excluded } = identityScope(root);
+    return sourceHead(target, excluded);
+  } catch {
+    return null;
   }
 }
 

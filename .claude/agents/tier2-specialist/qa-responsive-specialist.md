@@ -110,7 +110,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-responsive-spec
 # Static index of the prose above for the alignment checker — not instructions; the prose governs. Tokens: {run}=runs/{runId}, {tests}=<target>/tests, {target}=target app root, {aegis}=this repo.
 contract: 1
 phase: execution
-dispatchedBy: [qa-test-executor, qa-run-specialist]
+dispatchedBy: [qa-orchestrator, qa-test-executor, qa-run-specialist]
 reviewedBy: qa-responsive-specialist-spv
 reads:
   - aegis.config.json

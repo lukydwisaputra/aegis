@@ -8,7 +8,7 @@ import { busPath, runDir } from "./paths.js";
 import { readRun, withRunLock } from "./run.js";
 import { atomicWrite, iso } from "./util.js";
 import { redactError } from "./explore/identity.js";
-import { environmentUrl, exploreIdentity, objectAt, rawConfig, settleWithin, targetDirOf } from "./explore/probe.js";
+import { environmentUrl, exploreHead, objectAt, rawConfig, settleWithin, targetDirOf } from "./explore/probe.js";
 
 /**
  * `aegis env probe`: the environment under test, checked from the outside before Execution starts and again before G2. It GETs the
@@ -52,8 +52,8 @@ export interface EnvProbeReport {
   environment: string;
   takenAt: string;
   ok: boolean;
-  /** For kind source, `id` is the head (what build-unchanged compares) and `dirtyHash` the uncommitted changes (recorded, never compared). */
-  build: { kind: BuildKind; id: string | null; dirtyHash?: string | null };
+  /** For kind source, `id` is the target's source head (what build-unchanged compares); uncommitted changes are not recorded. */
+  build: { kind: BuildKind; id: string | null };
   checks: ProbeCheck[];
 }
 
@@ -91,7 +91,8 @@ const RESERVED = new Set(["http", "health-checks", "listeners", "env-names", "bu
 const HEALTH_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 /** The only names secretsFile parses. */
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/;
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+/** A host on this machine: localhost, any 127.x address, 0.0.0.0 and the IPv6 loopback (URL hostnames keep its brackets). */
+export const isLocalHost = (host: string): boolean => host === "localhost" || host === "0.0.0.0" || host === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(host);
 const BUDGET_SPENT = "not run (time budget spent)";
 
 /**
@@ -249,26 +250,32 @@ export async function probeEnvironment(
 
   // The machine checks: a local url of a mutating environment only.
   const readOnly = envConfig !== null && isReadOnlyEnvironment(envConfig as EnvironmentSpecialistConfig);
-  const local = url !== null && LOCAL_HOSTS.has(url.hostname);
+  const local = url !== null && isLocalHost(url.hostname);
   let machine: "yes" | "not-applicable" | "unknown";
   if (readOnly) machine = "not-applicable";
   else if (url === null) machine = "unknown";
   else machine = local ? "yes" : "not-applicable";
   const why = readOnly ? `the ${environment} environment is read-only` : "the environment url is not local";
-  // Synchronous hashing first, only when the build check needs it: it cannot be preempted, so it is charged to the budget.
-  const identity = machine === "yes" ? exploreIdentity(root) : null;
+  // The source head first, only when the build check needs it (two synchronous git calls, charged to the budget).
+  const head = machine === "yes" ? exploreHead(root) : null;
 
   const checks: ProbeCheck[] = [];
   // http: the environment url, then each declared health path.
-  const httpCheck = async (name: string, target: URL, accept: (status: number) => boolean, expected: string): Promise<void> => {
+  /** True when the GET got an HTTP status back (any status): a server answers. */
+  const httpCheck = async (name: string, target: URL, accept: (status: number) => boolean, expected: string): Promise<boolean> => {
     const r = await call((innerMs) => system.http(target.href, innerMs));
     const at = `GET ${pathOnly(target)}`;
     if ("error" in r) checks.push({ name, status: "failed", detail: `${at}: ${r.error}` });
     else if (r.value.status === null) checks.push({ name, status: "failed", detail: `${at}: ${safe(r.value.error ?? "no response")}` });
-    else checks.push({ name, status: accept(r.value.status) ? "ok" : "failed", detail: `${at} answered ${r.value.status} (expected ${expected})` });
+    else {
+      checks.push({ name, status: accept(r.value.status) ? "ok" : "failed", detail: `${at} answered ${r.value.status} (expected ${expected})` });
+      return true;
+    }
+    return false;
   };
+  let answered = false;
   if (url === null) checks.push({ name: "http", status: "failed", detail: (resolved as { error: string }).error });
-  else await httpCheck("http", url, (s) => s < 500, "below 500");
+  else answered = await httpCheck("http", url, (s) => s < 500, "below 500");
 
   const health = healthChecksOf(envConfig, url?.origin ?? null);
   let vaultDeclared = false;
@@ -296,6 +303,8 @@ export async function probeEnvironment(
     } else {
       const n = distinctListeners(l.value);
       if (n === 1) checks.push({ name: "listeners", status: "ok", detail: `one process listens on port ${port}` });
+      // A server that answers on the url but that lsof does not list runs as another user (or in a container): not visible, not absent.
+      else if (n === 0 && answered) checks.push({ name: "listeners", status: "not-checked", detail: `a server answers but its process is not visible to lsof (port ${port})` });
       else if (n === 0) checks.push({ name: "listeners", status: "failed", detail: `nothing listens on port ${port}` });
       else {
         const pids = [...new Set(l.value.map((x) => x.pid))].sort((a, b) => a - b);
@@ -330,10 +339,10 @@ export async function probeEnvironment(
     else if (id !== null && typeof id.value === "string" && id.value.trim() !== "") {
       build = { kind: "next-build-id", id: id.value.trim() };
       checks.push({ name: "build", status: "ok", detail: `next build id ${build.id!.slice(0, 12)} (${idPath.path})` });
-    } else if (identity!.head !== null) {
-      // The head is what is compared; the uncommitted changes are recorded only (QA writes untracked files into the target every run).
-      build = { kind: "source", id: identity!.head, dirtyHash: identity!.dirtyHash };
-      checks.push({ name: "build", status: "ok", detail: `no next build id; source head ${identity!.head.slice(0, 12)}` });
+    } else if (head !== null) {
+      // The head only: QA writes untracked files into the target every run, so uncommitted changes are never compared.
+      build = { kind: "source", id: head };
+      checks.push({ name: "build", status: "ok", detail: `no next build id; source head ${head.slice(0, 12)}` });
     } else checks.push({ name: "build", status: "not-checked", detail: "no next build id and the target is not a readable git checkout" });
   }
 
@@ -361,11 +370,11 @@ export async function probeEnvironment(
 
 // ─── What the barriers read ──────────────────────────────────────────────────
 
-/** The recorded report of a stage, read leniently: what a barrier needs (stage, takenAt, ok, checks) or why it cannot be used. */
+/** The recorded report of a stage, read leniently: what a barrier needs (stage, takenAt, ok, checks, build) or why it cannot be used. */
 export type ProbeReportRead =
   | { kind: "missing" }
   | { kind: "unreadable" }
-  | { kind: "ok"; report: Pick<EnvProbeReport, "stage" | "takenAt" | "ok" | "checks"> };
+  | { kind: "ok"; report: Pick<EnvProbeReport, "stage" | "takenAt" | "ok" | "checks" | "build"> };
 
 /** Reads reports/env/probe-{stage}.json and nothing else: no process, no network. A report of another stage is unreadable. */
 export function readProbeReport(root: string, runId: string, stage: ProbeStage): ProbeReportRead {
@@ -390,7 +399,12 @@ export function readProbeReport(root: string, runId: string, stage: ProbeStage):
     if (typeof o?.["name"] !== "string" || (status !== "ok" && status !== "failed" && status !== "not-checked" && status !== "not-applicable")) continue;
     checks.push({ name: o["name"], status, detail: typeof o["detail"] === "string" ? o["detail"] : "" });
   }
-  return { kind: "ok", report: { stage, takenAt, ok: r["ok"], checks } };
+  const b = objectAt(r["build"]);
+  const kind = b?.["kind"];
+  const id = b?.["id"];
+  const build: EnvProbeReport["build"] =
+    kind === "next-build-id" || kind === "source" || kind === "unknown" ? { kind, id: typeof id === "string" ? id : null } : { kind: "unknown", id: null };
+  return { kind: "ok", report: { stage, takenAt, ok: r["ok"], checks, build } };
 }
 
 /**
@@ -404,6 +418,28 @@ export function probeIsStale(takenAt: string, completedAt: string | undefined): 
 }
 
 /**
+ * When the run was last reopened in a way that voids an earlier probe: the decision time of a rejected G2 (while it is still the gate's
+ * latest decision) and the latest reissue, whichever is later; undefined when there is neither. A report a reopen failed to remove is
+ * stale by this time even when the phase it follows kept its completedAt (a G2 rejection reopening Triage only).
+ */
+export function lastReopenAt(state: RunState): string | undefined {
+  const g2 = state.gates["G2"];
+  const times = [g2?.status === "rejected" ? g2.decidedAt : undefined, state.reissue?.at].filter((t): t is string => typeof t === "string" && !Number.isNaN(Date.parse(t)));
+  return times.sort((a, b) => Date.parse(a) - Date.parse(b)).pop();
+}
+
+/**
+ * Why a probe of a stage is not fresh, or null: taken at or before `completedAt` of the phase it follows (`phase` names it), or at or
+ * before the last reopen. A missing timestamp never makes it stale.
+ */
+export function probeStaleReason(takenAt: string, phase: string, completedAt: string | undefined, state: RunState): string | null {
+  if (probeIsStale(takenAt, completedAt)) return `taken at ${takenAt}, not after ${phase} completed at ${completedAt}`;
+  const reopened = lastReopenAt(state);
+  if (probeIsStale(takenAt, reopened)) return `taken at ${takenAt}, not after the run was reopened at ${reopened}`;
+  return null;
+}
+
+/**
  * Why Execution may not start yet, from the execution probe report only (the startPhase guard, inside run.lock): [] when a probe taken
  * after Env-data completed says ok. Each entry is one failed check of the barrier.
  */
@@ -412,8 +448,8 @@ export function executionProbeProblems(root: string, runId: string, state: RunSt
   if (read.kind === "missing") return [`no execution probe is recorded (${envProbeReportRel("execution")})`];
   if (read.kind === "unreadable") return [`the execution probe report (${envProbeReportRel("execution")}) cannot be read`];
   const problems: string[] = [];
-  const envData = state.phases["env-data"]?.completedAt;
-  if (probeIsStale(read.report.takenAt, envData)) problems.push(`the execution probe was taken at ${read.report.takenAt}, not after Env-data completed at ${envData}`);
+  const stale = probeStaleReason(read.report.takenAt, "Env-data", state.phases["env-data"]?.completedAt, state);
+  if (stale !== null) problems.push(`the execution probe was ${stale}`);
   if (!read.report.ok) {
     const failed = read.report.checks.filter((c) => c.status === "failed").map((c) => c.name);
     problems.push(`the execution probe failed${failed.length > 0 ? ` (${failed.join(", ")})` : ""}`);
@@ -427,8 +463,8 @@ export function staleProbeReports(reopened: readonly string[]): string[] {
 }
 
 /**
- * Removes the probe reports a reopen made stale, after the reopen is recorded. Never throws: a report that cannot be removed is still
- * compared by its takenAt with the phase it follows (which catches it whenever that phase was reopened too).
+ * Removes the probe reports a reopen made stale, after the reopen is recorded. Never throws: a report that cannot be removed is stale by
+ * its takenAt against the reopen time (lastReopenAt).
  */
 export function removeStaleProbeReports(root: string, runId: string, reopened: readonly string[]): void {
   for (const rel of staleProbeReports(reopened)) {
@@ -443,17 +479,9 @@ export function removeStaleProbeReports(root: string, runId: string, reopened: r
 /** The g2 build against the execution probe's: only a Next build id that changed, appeared or vanished fails; a source head change is a hint. */
 function buildUnchanged(root: string, runId: string, now: EnvProbeReport["build"]): ProbeCheck {
   const name = "build-unchanged";
-  let before: EnvProbeReport["build"] | null = null;
-  try {
-    const r = objectAt(JSON.parse(readFileSync(join(runDir(root, runId), envProbeReportRel("execution")), "utf-8")));
-    const b = objectAt(r?.["build"]);
-    const kind = b?.["kind"];
-    const id = b?.["id"];
-    if (kind === "next-build-id" || kind === "source" || kind === "unknown") before = { kind, id: typeof id === "string" ? id : null };
-  } catch {
-    before = null;
-  }
-  if (before === null) return { name, status: "not-checked", detail: "no Execution probe" };
+  const read = readProbeReport(root, runId, "execution");
+  if (read.kind !== "ok") return { name, status: "not-checked", detail: "no Execution probe" };
+  const before = read.report.build;
   const p = (id: string | null): string => (id ?? "").slice(0, 12);
   if (before.kind === "next-build-id" && now.kind === "next-build-id") {
     return before.id === now.id

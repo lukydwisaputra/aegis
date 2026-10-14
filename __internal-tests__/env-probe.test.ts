@@ -6,7 +6,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { readLines } from '@qa/event-bus';
 import {
-  assertCallerAllowed, busPath, createRun, distinctListeners, probeEnvironment, readRun, runDir, withRunLock, writeRun,
+  assertCallerAllowed, busPath, createRun, distinctListeners, isLocalHost, probeEnvironment, readRun, runDir, withRunLock, writeRun,
   type EnvProbeReport, type ListenerInfo, type ProbeStage, type ProbeSystem,
 } from '@qa/run-state';
 import { httpStatus, lsofListeners, nextBuildId, parseLsof, qaSecretNames, URL_CREDENTIALS, type ExecFileFn } from '../apps/cli/src/env-probe-system';
@@ -182,7 +182,7 @@ describe('probeEnvironment', () => {
     const head = git('rev-parse', 'HEAD');
     const rep = report('execution');
     expect(rep).toMatchObject({ runId, stage: 'execution', environment: 'development', ok: true, build: { kind: 'source' } });
-    expect(rep.build).toEqual({ kind: 'source', id: head, dirtyHash: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect(rep.build).toEqual({ kind: 'source', id: head });
     expect(sys.buildPaths).toEqual(['.next/BUILD_ID']);
     expect(rep.checks.map((c) => [c.name, c.status])).toEqual([
       ['http', 'ok'], ['vault', 'ok'], ['listeners', 'ok'], ['env-names', 'ok'], ['build', 'ok'],
@@ -204,14 +204,20 @@ describe('probeEnvironment', () => {
     expect(probed()[2]!.build).toBe('unknown');
   });
 
-  it('a second independent listener fails listeners; none listening fails; lsof unavailable (null) is not-checked and ok stays true', async () => {
+  it('a second independent listener fails listeners; none listening fails unless a server answers (then not-checked: lsof cannot see it); lsof unavailable (null) is not-checked and ok stays true', async () => {
     await setup();
     const two = await probe('execution', fake({ listeners: [{ pid: 30, ppid: 1 }, { pid: 10, ppid: 1 }, { pid: 11, ppid: 10 }] }));
     expect(two).toMatchObject({ ok: false, failed: ['listeners'] });
     expect(check('execution', 'listeners')).toEqual({ name: 'listeners', status: 'failed', detail: '2 independent processes listen on port 5173 (pids 10, 11, 30)' });
-    const none = await probe('execution', fake({ listeners: [] }));
-    expect(none).toMatchObject({ ok: false, failed: ['listeners'] });
+    const none = await probe('execution', fake({ listeners: [], http: { '/': null } }));
+    expect(none).toMatchObject({ ok: false, failed: ['http', 'listeners'] });
     expect(check('execution', 'listeners')).toEqual({ name: 'listeners', status: 'failed', detail: 'nothing listens on port 5173' });
+    // A server answers on the url (any status) but lsof lists nothing: its process runs as another user, not visible, not absent.
+    for (const status of [200, 503]) {
+      const hidden = await probe('execution', fake({ listeners: [], http: { '/': status } }));
+      expect(hidden.failed).not.toContain('listeners');
+      expect(check('execution', 'listeners')).toEqual({ name: 'listeners', status: 'not-checked', detail: 'a server answers but its process is not visible to lsof (port 5173)' });
+    }
     const unknown = await probe('execution', fake({ listeners: null }));
     expect(unknown).toMatchObject({ ok: true, failed: [] });
     expect(check('execution', 'listeners')!.status).toBe('not-checked');
@@ -418,7 +424,7 @@ describe('probeEnvironment', () => {
     }
   });
 
-  it('a source head change is the only source hint: uncommitted changes in the target are recorded, never compared', async () => {
+  it('a source head change is the only source hint: uncommitted changes in the target are neither recorded nor compared', async () => {
     await setup();
     await probe('execution', fake());
     const exec = report('execution').build;
@@ -426,8 +432,7 @@ describe('probeEnvironment', () => {
     fs.writeFileSync(path.join(target, 'qa-untracked.txt'), 'written by a QA run\n'); // the dirty hash moves, the head does not
     const r = await probe('g2', fake());
     expect(r).toMatchObject({ ok: true, failed: [] });
-    expect(report('g2').build.dirtyHash).not.toBe(exec.dirtyHash);
-    expect(report('g2').build.id).toBe(exec.id);
+    expect(report('g2').build).toEqual({ kind: 'source', id: exec.id });
     expect(check('g2', 'build-unchanged')).toMatchObject({ status: 'ok', detail: 'source head unchanged since Execution (uncommitted changes are not compared)' });
     // The event's build field names the head the report compares.
     expect(probed()[1]!.build).toBe(`source:${exec.id!.slice(0, 12)}`);
@@ -485,10 +490,11 @@ describe('probeEnvironment', () => {
     expect(check('execution', 'listeners')!.detail).toBe('the listeners on port 5173: no answer within 80 ms');
   });
 
-  it('the git source identity is computed only for a local mutating environment', async () => {
+  it('the git source head is read only for a local mutating environment, and the uncommitted changes are never hashed', async () => {
     await setup();
     const probeModule = require('../packages/@qa/run-state/src/explore/probe');
-    const spy = jest.spyOn(probeModule, 'exploreIdentity');
+    const spy = jest.spyOn(probeModule, 'exploreHead');
+    const full = jest.spyOn(probeModule, 'exploreIdentity');
     try {
       setDev({ url: 'https://staging.example.test' });
       await probe('execution', fake());
@@ -498,8 +504,10 @@ describe('probeEnvironment', () => {
       setDev({});
       await probe('execution', fake());
       expect(spy).toHaveBeenCalledTimes(1);
+      expect(full).not.toHaveBeenCalled();
     } finally {
       spy.mockRestore();
+      full.mockRestore();
     }
   });
 
@@ -629,4 +637,25 @@ function aegis(args: string[], caller = ORCH): Promise<{ status: number | null; 
       server.close();
     }
   }, 60_000);
+});
+
+describe('isLocalHost', () => {
+  it('localhost, any 127.x address, 0.0.0.0 and the IPv6 loopback are local; other hosts are not', () => {
+    for (const h of ['localhost', '127.0.0.1', '127.1.2.3', '0.0.0.0', '[::1]']) expect([h, isLocalHost(h)]).toEqual([h, true]);
+    for (const h of ['128.0.0.1', '127.0.0', '10.0.0.1', 'example.com', 'localhost.example.com', '[::2]']) expect([h, isLocalHost(h)]).toEqual([h, false]);
+    expect(isLocalHost(new URL('http://[::1]:3000/').hostname)).toBe(true);
+    expect(isLocalHost(new URL('http://0.0.0.0:3000/').hostname)).toBe(true);
+  });
+
+  it('a 127.x or 0.0.0.0 environment url gets the machine checks (listeners, env names, build)', async () => {
+    await setup();
+    for (const url of ['http://127.0.0.2:5173', 'http://0.0.0.0:5173']) {
+      setDev({ url });
+      const sys = fake();
+      await probe('execution', sys);
+      expect(sys.ports).toEqual([5173]);
+      expect(check('execution', 'listeners')).toMatchObject({ status: 'ok' });
+      expect(check('execution', 'build')!.status).not.toBe('not-applicable');
+    }
+  });
 });

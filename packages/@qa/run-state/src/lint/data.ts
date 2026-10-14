@@ -2,9 +2,10 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { DefectIdSchema, DefectSchema, defectRetestVerdict, isOpenApplicationDefect } from "@qa/contracts";
 import { readLines } from "@qa/event-bus";
-import { CaseOfRecordError, computeDefectRecordCounts, latestDefectManagementComplete, scanChecks, type BlockedInfo, type DefectRecordCounts } from "@qa/metrics";
-import { envProbeReportRel, probeIsStale, readProbeReport } from "../env-probe.js";
+import { CAUSE_RULES, CaseOfRecordError, computeDefectRecordCounts, latestDefectManagementComplete, scanChecks, type BlockedInfo, type DefectRecordCounts } from "@qa/metrics";
+import { envProbeReportRel, probeStaleReason, readProbeReport } from "../env-probe.js";
 import { busPath, runDir } from "../paths.js";
+import { reissueCaseScope } from "../reissue-scope.js";
 import { readRun } from "../run.js";
 import { maskPath, maskPersonalData } from "./mask.js";
 import type { Finding } from "./text.js";
@@ -65,24 +66,26 @@ const UNREADABLE_CASE =
 /** Words that name no dependency at all. */
 const GENERIC_DEPENDENCY: ReadonlySet<string> = new Set(["api", "service", "server", "data", "env", "tbd", "none", "unknown", "n/a"]);
 
-/** The testing-side wording of the old keyword table (uncovered.ts CAUSE_RULES) plus the QA-side words of the G2 rejections. */
-const SUSPECT_WORDS: ReadonlyArray<{ label: string; re: RegExp }> = [
+/** QA-side words the G2 rejections used that the uncovered-cause table files elsewhere or not at all. */
+const EXTRA_SUSPECT_WORDS: ReadonlyArray<{ label: string; re: RegExp }> = [
   { label: "seed data", re: /seed data/i },
   { label: "service-role", re: /service[ -]role/i },
-  { label: "time budget", re: /time budget/i },
-  { label: "harness", re: /harness/i },
-  { label: "session budget", re: /session budget|live-session|session-ttl/i },
-  { label: "dev-covered", re: /dev-covered/i },
-  { label: "no QA script", re: /no qa script/i },
-  { label: "sandbox-only", re: /sandbox-only/i },
-  { label: "live session", re: /live-logged-in|leader session|sustained live|live sessions?\b/i },
-  { label: "out of reach", re: /out of (?:\S+ ){0,3}reach/i },
-  { label: "live DB inspection", re: /live db inspection/i },
-  { label: "mutation score", re: /mutation score/i },
-  { label: "testability flag", re: /testability flag/i },
 ];
 
-function blockedFindings(dir: string): Finding[] {
+/** The testing-side rules of the uncovered-cause table (metrics CAUSE_RULES), plus the extra QA-side words: one table, never two copies. */
+const SUSPECT_WORDS: ReadonlyArray<{ label: string; re: RegExp }> = [
+  ...EXTRA_SUSPECT_WORDS,
+  ...CAUSE_RULES.filter((r) => r.cause === "testing-side").map((r) => ({ label: r.label, re: r.pattern })),
+];
+
+/**
+ * A scoped reissue re-runs only its listed cases: the result of a case outside the list is carried forward from a round recorded before
+ * these checks existed and no task of the reissue may rewrite it, so its error is shown as a warning while the list is in force.
+ */
+const outsideScope = (scope: ReadonlySet<string> | null, caseId: string): boolean => scope !== null && !scope.has(caseId);
+const CARRIED = " (carried result, outside the reissued cases)";
+
+function blockedFindings(dir: string, scope: ReadonlySet<string> | null): Finding[] {
   let checks: ReturnType<typeof scanChecks>;
   try {
     checks = scanChecks(dir);
@@ -90,7 +93,8 @@ function blockedFindings(dir: string): Finding[] {
     if (!(e instanceof CaseOfRecordError)) throw e;
     const caseId = /^(TC-[A-Z]{2,8}-\d{3,})/.exec(e.message)?.[1] ?? "unknown case";
     const file = /\b(TC-[A-Z]{2,8}-\d{3,}[A-Za-z0-9-]*\.json)\b/.exec(e.message)?.[1];
-    return [finding("blocked-unreadable", "error", file === undefined ? "cases" : `cases/${file}`, UNREADABLE_CASE, caseId)];
+    const carried = outsideScope(scope, caseId);
+    return [finding("blocked-unreadable", carried ? "warning" : "error", file === undefined ? "cases" : `cases/${file}`, UNREADABLE_CASE, carried ? caseId + CARRIED : caseId)];
   }
   const out: Finding[] = [];
   const seen = new Set<string>();
@@ -99,7 +103,8 @@ function blockedFindings(dir: string): Finding[] {
     const key = `${rule}\0${b.caseId}\0${b.file}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push(finding(rule, severity, `cases/${b.file}`, message, context));
+    const carried = severity === "error" && outsideScope(scope, b.caseId);
+    out.push(finding(rule, carried ? "warning" : severity, `cases/${b.file}`, message, carried ? context + CARRIED : context));
   };
   for (const id of [...checks.keys()].sort()) {
     for (const b of checks.get(id)!.blocked ?? []) {
@@ -269,7 +274,7 @@ function countFindings(root: string, runId: string, dir: string, counts: DefectR
 // ─── Environment probe ────────────────────────────────────────────────────────
 
 const PROBE_MISSING = "no g2 environment probe is recorded: run aegis env probe --stage g2 after Execution completes, before the G2 lint";
-const PROBE_STALE = "the g2 environment probe was taken before Execution completed: run aegis env probe --stage g2 again";
+const PROBE_STALE = "the g2 environment probe is older than the end of Execution or the last reopen of the run: run aegis env probe --stage g2 again";
 const PROBE_FAILED = "the g2 environment probe failed this check: fix the environment (stop a duplicate server, restore the build, restore the Vault, add the missing names) and run aegis env probe --stage g2 again";
 const PROBE_NOT_CHECKED = "the g2 environment probe could not check this; declare what it needs in aegis.config.json (environments, healthChecks or requiredEnv) or confirm it by hand";
 
@@ -279,8 +284,9 @@ function probeFindings(root: string, runId: string): Finding[] {
   const read = readProbeReport(root, runId, "g2");
   if (read.kind !== "ok") return [finding("env-probe-missing", "error", rel, PROBE_MISSING, read.kind === "missing" ? "no probe-g2.json" : "probe-g2.json unreadable")];
   const out: Finding[] = [];
-  const execution = readRun(root, runId).phases["execution"]?.completedAt;
-  if (probeIsStale(read.report.takenAt, execution)) out.push(finding("env-probe-stale", "error", rel, PROBE_STALE, `takenAt ${read.report.takenAt}, Execution completed ${execution}`));
+  const state = readRun(root, runId);
+  const stale = probeStaleReason(read.report.takenAt, "Execution", state.phases["execution"]?.completedAt, state);
+  if (stale !== null) out.push(finding("env-probe-stale", "error", rel, PROBE_STALE, stale));
   const failed = read.report.checks.filter((c) => c.status === "failed");
   for (const c of failed) out.push(finding("env-probe-failed", "error", rel, PROBE_FAILED, `${snippet(c.name)}: ${snippet(c.detail)}`));
   if (!read.report.ok && failed.length === 0) out.push(finding("env-probe-failed", "error", rel, PROBE_FAILED, "ok false, no failed check listed"));
@@ -295,11 +301,12 @@ function probeFindings(root: string, runId: string): Finding[] {
  * 60-character cut) as context. A rule whose group or id is in `disabled` (reportRules.disable) is left out. Reads only; [] for a smoke run.
  */
 export function dataFindings(root: string, runId: string, stage: DataStage, disabled: ReadonlySet<string>): Finding[] {
-  if (readRun(root, runId).cycleType !== "full") return [];
+  const state = readRun(root, runId);
+  if (state.cycleType !== "full") return [];
   const dir = runDir(root, runId);
   const on = (group: DataRuleGroup): boolean => !disabled.has(group);
   const out: Finding[] = [];
-  if (on("blocked-qa-side")) out.push(...blockedFindings(dir));
+  if (on("blocked-qa-side")) out.push(...blockedFindings(dir, reissueCaseScope(root, runId, state)));
   if (stage === "G2" && (on("defect-origin") || on("defect-counts"))) {
     const files = readDefects(dir);
     if (on("defect-origin")) out.push(...files.findings, ...originFindings(files));

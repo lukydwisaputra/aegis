@@ -152,7 +152,16 @@ export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "f
     const groups = new Set(data.map((f) => dataRuleGroup(f.rule) ?? ""));
     let tail: string;
     if (at === "gate-open") {
-      tail = `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.disable with the rule group: ${[...groups].filter((g) => g !== "").sort().join(", ")}) in aegis.config.json and the orchestrator opens the gate again, or the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`;
+      // The environment is fixed outside the run's records, and the g2 probe window stays open after Triage: no owner step is needed.
+      const recordGroups = [...groups].filter((g) => g !== "" && g !== "env-probe").sort();
+      const sentences: string[] = [];
+      if (recordGroups.length > 0) {
+        sentences.push(`The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.disable with the rule group: ${recordGroups.join(", ")}) in aegis.config.json and the orchestrator opens the gate again, or the owner rejects the open gate and reopens the phase`);
+      }
+      if (groups.has("env-probe")) {
+        sentences.push("For the environment probe, fix the environment, run aegis env probe --stage g2 again (its window stays open after Triage has completed) and open the gate again");
+      }
+      tail = `${sentences.join(". ")}. Run aegis lint run --gate ${gate} for the detail`;
     } else if (at === "execution") {
       tail = `Execution cannot complete with them: ${dataRemedies(rules).join("; ")}; then complete the phase again`;
     } else {
