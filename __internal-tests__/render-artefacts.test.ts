@@ -5,7 +5,7 @@ import { staleBuild } from '@qa/alignment';
 import { ScenarioSchema, TestCaseSchema, UserStorySchema, type TestCase } from '@qa/contracts';
 import { readLines } from '@qa/event-bus';
 import {
-  busPath, completePhase, createRun, lintFindings, readRun, renderArtefacts, renderCaseMarkdown, renderingStatus, renderScenarioMarkdown,
+  busPath, completePhase, createRun, lintBlockMessage, lintFindings, readRun, renderArtefacts, renderCaseMarkdown, renderingStatus, renderScenarioMarkdown,
   requestStop, runDir, runJsonPath, startPhase,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
@@ -200,26 +200,43 @@ describe('renderArtefacts', () => {
     expect(JSON.parse(ok.stdout)).toEqual({ runId, written: 3, removed: 0, unchanged: 0, skipped: [] });
   });
 
-  it('removes the .md of a deleted case and of a skipped JSON (removed counted, event records removed)', async () => {
+  it('removes only the .md of a deleted case (removed counted, event records removed); the .md of a skipped JSON is left as it is', async () => {
     basicRun();
     putJson('cases/TC-ATT-004.json', tc('TC-ATT-004', { order: 3 }));
     await renderArtefacts(t.root, runId, TD);
+    const md4 = read('cases/TC-ATT-004.md');
     fs.rmSync(abs('cases/TC-ATT-003.json'));
     putJson('cases/TC-ATT-004.json', tc('TC-ATT-004', { order: 0 }));
     put('cases/TC-ATT-002-notes.md', 'evidence note, not a rendering\n');
     expect(renderingStatus(t.root, runId)).toEqual({
       stale: ['cases/TC-ATT-003.md', 'cases/TC-ATT-004.md', 'scenarios/SCN-ATT-001.md'],
-      invalid: [{ file: 'cases/TC-ATT-004.json', reason: expect.stringMatching(/^schema: order: /) }],
+      invalid: [{ file: 'cases/TC-ATT-004.json', reason: 'schema: order: too_small' }],
     });
     const r = await renderArtefacts(t.root, runId, TD);
-    expect(r).toMatchObject({ written: 1, removed: 2, unchanged: 1 });
+    expect(r).toMatchObject({ written: 1, removed: 1, unchanged: 1 });
     expect(exists('cases/TC-ATT-003.md')).toBe(false);
-    expect(exists('cases/TC-ATT-004.md')).toBe(false);
+    expect(read('cases/TC-ATT-004.md')).toBe(md4);
     expect(exists('cases/TC-ATT-002-notes.md')).toBe(true);
     expect(exists('cases/TC-ATT-002-result.json')).toBe(true);
     // The scenario still lists the deleted case: its row prints the id with an empty title.
     expect(read('scenarios/SCN-ATT-001.md')).toContain('| 2 | TC-ATT-003 |  |  |');
-    expect(rendered()[1]).toMatchObject({ kinds: ['cases', 'scenarios'], written: 1, removed: 2 });
+    expect(rendered()[1]).toMatchObject({ kinds: ['cases', 'scenarios'], written: 1, removed: 1 });
+    // The kept .md stays stale and its JSON invalid, so nothing passes on it; once the JSON is fixed the next render rewrites it.
+    expect(renderingStatus(t.root, runId)).toEqual({ stale: ['cases/TC-ATT-004.md'], invalid: [{ file: 'cases/TC-ATT-004.json', reason: 'schema: order: too_small' }] });
+    putJson('cases/TC-ATT-004.json', tc('TC-ATT-004', { order: 3, title: 'Scan resolution check, fixed' }));
+    expect(await renderArtefacts(t.root, runId, TD)).toMatchObject({ written: 1, removed: 0, skipped: [] });
+    expect(read('cases/TC-ATT-004.md')).toBe(caseMd(tc('TC-ATT-004', { order: 3, title: 'Scan resolution check, fixed' })));
+  });
+
+  it('an invalid case JSON next to a hand-written .md (a run from before the render): the .md is untouched by render, reported stale', async () => {
+    const handWritten = '# TC-ATT-002: hand-written before the render existed\n\nSteps the designer wrote by hand.\n';
+    putJson('cases/TC-ATT-002.json', { ...tc('TC-ATT-002'), rationale: 'a key the strict schema refuses' });
+    put('cases/TC-ATT-002.md', handWritten);
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r).toEqual({ runId, written: 0, removed: 0, unchanged: 0, skipped: [{ file: 'cases/TC-ATT-002.json', reason: 'schema: (root): unrecognized_keys' }] });
+    expect(read('cases/TC-ATT-002.md')).toBe(handWritten);
+    expect(rendered()).toEqual([]);
+    expect(renderingStatus(t.root, runId).stale).toEqual(['cases/TC-ATT-002.md']);
   });
 
   it('a scenario with coverage null or reuseAcross "x" is skipped and named, never an exception, nothing half written', async () => {
@@ -269,6 +286,12 @@ describe('renderArtefacts', () => {
 
     putJson('cases/TC-ATT-002.json', tc('TC-ATT-002', { title: 'Scan resolution check, edited' }));
     const md = read('cases/TC-ATT-002.md');
+    for (const status of ['blocked', 'awaiting-gate']) {
+      setRun({ status });
+      for (const caller of ['owner', TD]) {
+        await expect(renderArtefacts(t.root, runId, caller)).rejects.toMatchObject({ code: 'run-not-active', message: expect.stringContaining(`"${status}"`) });
+      }
+    }
     setRun({ status: 'completed' });
     for (const caller of ['owner', TD]) {
       await expect(renderArtefacts(t.root, runId, caller)).rejects.toMatchObject({ code: 'run-not-active', message: expect.stringContaining('completed') });
@@ -294,7 +317,9 @@ describe('renderArtefacts', () => {
     putJson('stories/STORY-ATT-001.json', story({ iWant: 'to scan with qa-test-designer' }));
     const again = await renderArtefacts(t.root, runId, TD);
     expect(again.skipped.map((s) => s.file)).toEqual(['cases/TC-ATT-003.json', 'scenarios/SCN-ATT-001.json']);
-    expect(exists('scenarios/SCN-ATT-001.md')).toBe(false);
+    // Its JSON is present but skipped: the earlier rendering stays (stale), and the brand word never reaches it.
+    expect(read('scenarios/SCN-ATT-001.md')).not.toMatch(/qa-test-designer/);
+    expect(renderingStatus(t.root, runId).stale).toEqual(['scenarios/SCN-ATT-001.md']);
   });
 });
 
@@ -393,5 +418,181 @@ describe('the lint of a rendered case', () => {
     await renderArtefacts(t.root, runId, ORCH);
     expect(rules()).toEqual([]);
     await expect(completePhase(t.root, runId, 'triage', ORCH)).resolves.toMatchObject({ phases: { triage: { status: 'completed' } } });
+  });
+});
+
+describe('review fixes: safe reasons, limits, directories, previous bytes, rollback', () => {
+  const cli = (agent = TD) => spawnSync(process.execPath, [CLI, 'cases', 'render', '--run', runId], {
+    cwd: t.root, encoding: 'utf-8', timeout: 60_000,
+    env: { ...process.env, AEGIS_AGENT: agent, AEGIS_ROOT: t.root, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') },
+  });
+
+  it('a schema failure reason names the path and the issue code only, never the input value (personal data, the framework name)', async () => {
+    basicRun();
+    putJson('cases/TC-ATT-004.json', tc('TC-ATT-004', { testLevel: 'S1234567D Aegis' }));
+    putJson('scenarios/SCN-ATT-002.json', scenario({ scenarioId: 'SCN-ATT-002', coverage: { S1234567D: 'aegis-run' } }));
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r.skipped).toEqual([
+      { file: 'cases/TC-ATT-004.json', reason: 'schema: testLevel: invalid_enum_value' },
+      { file: 'scenarios/SCN-ATT-002.json', reason: 'schema: coverage.<key>: invalid_type' },
+    ]);
+    const leaks = /S1234567D|aegis/i;
+    expect(JSON.stringify(r.skipped)).not.toMatch(leaks);
+    expect(JSON.stringify(renderingStatus(t.root, runId))).not.toMatch(leaks);
+    const runId0 = runId;
+    // The design barrier text.
+    runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    fastForward(t.root, runId, 'design', { G1: { status: 'approved', decisions: 1 } });
+    await startPhase(t.root, runId, 'design', ORCH);
+    writeRunFile(t.root, runId, 'rtm.json', {});
+    await workTask(t.root, runId, 'T-design-1', TD, `${TD}-spv`);
+    putJson('cases/TC-ATT-004.json', tc('TC-ATT-004', { testLevel: 'S1234567D Aegis' }));
+    const err = await completePhase(t.root, runId, 'design', ORCH).then(() => new Error('completed'), (e: Error) => e);
+    expect(err.message).toContain('cases/TC-ATT-004.json (invalid: schema: testLevel: invalid_enum_value)');
+    expect(err.message.replace(/aegis cases render/g, '')).not.toMatch(leaks);
+    if (cliStale) return;
+    const out = cli();
+    expect(out.status).toBe(3);
+    expect(out.stdout).toContain('invalid_enum_value');
+    expect(out.stdout).not.toMatch(leaks);
+    expect(runId0).not.toBe(runId);
+  });
+
+  it('a JSON larger than 5 MB is not read: it is skipped as larger than 5 MB', async () => {
+    basicRun();
+    putJson('cases/TC-ATT-004.json', { ...tc('TC-ATT-004'), testData: { pad: 'x'.repeat(5 * 1024 * 1024) } });
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r.skipped).toEqual([{ file: 'cases/TC-ATT-004.json', reason: 'larger than 5 MB' }]);
+    expect(exists('cases/TC-ATT-004.md')).toBe(false);
+  });
+
+  it('a symlinked cases/ or scenarios/ directory is named and nothing is read from it or written at all', async () => {
+    basicRun();
+    const elsewhere = path.join(t.root, 'elsewhere-cases');
+    fs.renameSync(abs('cases'), elsewhere);
+    fs.symlinkSync(elsewhere, abs('cases'));
+    expect(renderingStatus(t.root, runId).invalid).toEqual([{ file: 'cases', reason: 'symbolic link, not followed' }]);
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r).toEqual({ runId, written: 0, removed: 0, unchanged: 0, skipped: [{ file: 'cases', reason: 'symbolic link, not followed' }] });
+    expect(fs.readdirSync(elsewhere).filter((f) => f.endsWith('.md'))).toEqual([]);
+    expect(exists('scenarios/SCN-ATT-001.md')).toBe(false);
+    expect(rendered()).toEqual([]);
+    // scenarios/ too.
+    fs.rmSync(abs('cases'));
+    fs.renameSync(elsewhere, abs('cases'));
+    fs.renameSync(abs('scenarios'), path.join(t.root, 'elsewhere-scenarios'));
+    fs.symlinkSync(path.join(t.root, 'elsewhere-scenarios'), abs('scenarios'));
+    expect(await renderArtefacts(t.root, runId, TD)).toMatchObject({ written: 0, removed: 0, skipped: [{ file: 'scenarios', reason: 'symbolic link, not followed' }] });
+    expect(exists('cases/TC-ATT-002.md')).toBe(false);
+  });
+
+  it('a directory named like a case .md is named in skipped, never an internal error; the others render', async () => {
+    basicRun();
+    fs.mkdirSync(abs('cases/TC-ATT-002.md'));
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r.skipped).toEqual([{ file: 'cases/TC-ATT-002.md', reason: 'not a regular file: a rendering cannot replace it' }]);
+    expect(r).toMatchObject({ written: 2, removed: 0 });
+    expect(fs.statSync(abs('cases/TC-ATT-002.md')).isDirectory()).toBe(true);
+    expect(exists('cases/TC-ATT-003.md')).toBe(true);
+  });
+
+  it('a previous file that cannot be read refuses the render before anything is written', async () => {
+    basicRun();
+    await renderArtefacts(t.root, runId, TD);
+    putJson('cases/TC-ATT-002.json', tc('TC-ATT-002', { title: 'Scan resolution check, renamed' }));
+    putJson('cases/TC-ATT-004.json', tc('TC-ATT-004', { order: 3 }));
+    fs.chmodSync(abs('cases/TC-ATT-002.md'), 0o000);
+    try {
+      await expect(renderArtefacts(t.root, runId, TD)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('cannot read cases/TC-ATT-002.md to keep its previous bytes (EACCES)') });
+    } finally {
+      fs.chmodSync(abs('cases/TC-ATT-002.md'), 0o644);
+    }
+    expect(exists('cases/TC-ATT-004.md')).toBe(false);
+    expect(read('scenarios/SCN-ATT-001.md')).toContain('Scan resolution check TC-ATT-002');
+    expect(rendered()).toHaveLength(1);
+  });
+
+  it('a failing second write restores the first; a symlinked .md is restored as a link after a failed append', async () => {
+    basicRun();
+    await renderArtefacts(t.root, runId, TD);
+    const prior = { c2: read('cases/TC-ATT-002.md'), s1: read('scenarios/SCN-ATT-001.md') };
+    putJson('cases/TC-ATT-002.json', tc('TC-ATT-002', { title: 'Scan resolution check, renamed' }));
+    // The writes are cases/TC-ATT-002.md then scenarios/SCN-ATT-001.md: a read-only scenarios/ fails the second.
+    fs.chmodSync(abs('scenarios'), 0o555);
+    try {
+      await expect(renderArtefacts(t.root, runId, TD)).rejects.toMatchObject({ code: 'EACCES' });
+    } finally {
+      fs.chmodSync(abs('scenarios'), 0o755);
+    }
+    expect(read('cases/TC-ATT-002.md')).toBe(prior.c2);
+    expect(read('scenarios/SCN-ATT-001.md')).toBe(prior.s1);
+    expect(rendered()).toHaveLength(1);
+
+    // The .md is a link to a note; the render would replace it, the append fails, the link comes back.
+    put('notes/TC-ATT-002-note.md', 'a note\n');
+    fs.rmSync(abs('cases/TC-ATT-002.md'));
+    fs.symlinkSync('../notes/TC-ATT-002-note.md', abs('cases/TC-ATT-002.md'));
+    fs.appendFileSync(busPath(t.root, runId), '{"seq":');
+    await expect(renderArtefacts(t.root, runId, TD)).rejects.toThrow(/torn tail/);
+    expect(fs.lstatSync(abs('cases/TC-ATT-002.md')).isSymbolicLink()).toBe(true);
+    expect(fs.readlinkSync(abs('cases/TC-ATT-002.md'))).toBe('../notes/TC-ATT-002-note.md');
+    expect(read('scenarios/SCN-ATT-001.md')).toBe(prior.s1);
+  });
+});
+
+describe('the lint of an invalid case JSON and the remedy text', () => {
+  async function triageActive() {
+    runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    fastForward(t.root, runId, 'triage', { G1: { status: 'approved', decisions: 1 } });
+    await startPhase(t.root, runId, 'triage', ORCH);
+    await workTask(t.root, runId, 'T-triage-1', 'qa-defect-manager', 'qa-defect-manager-spv');
+    await workTask(t.root, runId, 'T-GATE-G2', ORCH, 'qa-orchestrator-spv');
+  }
+
+  it('after a render, a broken case JSON is a case-json-invalid error (its kept .md a stale one) that blocks the G2 barrier with the render remedy', async () => {
+    await triageActive();
+    basicRun();
+    await renderArtefacts(t.root, runId, ORCH);
+    expect(lintFindings(t.root, runId).findings).toEqual([]);
+    putJson('cases/TC-ATT-003.json', tc('TC-ATT-003', { order: 2, testLevel: 'Bogus level' }));
+    await renderArtefacts(t.root, runId, ORCH);
+    expect(exists('cases/TC-ATT-003.md')).toBe(true);
+    const findings = lintFindings(t.root, runId).findings;
+    expect(findings.map((f) => `${f.file} ${f.rule} ${f.severity}`)).toEqual([
+      'cases/TC-ATT-003.json case-json-invalid error',
+      'cases/TC-ATT-003.md case-rendering-stale error',
+    ]);
+    expect(findings[0]).toMatchObject({ line: 1, message: 'schema: testLevel: invalid_enum_value: fix the JSON, then run aegis cases render' });
+    const err = await completePhase(t.root, runId, 'triage', ORCH).then(() => new Error('completed'), (e: Error) => e);
+    expect(err).toMatchObject({ code: 'barrier' });
+    expect(err.message).toContain('2 case rendering error(s) (cases/TC-ATT-003.json:1 case-json-invalid; cases/TC-ATT-003.md:1 case-rendering-stale)');
+    expect(err.message).toContain('fix each invalid case JSON first');
+    expect(err.message).toContain('run aegis cases render');
+    expect(err.message).not.toContain('reportRules.allow');
+    expect(err.message).not.toContain('rewrites the file');
+    expect(err.message).not.toContain('Bogus level');
+
+    putJson('cases/TC-ATT-003.json', tc('TC-ATT-003', { order: 2 }));
+    await renderArtefacts(t.root, runId, ORCH);
+    await expect(completePhase(t.root, runId, 'triage', ORCH)).resolves.toMatchObject({ phases: { triage: { status: 'completed' } } });
+  });
+
+  it('lintBlockMessage gives the rendering rules their own remedy at phase complete and at gate open; other text errors keep theirs', () => {
+    const stale = { file: 'cases/TC-ATT-002.md', line: 1, rule: 'case-rendering-stale' };
+    const invalid = { file: 'cases/TC-ATT-003.json', line: 1, rule: 'case-json-invalid' };
+    const wording = { file: 'defects/DEF-001-AUTH-UI.md', line: 3, rule: 'qa-cycle' };
+
+    const atComplete = lintBlockMessage('G2', [stale], 'phase-complete');
+    expect(atComplete).toBe('1 case rendering error(s) (cases/TC-ATT-002.md:1 case-rendering-stale). Gate G2 cannot open with them: run aegis cases render (the Markdown is never rewritten by hand), run aegis lint run --gate G2 until it is ok, then complete the phase again');
+
+    const atOpen = lintBlockMessage('G3', [invalid, stale], 'gate-open');
+    expect(atOpen).toContain('The case Markdown is written only by the render command, and the run is still running: fix each invalid case JSON first');
+    expect(atOpen).toContain('run aegis cases render and open the gate again');
+    expect(atOpen).not.toMatch(/reportRules\.(allow|disable) with|records a project exception/);
+
+    const mixed = lintBlockMessage('G2', [stale, wording], 'gate-open');
+    expect(mixed).toContain('1 case rendering error(s) (cases/TC-ATT-002.md:1 case-rendering-stale)');
+    expect(mixed).toContain('1 lint error(s) in the customer-facing files (defects/DEF-001-AUTH-UI.md:3 qa-cycle)');
+    expect(mixed).toContain('The owner records a project exception');
   });
 });
