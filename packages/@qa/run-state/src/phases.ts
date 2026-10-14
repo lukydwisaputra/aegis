@@ -29,6 +29,7 @@ import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from
 import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { dataFindings } from "./lint/data.js";
+import { renderingProblem } from "./render/artefacts.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, reviewPassed, workDir } from "./submit.js";
@@ -251,6 +252,12 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
   }
   // A gated phase of a full cycle ends with its gate-precondition task (spec §3.2); smoke's G2 is auto-decided.
   if (state.cycleType === "full") {
+    // The Markdown of the cases and scenarios is read from Execution on: Design completes only when every rendering is current and every
+    // case and scenario JSON is valid (smoke has no Design phase). Reads files only.
+    if (phase === "design") {
+      const rendering = renderingProblem(root, runId);
+      if (rendering !== null) problems.push(rendering);
+    }
     // The Blocked data checks while Execution is still active, where a specialist can still fix the result: no wording or personal-data rule here.
     if (phase === "execution") {
       const data = dataFindings(root, runId, "execution", new Set(readRunConfig(root).reportRules.disable)).filter((f) => f.severity === "error");

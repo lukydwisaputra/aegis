@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, type Dirent } from "node:fs";
 import { join, relative } from "node:path";
 import { BRAND_CLEAN_RUN_GLOBS, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
-import { appendChained } from "@qa/event-bus";
+import { appendChained, readLines } from "@qa/event-bus";
 import { assertCallerAllowed } from "../caller.js";
 import { readRunConfig } from "../config.js";
 import { RunStateError } from "../errors.js";
@@ -13,6 +13,7 @@ import { resolveRules } from "./rules.js";
 import { hasLongLine, MAX_LINE, maskPath } from "./mask.js";
 import { scanWithRules, type Finding } from "./text.js";
 import { dataFindings, dataRuleGroup, type DataStage } from "./data.js";
+import { renderingSnapshot } from "../render/artefacts.js";
 
 export interface LintReport {
   runId: string;
@@ -30,6 +31,20 @@ export interface LintReport {
 const CUSTOMER_FACING = [...new Set([...BRAND_CLEAN_RUN_GLOBS, ...TOOLING_CLEAN_RUN_GLOBS, "reports/compliance/**"])];
 const WORKING_RECORD = /(?:^|\/)cases\/[^/]*-result[^/]*\.json$/;
 const TEXT_FILE = /\.(?:md|json)$/;
+/** A case's rendered Markdown: `cases/{TC-id}.md`, directly under cases/. */
+const CASE_MD = /^cases\/TC-[^/]+\.md$/;
+
+/** Whether `aegis cases render` ever changed a file of the run: from then on the case Markdown is the CLI's, and a stale one is an error. */
+function hasRendered(root: string, runId: string): boolean {
+  return readLines(busPath(root, runId)).some((l) => {
+    if (!l.includes("cases.rendered")) return false;
+    try {
+      return (JSON.parse(l) as { type?: unknown }).type === "cases.rendered";
+    } catch {
+      return false;
+    }
+  });
+}
 const MAX_BYTES = 5 * 1024 * 1024;
 
 type Skipped = LintReport["skipped"][number];
@@ -185,7 +200,12 @@ export function lintFindings(root: string, runId: string, stage?: DataStage): { 
   if (existsSync(dir)) walk(dir, dir, files, skipped);
   const findings: Finding[] = [];
   let filesScanned = 0;
+  // Each case and scenario is rendered once per call. A case .md that is exactly the rendering of its valid JSON is not scanned (the JSON
+  // is, and scanning both doubles every finding); any other case .md (hand-written, stale) is scanned as before.
+  const rendering = existsSync(dir) ? renderingSnapshot(root, runId) : { rendered: new Map<string, string>(), stale: [] as string[] };
+  const stale = new Set(rendering.stale);
   for (const rel of files.filter((f) => TEXT_FILE.test(f) && CUSTOMER_FACING.some((g) => matchGlob(g, f)))) {
+    if (CASE_MD.test(rel) && rendering.rendered.has(rel) && !stale.has(rel)) continue;
     const abs = join(dir, rel);
     let text: string;
     try {
@@ -210,6 +230,15 @@ export function lintFindings(root: string, runId: string, stage?: DataStage): { 
     // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
     if (!WORKING_RECORD.test(rel)) findings.push(...scanWithRules(rel, text, rules, config.reportRules.allow));
     findings.push(...scanPii(rel, text, config.reportRules.pii));
+  }
+  // Once the CLI renders the case Markdown, a case .md that is missing, edited by hand or left without its JSON is stale: an error.
+  if (existsSync(dir) && hasRendered(root, runId)) {
+    for (const rel of rendering.stale.filter((s) => CASE_MD.test(s))) {
+      findings.push({
+        rule: "case-rendering-stale", severity: "error", file: rel, line: 1, context: "",
+        message: "the Markdown of this case is not the rendering of its JSON (missing, edited by hand, or its JSON is gone or invalid): run aegis cases render",
+      });
+    }
   }
   // A path is the handle for the fix and stays, but a personal-data value in it (S1234567D.md) is masked like any other.
   const shownSkipped = skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file));

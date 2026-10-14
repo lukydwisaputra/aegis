@@ -43,3 +43,4 @@ export {
 } from "./explore/probe.js";
 export * from "./reissue-scope.js";
 export * from "./render/markdown.js";
+export * from "./render/artefacts.js";

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { noteParseRefusal } from "./commands/_io.js";
 import { alignCommand } from "./commands/align.js";
+import { casesCommand } from "./commands/cases.js";
 import { defectCommand, rtmCommand } from "./commands/defect.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { escalationCommand } from "./commands/escalation.js";
@@ -30,6 +31,7 @@ export function buildProgram(): Command {
     initCommand(), reconfigureCommand(), updateCommand(), doctorCommand(), runCommand(), eventCommand(), idCommand(),
     taskCommand(), workReportCommand(), reviewCommand(), integrityCommand(), alignCommand(), phaseCommand(), gateCommand(),
     escalationCommand(), helpersCommand(), messagingCommand(), metricsCommand(), defectCommand(), rtmCommand(), envCommand(), lintCommand(), exploreCommand(),
+    casesCommand(),
   ]) {
     program.addCommand(command);
   }

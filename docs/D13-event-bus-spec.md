@@ -86,6 +86,7 @@ Every event includes `ts: string` (ISO-8601 UTC).
 | `env.specialist-blocked` | env, specialist |
 | `env.executed` | agent, environment, command (redacted), exitCode, injected (names only) |
 | `lint.completed` | agent, gate (G2 or G3), errors, warnings, report (reports/lint/gate-{G}.json) |
+| `cases.rendered` | agent, kinds (cases, scenarios: the kinds whose Markdown changed), written, removed. The Markdown next to each case and scenario JSON, rendered from it (and from the story JSON of the scenario); recorded only when a file was written or removed |
 | `explore.probed` | agent, mode (baseline or verify), decision (reuse, partial, full; none for a baseline), pages, same, changed, failed, hints. A verify compares pages and writes reports/explore/probe.json (decision, reason, diff, hints, reopened, changedPages). A baseline counts the pages observed in pages and the pages it could not observe in failed, and writes reports/explore/baseline.json (pages, unobserved with role, url and error, skipped, roles, discoveryConfigHash, identity, unavailable) |
 | `env.probed` | agent, stage (execution or g2), environment, ok, failed (the names of the failed checks), build (kind and the first 12 characters of its id: next-build-id, source or unknown). Writes reports/env/probe-{stage}.json (runId, stage, environment, takenAt, ok, build, checks with name, status and detail); no URL query, header, body or env value |
 | `aegis.territory.violated` | agent, attemptedPath |
