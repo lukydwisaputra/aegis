@@ -70,8 +70,9 @@ describe('compliance relevance at the CLI', () => {
     fastForward(t.root, runId, 'compliance', { G1: approved, G2: approved });
     await startPhase(t.root, runId, 'compliance', ORCH);
   }
+  const REGULATION_NUMBER: Record<string, number> = { iso25010: 1, iso5055: 2, istqb: 3, cmmi: 4, gdpr: 5, pdpa: 6 };
   async function complianceTasks(ids: string[]) {
-    for (const id of ids) await workTask(t.root, runId, `T-compliance-${id}`, `qa-compliance-${id}`, 'qa-compliance-spv');
+    for (const id of ids) await workTask(t.root, runId, `T-compliance-${REGULATION_NUMBER[id]}`, `qa-compliance-${id}`, 'qa-compliance-spv');
   }
 
   it('Scan records the personal-data snapshot', async () => {
@@ -111,8 +112,8 @@ describe('compliance relevance at the CLI', () => {
     await scanWith({ ...PROFILE, hasAuth: true });
     await toCompliance();
     await complianceTasks([...ISO, 'pdpa']);
-    await addTask(t.root, runId, { id: 'T-compliance-gdpr', title: 'gdpr', agent: 'qa-compliance-gdpr' }, ORCH);
-    await cancelTask(t.root, runId, 'T-compliance-gdpr', 'dispatched by mistake', ORCH);
+    await addTask(t.root, runId, { id: 'T-compliance-5', title: 'gdpr', agent: 'qa-compliance-gdpr' }, ORCH);
+    await cancelTask(t.root, runId, 'T-compliance-5', 'dispatched by mistake', ORCH);
     const message = await completePhase(t.root, runId, 'compliance', ORCH).catch((e: Error) => e.message);
     expect(message).toContain('regulation gdpr has no task; add one for qa-compliance-gdpr');
     expect(message).not.toContain('regulation pdpa');

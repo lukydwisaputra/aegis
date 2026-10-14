@@ -184,7 +184,7 @@ describe('submitReview extras', () => {
     await submitWorkReport(t.root, runId, writeJson('wr.json', workReport()), WORKER);
     await releaseTask(t.root, runId, 'T-1', 'done', WORKER);
     const res = await submitReview(t.root, runId, writeJson('r.json', review('requested-changes')), SPV);
-    expect(res.lessons).toEqual([{ outcome: 'appended' }]);
+    expect(res.lessons).toEqual([{ outcome: 'appended', lessonId: 'L-US-001' }]);
   });
 
   it('refuses a review on a completed run before recording anything (CO-07)', async () => {

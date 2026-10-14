@@ -7,8 +7,12 @@ import {
   View,
   Image,
   StyleSheet,
+  Font,
 } from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
+
+// A word is never split at a line end ("DEF-001-AD-MIN-DATA", "inter-face"): identifiers and ids stay readable and searchable in the PDF text.
+Font.registerHyphenationCallback((word) => [word]);
 
 // ─── Tone-check ───────────────────────────────────────────────────────────────
 
@@ -66,13 +70,32 @@ export const JARGON_RULES: Array<{
 ];
 
 /**
+ * Identifier-shaped tokens: artefact ids (DEF-004-ATT-API, TC-AUTH-001, REQ-REG-04, STORY-..., SCN-..., AC-..., RUN-..., OQ-12, RISK-...,
+ * RQ-..., AMB-..., GAP-...) and compliance tags (WSTG-, CWE-, WCAG-, GDPR-, PDPA-, ISTQB-, CMMI-, ISO25010-...). No tone-check or jargon
+ * replacement ever rewrites a word inside one: "DEF-004-ATT-API" must never print as "DEF-004-ATT-application interface".
+ */
+const IDENTIFIER =
+  /\b(?:(?:DEF|TC|REQ|STORY|SCN|AC|RUN|OQ|RISK|RQ|AMB|GAP)-[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?|(?:WSTG|CWE|WCAG|GDPR|PDPA|ISTQB|CMMI|ISO\d{4,5})-[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?)\b/g;
+
+/** Replace every identifier by a placeholder no rule matches; returns the masked text and the way back. */
+function maskIdentifiers(text: string): { masked: string; restore: (t: string) => string } {
+  const found: string[] = [];
+  const masked = text.replace(IDENTIFIER, (id) => `\u0001${found.push(id) - 1}\u0002`);
+  return { masked, restore: (t) => t.replace(/\u0001(\d+)\u0002/g, (_m, i: string) => found[Number(i)] ?? "") };
+}
+
+/**
  * Apply all jargon rewrites to a text string.
- * Rules are applied in order; each rule operates on the result of the previous.
+ * Rules are applied in order; each rule operates on the result of the previous. Identifiers (see IDENTIFIER) are masked first and put
+ * back unchanged, so no rule rewrites a word inside one.
  */
 export function applyJargonRewrites(text: string): string {
-  return JARGON_RULES.reduce((current, rule) => {
-    return current.replace(rule.pattern, (match) => rule.rewrite(match));
-  }, text);
+  const { masked, restore } = maskIdentifiers(text);
+  return restore(
+    JARGON_RULES.reduce((current, rule) => {
+      return current.replace(rule.pattern, (match) => rule.rewrite(match));
+    }, masked)
+  );
 }
 
 /**
@@ -83,6 +106,7 @@ export function detectJargon(
   text: string
 ): Array<{ original: string; suggested: string }> {
   const findings: Array<{ original: string; suggested: string }> = [];
+  text = maskIdentifiers(text).masked;
   for (const rule of JARGON_RULES) {
     // Reset lastIndex so global regexes match from the start
     rule.pattern.lastIndex = 0;
@@ -142,15 +166,44 @@ export interface TechnicalReportSpec {
     passRate: number | null;
     coveragePercent: number | null;
     openDefects: number | null;
-    closedDefects: number | null;
+    /** Deprecated and never printed: a record that is not open is fixed, reframed or withdrawn (see defectHeadline), not "closed". */
+    closedDefects?: number | null;
   };
+  /**
+   * The defect headline block: open application defects (with how many are PARTIALLY FIXED), fixed, reframed (a requirement or hardening
+   * question, not open) and report withdrawn. When set it replaces the single "Open Defects" row.
+   */
+  defectHeadline?: {
+    open: number | null;
+    openPartiallyFixed: number | null;
+    fixed: number | null;
+    reframed: number | null;
+    reportWithdrawn: number | null;
+    closedWithoutVerdict?: number | null;
+  };
+  /** States which bases the case figures follow (coverage rollup, execution summary, case of record); printed under the summary table. */
+  caseNote?: string | null;
+  /** The closure's own reconciliation of the case figures. */
+  reconciliation?: string | null;
+  /** Designed checks the owner descoped, each with the owner's reason. */
+  outOfScopeCases?: Array<{ caseId: string; reason: string }>;
+  /** The defect log: severity reads "Sev4 (Minor)", status the retest verdict or "Open (new this cycle)"; callers pass it open first. */
   defects: Array<{
     id: string;
     title: string;
     severity: string;
     status: string;
   }>;
-  compliance: Record<string, { covered: number | null; gapped: number | null }>;
+  /** Coverage gaps per standard. `covered` is no longer printed (it had no stated unit); `highGaps` is the number rated high. */
+  compliance: Record<string, { covered: number | null; gapped: number | null; highGaps?: number | null }>;
+  /** Totals and the no-verdict statement printed under the compliance table. */
+  complianceTotals?: { reports: number | null; totalGaps: number | null; totalHighGaps: number | null; note?: string | null };
+  /** Narrative sections, all taken from the closure report; each is printed only when it has content. */
+  variances?: Array<{ variance: string; reason: string | null }>;
+  exitCriteria?: Array<{ criterion: string; met: boolean; evidence: string | null }>;
+  openQuestions?: Array<{ audience: string; questions: Array<{ id: string; priority: string | null; question: string }> }>;
+  falsePasses?: Array<{ case: string; finding: string; latestResult: string | null }>;
+  residualRisks?: Array<{ title: string; rating: string | null; mitigationStatus: string | null; residualExposure: string | null }>;
   /** Optional evidence index — base64-encoded PNG data URIs keyed by defect ID */
   evidenceScreenshots?: Array<{
     defectId: string;
@@ -188,6 +241,8 @@ export interface SignoffSpec {
   exitCriteriaNote?: string;
   openDefectsSummary: string;
   residualRisk: string;
+  /** Further blocks printed after the exit criteria (tests executed, variances, defects, compliance coverage, unmet criteria, out of scope). */
+  sections?: Array<{ title: string; lines: string[] }>;
   signatoryRoles: string[]; // e.g. ["QA Lead", "Engineering Lead", "Product Owner"]
 }
 
@@ -421,6 +476,65 @@ export const NOT_AVAILABLE = "not available";
 const formatCount = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : String(v));
 const formatPercent = (v: number | null | undefined): string => (v == null ? NOT_AVAILABLE : `${v.toFixed(1)}%`);
 
+/** "iso25010" -> "ISO/IEC 25010"; a name that already reads as a proper name stays. */
+function standardName(key: string): string {
+  const k = key.trim().toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^isoiec/, "iso");
+  return ({ iso25010: "ISO/IEC 25010", iso5055: "ISO/IEC 5055", istqb: "ISTQB", cmmi: "CMMI", gdpr: "GDPR", pdpa: "PDPA" } as Record<string, string>)[k] ?? key.trim();
+}
+
+const sectionTitle = (key: string, title: string) => [
+  React.createElement(Text, { key: `${key}-t`, style: { ...baseStyles.subheader, marginTop: 14 } }, title),
+  React.createElement(View, { key: `${key}-d`, style: baseStyles.divider }),
+];
+const paragraph = (key: string, text: string, bold = false) =>
+  React.createElement(Text, { key, style: bold ? { ...baseStyles.body, fontFamily: "Helvetica-Bold" } : baseStyles.body }, text);
+
+/** The closure's narrative as report sections; a section with nothing to say is left out, never printed empty. */
+function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
+  const blocks: React.ReactElement[] = [];
+  if ((spec.exitCriteria ?? []).length > 0) {
+    blocks.push(...sectionTitle("exit", "Exit Criteria"));
+    (spec.exitCriteria ?? []).forEach((c, i) => {
+      blocks.push(
+        React.createElement(
+          View,
+          { key: `exit-${i}`, style: { marginBottom: 6 } },
+          React.createElement(
+            View,
+            { style: baseStyles.row },
+            React.createElement(Text, { style: { ...baseStyles.exitStatus, color: c.met ? "#1e8449" : "#c0392b" } }, c.met ? "Met" : "Not met"),
+            React.createElement(Text, { style: { ...baseStyles.body, flex: 1 } }, c.criterion)
+          ),
+          ...(c.evidence ? [React.createElement(Text, { key: `exit-ev-${i}`, style: { ...baseStyles.body, marginLeft: 50, color: "#555555" } }, c.evidence)] : [])
+        )
+      );
+    });
+  }
+  if ((spec.variances ?? []).length > 0) {
+    blocks.push(...sectionTitle("var", "Variances from the Test Plan"));
+    (spec.variances ?? []).forEach((v, i) => blocks.push(paragraph(`var-${i}`, `${v.variance}${v.reason ? ` Reason: ${v.reason}` : ""}`)));
+  }
+  if ((spec.falsePasses ?? []).length > 0) {
+    blocks.push(...sectionTitle("fp", "Passes That Did Not Hold"));
+    (spec.falsePasses ?? []).forEach((f, i) => blocks.push(paragraph(`fp-${i}`, `${f.case}: ${f.finding}${f.latestResult ? ` Latest result: ${f.latestResult}` : ""}`)));
+  }
+  if ((spec.residualRisks ?? []).length > 0) {
+    blocks.push(...sectionTitle("risk", "Residual Risks"));
+    (spec.residualRisks ?? []).forEach((r, i) =>
+      blocks.push(paragraph(`risk-${i}`, `${r.rating ? `[Originally ${r.rating}] ` : ""}${r.title}${r.mitigationStatus ? ` (${r.mitigationStatus})` : ""}${r.residualExposure ? `: ${r.residualExposure}` : ""}`))
+    );
+  }
+  if ((spec.openQuestions ?? []).length > 0) {
+    blocks.push(...sectionTitle("oq", "Open Questions"));
+    blocks.push(paragraph("oq-intro", "Decisions the QA team has not been given. Each question names who decides."));
+    (spec.openQuestions ?? []).forEach((g, gi) => {
+      blocks.push(paragraph(`oq-g-${gi}`, `For ${g.audience} (${g.questions.length})`, true));
+      g.questions.forEach((q, qi) => blocks.push(paragraph(`oq-${gi}-${qi}`, `${q.id}${q.priority ? ` [${q.priority}]` : ""}: ${q.question}`)));
+    });
+  }
+  return blocks.length === 0 ? [] : [React.createElement(Page, { key: "narrative", size: "A4", style: baseStyles.page }, ...blocks)];
+}
+
 function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
   return React.createElement(
     Document,
@@ -484,8 +598,16 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         ...(typeof spec.metrics.outOfScope === "number" && Number.isInteger(spec.metrics.outOfScope) && spec.metrics.outOfScope > 0 ? [["Out of scope", formatCount(spec.metrics.outOfScope)]] : []),
         ["Pass Rate", formatPercent(spec.metrics.passRate)],
         ["Requirements Coverage", formatPercent(spec.metrics.coveragePercent)],
-        ["Open Defects", formatCount(spec.metrics.openDefects)],
-        ["Closed Defects", formatCount(spec.metrics.closedDefects)],
+        ...(spec.defectHeadline === undefined
+          ? [["Open Defects", formatCount(spec.metrics.openDefects)]]
+          : [
+              ["Open application defects", formatCount(spec.defectHeadline.open)],
+              ["Of which partially fixed", formatCount(spec.defectHeadline.openPartiallyFixed)],
+              ["Fixed", formatCount(spec.defectHeadline.fixed)],
+              ["Reframed (requirement or hardening question, not open)", formatCount(spec.defectHeadline.reframed)],
+              ["Report withdrawn", formatCount(spec.defectHeadline.reportWithdrawn)],
+              ...(typeof spec.defectHeadline.closedWithoutVerdict === "number" ? [["Closed without a retest verdict", formatCount(spec.defectHeadline.closedWithoutVerdict)]] : []),
+            ]),
       ].map(([label, value], i) =>
         React.createElement(
           View,
@@ -501,6 +623,17 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
           React.createElement(Text, { style: baseStyles.cell }, String(value))
         )
       ),
+      ...(spec.caseNote ? [React.createElement(Text, { key: "case-note", style: { ...baseStyles.body, marginTop: 8 } }, spec.caseNote)] : []),
+      ...(spec.reconciliation ? [React.createElement(Text, { key: "reconciliation", style: baseStyles.body }, `Reconciliation: ${spec.reconciliation}`)] : []),
+      ...((spec.outOfScopeCases ?? []).length > 0
+        ? [
+            React.createElement(
+              Text,
+              { key: "out-of-scope", style: baseStyles.body },
+              `Out of scope (owner decision, not in any count above): ${(spec.outOfScopeCases ?? []).map((c) => `${c.caseId} (${c.reason})`).join("; ")}`
+            ),
+          ]
+        : []),
       React.createElement(
         Text,
         { style: { ...baseStyles.subheader, marginTop: 20 } },
@@ -508,11 +641,16 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
       ),
       React.createElement(View, { style: baseStyles.divider }),
       React.createElement(
+        Text,
+        { style: baseStyles.body },
+        "Gaps are test-coverage gaps in each standard, rated by the standard's own review. They are not defects and carry no compliance verdict."
+      ),
+      React.createElement(
         View,
         { style: { ...baseStyles.row, marginBottom: 6 } },
-        React.createElement(Text, { style: baseStyles.cellBold }, "Standard"),
-        React.createElement(Text, { style: baseStyles.cellBold }, "Covered"),
-        React.createElement(Text, { style: baseStyles.cellBold }, "Gaps")
+        React.createElement(Text, { style: { ...baseStyles.cellBold, flex: 2 } }, "Standard"),
+        React.createElement(Text, { style: baseStyles.cellBold }, "Coverage gaps"),
+        React.createElement(Text, { style: baseStyles.cellBold }, "Gaps rated high")
       ),
       ...(Object.keys(spec.compliance).length === 0
         ? [React.createElement(Text, { key: "compliance-none", style: baseStyles.body }, `Compliance reports: ${NOT_AVAILABLE}`)]
@@ -528,19 +666,20 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
               paddingVertical: 3,
             },
           },
-          React.createElement(Text, { style: baseStyles.cell }, standard),
-          React.createElement(
-            Text,
-            { style: baseStyles.cell },
-            formatCount(counts.covered)
-          ),
-          React.createElement(
-            Text,
-            { style: baseStyles.cell },
-            formatCount(counts.gapped)
-          )
+          React.createElement(Text, { style: { ...baseStyles.cell, flex: 2 } }, standardName(standard)),
+          React.createElement(Text, { style: baseStyles.cell }, formatCount(counts.gapped)),
+          React.createElement(Text, { style: baseStyles.cell }, formatCount(counts.highGaps ?? null))
         )
-      )
+      ),
+      ...(spec.complianceTotals === undefined
+        ? []
+        : [
+            React.createElement(
+              Text,
+              { key: "compliance-totals", style: { ...baseStyles.body, marginTop: 6 } },
+              `Total: ${formatCount(spec.complianceTotals.totalGaps)} coverage gaps across ${formatCount(spec.complianceTotals.reports)} reports, ${formatCount(spec.complianceTotals.totalHighGaps)} rated high.${spec.complianceTotals.note ? ` ${spec.complianceTotals.note}` : ""}`
+            ),
+          ])
     ),
     // Defects page
     React.createElement(
@@ -551,14 +690,14 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
       React.createElement(
         View,
         { style: { ...baseStyles.row, marginBottom: 6 } },
-        React.createElement(Text, { style: baseStyles.cellBold }, "ID"),
+        React.createElement(Text, { style: { ...baseStyles.cellBold, flex: 1.6, paddingRight: 6 } }, "ID"),
         React.createElement(
           Text,
-          { style: { ...baseStyles.cellBold, flex: 3 } },
+          { style: { ...baseStyles.cellBold, flex: 3, paddingRight: 6 } },
           "Title"
         ),
-        React.createElement(Text, { style: baseStyles.cellBold }, "Severity"),
-        React.createElement(Text, { style: baseStyles.cellBold }, "Status")
+        React.createElement(Text, { style: { ...baseStyles.cellBold, flex: 1.2, paddingRight: 6 } }, "Severity"),
+        React.createElement(Text, { style: { ...baseStyles.cellBold, flex: 1.4 } }, "Retest verdict")
       ),
       ...spec.defects.map((defect, i) =>
         React.createElement(
@@ -571,21 +710,23 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
               paddingVertical: 3,
             },
           },
-          React.createElement(Text, { style: baseStyles.cell }, defect.id),
+          React.createElement(Text, { style: { ...baseStyles.cell, flex: 1.6, paddingRight: 6 } }, defect.id),
           React.createElement(
             Text,
-            { style: { ...baseStyles.cell, flex: 3 } },
+            { style: { ...baseStyles.cell, flex: 3, paddingRight: 6 } },
             defect.title
           ),
           React.createElement(
             Text,
-            { style: baseStyles.cell },
+            { style: { ...baseStyles.cell, flex: 1.2, paddingRight: 6 } },
             defect.severity
           ),
-          React.createElement(Text, { style: baseStyles.cell }, defect.status)
+          React.createElement(Text, { style: { ...baseStyles.cell, flex: 1.4 } }, defect.status)
         )
       )
     ),
+    // Narrative sections from the closure report (printed only when present)
+    ...narrativePages(spec),
     // Evidence appendix — one screenshot per page entry (only when evidence provided)
     ...(spec.evidenceScreenshots ?? []).map((entry, i) =>
       React.createElement(
@@ -728,6 +869,8 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
         React.createElement(
           View,
           { key: `exit-${i}`, style: { ...baseStyles.row, marginBottom: 6 } },
+          // The number lets the "not met" block below point at a criterion without repeating its text.
+          React.createElement(Text, { style: { ...baseStyles.body, width: 16, marginRight: 4 } }, `${i + 1}.`),
           React.createElement(
             Text,
             // Words, not check-mark glyphs: the standard Helvetica font is WinAnsi-encoded and has none.
@@ -749,6 +892,11 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
           )
         )
       ),
+      // Further blocks from the closure report
+      ...(spec.sections ?? []).flatMap((sec, si) => [
+        React.createElement(Text, { key: `sec-t-${si}`, style: { ...baseStyles.label, marginTop: 8 } }, sec.title.toUpperCase()),
+        ...sec.lines.map((line, li) => React.createElement(Text, { key: `sec-${si}-${li}`, style: baseStyles.body }, line)),
+      ]),
       // Open defects summary
       React.createElement(
         View,

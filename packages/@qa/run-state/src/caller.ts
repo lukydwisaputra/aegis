@@ -38,6 +38,12 @@ export const CLI_COMMANDS = [
   "messaging.scan-secrets",
   "messaging.exec",
   "metrics.coverage",
+  "defect.amend",
+  "rtm.unlink",
+  "metrics.defects",
+  "metrics.rollups",
+  "rtm.sync-defects",
+  "rtm.render",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -58,6 +64,14 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   // NEW-07: read-only, presence only — the owner checks where to put the messaging key.
   "messaging.check",
   "metrics.coverage",
+  // Gap 5: the owner may correct a record too; qa-defect-manager is the only agent that may (SINGLE_AGENT_COMMANDS).
+  "defect.amend",
+  "rtm.unlink",
+  // Gap 7: read-only, the defect headline numbers of the run's records.
+  "metrics.defects",
+  "metrics.rollups",
+  "rtm.sync-defects",
+  "rtm.render",
 ]);
 
 export function resolveCaller(env: NodeJS.ProcessEnv = process.env): string {
@@ -93,6 +107,18 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "messaging.exec": "qa-messaging-specialist",
   "messaging.check": "qa-environment-engineer",
   "metrics.coverage": "qa-metrics-collector",
+  "defect.amend": "qa-defect-manager",
+  "rtm.unlink": "qa-defect-manager",
+  "rtm.sync-defects": "qa-defect-manager",
+  "rtm.render": "qa-defect-manager",
+};
+
+// Read-only commands several named agents run (the owner always may, as OWNER_COMMANDS says): the agent that writes the figures and
+// the agent that states them.
+export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly string[]>>> = {
+  "metrics.defects": ["qa-metrics-collector", "qa-defect-manager", "qa-closure-reporter"],
+  // The collector writes the rollups; the defect manager may only check them (--check writes nothing, enforced in writeRollups).
+  "metrics.rollups": ["qa-metrics-collector", "qa-defect-manager"],
 };
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {
@@ -109,15 +135,40 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   if (caller !== OWNER && only !== undefined && caller !== only) {
     throw new RunStateError("caller-forbidden", `${command} is run only by ${only}`);
   }
+  const set = AGENT_SET_COMMANDS[command];
+  if (caller !== OWNER && set !== undefined && !set.includes(caller)) {
+    throw new RunStateError("caller-forbidden", `${command} is run only by ${set.join(" and ")}`);
+  }
 }
 
 // Event families whose facts the CLI records itself; an agent appending one directly would forge run state.
 export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.", "review.", "integrity.", "escalation."];
-// cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself.
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight"]);
+// cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
+// recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2); the last two by
+// aegis defect amend and aegis rtm unlink (gap 5).
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));
+}
+
+/**
+ * Content checks `aegis event append` runs before it appends (the schema alone cannot say it): a `defect.management-complete` that
+ * states openApplicationDefects must have a severityBreakdown that sums to it, because the breakdown counts the open application
+ * defects. The refusal names both numbers. Other types and events without the field pass.
+ */
+export function assertEventConsistent(type: string, fields: Record<string, unknown>): void {
+  if (type !== "defect.management-complete") return;
+  const open = fields["openApplicationDefects"];
+  const by = fields["severityBreakdown"];
+  if (typeof open !== "number" || by === null || typeof by !== "object" || Array.isArray(by)) return;
+  const sum = Object.values(by as Record<string, unknown>).reduce<number>((a, n) => a + (typeof n === "number" ? n : 0), 0);
+  if (sum !== open) {
+    throw new RunStateError(
+      "invalid-input",
+      `defect.management-complete is inconsistent: severityBreakdown sums to ${sum} but openApplicationDefects is ${open}; severityBreakdown counts the open application defects by severity code. Correct the figures (aegis metrics defects) and append the event again`
+    );
+  }
 }
 
 export function assertAppendableByAgent(type: string): void {

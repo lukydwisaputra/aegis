@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { noteParseRefusal } from "./commands/_io.js";
 import { alignCommand } from "./commands/align.js";
+import { defectCommand, rtmCommand } from "./commands/defect.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { escalationCommand } from "./commands/escalation.js";
 import { eventCommand } from "./commands/event.js";
@@ -25,7 +26,7 @@ export function buildProgram(): Command {
   for (const command of [
     initCommand(), reconfigureCommand(), updateCommand(), doctorCommand(), runCommand(), eventCommand(), idCommand(),
     taskCommand(), workReportCommand(), reviewCommand(), integrityCommand(), alignCommand(), phaseCommand(), gateCommand(),
-    escalationCommand(), helpersCommand(), messagingCommand(), metricsCommand(),
+    escalationCommand(), helpersCommand(), messagingCommand(), metricsCommand(), defectCommand(), rtmCommand(),
   ]) {
     program.addCommand(command);
   }

@@ -48,6 +48,10 @@ const ENTRY: Record<string, string> = {
   'escalation.decide': 'decideEscalation',
   'messaging.fetch-contract': 'fetchContract',
   'messaging.exec': 'execWithMessaging',
+  'defect.amend': 'amendDefect',
+  'rtm.unlink': 'unlinkRtmDefect',
+  'rtm.sync-defects': 'syncRtmDefectMap',
+  'rtm.render': 'renderRtmDefects',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

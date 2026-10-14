@@ -47,6 +47,10 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 - `runs/{runId}/reports/compliance/istqb.{md,json}` — gap report. `runs/{runId}/reports/compliance/istqb.json` is `{ "regulation": "istqb", "sectionsCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `ISTQB-Foundation-{section}` tags added to TCs/defects as applicable
 
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
 ## Quality Standards
 
 - Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)

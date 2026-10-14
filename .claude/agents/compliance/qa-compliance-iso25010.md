@@ -34,7 +34,7 @@ Evaluate coverage for each:
 3. **Compatibility** — Co-existence, interoperability
 4. **Usability** — Recognisability, learnability, operability, user error protection, user interface aesthetics, accessibility
 5. **Reliability** — Maturity, availability, fault tolerance, recoverability
-6. **Security** — Confidentiality, integrity, non-repudiation, authenticity, accountability
+6. **Security** — Confidentiality, integrity, non-repudiation, authenticity, accountability, resistance (ISO/IEC 25010:2023: the degree to which the product sustains operation while under attack from a malicious actor; tag `ISO25010-Security-Resistance`)
 7. **Maintainability** — Modularity, reusability, analysability, modifiability, testability
 8. **Portability** — Adaptability, installability, replaceability
 
@@ -50,6 +50,10 @@ Evaluate coverage for each:
 
 - `runs/{runId}/reports/compliance/iso25010.{md,json}` — gap report. `runs/{runId}/reports/compliance/iso25010.json` is `{ "regulation": "iso25010", "characteristicsCovered": [<covered tags>], "gaps": [<one object per gap, as in Process step 5>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - The `ISO25010-*` tags of TCs and defects, recorded in the gap report only (you edit no test case, defect or RTM file)
+
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
 
 ## Quality Standards
 

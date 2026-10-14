@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { CorrectiveInstructionSchema, WorkReportSchema } from "@qa/contracts";
 import { ADAPTERS } from "@qa/messaging";
 import { appendLedger, CLI_ONLY_RUN_GLOBS, envVerdict, loadGuardContext, roleOf } from "@qa/path-guard";
 import { AGENT_ID, assertCallerAllowed, CLI_COMMANDS, type CliCommand } from "./caller.js";
@@ -43,6 +44,12 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "messaging.scan-secrets": "messaging scan-secrets <paths...> [--run <id>]",
   "messaging.exec": "messaging exec [--run <id>] -- <command...>",
   "metrics.coverage": "metrics coverage [--run <id>]",
+  "metrics.defects": "metrics defects [--run <id>]",
+  "metrics.rollups": "metrics rollups [--check] [--run <id>]",
+  "rtm.sync-defects": "rtm sync-defects --reason <text> [--prune-rows] [--run <id>]",
+  "rtm.render": "rtm render [--run <id>]",
+  "defect.amend": "defect amend --defect <id> (--set <field>=<value> (repeat) | --json '{\"<field>\":<value>}') --reason <text> [--run <id>]",
+  "rtm.unlink": "rtm unlink --defect <id> --requirement <REQ-id> --reason <text> [--run <id>]",
 };
 
 /** NEW-07: each messaging adapter with the hints that identify it in a target, so the scanner never hard-codes a provider. */
@@ -51,6 +58,14 @@ export const MESSAGING_ADAPTERS_LINE = `- Messaging adapters: ${Object.values(AD
 /** NEW-06 (P2 spec §4.12, T10): the one framework-defect instruction every qa-* agent gets. */
 export const FRAMEWORK_DEFECT_LINE =
   "- If an `aegis` command, skill, path or config key your instructions name is missing or behaves differently from your instructions, append `framework.defect-suspected` with the component, the symptom and the evidence (`event append --type framework.defect-suspected --json '{\"component\":…,\"symptom\":…,\"evidence\":[…]}'`). Then continue if you can, or release your task `failed` if you cannot. Never edit the framework to work around it.";
+
+const range = (f: { minLength: number | null; maxLength: number | null }): string => `${f.minLength}-${f.maxLength}`;
+
+/**
+ * Gap 8: two facts agents learned by being refused. The hook denies `eval` of text that names aegis, and the CLI refuses an over-long field
+ * of a work report or review. The limits are read from the schemas, so this line never drifts from what the CLI enforces.
+ */
+export const CLI_USAGE_NOTES_LINE = `- Run each aegis command as its own direct call, \`AEGIS_AGENT=<you> pnpm aegis ...\`: never wrap it in \`eval\` (the PreToolUse hook denies an eval of text that names aegis). Field limits the CLI enforces, in characters: work report summary ${range(WorkReportSchema.shape.summary)}, approach ${range(WorkReportSchema.shape.approach)}; review corrective instruction mistake ${range(CorrectiveInstructionSchema.shape.mistake)}, rootCause ${range(CorrectiveInstructionSchema.shape.rootCause)}, correctiveRule ${range(CorrectiveInstructionSchema.shape.correctiveRule)}. Count before you submit: an over-limit field is refused with its name, its limit and its length, and nothing is recorded.`;
 
 function allowedFor(agent: string): CliCommand[] {
   return CLI_COMMANDS.filter((cmd) => {
@@ -110,6 +125,7 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
   lines.push(`- You may write: ${writes} ({run} = the run directory, {testsDir} = the QA tests directory, {target} = the target root).`);
   lines.push(`- Never write these, which the CLI owns (the PreToolUse hook denies the write): runs/.active and, inside a run, ${CLI_ONLY_RUN_GLOBS.join(", ")}.`);
   lines.push(FRAMEWORK_DEFECT_LINE);
+  lines.push(CLI_USAGE_NOTES_LINE);
   lines.push(`- Prefix every CLI call exactly as shown; the hook denies a missing or different AEGIS_AGENT. Commands you may run:`);
   for (const cmd of allowedFor(agentType)) lines.push(`  - \`${prefix} ${CLI_USAGE[cmd]}\``);
   lines.push(MESSAGING_ADAPTERS_LINE);

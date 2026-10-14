@@ -32,7 +32,7 @@ You are a read-write agent against the test database. You never touch the produc
 ## Outputs
 
 - `tests/qa/integration/db/{feature}.db.test.ts` — database test files
-- `runs/{runId}/cases/{TC-ID}-result.json` — migration outcomes, RLS test results, query performance
+- `runs/{runId}/cases/{TC-ID}-result.json` — migration outcomes, RLS test results, query performance A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/migration-log.txt` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/query-explain.json`
 
@@ -80,6 +80,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-database-specia
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `migration.applied` — one per migration file in the run: `{migrationFile, env}`
 - `rls.violation-detected` — when a role can access data it should not: `{role, table, operation}`
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
@@ -108,6 +110,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: migration.applied, via: append}
   - {event: rls.violation-detected, via: append}
   - {event: sandbox.explored, via: append}

@@ -19,6 +19,29 @@ export function formatIssues(issues: Array<{ path: Array<string | number>; messa
   return issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
 }
 
+type LimitIssue = { path: Array<string | number>; message: string; code?: string; type?: string; maximum?: number | bigint; minimum?: number | bigint };
+
+/**
+ * formatIssues for a submitted JSON file (work report, review): an issue about a length limit names the field, its limit and the length
+ * it actually has ("approach: 612 characters; the limit is 500"), so the author can cut exactly what is over. Every other issue reads as in formatIssues.
+ */
+export function formatLimitIssues(input: unknown, issues: LimitIssue[]): string {
+  return issues
+    .map((i) => {
+      const where = i.path.join(".") || "(root)";
+      if ((i.code === "too_big" || i.code === "too_small") && (i.type === "string" || i.type === "array")) {
+        let cur: unknown = input;
+        for (const key of i.path) cur = cur !== null && typeof cur === "object" ? (cur as Record<string | number, unknown>)[key] : undefined;
+        const size = typeof cur === "string" || Array.isArray(cur) ? cur.length : undefined;
+        const unit = i.type === "string" ? "characters" : "items";
+        const bound = i.code === "too_big" ? `the limit is ${String(i.maximum)}` : `the minimum is ${String(i.minimum)}`;
+        if (size !== undefined) return `${where}: ${size} ${unit}; ${bound}`;
+      }
+      return `${where}: ${i.message}`;
+    })
+    .join("; ");
+}
+
 const LOCK_OPTIONS = { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } };
 
 /** Hold an exclusive cross-process lock on `lockPath` (created empty if missing, never truncated) while `fn` runs. */

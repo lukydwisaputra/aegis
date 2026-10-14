@@ -466,6 +466,58 @@ export const RtmAppendLinkEventSchema = EventBase.extend({
   testCaseId: TestCaseIdSchema.optional(),
 });
 
+// ─── Record corrections after a gate decision (aegis defect amend, aegis rtm unlink) ───────────────────────
+
+export const DefectRecordAmendedEventSchema = EventBase.extend({
+  type: z.literal("defect.record-amended"),
+  defectId: DefectIdSchema,
+  agent: z.string(),
+  reason: z.string().min(1),
+  // One entry per changed field path (retestVerdict.*, status.*, g2Triage.*): the value before (null when the field was absent)
+  // and after, and the SHA-256 of each value's JSON text so a later reader can check a value without trusting the file.
+  changes: z.array(z.object({
+    path: z.string(),
+    oldValue: z.unknown(),
+    newValue: z.unknown(),
+    oldDigest: z.string(),
+    newDigest: z.string(),
+  })).min(1),
+});
+
+export const RtmLinkRemovedEventSchema = EventBase.extend({
+  type: z.literal("rtm.link-removed"),
+  requirementId: z.string(),
+  defectId: DefectIdSchema,
+  // Additive: how many defectMap entries of this defect and requirement were removed with the row link (absent when there were none).
+  defectMapEntriesRemoved: z.number().int().positive().optional(),
+  agent: z.string(),
+  reason: z.string().min(1),
+});
+
+export const RtmDefectMapSyncedEventSchema = EventBase.extend({
+  type: z.literal("rtm.defect-map-synced"),
+  agent: z.string(),
+  reason: z.string().min(1),
+  // Defect ids whose defectMap entry was added from its record, updated from it, or removed because the defect has no record.
+  added: z.array(DefectIdSchema),
+  updated: z.array(DefectIdSchema),
+  removed: z.array(z.string()),
+  duplicatesRemoved: z.number().int().nonnegative(),
+  // Row links added to a requirement row's defectIds from the record's own requirementId.
+  rowLinksAdded: z.array(z.object({ requirementId: z.string(), defectId: DefectIdSchema })),
+  // Present only with --prune-rows: row links removed because their defect is REFRAMED or REPORT WITHDRAWN.
+  rowLinksRemoved: z.array(z.object({ requirementId: z.string(), defectId: DefectIdSchema })).optional(),
+  rtmMdUpdated: z.boolean(),
+});
+
+export const RtmRenderedEventSchema = EventBase.extend({
+  type: z.literal("rtm.rendered"),
+  agent: z.string(),
+  file: z.string(),
+  section: z.string(),
+  entries: z.number().int().nonnegative(),
+});
+
 // ─── Threshold override ───────────────────────────────────────────────────────
 
 export const ThresholdOverriddenEventSchema = EventBase.extend({
@@ -747,6 +799,27 @@ export const TestFailedEventSchema = EventBase.extend({
   evidencePaths: z.array(z.string()).default([]),
 });
 
+// The four test outcome events share one rule: the LAST test.* event of a testCaseId is its outcome (latestTestOutcomes in
+// @qa/metrics). A case that moves from test.passed to blocked or partial appends test.blocked or test.partial; it never
+// leaves the earlier test.passed standing.
+export const TestBlockedEventSchema = EventBase.extend({
+  type: z.literal("test.blocked"),
+  testCaseId: TestCaseIdSchema,
+  specialist: z.string().optional(),
+  // Why the case could not reach a verdict (an unreachable dependency, a missing credential, a forbidden environment).
+  reason: z.string().min(1),
+  evidencePaths: z.array(z.string()).default([]),
+});
+
+export const TestPartialEventSchema = EventBase.extend({
+  type: z.literal("test.partial"),
+  testCaseId: TestCaseIdSchema,
+  specialist: z.string().optional(),
+  // What was verified and what was not (one angle passed, another could not be checked).
+  reason: z.string().min(1),
+  evidencePaths: z.array(z.string()).default([]),
+});
+
 export const TestIdProposalCreatedEventSchema = EventBase.extend({
   type: z.literal("test.id-proposal-created"),
   selector: z.string(),
@@ -877,9 +950,30 @@ export const DefectLinkedEventSchema = EventBase.extend({
 
 export const DefectManagementCompleteEventSchema = EventBase.extend({
   type: z.literal("defect.management-complete"),
+  // WHAT totalOpened COUNTS: the defect records this run opened (the new defects, one per `defect.opened` event). It is NOT the number
+  // of open application defects: defects carried from an earlier run and retested are not "opened" here, and a defect opened here can be
+  // reframed or withdrawn afterwards. Use openApplicationDefects for any "how many defects are open" headline.
   totalOpened: z.number().int().nonnegative(),
   duplicates: z.number().int().nonnegative(),
+  // WHAT severityBreakdown COUNTS: the open application defects, by severity code, so its values sum to openApplicationDefects when that
+  // field is present (aegis event append refuses an event where they differ). An event written before openApplicationDefects existed
+  // counted the defects opened in the run instead (it then sums to totalOpened).
   severityBreakdown: z.record(z.string(), z.number().int().nonnegative()),
+  // A corrected event may be appended again later; the LAST defect.management-complete of a run is the one readers use
+  // (latestDefectManagementComplete in @qa/metrics). Events are never edited or deleted.
+  // Additive, derived from the defect records (`aegis metrics defects`; HANDBOOK 13.10). An event written before they existed has none of them.
+  // openApplicationDefects = notFixed + partiallyFixed + cannotVerify + the open records with no retest verdict (a status neither closed
+  // nor flagged for the owner). PARTIALLY FIXED is open until the remainder is fixed or the developers confirm the current fix resolves
+  // everything. FIXED, REFRAMED and REPORT WITHDRAWN are not open.
+  openApplicationDefects: z.number().int().nonnegative().optional(),
+  // Records per retest verdict (RetestVerdictCodeSchema), by their `retestVerdict.verdict`; partiallyFixed, cannotVerify and notFixed are
+  // subsets of openApplicationDefects, fixed, reframed and reportWithdrawn are not.
+  fixed: z.number().int().nonnegative().optional(),
+  partiallyFixed: z.number().int().nonnegative().optional(),
+  reframed: z.number().int().nonnegative().optional(),
+  reportWithdrawn: z.number().int().nonnegative().optional(),
+  cannotVerify: z.number().int().nonnegative().optional(),
+  notFixed: z.number().int().nonnegative().optional(),
 });
 
 export const DefectOriginConfirmedEventSchema = EventBase.extend({
@@ -1515,6 +1609,11 @@ export const LessonSchemaRejectedEventSchema = EventBase.extend({
   type: z.literal("lesson.schema-rejected"),
   agent: z.string(),
   error: z.string(),
+  // Gap 2: set by aegis review submit when a CorrectiveInstruction could not be written to the worker's lessons file;
+  // the instruction itself stays in the review file at reviewPath, so nothing is lost.
+  taskId: z.string().optional(),
+  reviewPath: z.string().optional(),
+  instructionIndex: z.number().int().nonnegative().optional(),
 });
 
 // ─── Escalation, worktree & command telemetry ─────────────────────────────────
@@ -1757,6 +1856,10 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   AppDiscoveredEventSchema,
   MigrationAppliedEventSchema,
   RtmAppendLinkEventSchema,
+  RtmLinkRemovedEventSchema,
+  RtmDefectMapSyncedEventSchema,
+  RtmRenderedEventSchema,
+  DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,
   RunGateCheckTriggeredEventSchema,
@@ -1787,8 +1890,10 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   TestCaseDraftedEventSchema,
   TestConfigWrittenEventSchema,
   TestDesignCompleteEventSchema,
+  TestBlockedEventSchema,
   TestFailedEventSchema,
   TestIdProposalCreatedEventSchema,
+  TestPartialEventSchema,
   TestPassedEventSchema,
   TestPlanDraftedEventSchema,
   CredentialsMissingEventSchema,

@@ -31,7 +31,7 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 ## Outputs
 
 - `tests/qa/perf/{scenario}.perf.ts` — k6 test scripts
-- `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric
+- `runs/{runId}/cases/{TC-ID}-result.json` — measured vs threshold for each metric A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/k6-results.json` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/lighthouse-report.html`
 - `runs/{runId}/evidence/{TC-ID}/baseline/` — preserved baseline results (one copy per run, never overwritten) for SPV baseline delta comparison
@@ -79,6 +79,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-performance-spe
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names which metrics violated which thresholds)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `performance.regression-detected` — when p95 > previous run's p95 + 10% regression allowance: `{metric, current, baseline, regressionPercent}`
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 - `execution.blocked` — `{reason}`, when the environment is production or not `mutating`; a block that prevents the task is followed by the work report and a `failed` release, which escalates to the owner
@@ -104,6 +106,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: performance.regression-detected, via: append}
   - {event: sandbox.explored, via: append}
   - {event: execution.blocked, via: append}

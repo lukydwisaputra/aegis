@@ -18,6 +18,7 @@ import {
   PhaseIntroducedSchema,
   FoundInSchema,
   DefectStatusSchema,
+  RetestVerdictCodeSchema,
 } from "./defect-types.js";
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
@@ -116,6 +117,35 @@ export type TestCase = z.infer<typeof TestCaseSchema>;
 
 // ─── Defect ───────────────────────────────────────────────────────────────────
 
+/**
+ * Retest outcome of a defect carried from an earlier run, written by qa-defect-manager (and corrected after a gate decision with
+ * `aegis defect amend`). Only `verdict` is required; unknown keys survive. Records written before this schema existed carry the
+ * same fields, so they parse unchanged.
+ */
+export const RetestVerdictSchema = z.object({
+  verdict: RetestVerdictCodeSchema,
+  condition: z.string().nullable().optional(),
+  reason: z.string().optional(),
+  evidence: z.union([z.string(), z.array(z.string())]).optional(),
+  fixCommit: z.string().nullable().optional(),
+  fixPr: z.string().nullable().optional(),
+  retestCase: z.string().nullable().optional(),
+  build: z.string().nullable().optional(),
+  // The defect manager's check of the retest against the triage that preceded it (agree or disagree, and why).
+  triageVerification: z.string().optional(),
+  previousVerdict: RetestVerdictCodeSchema.optional(),
+  g2Triage: z.string().optional(),
+}).passthrough();
+export type RetestVerdict = z.infer<typeof RetestVerdictSchema>;
+
+/** The Gate 2 triage block of a defect record: when the owner-facing triage was written and its verdict mirror. Unknown keys survive. */
+export const DefectG2TriageSchema = z.object({
+  triagedAt: z.string().optional(),
+  retestVerdict: RetestVerdictCodeSchema.optional(),
+  retestVerdictDetail: z.string().optional(),
+}).passthrough();
+export type DefectG2Triage = z.infer<typeof DefectG2TriageSchema>;
+
 export const DefectSchema = z.object({
   id: DefectIdSchema,
   title: z.string()
@@ -191,6 +221,10 @@ export const DefectSchema = z.object({
     actor: z.string(),
     event: z.string(),
   })).default([]),
+  // Backward compatible by construction: a record whose retestVerdict or g2Triage does not fit reads as if it had none (the raw
+  // file keeps it); aegis defect amend checks the two against their own schemas before it writes them.
+  retestVerdict: RetestVerdictSchema.optional().catch(undefined),
+  g2Triage: DefectG2TriageSchema.optional().catch(undefined),
 });
 export type Defect = z.infer<typeof DefectSchema>;
 

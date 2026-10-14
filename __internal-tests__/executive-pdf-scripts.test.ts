@@ -143,8 +143,8 @@ describe('technical report (Deliverable 1)', () => {
     expect(text).toContain('Blocked\n2');
     expect(text).toContain('Pass Rate\n88.9%');
     expect(text).toContain('Requirements Coverage\n92.5%');
-    expect(text).toContain('Open Defects\n3');
-    expect(text).toContain('Closed Defects\n0'); // the run holds one record, not closed: closed is read from the records, not total minus open
+    expect(text).toContain('Open application defects\n3');
+    expect(text).not.toContain('Closed Defects'); // the headline is open / fixed / reframed / withdrawn, never "closed"
   });
 
   it('prints neither a token cost nor a cycle time, although the run holds both metric files', () => {
@@ -156,8 +156,10 @@ describe('technical report (Deliverable 1)', () => {
 
   it('reads compliance coverage from each report\'s own covered key and gaps[]', () => {
     const text = pdfText(pdf);
-    expect(text).toContain('iso25010\n6\n2');
-    expect(text).toContain('gdpr\n4\n3');
+    // Proper standard names; gaps and gaps rated high (the old Covered column had no unit and is gone).
+    expect(text).toContain('ISO/IEC 25010\n2\n1');
+    expect(text).toContain('GDPR\n3\n0');
+    expect(text).not.toMatch(/\nCovered\n|iso25010|gdpr\n/);
   });
 
   it('prints no framework or agent name', () => {
@@ -178,7 +180,7 @@ describe('technical report with absent inputs', () => {
     expect(text).toContain('Blocked\nnot available');
     expect(text).toContain('Pass Rate\nnot available');
     expect(text).toContain('Requirements Coverage\nnot available');
-    expect(text).toContain('Open Defects\nnot available');
+    expect(text).toContain('Open application defects\nnot available');
     expect(text).toContain('Compliance reports: not available');
     expect(text).not.toContain('$0.0000');
   });
@@ -350,10 +352,11 @@ describe('A1/A2: real DefectSchema records', () => {
     expect(tech.stderr).toBe('');
     expect(tech.status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('Open Defects\n2');
-    expect(text).toContain('Closed Defects\n2');
-    expect(text).toContain('Sev2');
-    expect(text).toContain('Triaged');
+    expect(text).toContain('Open application defects\n2');
+    expect(text).toContain('Closed without a retest verdict\n2');
+    expect(text).not.toContain('Closed Defects');
+    expect(text).toContain('Sev2 (Critical)');
+    expect(flat(text)).toContain('Open (new this cycle)');
     expect(text).not.toContain('[object Object]');
   });
 
@@ -371,7 +374,7 @@ describe('A2: the technical report and the sign-off agree on open defects', () =
     const { root, runDir } = fixture(FULL_RUN);
     expect(run(SCRIPT.technical, root).status).toBe(0);
     expect(run(SCRIPT.signoff, root).status).toBe(0);
-    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open Defects\n3');
+    expect(pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toContain('Open application defects\n3');
     expect(flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('3 open defects; severity breakdown: not available');
   });
 
@@ -475,6 +478,62 @@ describe('A3: coverage.json noData', () => {
   });
 });
 
+describe('a malformed case-of-record declaration is a refusal, not a stack trace (both scripts)', () => {
+  const TWO = {
+    'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0 } },
+    'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+    'rtm.json': { rows: [{ requirementId: 'REQ-COMMS-01', description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' }, testCaseIds: ['TC-COMMS-007'], defectIds: [], testStatus: 'Covered' }] },
+    'cases/TC-COMMS-007.json': { id: 'TC-COMMS-007' },
+    'cases/TC-COMMS-007-result.json': { status: 'partial', caseOfRecord: true, caseOfRecordReason: 'a' },
+    'cases/TC-COMMS-007-result-messaging.json': { status: 'pass', caseOfRecord: true, caseOfRecordReason: 'b' },
+  };
+  it.each([['technical', SCRIPT.technical], ['signoff', SCRIPT.signoff]])('the %s script exits 10 and names the case and both files', (_name, script) => {
+    const { root, runDir } = fixture(TWO);
+    const res = run(script, root);
+    expect(res.status).toBe(10);
+    expect(res.stderr).toMatch(/^ERROR: TC-COMMS-007: result files .* both declare "caseOfRecord": true/);
+    expect(res.stderr).not.toMatch(/\n\s+at /);
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive'))).toBe(false);
+  });
+});
+
+describe('the technical report and the sign-off state the same figures from the same inputs', () => {
+  const CASES = {
+    'rtm.json': { rows: [{ requirementId: 'REQ-COMMS-01', description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' }, testCaseIds: ['TC-AUTH-001', 'TC-AUTH-002'], defectIds: [], testStatus: 'Covered' }] },
+    'cases/TC-AUTH-001.json': { id: 'TC-AUTH-001' },
+    'cases/TC-AUTH-002.json': { id: 'TC-AUTH-002' },
+    'cases/TC-AUTH-001-result.json': { status: 'pass' },
+    'cases/TC-AUTH-002-result.json': { status: 'fail' },
+  };
+  const FILES = {
+    ...FULL_RUN,
+    ...CASES,
+    // closure says 5 checks; the case files hold 2 and there is no coverage.json: both scripts recompute from the case files.
+    'reports/closure/closure.json': { cycleDate: '2026-10-04', metrics: { passed: 40, failed: 3, blocked: 2 }, defectMetrics: { totalLogged: 5, confirmedOpen: 3 } },
+    'reports/compliance/vendor-audit.json': { sectionsCovered: ['X-1'], gaps: ['X-2'] },
+  };
+  const { root, runDir } = fixture(FILES);
+  const tech = run(SCRIPT.technical, root);
+  const sign = run(SCRIPT.signoff, root);
+  const text = (f: string) => flat(pdfText(path.join(runDir, 'reports', 'executive', f)));
+
+  it('both exit 0', () => {
+    expect(tech.status).toBe(0);
+    expect(sign.status).toBe(0);
+  });
+
+  it('both count the cases from the case files when coverage.json is missing, not from the closure copy', () => {
+    expect(text('technical-report.pdf')).toContain('Total Tests 2');
+    expect(text('signoff.pdf')).toMatch(/2 checks were executed to a result: 1 passed, 1 failed/);
+  });
+
+  it('both name a compliance report without a regulation by its file name, never report-N', () => {
+    expect(text('technical-report.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).not.toMatch(/report-\d/);
+  });
+});
+
 describe('A4: a compliance report without regulation', () => {
   it('is listed under its file name', () => {
     const { root, runDir } = fixture({
@@ -483,7 +542,7 @@ describe('A4: a compliance report without regulation', () => {
     });
     expect(run(SCRIPT.technical, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('istqb\n3\n1');
+    expect(text).toContain('ISTQB\n1\nnot available');
     expect(text).not.toContain('Compliance reports: not available');
   });
 });
@@ -496,8 +555,7 @@ describe('the technical report no longer prints token cost or cycle time', () =>
     'Blocked\n2',
     'Pass Rate\n88.9%',
     'Requirements Coverage\n92.5%',
-    'Open Defects\n3',
-    'Closed Defects\n0',
+    'Open application defects\n3',
   ];
 
   it('ignores unreliable metric files: a negative wall clock and priced rows leave no trace, the other cells are unchanged', () => {
@@ -912,12 +970,13 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Partial\nnot available');
   });
 
-  it('Closed Defects counts only closed records: a flagged-for-owner record is neither open nor closed', () => {
+  it('closed records without a retest verdict are stated apart, and a flagged-for-owner record is neither open nor closed', () => {
     const { root, runDir } = fixture({ ...base, 'reports/metrics/coverage.json': { requirementsCoverage: 90, testExecutionCoverage: 98, codeCoverage: null, partialRequirements: 0, counts: COUNTS } });
     expect(run(SCRIPT.technical, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
-    expect(text).toContain('Open Defects\n3');
-    expect(text).toContain('Closed Defects\n2');
+    expect(text).toContain('Open application defects\n3');
+    expect(text).toContain('Closed without a retest verdict\n2');
+    expect(text).not.toContain('Closed Defects');
   });
 });
 

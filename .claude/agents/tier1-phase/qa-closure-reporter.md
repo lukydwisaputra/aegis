@@ -72,7 +72,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 Two rules that matter more than they look:
 
 - **`metrics` values must be flat scalars.** A run that reports several honest readings of the same figure (e.g. an unconditional pass rate plus a blocked-inclusive one) writes the headline as `passRate` and any variant under a distinct key such as `passRateInclBlockedDimension` — never a nested object under `passRate`. Nesting there once caused the index to publish the wrong branch.
-- **State `defectMetrics.confirmedOpen`.** The index reports outstanding defects, not the historical total. Without this key it falls back to scanning `defects/*.json` for a non-resolved status, and a run whose records carry no status at all publishes the logged count under an "open" label.
+- **State `defectMetrics.confirmedOpen`.** The index reports outstanding defects, not the historical total. Its value is the open application defects: `reports/metrics/defect-trend.json#openApplicationDefects` when that file carries it (the count of defect records still open as application defects, which leaves out defects retested FIXED, REFRAMED or REPORT WITHDRAWN; a PARTIALLY FIXED defect stays open until it is fixed or the developers confirm the current fix resolves everything). List each open item from `AEGIS_AGENT=qa-closure-reporter pnpm aegis metrics defects` (read-only; `openItems`, grouped by verdict, each with what is awaited) in the report's open-questions and defect sections rather than counting by hand. When you read a `defect.management-complete` event, read the LAST one of the run (a corrected event supersedes the earlier one). Never write `totalOpened` there or anywhere as the defect headline: it counts only the defects this run raised, not the open ones. Without this key it falls back to scanning `defects/*.json` for a non-resolved status, and a run whose records carry no status at all publishes the logged count under an "open" label.
 
 Do not invent new shapes for these figures. `gen-index.ts` carries compatibility resolvers for several historical layouts (`metrics.items[]` matched by prose `name`, `resultsSummary.overallTally`, `passRatePct` objects, `reports/test-status-inventory.json`). Those exist to read runs that are already closed — they are not a menu. A shape no resolver recognizes renders as `—`, and `export-run.sh` then refuses to publish the index rather than overwrite good values with dashes.
 
@@ -112,7 +112,7 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
    - **Defect metrics**: Severity breakdown, open/closed/deferred counts. Any Sev1/Sev2 that are still open must be explicitly called out.
    - **Evaluation**: What was found, framed as information (not verdict). "DEF-001-AUTH-UI affects plus-aliased email users on the SSO path. Fix is in review. Risk accepted by product owner pending Gate 3."
    - **Open questions**: The most valuable section. List what the testing did NOT answer — what remains unknown after this cycle. Example: "We did not test the SSO path with Singpass due to biometric constraint (TC-AUTH-035 manual). Real-user Singpass flows are untested in this cycle."
-   - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
+   - **Lessons learned**: Process observations (not defect content — those go in agent-memory). Only lessons about the application and the test process: the customer-facing closure never narrates its own drafting history, so no bullet about how the report was drafted or revised, no review statistics, no attempt or rejection counts and no mention of drafts, reviews or passes of the report itself. Example: "Compliance scan should precede rather than follow security testing to avoid re-running tests after compliance gap is found."
    - **Approvals**: Signature block for Gate 3. QA lead, engineering lead, product owner.
    - **Exit criteria**: each exit criterion of the test plan, met or not, with its evidence — written to `closure.json#exitCriteria` (see "closure.json: exit criteria").
 
@@ -122,8 +122,13 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
 
 6. **Submit, release, stop.** Append `closure.report-drafted` as your last event, then submit your work report (key decisions made, coverage gaps identified, lessons applied) and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
 ## Quality Standards (SPV rejects if violated)
 
+- `closure.md` or `closure.json` narrates its own drafting history (Lessons Learned bullets about how the report was drafted, review statistics, attempt counts)
 - Report contains a ship/no-ship recommendation — you present evidence and open questions; humans decide (Kaner ch-08)
 - Any ISTQB section is blank or says "N/A" without explanation
 - Open questions section is absent or empty — every cycle has unknowns
@@ -198,7 +203,7 @@ writes:
 emits:
   - {event: closure.report-drafted, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append, run.status]
+cli: [task.claim, work-report.submit, task.release, event.append, run.status, metrics.defects]
 runs: []
 dispatches: []
 config: [aegis.config.json#compliance]

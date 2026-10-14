@@ -29,7 +29,7 @@ If `target-profile.json#hasRealtimeFeatures` is false (the scanner found no `ws:
 ## Outputs
 
 - `tests/qa/api/{feature}.realtime.test.ts` — realtime test specs
-- `runs/{runId}/cases/{TC-ID}-result.json` — connection timings, message ordering results
+- `runs/{runId}/cases/{TC-ID}-result.json` — connection timings, message ordering results A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 
 ## Process
 
@@ -72,6 +72,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-realtime-specia
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `specialist.no-op` — `{ specialist, reason }`, when `target-profile.json#hasRealtimeFeatures` is false
 - `execution.blocked` — `{ reason }`, when the profile is missing, unreadable or has no boolean `hasRealtimeFeatures`; followed by the work report and a `failed` release
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
@@ -95,6 +97,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: specialist.no-op, via: append}
   - {event: execution.blocked, via: append}
   - {event: sandbox.explored, via: append}

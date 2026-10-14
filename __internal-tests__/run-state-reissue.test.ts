@@ -279,7 +279,7 @@ describe('reissueRun before the last gate', () => {
     // The Scan snapshot is absent, so every configured regulation applies and each needs a task, as in a first cycle.
     expect(step()).toEqual({ kind: 'start-phase', phase: 'compliance' });
     await startPhase(t.root, runId, 'compliance', ORCH);
-    for (const id of ['iso25010', 'iso5055', 'istqb', 'cmmi', 'gdpr', 'pdpa']) await workTask(t.root, runId, `T-compliance-${id}`, `qa-compliance-${id}`, 'qa-compliance-spv');
+    for (const [i, id] of ['iso25010', 'iso5055', 'istqb', 'cmmi', 'gdpr', 'pdpa'].entries()) await workTask(t.root, runId, `T-compliance-${i + 1}`, `qa-compliance-${id}`, 'qa-compliance-spv');
     await completePhase(t.root, runId, 'compliance', ORCH);
     await startPhase(t.root, runId, 'closure-final', ORCH);
     await workTask(t.root, runId, 'T-closure-final-1', 'qa-closure-reporter', 'qa-closure-reporter-spv');

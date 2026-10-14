@@ -110,7 +110,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
    
    A test that "passed" without evidence of Configure + Operate + Observe + Evaluate is an unreliable result. Flag it.
 
-8. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention.
+8. **Aggregate results.** Build the execution summary: total TCs, passed, failed, blocked, skipped per module and per testType. Compute pass rate. Flag any module where pass rate < 80% for immediate attention. **Case of record.** A TC with more than one result file (a further file is `{TC-ID}-result-<label>.json`) counts by the worst result of its ordinary files, and its further files count for nothing. Only when the owner's gate decision names which result is a TC's case of record, put that decision word for word in the brief of the specialist that wrote the file, and that specialist adds `"caseOfRecord": true`, a `caseOfRecordReason` and, optionally, `"supersedes"` to its own result file (you never edit a result file, and never choose a case of record yourself); the coverage rollup then counts that file alone and lists the others as observations. When a result file you aggregate shows a status other than the `test.*` event already on the chain for that TC (a TC reported `test.passed` whose result is `blocked` or `partial`, including the TCs of an accepted-with-risk task), append the matching `test.blocked` or `test.partial` event; the last `test.*` event of a TC is its outcome.
 
 9. **Dispatch the paired SPV only after a `done` release.** A specialist returns after `aegis task release`. When it released `done`, use the `Agent` tool (`run_in_background: false`, and wait for it to return) to dispatch its SPV (`qa-{specialist}-spv`) with the task id, the artefact/evidence paths and the specialist's `agent-memory/{specialist}/lessons.md`. The SPV records its verdict through the CLI, which pipes its corrective instructions into the specialist's lessons — you never write lessons. Then:
    - `passed` or `passed-with-notes` → the task is done.
@@ -126,7 +126,7 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 11. **Write the summary, submit, release.** When every specialist task is settled — its review `passed`, accepted with risk by the owner, or cancelled (check with `aegis task list --phase execution`) — write `runs/{runId}/execution-summary.json` and its `.md` twin: `totals` with non-negative integer `passed`, `failed`, `blocked`, `skipped` and `pendingManual` counts (the Execution phase barrier validates `passed`, `failed` and `blocked`, and run completion reports them), plus the breakdown per module and per testType. Count the TCs of an accepted-with-risk task as `blocked` and state the owner's reason (its `escalationDecision` in the task list) in the summary. In a scoped re-execution the summary names the scope: the case list it re-ran and that every other case keeps its recorded result; `totals` count every in-scope case, carried-forward results included; the cases in the `descoped` list of `aegis run status` are in none of the totals, and the summary names them apart as out of scope with the owner's recorded reasons. Append `execution.complete` as your last event, then submit your work report and release your own task (Task Protocol steps 3–4). Your own review, `qa-test-executor-spv`, is dispatched by the orchestrator, which records phase completion through the CLI once the reviews pass.
 
 12. **Recover on re-dispatch.** Run `aegis task list --phase execution` and act on each specialist task by its `status` and `reviewState` before dispatching anything new:
-   - Never `aegis task add` an id the list already holds; a new dispatch takes the next unused `T-execution-<n>`.
+   - Never `aegis task add` an id the list already holds; a new dispatch takes the next unused `T-execution-<n>` (a number, never a specialist or module name in the id: the CLI refuses an id that could not form its work-report and review ids; the specialist and the scope go in `--title`).
    - `pending` (never claimed, refused with `cap-reached`, reopened by `requested-changes` or by an owner retry) → re-dispatch its assignee under the existing task id, with the `CorrectiveInstruction` when `reviewState` is `requested-changes`.
    - `in-progress` → re-dispatch its assignee for the same task id; its claim survived, so the brief says to skip the claim and continue with the work report and release.
    - `done` with `reviewState` `none` → dispatch its SPV (step 9).
@@ -170,6 +170,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-executor p
 - `specialist.completed` — appended when a specialist returns with its task released; exactly specialistName, taskId, passCount, failCount and optionally durationMs: `{specialistName, taskId, passCount, failCount, durationMs?}`
 - `test.passed` — one per passing TC: `{testCaseId, specialist?}`
 - `test.failed` — one per failing TC: `{testCaseId, specialist?, firstAssertionFailure?, evidencePaths}` (`evidencePaths` the run-relative evidence files)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist?, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist?, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `har.sanitization-required` — flags unsafe evidence: `{path, unsafeHeaders}`
 - `manual.test.required` — one per manual TC: `{tcId, steps, justification, criticality}` (`justification` the automation blocker; `criticality` is `critical`, `important` or `nice-to-have`)
 - `execution.blocked` — if the environment's `health` is FAILED: `{reason}`
@@ -221,6 +223,8 @@ emits:
   - {event: specialist.completed, via: append}
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: har.sanitization-required, via: append}
   - {event: manual.test.required, via: append}
   - {event: execution.blocked, via: append}

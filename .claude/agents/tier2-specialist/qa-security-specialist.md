@@ -29,7 +29,7 @@ You run application security tests across four surfaces: dynamic analysis of the
 ## Outputs
 
 - `tests/qa/security/{surface}.security.spec.ts` — Playwright-based DAST trigger scripts
-- `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC
+- `runs/{runId}/cases/{TC-ID}-result.json` — findings per TC A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/zap-report.html` — overwrites previous run's evidence for the same TC
 - `runs/{runId}/evidence/{TC-ID}/semgrep-results.json`
 - `runs/{runId}/evidence/{TC-ID}/dependency-audit.json`
@@ -82,6 +82,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-security-specia
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `security.finding-critical` — for any Critical severity finding; immediate escalation: `{tool, cwe?, summary}`
 - `secret.leak-detected` — for any Gitleaks hit; immediate Sev1: `{path, rule, severity}` (`severity` is `{"code": "Sev1", "name": "Blocker"}`)
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
@@ -108,6 +110,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: security.finding-critical, via: append}
   - {event: secret.leak-detected, via: append}
   - {event: sandbox.explored, via: append}

@@ -31,7 +31,7 @@ You write and run API tests covering REST endpoints, response schemas, error han
 
 - `tests/qa/api/{endpoint}.api.test.ts` — API test files
 - `tests/qa/contract/{consumer}-{provider}.pact.ts` — contract test files
-- `runs/{runId}/cases/{TC-ID}-result.json` — results with response body excerpts
+- `runs/{runId}/cases/{TC-ID}-result.json` — results with response body excerpts A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/` — sanitised HAR, response logs; overwrites previous run's evidence for the same TC
 
 ## Process
@@ -75,6 +75,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-api-specialist 
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names the status code and the first failed assertion)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
 ## Contract (machine-checked)
@@ -101,6 +103,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]

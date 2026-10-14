@@ -3,6 +3,7 @@ import {
   writeFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
 } from "node:fs";
 import { resolve, dirname } from "node:path";
 import lockfile from "proper-lockfile";
@@ -16,7 +17,6 @@ import {
   CorrectiveInstructionSchema,
   type CorrectiveInstruction,
 } from "@qa/contracts";
-import { nextId } from "@qa/ids";
 
 // ─── Hard caps ────────────────────────────────────────────────────────────────
 
@@ -138,6 +138,53 @@ function renderLessonsMd(file: LessonsFile): string {
   return lines.join("\n");
 }
 
+// ─── Lesson ids ───────────────────────────────────────────────────────────────
+
+/**
+ * The AGENT-INITIALS of a lesson id (`L-{AGENT-INITIALS}-{NNN}`, two to four capital letters), derived from the agent
+ * name alone so that every caller gets the same answer and no one supplies an id:
+ *   1. drop the `qa-` prefix and split the rest on `-`;
+ *   2. take the first letter of each word, in order, at most four (`qa-compliance-spv` CS, `qa-defect-manager-spv` DMS,
+ *      `qa-dev-test-reviewer-spv` DTRS, `qa-web-explorer` WE);
+ *   3. a one-word name (`qa-orchestrator`, `qa-curator`) gives one letter, so its first two letters are used instead
+ *      (OR, CU); a name that still yields fewer than two letters is padded with X.
+ * Two agents may share initials; ids are unique inside one agent's lessons file, which is the only place they live.
+ */
+export function lessonInitials(agentName: string): string {
+  const words = agentName.replace(/^qa-/, "").split("-").map((w) => w.replace(/[^A-Za-z]/g, "")).filter((w) => w.length > 0);
+  let initials = words.map((w) => w[0]!.toUpperCase()).join("").slice(0, 4);
+  if (initials.length < 2) initials = ((words[0] ?? "").slice(0, 2).toUpperCase() + "XX").slice(0, 2);
+  return initials;
+}
+
+/**
+ * The next free lesson id of `agentName`: one above the highest `L-{INITIALS}-{NNN}` held by its active entries or its
+ * archive (an evicted id is never reused). Past 999 the lowest unused number is taken; with none left the caller gets an
+ * error rather than an id the schema would refuse.
+ */
+function nextLessonId(agentName: string, file: LessonsFile, archivePath: string): { id: string; error?: undefined } | { id: null; error: string } {
+  const initials = lessonInitials(agentName);
+  const re = new RegExp(`^L-${initials}-(\\d{3})$`);
+  const used = new Set<number>();
+  const note = (id: unknown): void => {
+    const m = typeof id === "string" ? re.exec(id) : null;
+    if (m !== null) used.add(Number(m[1]));
+  };
+  for (const e of file.entries) note(e.id);
+  if (existsSync(archivePath)) {
+    for (const name of readdirSync(archivePath).filter((n) => n.endsWith(".json"))) {
+      try {
+        const archived: unknown = JSON.parse(readFileSync(resolve(archivePath, name), "utf-8"));
+        if (Array.isArray(archived)) for (const e of archived) note((e as { id?: unknown } | null)?.id);
+      } catch { /* an unreadable archive month only loses the no-reuse guarantee for that month */ }
+    }
+  }
+  let next = Math.max(0, ...used) + 1;
+  if (next > 999) next = Array.from({ length: 999 }, (_, i) => i + 1).find((n) => !used.has(n)) ?? 0;
+  if (next === 0) return { id: null, error: `all 999 lesson ids L-${initials}-NNN of ${agentName} are in use; run /qa-promote or prune its lessons` };
+  return { id: `L-${initials}-${String(next).padStart(3, "0")}` };
+}
+
 // ─── proposeLesson ────────────────────────────────────────────────────────────
 
 export type ProposeResult =
@@ -156,14 +203,6 @@ export async function proposeLesson(
   candidate: LessonCandidate,
   aegisRoot: string
 ): Promise<ProposeResult> {
-  // Derive agent initials for ID generation (first 2 uppercase chars of each word)
-  const initials = agentName
-    .replace(/^qa-/, "")
-    .split("-")
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("")
-    .slice(0, 4) || "XX";
-
   const jsonPath = lessonsJsonPath(aegisRoot, agentName);
   const dir = dirname(jsonPath);
   mkdirSync(dir, { recursive: true });
@@ -211,7 +250,9 @@ export async function proposeLesson(
 
     // 3. Schema validation
     const now2 = new Date().toISOString();
-    const id = await nextId("L", initials);
+    const assigned = nextLessonId(agentName, file, archiveDir(aegisRoot, agentName));
+    if (assigned.id === null) return { outcome: "schema-rejected", error: assigned.error };
+    const id = assigned.id;
     const entryRaw: LessonEntry = {
       id,
       polarity: candidate.polarity,

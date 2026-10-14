@@ -56,7 +56,7 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     const text = read(COLLECTOR);
     const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
     expect(cov).toContain(
-      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, descoped?, noData? }`',
+      'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, descoped?, caseOfRecord?, observations?, noData? }`',
     );
     expect(cov).toMatch(/`counts` is `\{ designed, attempted, passed, failed, partial, blocked, skipped, unknown, notAttempted, outOfScope\? \}`/);
     expect(cov).toMatch(/Counts are computed by the command from the case files, never by hand/);
@@ -99,7 +99,7 @@ describe('the metric files hold every key the closure SPV traces to them', () =>
   const collector = read(`${AGENTS}/crosscutting/qa-metrics-collector.md`);
   it('defect-trend.json carries defectDensity, escapeRate, reopenRate, MTTD and MTTR; effectiveness.json carries DRE', () => {
     expect(collector).toContain(
-      'exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, noData? }`',
+      'exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, openApplicationDefects?, fixed?, partiallyFixed?, reframed?, reportWithdrawn?, cannotVerify?, notFixed?, noData? }`',
     );
     expect(collector).toContain('exactly `{ dre, testsThatFoundDefects, testsExecuted, byTestType, noData? }`');
     expect(collector).toMatch(/null when it cannot be computed[^\n]*never 0 for "unknown"/);

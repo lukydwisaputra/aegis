@@ -10,7 +10,7 @@ import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
-import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
+import { atomicWrite, formatLimitIssues, iso, loadJson } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -22,6 +22,7 @@ export interface SubmitResult {
 export interface LessonOutcome {
   outcome: string;
   error?: string;
+  lessonId?: string;
 }
 
 export interface ReviewResult extends SubmitResult {
@@ -31,6 +32,8 @@ export interface ReviewResult extends SubmitResult {
   reopened: boolean;
   reopenError?: string; // CO-12: review recorded, reopen failed; resubmitting the same review retries it
   lessons: LessonOutcome[];
+  /** Gap 2: one line per CorrectiveInstruction that could not be written to the worker's lessons; the review itself is recorded. */
+  warnings?: string[];
 }
 
 export const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
@@ -61,8 +64,9 @@ function publishJson(file: string, value: unknown): void {
 
 export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<SubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
-  const parsed = WorkReportSchema.safeParse(loadJson(file));
-  if (!parsed.success) throw new RunStateError("invalid-input", `work report invalid: ${formatIssues(parsed.error.issues)}`);
+  const raw = loadJson(file);
+  const parsed = WorkReportSchema.safeParse(raw);
+  if (!parsed.success) throw new RunStateError("invalid-input", `work report invalid: ${formatLimitIssues(raw, parsed.error.issues)}`);
   const report = parsed.data;
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
@@ -184,8 +188,9 @@ export async function submitReview(root: string, runId: string, file: string, ca
   if (!caller.endsWith("-spv")) {
     throw new RunStateError("caller-forbidden", `only SPV agents submit reviews; "${caller}" is not an SPV`);
   }
-  const parsed = ReviewSchema.safeParse(loadJson(file));
-  if (!parsed.success) throw new RunStateError("invalid-input", `review invalid: ${formatIssues(parsed.error.issues)}`);
+  const raw = loadJson(file);
+  const parsed = ReviewSchema.safeParse(raw);
+  if (!parsed.success) throw new RunStateError("invalid-input", `review invalid: ${formatLimitIssues(raw, parsed.error.issues)}`);
   const review = parsed.data;
   if (review.reviewer !== caller) {
     throw new RunStateError("invalid-input", `review reviewer "${review.reviewer}" does not match caller "${caller}"`);
@@ -296,20 +301,39 @@ export async function submitReview(root: string, runId: string, file: string, ca
       }
     }
 
-    // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission.
+    // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission. The lesson id is assigned
+    // by agent-memory from the worker's name, never by the reviewer; an instruction that still cannot be written stays in
+    // the recorded review and is reported as a warning and as a lesson event instead of being dropped silently.
     const trigger = rejected ? "spv-rejection" : "spv-pass-with-note";
     const lessons: LessonOutcome[] = [];
-    for (const instruction of review.correctiveInstructions) {
+    const warnings: string[] = [];
+    for (const [index, instruction] of review.correctiveInstructions.entries()) {
+      let outcome: LessonOutcome;
       try {
         const r = await pipeCorrectiveInstruction(agent, instruction, trigger, [rel], root);
-        const detail = r as { error?: string; description?: string };
+        const detail = r as { error?: string; description?: string; lessonId?: string };
         const error = detail.error ?? detail.description;
-        lessons.push(error !== undefined ? { outcome: r.outcome, error } : { outcome: r.outcome });
+        outcome = { outcome: r.outcome, ...(error !== undefined ? { error } : {}), ...(detail.lessonId !== undefined ? { lessonId: detail.lessonId } : {}) };
       } catch (e) {
-        lessons.push({ outcome: "error", error: e instanceof Error ? e.message : String(e) });
+        outcome = { outcome: "error", error: e instanceof Error ? e.message : String(e) };
+      }
+      lessons.push(outcome);
+      if (outcome.outcome === "appended" || outcome.outcome === "deduped") continue;
+      const why = outcome.error ?? outcome.outcome;
+      warnings.push(`corrective instruction ${index + 1} of ${review.correctiveInstructions.length} was not added to ${agent}'s lessons (${outcome.outcome}: ${why}); it stays in ${rel}`);
+      try {
+        await appendChained(
+          outcome.outcome === "conflict"
+            ? { type: "lesson.conflict-flagged", ts, agent, conflictDescription: why }
+            : { type: "lesson.schema-rejected", ts, agent, error: why, taskId, reviewPath: rel, instructionIndex: index },
+          busPath(root, runId),
+          { emittedBy: caller, runId }
+        );
+      } catch (e) {
+        warnings.push(`the lesson event for instruction ${index + 1} could not be recorded: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
-    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons };
+    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons, ...(warnings.length > 0 ? { warnings } : {}) };
   });
 }

@@ -1,3 +1,4 @@
+import { RetestVerdictCodeSchema, type RetestVerdictCode } from "./defect-types.js";
 import { SEVERITY_MAP } from "./severity.js";
 
 /**
@@ -33,6 +34,36 @@ export function defectStatusCode(record: unknown): string | null {
 /** The record's severity code (`severity.code`, e.g. "Sev2", or a plain string severity), or null. */
 export function defectSeverityCode(record: unknown): string | null {
   return record !== null && typeof record === "object" ? codeOf((record as { severity?: unknown }).severity) : null;
+}
+
+/** The record's retest verdict (`retestVerdict.verdict`) when it is one of the six words of RetestVerdictCodeSchema, else null. */
+export function defectRetestVerdict(record: unknown): RetestVerdictCode | null {
+  if (record === null || typeof record !== "object") return null;
+  const rv = (record as { retestVerdict?: unknown }).retestVerdict;
+  const parsed = RetestVerdictCodeSchema.safeParse(rv !== null && typeof rv === "object" ? (rv as { verdict?: unknown }).verdict : undefined);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Does this retest verdict leave an application defect open? NOT FIXED, PARTIALLY FIXED and CANNOT VERIFY do: PARTIALLY FIXED means
+ * something still has to be fixed (or the developers must confirm the current fix resolves everything), so it stays open until then,
+ * and CANNOT VERIFY has no verdict yet. FIXED does not; REFRAMED (the observation stands but
+ * the report was mis-stated) and REPORT WITHDRAWN (the report was wrong) are not application defects as reported.
+ */
+export function verdictLeavesDefectOpen(verdict: RetestVerdictCode): boolean {
+  return verdict === "NOT FIXED" || verdict === "PARTIALLY FIXED" || verdict === "CANNOT VERIFY";
+}
+
+/**
+ * Is this record an open application defect? A record with a retest verdict is open exactly when verdictLeavesDefectOpen says so, whatever
+ * its status text says; a record with none (a defect new in this run) is open when its status is neither closed nor flagged for the owner.
+ * This is what `openApplicationDefects` counts. It is not `totalOpened`, which counts only the `defect.opened` events of the run.
+ */
+export function isOpenApplicationDefect(record: unknown): boolean {
+  const verdict = defectRetestVerdict(record);
+  if (verdict !== null) return verdictLeavesDefectOpen(verdict);
+  const status = defectStatusCode(record);
+  return status === null || (!isClosedDefectStatus(status) && !isFlaggedDefectStatus(status));
 }
 
 export function isClosedDefectStatus(code: string): boolean {
@@ -79,7 +110,9 @@ export function resolveDefectFigures(closure: unknown, records: readonly unknown
       ? ((closure as { defectMetrics?: unknown }).defectMetrics as Record<string, unknown> | undefined)
       : undefined;
   const statuses = records === null ? null : records.map(defectStatusCode);
-  const openRecords = (records ?? []).filter((_r, i) => {
+  // A record carrying a retest verdict is open or not by that verdict (isOpenApplicationDefect), the others by their status.
+  const openRecords = (records ?? []).filter((r, i) => {
+    if (defectRetestVerdict(r) !== null) return isOpenApplicationDefect(r);
     const s = statuses?.[i] ?? null;
     return s === null || (!isClosedDefectStatus(s) && !isFlaggedDefectStatus(s));
   });
@@ -92,7 +125,11 @@ export function resolveDefectFigures(closure: unknown, records: readonly unknown
   let open = num(dm?.["confirmedOpen"]);
   let closed: number | null = null;
   const haveRecords = statuses !== null && statuses.length > 0;
-  const recordsClosed = statuses === null ? null : statuses.filter((s) => s !== null && isClosedDefectStatus(s)).length;
+  // Closed: a closed status, or a retest verdict that leaves no open application defect (FIXED, REFRAMED, REPORT WITHDRAWN).
+  const recordsClosed =
+    statuses === null || records === null
+      ? null
+      : records.filter((r, i) => (defectRetestVerdict(r) !== null ? !isOpenApplicationDefect(r) : statuses[i] !== null && isClosedDefectStatus(statuses[i]!))).length;
   if (haveRecords) closed = recordsClosed;
   if (open !== null) {
     const total = num(dm?.["totalLogged"]);

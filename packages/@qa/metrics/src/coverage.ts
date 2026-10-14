@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { NOT_EXECUTED, descopedCases, readJson, scanChecks, type CheckState } from "./outcomes.js";
+import { NOT_EXECUTED, descopedCases, readJson, scanChecks, type CaseOfRecord, type CheckState, type ObservedResult } from "./outcomes.js";
 import { classifyUncovered, emptyUncovered, type UncoveredRollup } from "./uncovered.js";
 
 /**
@@ -26,6 +26,16 @@ export interface CoverageCounts {
   outOfScope?: number;
 }
 
+/** A case whose result is the one result file that declared itself the case of record. */
+export interface CaseOfRecordEntry extends CaseOfRecord {
+  caseId: string;
+}
+
+/** A result file that is not counted for its case because another file is the case of record. */
+export interface ObservationEntry extends ObservedResult {
+  caseId: string;
+}
+
 /** A descoped designed case and the owner's recorded reason. */
 export interface OutOfScopeCase {
   caseId: string;
@@ -38,7 +48,7 @@ export interface CoverageRollup {
   /**
    * Designed test cases that were executed / designed, 0 to 100, one decimal. A TC's outcome is its worst outcome across its result
    * files, results[] entries and unreported scoped viewports (undeterminable), worst first: fail, blocked, partial, skipped, unknown,
-   * pass, no-op. It is executed unless that worst outcome is blocked, skipped or unknown, so fail and partial count as executed.
+   * pass, no-op (a case whose result file declares itself the case of record counts that file alone). It is executed unless that worst outcome is blocked, skipped or unknown, so fail and partial count as executed.
    */
   testExecutionCoverage: number;
   /** reports/unit-coverage.json lines (else statements), or null. */
@@ -54,6 +64,13 @@ export interface CoverageRollup {
   uncovered: UncoveredRollup;
   /** The descoped designed cases with their reasons, sorted by id; present only when there is one. */
   descoped?: OutOfScopeCase[];
+  /**
+   * The cases whose result file declared itself the case of record (`"caseOfRecord": true`, see HANDBOOK 13): for those cases only that file
+   * is counted, in place of the worst-first rule. Sorted by case id; present only when a case declares one.
+   */
+  caseOfRecord?: CaseOfRecordEntry[];
+  /** The result files of those cases that are not counted, with the status each one gives, sorted by case id and file; present with caseOfRecord. */
+  observations?: ObservationEntry[];
   /** True when there is nothing to compute from: no rtm rows, no case files, or every designed case is descoped (outOfScope and descoped are still stated then). */
   noData?: true;
 }
@@ -117,11 +134,15 @@ export function computeCoverage(runDir: string): CoverageRollup {
     .map(([caseId, reason]) => ({ caseId, reason }));
   const withOutOfScope = (counts: CoverageCounts): CoverageCounts => (outOfScope.length > 0 ? { ...counts, outOfScope: outOfScope.length } : counts);
   const descopedList = outOfScope.length > 0 ? { descoped: outOfScope } : {};
+  const sortedIds = [...checks.keys()].sort();
+  const records: CaseOfRecordEntry[] = sortedIds.flatMap((caseId) => { const r = checks.get(caseId)!.caseOfRecord; return r === undefined ? [] : [{ caseId, ...r }]; });
+  const observations: ObservationEntry[] = sortedIds.flatMap((caseId) => (checks.get(caseId)!.observations ?? []).map((o) => ({ caseId, ...o })));
+  const recordList = records.length > 0 ? { caseOfRecord: records, observations } : {};
 
   if (rows === null || rows.length === 0 || checks.size === 0) {
     const none: CoverageCounts = { designed: 0, attempted: 0, passed: 0, failed: 0, partial: 0, blocked: 0, skipped: 0, unknown: 0, notAttempted: 0 };
     // noData stays true even when every designed case is descoped; the descoped cases are still stated.
-    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: withOutOfScope(none), uncovered: emptyUncovered(), ...descopedList, noData: true };
+    return { requirementsCoverage: 0, testExecutionCoverage: 0, codeCoverage: code, partialRequirements: 0, counts: withOutOfScope(none), uncovered: emptyUncovered(), ...descopedList, ...recordList, noData: true };
   }
 
   let executed = 0;
@@ -147,5 +168,6 @@ export function computeCoverage(runDir: string): CoverageRollup {
     counts: withOutOfScope(counts),
     uncovered: classifyUncovered(runDir, checks, descoped),
     ...descopedList,
+    ...recordList,
   };
 }

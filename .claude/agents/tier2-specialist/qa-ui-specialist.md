@@ -45,7 +45,7 @@ The handoff is always: **MCP/CLI → inspect → decide selector → back to spe
 
 - `tests/qa/specs/{url-path}/ui.spec.ts` — Playwright E2E spec file organised by URL path
 - `tests/qa/pages/{url-path}/{page}.page.ts` — extended/created Page Object files organised by URL path
-- `runs/{runId}/cases/{TC-ID}-result.json` — pass/fail result + evidence paths
+- `runs/{runId}/cases/{TC-ID}-result.json` — pass/fail result + evidence paths A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/` — screenshots, console log, HAR (sanitised); overwrites previous run's evidence for the same TC
 - `runs/{runId}/proposed-changes/testid-additions.md` — missing testid proposals (never modifies app code)
 
@@ -146,6 +146,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-ui-specialist p
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`evidencePaths` the run-relative evidence files)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `test.id-proposal-created` — per missing testid: `{selector, proposedTestId, path?}`
 - `sandbox.explored` — one per spec: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed spec)
 
@@ -178,6 +180,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: test.id-proposal-created, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []

@@ -29,7 +29,7 @@ If no flag system is detected, emit `specialist.no-op`, then submit your work re
 ## Outputs
 
 - `tests/qa/specs/{url-path}/flags.spec.ts` — matrix test specs organised by URL path
-- `runs/{runId}/cases/{TC-ID}-result.json` — results per flag state
+- `runs/{runId}/cases/{TC-ID}-result.json` — results per flag state A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 
 ## Process
 
@@ -67,6 +67,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-feature-flag-sp
 
 - `test.passed` — per passing TC per flag state: `{testCaseId, specialist}`
 - `test.failed` — per failing TC per flag state: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}` (`firstAssertionFailure` names the flag state)
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `specialist.no-op` — when no flag system detected: `{specialist, reason}`
 
 ## Contract (machine-checked)
@@ -87,6 +89,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: specialist.no-op, via: append}
 awaits: []
 cli: [task.claim, work-report.submit, task.release, event.append]

@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { appendChained, EventBusRefusal } from "@qa/event-bus";
-import { assertAppendableByAgent, assertCallerAllowed, busPath, RunStateError } from "@qa/run-state";
+import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, RunStateError } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function eventCommand(): Command {
@@ -26,6 +26,7 @@ export function eventCommand(): Command {
         if (typeof fields !== "object" || fields === null || Array.isArray(fields)) {
           throw new RunStateError("invalid-input", "--json must be a JSON object");
         }
+        assertEventConsistent(o.type, fields as Record<string, unknown>);
         try {
           return await appendChained(
             { runId, ...(fields as Record<string, unknown>), type: o.type, ts: new Date().toISOString() },

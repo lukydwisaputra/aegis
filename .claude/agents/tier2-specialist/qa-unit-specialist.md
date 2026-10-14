@@ -35,7 +35,7 @@ You apply the test pyramid discipline (Greffier ch-12 trophy-of-tests critique):
 
 - `runs/{runId}/reports/unit-coverage-gaps.json` — reported gaps in developer unit coverage (findings, not tests)
 - `tests/qa/unit/{path}/{name}.test.ts` — net-new QA unit tests only (never edits developer unit tests)
-- `runs/{runId}/cases/{TC-ID}-result.json`
+- `runs/{runId}/cases/{TC-ID}-result.json` A further result file for the same case is `{TC-ID}-result-<label>.json` (for example `-result-messaging.json`); it is not counted unless your brief says the owner's gate decision names it the case of record: only then add `"caseOfRecord": true`, a `caseOfRecordReason` quoting the decision and, optionally, `"supersedes": [<result file names>]`. Never set them on your own.
 - `runs/{runId}/evidence/{TC-ID}/` — for a developer-covered TC: the runner output and the before/after scoped `git status --porcelain` of the target (repo and QA tests directories left out)
 - `runs/{runId}/reports/unit-coverage.json` — the unit coverage figures of your runs (`{ "statements": n, "branches": n, "functions": n, "lines": n }` as percentages, plus `"basis"` naming the command and scope they come from); the metrics collector reads it into its rollup. The file always reflects the whole QA unit-test run: on every dispatch recompute the figures over the full scope (never overwrite it with the figures of this dispatch's tests alone), and let `basis` name that scope. You never write `reports/metrics/coverage.json`: the collector owns it
 
@@ -80,6 +80,8 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-unit-specialist
 
 - `test.passed` — per passing TC: `{testCaseId, specialist}`
 - `test.failed` — per failing TC: `{testCaseId, specialist, firstAssertionFailure, evidencePaths}`
+- `test.blocked` — per TC that could not reach a verdict (a missing dependency, credential or environment): `{testCaseId, specialist, reason, evidencePaths}`
+- `test.partial` — per TC verified on some angles only, the rest unverifiable: `{testCaseId, specialist, reason, evidencePaths}`. The last `test.*` event of a TC is its outcome: when a TC you already reported `test.passed` turns out blocked or partial, append `test.blocked` or `test.partial` for it; never leave the earlier `test.passed` standing
 - `coverage.updated` — after the Jest run: `{coveragePercent, deltaPercent, module?}` (`coveragePercent` the new coverage, 0–100, `deltaPercent` its change). Write the figures, recomputed over the whole QA unit-test scope, to `runs/{runId}/reports/unit-coverage.json` before you release the task
 - `sandbox.explored` — one per committed QA unit test: `{specialist, artifactPath, targetSpecRef}` (`artifactPath` the sandbox scratch, `targetSpecRef` the committed test)
 
@@ -107,6 +109,8 @@ writes:
 emits:
   - {event: test.passed, via: append}
   - {event: test.failed, via: append}
+  - {event: test.blocked, via: append}
+  - {event: test.partial, via: append}
   - {event: coverage.updated, via: append}
   - {event: sandbox.explored, via: append}
 awaits: []

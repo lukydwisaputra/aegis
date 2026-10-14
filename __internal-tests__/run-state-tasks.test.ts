@@ -157,8 +157,8 @@ describe('addTask', () => {
   it('rejects duplicate and malformed ids', async () => {
     await expect(addTask(t.root, runId, { id: 'T-1', title: 'dup', agent: 'qa-ui-specialist' }, 'qa-test-executor')).rejects.toThrow(/already exists/);
     const results = await Promise.allSettled([
-      addTask(t.root, runId, { id: 'T-NEW', title: 'a', agent: 'qa-ui-specialist' }, 'qa-test-executor'),
-      addTask(t.root, runId, { id: 'T-NEW', title: 'b', agent: 'qa-ui-specialist' }, 'qa-test-executor'),
+      addTask(t.root, runId, { id: 'T-execution-90', title: 'a', agent: 'qa-ui-specialist' }, 'qa-test-executor'),
+      addTask(t.root, runId, { id: 'T-execution-90', title: 'b', agent: 'qa-ui-specialist' }, 'qa-test-executor'),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rej = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
@@ -168,15 +168,28 @@ describe('addTask', () => {
 
   // P2a final-review Minor 4: a task for an agent with no role row could never be dispatched and would block the barrier.
   it.each([['retired', 'qa-cicd-planner'], ['unknown', 'qa-nobody']])('refuses a %s agent (no row in the role table)', async (_kind, agent) => {
-    await expect(addTask(t.root, runId, { id: 'T-X', title: 'x', agent }, 'qa-test-executor')).rejects.toMatchObject({
+    await expect(addTask(t.root, runId, { id: 'T-execution-91', title: 'x', agent }, 'qa-test-executor')).rejects.toMatchObject({
       code: 'invalid-input',
       message: expect.stringMatching(/no row in the path-guard role table \(packages\/@qa\/path-guard\/src\/roles\.ts\)/),
     });
-    await expect(createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-X')).resolves.toBeNull();
+    await expect(createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-execution-91')).resolves.toBeNull();
+  });
+
+  // Gap 1: a task id that cannot form WR-<id> / RV-<agent>-<id> is refused at creation, naming the accepted shapes.
+  it.each(['T-compliance-gdpr', 'T-X', 'T-qa-ui-specialist', 'T-GATE-1', 'T-1-2'])('refuses %s at creation: it could not form a valid WR/RV id', async (id) => {
+    await expect(addTask(t.root, runId, { id, title: 'x', agent: 'qa-security-specialist' }, 'qa-test-executor')).rejects.toMatchObject({
+      code: 'invalid-input',
+      message: expect.stringMatching(/cannot form a valid work-report or review id.*T-<n>, T-<phase>-<n>.*T-GATE-G<N>/),
+    });
+    await expect(createTaskmasterClient(taskmasterDir(t.root, runId)).get(id)).resolves.toBeNull();
+  });
+
+  it.each(['T-7', 'T-compliance-5', 'T-env-auth-2', 'T-dev-test-review-1', 'T-execution-12'])('accepts %s: its WR and RV ids parse', async (id) => {
+    await expect(addTask(t.root, runId, { id, title: 'x', agent: 'qa-security-specialist' }, 'qa-test-executor')).resolves.toMatchObject({ id });
   });
 
   it('accepts a live agent', async () => {
-    await expect(addTask(t.root, runId, { id: 'T-X', title: 'x', agent: 'qa-security-specialist' }, 'qa-test-executor')).resolves.toMatchObject({ assignee: 'qa-security-specialist' });
+    await expect(addTask(t.root, runId, { id: 'T-execution-91', title: 'x', agent: 'qa-security-specialist' }, 'qa-test-executor')).resolves.toMatchObject({ assignee: 'qa-security-specialist' });
   });
 });
 
@@ -220,11 +233,11 @@ describe('task id validation on claim and release', () => {
 
   it('cannot reach a task in another run through a traversal id', async () => {
     const other = await startedRun(t.root);
-    await addTask(t.root, other, { id: 'T-B', title: 'other', agent: 'qa-ui-specialist' }, 'qa-test-executor');
+    await addTask(t.root, other, { id: 'T-execution-92', title: 'other', agent: 'qa-ui-specialist' }, 'qa-test-executor');
     const evil = `../../../${other}/taskmaster/tasks/T-B`;
     await expect(claimTask(t.root, runId, evil, 'qa-ui-specialist')).rejects.toMatchObject({ message: expect.stringContaining('must match') });
     const c = createTaskmasterClient(taskmasterDir(t.root, other));
-    expect((await c.get('T-B'))!.status).toBe('pending');
+    expect((await c.get('T-execution-92'))!.status).toBe('pending');
   });
 });
 
@@ -282,6 +295,8 @@ describe('claim/release rollback when the bus refuses (R3)', () => {
   });
 });
 
+const SPECIALIST_TASK: Record<string, number> = { 'qa-database-specialist': 81, 'qa-exploratory-specialist': 82, 'qa-api-specialist': 83, 'qa-ui-specialist': 84 };
+
 describe('claimTask environment safety (AUD-037)', () => {
   beforeEach(async () => {
     t = makeAegisRoot({ maxSpecialists: 1, environments: {
@@ -290,21 +305,21 @@ describe('claimTask environment safety (AUD-037)', () => {
     } });
     runId = await startedRun(t.root, 'smoke', 'production');
     for (const agent of ['qa-database-specialist', 'qa-exploratory-specialist', 'qa-api-specialist', 'qa-ui-specialist']) {
-      await addTask(t.root, runId, { id: `T-${agent}`, title: `task for ${agent}`, agent }, 'qa-test-executor');
+      await addTask(t.root, runId, { id: `T-execution-${SPECIALIST_TASK[agent]}`, title: `task for ${agent}`, agent }, 'qa-test-executor');
     }
   });
   it('refuses a forbidden specialist, records env.specialist-blocked, leaves the task unclaimed', async () => {
-    await expect(claimTask(t.root, runId, 'T-qa-database-specialist', 'qa-database-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
+    await expect(claimTask(t.root, runId, 'T-execution-81', 'qa-database-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
     expect(lastEvent()).toMatchObject({ type: 'env.specialist-blocked', env: 'production', specialist: 'qa-database-specialist' });
-    expect((await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-qa-database-specialist'))?.status).not.toBe('in-progress');
+    expect((await createTaskmasterClient(taskmasterDir(t.root, runId)).get('T-execution-81'))?.status).not.toBe('in-progress');
   });
   it('refuses a specialist missing from allowedSpecialists; a refusal uses no cap slot', async () => {
-    await expect(claimTask(t.root, runId, 'T-qa-exploratory-specialist', 'qa-exploratory-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
-    await expect(claimTask(t.root, runId, 'T-qa-api-specialist', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+    await expect(claimTask(t.root, runId, 'T-execution-82', 'qa-exploratory-specialist')).rejects.toMatchObject({ code: 'env-blocked' });
+    await expect(claimTask(t.root, runId, 'T-execution-83', 'qa-api-specialist')).resolves.toMatchObject({ status: 'in-progress' });
   });
   it('lets an allowed specialist and a non-specialist claim', async () => {
     await addTask(t.root, runId, { id: 'T-2', title: 'task T-2', agent: 'qa-test-executor' }, 'qa-test-executor');
-    await expect(claimTask(t.root, runId, 'T-qa-ui-specialist', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
+    await expect(claimTask(t.root, runId, 'T-execution-84', 'qa-ui-specialist')).resolves.toMatchObject({ status: 'in-progress' });
     await expect(claimTask(t.root, runId, 'T-2', 'qa-test-executor')).resolves.toMatchObject({ status: 'in-progress' });
   });
 });

@@ -66,10 +66,15 @@ You evaluate whether the test cycle adequately covers GDPR obligations for the a
 - `runs/{runId}/reports/compliance/gdpr.{md,json}` — gap report. `runs/{runId}/reports/compliance/gdpr.json` is `{ "regulation": "gdpr", "articlesCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - `GDPR-Art{N}` tags on TCs and defects
 
+## Customer-facing wording (shared rule)
+
+Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
 ## Quality Standards
 
 - Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
 - Tag format: `GDPR-Art{N}` (e.g., `GDPR-Art32`, `GDPR-Art17`)
+- Keep a gap under the article it belongs to: erasure stays `GDPR-Art17` and portability `GDPR-Art20`, never folded into Art5 or Art25 because they overlap. `articlesCovered` lists every article you assessed, Art35 included (Art5, Art17, Art20, Art25, Art32, Art35), whether or not it has a gap
 - Do not assert whether the app IS GDPR-compliant — identify test coverage gaps
 - Synthetic data check is not optional — real PII in tests = Sev1 finding
 
