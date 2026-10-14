@@ -43,7 +43,8 @@ export function signatureOf(raw: RawPage): PageSignature {
   return {
     role: raw.role,
     url: raw.url,
-    finalPath: raw.finalPath,
+    // Only the path: a query or fragment of a redirect target can carry a token (`/cb?token=...#access_token=...`).
+    finalPath: raw.finalPath.replace(/[?#][\s\S]*$/, ""),
     status: raw.status,
     title: flat(raw.title),
     h1: flat(raw.h1),
@@ -185,11 +186,14 @@ export interface SourceIdentity {
 /** Environment variables that point git at another repository, index or object store: removed so a hook or a parent git process cannot redirect it. */
 const GIT_OVERRIDES = ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
 
+/** A git call that hangs (a lock, a network filesystem) gives up: the probe's time budget includes the identity. */
+const GIT_TIMEOUT_MS = 30_000;
+
 function git(dir: string, args: string[]): string | null {
   const env = { ...process.env };
   for (const k of GIT_OVERRIDES) delete env[k];
   try {
-    return execFileSync("git", ["-C", dir, ...args], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024, env });
+    return execFileSync("git", ["-C", dir, ...args], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024, env, timeout: GIT_TIMEOUT_MS });
   } catch {
     return null;
   }

@@ -27,6 +27,8 @@ export interface BaselineResult {
   runId: string;
   pages: number;
   skipped: number;
+  /** Pages selected but not observed (the visit failed or the time budget ran out): the next probe counts each as failed. */
+  unobserved: number;
   unavailable: string | null;
   report: string;
 }
@@ -36,7 +38,10 @@ export const PROBE_BUDGET_MS = 480_000;
 
 export interface ProbeOptions {
   now?: Date;
+  /** Wall-clock budget of the call's identity hashing and visit loop (default PROBE_BUDGET_MS). */
   budgetMs?: number;
+  /** How long a fetcher's close() may take before the call goes on without it (default 10 s). */
+  closeMs?: number;
 }
 
 export interface ProbeResult {
@@ -66,6 +71,8 @@ interface Baseline {
   baseUrl: string | null;
   pages: PageSignature[];
   skipped: Array<{ role: string; route: string; reason: string }>;
+  /** Absent in a baseline written before this field: none. */
+  unobserved?: Array<{ role: string; url: string; error: string }>;
   unavailable: string | null;
   identity: SourceIdentity;
   roles: RoleAuth[];
@@ -193,7 +200,6 @@ async function within<T>(work: Promise<T>, ms: number): Promise<{ done: true; va
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<{ done: false }>((res) => {
     timer = setTimeout(() => res({ done: false }), Math.max(0, ms));
-    timer.unref?.();
   });
   try {
     return await Promise.race([work.then((value) => ({ done: true as const, value })), timeout]);
@@ -202,12 +208,15 @@ async function within<T>(work: Promise<T>, ms: number): Promise<{ done: true; va
   }
 }
 
+/** The visit loop's share of the budget: what the identity hashing before it left over. */
+const budgetLeft = (opts: ProbeOptions, startedAt: number): number => Math.max(0, (opts.budgetMs ?? PROBE_BUDGET_MS) - (Date.now() - startedAt));
+
 /**
  * Builds the fetcher and visits `pages` one at a time within `budgetMs`: each visit is raced against the budget left, and every page
  * not visited in time is an error observation. A throwing visit is an error observation too. The fetcher is closed exactly once,
  * whatever happens; a factory that throws, or does not answer within the budget, gives the redacted reason instead.
  */
-async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budgetMs: number): Promise<{ observed: Observed[] } | { error: string }> {
+async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budgetMs: number, closeMs: number): Promise<{ observed: Observed[] } | { error: string }> {
   const deadline = Date.now() + budgetMs;
   let fetcher: PageFetcher;
   const starting = Promise.resolve().then(factory);
@@ -245,7 +254,7 @@ async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budg
   } finally {
     const closing = Promise.resolve().then(() => fetcher.close());
     closing.catch(() => undefined);
-    await within(closing, CLOSE_MS).catch(() => undefined);
+    await within(closing, closeMs).catch(() => undefined);
   }
   return { observed };
 }
@@ -268,14 +277,16 @@ function assertProbeAllowed(state: RunState): void {
 
 /**
  * Visits every concrete page of the discovery report as its role and stores one signature per page in reports/explore/baseline.json, so a
- * later probe compares like with like. It never throws for a missing report, an unresolved environment url or a fetcher that cannot
+ * later probe compares like with like. A page that cannot be observed (its visit failed, or the time budget ran out) is stored in
+ * `unobserved`, and the next probe counts it as failed, never as reused. It never throws for a missing report, an unresolved environment url or a fetcher that cannot
  * start: the baseline is then `unavailable` with zero pages, and the next probe answers full. run.lock is held only for the short write.
  */
 export async function takeBaseline(root: string, runId: string, caller: string, factory: FetcherFactory, opts: ProbeOptions = {}): Promise<BaselineResult> {
   assertCallerAllowed(caller, "explore.probe");
   const before = readRun(root, runId);
   assertBaselineAllowed(before);
-  const identity = exploreIdentity(root); // synchronous hashing: outside run.lock
+  const startedAt = Date.now();
+  const identity = exploreIdentity(root); // synchronous hashing: outside run.lock, inside the time budget
   const setting = probeSetting(root, runId, before.environment);
   let unavailable = setting.unavailable;
   const skipped: Baseline["skipped"] = [];
@@ -295,16 +306,14 @@ export async function takeBaseline(root: string, runId: string, caller: string, 
     }
   }
   const signatures: PageSignature[] = [];
-  let notObserved = 0;
+  const unobserved: NonNullable<Baseline["unobserved"]> = [];
   if (unavailable === null && pages.length > 0) {
-    const visited = await visitAll(factory, pages, opts.budgetMs ?? PROBE_BUDGET_MS);
+    const visited = await visitAll(factory, pages, budgetLeft(opts, startedAt), opts.closeMs ?? CLOSE_MS);
     if ("error" in visited) unavailable = `the page fetcher could not start: ${visited.error}`;
     else {
       for (const o of visited.observed) {
-        if ("error" in o) {
-          notObserved++;
-          skipped.push({ role: o.role, route: o.url, reason: `not observed: ${o.error}` });
-        } else signatures.push(o);
+        if ("error" in o) unobserved.push({ role: o.role, url: o.url, error: o.error });
+        else signatures.push(o);
       }
     }
   }
@@ -312,16 +321,16 @@ export async function takeBaseline(root: string, runId: string, caller: string, 
     assertBaselineAllowed(readRun(root, runId));
     const ts = iso(opts.now);
     const baseline: Baseline = {
-      takenAt: ts, baseUrl: setting.origin, pages: signatures, skipped, unavailable, identity, roles: setting.roles, discoveryConfigHash: setting.discoveryConfigHash,
+      takenAt: ts, baseUrl: setting.origin, pages: signatures, skipped, unobserved, unavailable, identity, roles: setting.roles, discoveryConfigHash: setting.discoveryConfigHash,
     };
     mkdirSync(join(runDir(root, runId), "reports", "explore"), { recursive: true });
     atomicWrite(join(runDir(root, runId), BASELINE_REL), JSON.stringify(baseline, null, 2) + "\n");
     await appendChained(
-      { type: "explore.probed", ts, agent: caller, mode: "baseline", decision: "none", pages: signatures.length, same: 0, changed: 0, failed: notObserved, hints: [] },
+      { type: "explore.probed", ts, agent: caller, mode: "baseline", decision: "none", pages: signatures.length, same: 0, changed: 0, failed: unobserved.length, hints: [] },
       busPath(root, runId),
       { emittedBy: caller, runId }
     );
-    return { runId, pages: signatures.length, skipped: skipped.length, unavailable, report: BASELINE_REL };
+    return { runId, pages: signatures.length, skipped: skipped.length, unobserved: unobserved.length, unavailable, report: BASELINE_REL };
   });
 }
 
@@ -335,7 +344,9 @@ function readBaseline(root: string, runId: string): { baseline: Baseline } | { r
     const o = objectAt(p);
     return o !== null && typeof o["role"] === "string" && typeof o["url"] === "string";
   };
-  if (b === null || !Array.isArray(pages) || !pages.every(pageOk) || !Array.isArray(b["roles"]) || typeof b["discoveryConfigHash"] !== "string") {
+  const unobserved = b?.["unobserved"];
+  const unobservedOk = unobserved === undefined || (Array.isArray(unobserved) && unobserved.every((u) => pageOk(u) && typeof objectAt(u)!["error"] === "string"));
+  if (b === null || !Array.isArray(pages) || !pages.every(pageOk) || !unobservedOk || !Array.isArray(b["roles"]) || typeof b["discoveryConfigHash"] !== "string") {
     return { reason: "the baseline file is incomplete" };
   }
   if (typeof b["unavailable"] === "string") return { reason: `the baseline was not available (${b["unavailable"]})` };
@@ -367,7 +378,8 @@ export async function probeExplore(root: string, runId: string, caller: string, 
     assertProbeAllowed(state);
     return state;
   });
-  const identity = exploreIdentity(root); // synchronous hashing: outside run.lock
+  const startedAt = Date.now();
+  const identity = exploreIdentity(root); // synchronous hashing: outside run.lock, inside the time budget
   const read = readBaseline(root, runId);
   const baseline = "baseline" in read ? read.baseline : null;
   let reason: string | null = "reason" in read ? read.reason : null;
@@ -380,12 +392,19 @@ export async function probeExplore(root: string, runId: string, caller: string, 
       reason = `the logged-in roles changed since the baseline (then: ${roleText(baseline.roles)}; now: ${roleText(now.roles)})`;
     } else if (now.discoveryConfigHash !== baseline.discoveryConfigHash) reason = "the discovery settings in aegis.config.json changed since the baseline";
     else {
-      const visited = await visitAll(factory, baseline.pages.map((p) => ({ role: p.role, url: p.url })), opts.budgetMs ?? PROBE_BUDGET_MS);
+      const visited = await visitAll(factory, baseline.pages.map((p) => ({ role: p.role, url: p.url })), budgetLeft(opts, startedAt), opts.closeMs ?? CLOSE_MS);
       if ("error" in visited) reason = `the page fetcher could not start: ${visited.error}`;
       else observed = visited.observed;
     }
   }
-  const diff: ProbeDiff = observed !== null ? compareSignatures(baseline!.pages, observed) : { same: 0, changed: [], failed: [], total: baseline?.pages.length ?? 0 };
+  const unobserved = baseline?.unobserved ?? [];
+  const compared: ProbeDiff = observed !== null ? compareSignatures(baseline!.pages, observed) : { same: 0, changed: [], failed: [], total: baseline?.pages.length ?? 0 };
+  // A page the baseline could not observe has no signature to compare with: it is never reused, it is explored again.
+  const diff: ProbeDiff = {
+    ...compared,
+    failed: [...compared.failed, ...unobserved.map((u) => ({ role: u.role, url: u.url, error: `not observed at baseline: ${u.error}` }))],
+    total: compared.total + unobserved.length,
+  };
   let decision: ProbeDecision = reason === null ? decideProbe(diff) : "full";
   if (decision === "full" && reason === null) reason = `${diff.changed.length + diff.failed.length} of ${diff.total} pages changed or could not be observed`;
   const hints = identityHints(baseline?.identity ?? before.phases["explore"]?.identity, identity);

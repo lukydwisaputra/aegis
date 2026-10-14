@@ -19,6 +19,12 @@ describe('signatureOf', () => {
     expect(signatureOf(raw({ consoleErrors: ['Failed to load resource: 404 /favicon.ico'] })).hasErrors).toBe(false);
     expect(signatureOf(raw({ consoleErrors: ['TypeError: x is undefined'] })).hasErrors).toBe(true);
   });
+  it('the final path keeps only the path: a query or fragment (a token on a redirect) is never stored', () => {
+    expect(signatureOf(raw({ finalPath: '/cb?token=abc#access_token=x' })).finalPath).toBe('/cb');
+    expect(signatureOf(raw({ finalPath: '/login#access_token=x' })).finalPath).toBe('/login');
+    expect(signatureOf(raw({ finalPath: '/home' })).finalPath).toBe('/home');
+    expect(JSON.stringify(signatureOf(raw({ finalPath: '/cb?token=abc#access_token=x' })))).not.toMatch(/token/);
+  });
   it('UUID and hash test ids are data: card-<uuid> rows are the same structure', () => {
     const a = signatureOf(raw({ testids: ['card-3f9a1c2e-0b1d-4e5f-8a9b-1c2d3e4f5a6b'] }));
     expect(a.testidHash).toBe(signatureOf(raw({ testids: ['card-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'card-11111111-2222-3333-4444-555555555555'] })).testidHash);

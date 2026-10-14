@@ -132,7 +132,7 @@ describe('takeBaseline', () => {
     await setup();
     const f = fake();
     const r = await takeBaseline(root(), runId, ORCH, f.factory);
-    expect(r).toEqual({ runId, pages: 4, skipped: 3, unavailable: null, report: 'reports/explore/baseline.json' });
+    expect(r).toEqual({ runId, pages: 4, skipped: 3, unobserved: 0, unavailable: null, report: 'reports/explore/baseline.json' });
     expect(f.visit.mock.calls.map((c) => c[0])).toEqual(PAGES);
     expect(f.close).toHaveBeenCalledTimes(1);
     const b = readJson('reports/explore/baseline.json');
@@ -143,7 +143,7 @@ describe('takeBaseline', () => {
       { role: 'volunteer', route: '/x', reason: 'other origin' },
       { role: 'ghost', route: '/ghost', reason: 'role without auth state' },
     ]));
-    expect(b).toMatchObject({ baseUrl: 'http://localhost:5173', unavailable: null, identity: { head: git('rev-parse', 'HEAD'), dirtyHash: EMPTY_SHA256 } });
+    expect(b).toMatchObject({ baseUrl: 'http://localhost:5173', unobserved: [], unavailable: null, identity: { head: git('rev-parse', 'HEAD'), dirtyHash: EMPTY_SHA256 } });
     expect(b.roles).toEqual([{ role: 'admin', auth: true }, { role: 'guest', auth: false }, { role: 'volunteer', auth: true }]);
     expect(b.discoveryConfigHash).toMatch(/^[0-9a-f]{16}$/);
     expect(probed()).toEqual([expect.objectContaining({ agent: ORCH, mode: 'baseline', decision: 'none', pages: 4, same: 0, changed: 0, failed: 0, hints: [] })]);
@@ -314,6 +314,7 @@ describe('probeExplore', () => {
       const r = await probeExplore(root(), runId, ORCH, f.factory);
       expect(`${c.name}: ${r.decision} ${c.reason.test(r.reason ?? '')}`).toBe(`${c.name}: full true`);
       expect(r.reopened).toEqual(['T-explore-1']);
+      expect(f.factory).not.toHaveBeenCalled(); // decided before any page is visited
       expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
     }
     // The same discovery settings written in another key order are not a change.
@@ -355,5 +356,100 @@ describe('probeExplore', () => {
     expect(readRun(root(), runId)).toMatchObject({ supersededAttempts: { 'T-explore-1': { [EXPLORER]: 1 } } });
     expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
     expect(probed().filter((e) => e.mode === 'verify')).toHaveLength(1);
+  });
+
+  it('a page the baseline could not observe (its visit threw) is never reused: the probe counts it as failed and names it', async () => {
+    await setup();
+    const b = await takeBaseline(root(), runId, ORCH, fake({ 'volunteer /events': 'throw' }).factory);
+    expect(b).toMatchObject({ pages: 3, skipped: 3, unobserved: 1, unavailable: null });
+    const stored = readJson('reports/explore/baseline.json');
+    expect(stored.unobserved).toEqual([{ role: 'volunteer', url: '/events', error: expect.stringMatching(/^page crashed at <url>/) }]);
+    expect(stored.skipped.map((x: { route: string }) => x.route)).not.toContain('/events');
+    expect(JSON.stringify(stored)).not.toContain('token=abc');
+    expect(probed().pop()).toMatchObject({ mode: 'baseline', pages: 3, failed: 1 });
+    carry();
+    const f = fake(); // every page, /events included, renders as before
+    const r = await probeExplore(root(), runId, ORCH, f.factory);
+    expect(f.visit.mock.calls.map((c) => c[0].url)).toEqual(['/home', '/admin', '/about']); // no signature to compare /events with
+    expect(r.decision).toBe('partial');
+    expect(r.diff).toMatchObject({ same: 3, changed: [], total: 4 });
+    expect(r.diff.failed).toEqual([{ role: 'volunteer', url: '/events', error: expect.stringMatching(/^not observed at baseline: page crashed at <url>/) }]);
+    expect(readJson('reports/explore/probe.json').changedPages).toEqual([{ role: 'volunteer', url: '/events' }]);
+    expect(r.reopened).toEqual(['T-explore-1']);
+    expect(probed().pop()).toMatchObject({ mode: 'verify', decision: 'partial', pages: 4, same: 3, failed: 1 });
+  });
+
+  it('a baseline cut off by its time budget is never reused: the pages it did not reach count as failed', async () => {
+    await setup();
+    const b = await takeBaseline(root(), runId, ORCH, fake({ 'volunteer /events': 'hang' }).factory, { budgetMs: 200 });
+    expect(b).toMatchObject({ pages: 1, unobserved: 3 });
+    expect(readJson('reports/explore/baseline.json').unobserved).toEqual(PAGES.slice(1).map((p) => ({ ...p, error: 'not observed (time budget)' })));
+    carry();
+    const r = await probeExplore(root(), runId, ORCH, fake().factory);
+    expect(r.decision).not.toBe('reuse');
+    expect(r.decision).toBe('full'); // 3 of 4
+    expect(r.diff).toMatchObject({ same: 1, total: 4 });
+    expect(r.diff.failed.map((x) => x.error)).toEqual(Array(3).fill('not observed at baseline: not observed (time budget)'));
+  });
+
+  it('a baseline written without the unobserved list reads as none', async () => {
+    await setup();
+    await takeBaseline(root(), runId, ORCH, fake().factory);
+    const { unobserved: _gone, ...older } = readJson('reports/explore/baseline.json');
+    put('reports/explore/baseline.json', older);
+    carry();
+    const r = await probeExplore(root(), runId, ORCH, fake().factory);
+    expect(r).toMatchObject({ decision: 'reuse', diff: { same: 4, failed: [], total: 4 } });
+  });
+
+  it('the environment address changed since the baseline: full with that reason, no page visited', async () => {
+    await carriedWithBaseline();
+    setConfig({ environments: { development: { url: 'http://localhost:5174', mutating: true } } });
+    const f = fake();
+    const r = await probeExplore(root(), runId, ORCH, f.factory);
+    expect(r).toMatchObject({ decision: 'full', reason: 'the environment address changed since the baseline', reopened: ['T-explore-1'] });
+    expect(f.factory).not.toHaveBeenCalled();
+  });
+
+  it('an invalid discovery.skipPatterns gives an unavailable baseline and a full probe, never a throw', async () => {
+    await setup();
+    setConfig({ discovery: { skipPatterns: ['(unclosed'] } });
+    const f = fake();
+    expect(await takeBaseline(root(), runId, ORCH, f.factory)).toMatchObject({ pages: 0, unavailable: expect.stringMatching(/skipPatterns holds a pattern that is not a valid regular expression/) });
+    setConfig({ discovery: { skipPatterns: '^/reports' } });
+    expect(await takeBaseline(root(), runId, ORCH, f.factory)).toMatchObject({ pages: 0, unavailable: expect.stringMatching(/skipPatterns must be a list of strings/) });
+    expect(f.factory).not.toHaveBeenCalled();
+
+    cleanup();
+    await carriedWithBaseline();
+    setConfig({ discovery: { skipPatterns: ['(unclosed'] } });
+    const g = fake();
+    const r = await probeExplore(root(), runId, ORCH, g.factory);
+    expect(r).toMatchObject({ decision: 'full', reason: expect.stringMatching(/not a valid regular expression/) });
+    expect(g.factory).not.toHaveBeenCalled();
+    expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
+  });
+
+  it('a factory that never answers: full once the time budget is spent', async () => {
+    await carriedWithBaseline();
+    const factory = jest.fn(() => new Promise<PageFetcher>(() => undefined));
+    const started = Date.now();
+    const r = await probeExplore(root(), runId, ORCH, factory, { budgetMs: 200 });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(r).toMatchObject({ decision: 'full', reason: expect.stringContaining('did not start within the time budget'), reopened: ['T-explore-1'] });
+    expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
+  });
+
+  it('a close() that never returns: the call still returns after closeMs and commits the decision', async () => {
+    await carriedWithBaseline();
+    const f = fake();
+    f.close.mockImplementation(() => new Promise<void>(() => undefined));
+    const started = Date.now();
+    const r = await probeExplore(root(), runId, ORCH, f.factory, { closeMs: 100 });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(f.close).toHaveBeenCalledTimes(1);
+    expect(r.decision).toBe('reuse');
+    expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
+    expect(probed().pop()).toMatchObject({ mode: 'verify', decision: 'reuse' });
   });
 });
