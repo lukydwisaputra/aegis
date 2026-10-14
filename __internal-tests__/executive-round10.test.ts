@@ -2,6 +2,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { buildClosureView } from '@qa/contracts';
 import { createRun, runDir as runDirOf, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, runHook } from './helpers/hooks';
@@ -199,5 +200,20 @@ describe('2: the checker is documented where the reporter, its reviewer and the 
     expect(d).toMatch(/node scripts\/check-executive-conditions\.mjs --run=<runId>/);
     expect(d).toMatch(/runs the checker itself/);
     expect(d).toMatch(/A passing checker does not replace your own reading of the documents/);
+  });
+});
+
+describe('after the merge with origin/main: the pass rate base is named in the sign-off sentence', () => {
+  it('the view carries the base: attempted less the ruled checks', () => {
+    const counts = { passed: 2, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, attempted: 6, ruledOutOfScope: 1, deferred: 1, notVerified: 1 };
+    expect(buildClosureView({ closure: {}, defects: null, rollupCounts: counts, executionSummary: null }).cases).toMatchObject({ passRate: 66.7, passRateBase: 3 });
+    expect(buildClosureView({ closure: {}, defects: null, rollupCounts: { ...counts, ruledOutOfScope: 0, deferred: 0, notVerified: 0 }, executionSummary: null }).cases).toMatchObject({ passRate: 33.3, passRateBase: 6 });
+  });
+  it('the sign-off says which checks the rate leaves out when ruled checks exist', () => {
+    const coverage = { ...COVERAGE, counts: { ...COVERAGE.counts, attempted: 108, deferred: 2, ruledOutOfScope: 1, designed: 108 } };
+    const { root, runDir } = fixture({ ...files(CLOSURE), 'reports/metrics/coverage.json': coverage });
+    expect(run(SCRIPT.signoff, root).status).toBe(0);
+    const text = flat(pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf')));
+    expect(text).toContain('of the 105 checks attempted passed, not counting the checks recorded as out of scope, deferred or not verified');
   });
 });
