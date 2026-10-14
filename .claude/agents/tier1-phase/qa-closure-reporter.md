@@ -89,6 +89,71 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 `closure.json` always carries `exitCriteria`, which the sign-off document prints as its Met/Not met checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against this cycle's results, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
 
+### closure.json: field contract read by the executive renderers
+
+The technical report, the sign-off and the deck read these exact key names (`CLOSURE_FIELDS_READ` in `@qa/contracts`; a test holds a real-shape closure to the list). A renamed key is not read, and a headline figure the renderers cannot read is refused (exit 11) rather than printed as "not available", so write them exactly:
+
+- Case counts: `resultsSummary.counts` (`designed`, `attempted`, `passed`, `failed`, `blocked`, `partial`, `skipped`, `notAttempted`, `outOfScope`, all numbers) and `metrics` (the same numbers plus `passRate`); `resultsSummary.caseOfRecord` with `basis` (one sentence).
+- Compliance: `complianceFindings[]`, one per standard: `regulation`, `coverageGaps` (a number) and `highRatedGaps` (an ARRAY of the names of the gaps rated high; the renderers count its length). `complianceTotals` is optional: `{ "reports", "gaps", "highSeverityGaps" }` as numbers, used only when it agrees with the findings. Also `complianceNote` and `complianceStatus` (sentences, no verdict).
+- Exit criteria: `exitCriteria[]` of `{ "criterion", "met" (true or false), "evidence" }`, optionally `qualification`. A criterion that is met only on a stated reading says so in `qualification`, or begins its `evidence` with "Met, with a qualification"; both documents print it beside the criterion. The documents compute "N of M exit criteria are met" from the `met` flags, so no count is typed.
+- Own mistakes: `ownMistakesCorrected` of `{ "note", "items": [ { "case", "earlier", "now", "what" } ] }`, plain words, printed by the technical report and the sign-off.
+- Defects: `defectMetrics.openApplicationDefects`, `defectMetrics.partiallyFixedOpen.count`, `defectMetrics.baseline24.FIXED.count`, `defectMetrics.recordsByVerdict` (the counts under `REFRAMED` and `REPORT WITHDRAWN`) and `defectMetrics.openItems[]` of `{ "defectId", "severity" ("Sev4 (Minor)"), "state", "title", "awaits" }`.
+
+```
+# key paths ([] = every entry of the array)
+metrics
+metrics.passRateBasisNote
+unavailableMetrics
+resultsSummary.counts
+resultsSummary.caseOfRecord.basis
+resultsSummary.outOfScope[].caseId
+resultsSummary.outOfScope[].reason
+reconciliations[].point
+reconciliations[].statement
+defectMetrics.openApplicationDefects
+defectMetrics.partiallyFixedOpen.count
+defectMetrics.baseline24.FIXED.count
+defectMetrics.recordsByVerdict.REFRAMED
+defectMetrics.recordsByVerdict.REPORT WITHDRAWN
+defectMetrics.openItems[].defectId
+defectMetrics.openItems[].severity
+defectMetrics.openItems[].state
+defectMetrics.openItems[].title
+defectMetrics.openItems[].awaits
+falsePasses.confirmed[].case
+falsePasses.confirmed[].finding
+falsePasses.confirmed[].latestResult
+falsePasses.authThree.requirement
+falsePasses.authThree.wrongStep
+falsePasses.authThree.whatConforms
+falsePasses.authThree.whatThePassMeans
+ownMistakesCorrected.note
+ownMistakesCorrected.items[].case
+ownMistakesCorrected.items[].earlier
+ownMistakesCorrected.items[].now
+ownMistakesCorrected.items[].what
+variancesFromPlan[].variance
+variancesFromPlan[].reason
+exitCriteria[].criterion
+exitCriteria[].met
+exitCriteria[].evidence
+openQuestions[].id
+openQuestions[].priority
+openQuestions[].audience
+openQuestions[].question
+openQuestions[].status
+residualRiskSummary[].riskId
+residualRiskSummary[].title
+residualRiskSummary[].rating
+residualRiskSummary[].mitigationStatus
+residualRiskSummary[].residualExposure
+complianceFindings[].regulation
+complianceFindings[].coverageGaps
+complianceFindings[].highRatedGaps
+complianceNote
+complianceStatus
+```
+
 ### closure.json: uncovered test cases and residual risk
 
 `closure.json` carries `uncoveredTestCases`, one `{ "id", "module", "status", "origin" }` per check that gave no verdict (blocked, skipped, undeterminable, or designed with no result file), `origin` being one plain sentence on why; the cases listed in `coverage.json#descoped` are not among them, they are stated apart as out of scope. The closure states no split of them by cause: no `cause` on a row and no total by cause. The split is computed from the result files into `uncovered` of `coverage.json` and is stated only by the executive reports, from that file.

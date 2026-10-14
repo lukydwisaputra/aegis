@@ -5,8 +5,15 @@ import { defectRetestVerdict, defectSeverityCode, defectStatusCode, isClosedDefe
 /**
  * What the executive documents (technical report, sign-off) print, read from closure.json, the source of truth, with the defect records
  * and the metric files only as fallbacks where the closure does not carry a figure. Pure: both scripts call buildClosureView and hand the
- * result to the renderer, so the two documents cannot disagree. Every figure that cannot be read is null (the renderer prints "not
- * available"), never 0.
+ * result to the renderer, so the two documents cannot disagree. A secondary figure that cannot be read is null (the renderer prints "not
+ * available"), never 0. A HEADLINE figure (case counts, open defects, compliance totals, the exit-criteria count) that the closure carries
+ * but the view cannot read is never printed as a placeholder: it is listed in ClosureView.unreadable with the field that failed, and the
+ * three scripts refuse (exit 11).
+ *
+ * The closure.json key names read here are the contract with the closure reporter (HANDBOOK 14 and the qa-closure-reporter definition):
+ * complianceFindings[].coverageGaps and .highRatedGaps (an array of names), exitCriteria[].met/.evidence/.qualification,
+ * ownMistakesCorrected.items[].case/.earlier/.now/.what, defectMetrics.openItems[].defectId, resultsSummary.counts. CLOSURE_FIELDS_READ
+ * lists every key path so a test can hold the real-shape fixture to it.
  */
 
 const isPlain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -94,6 +101,22 @@ export interface ExitCriterionView {
   met: boolean;
   /** The closure's stated evidence or difference. */
   evidence: string | null;
+  /** For a met criterion whose closure text states a qualification: that text (the closure's own words), else null. */
+  qualification: string | null;
+}
+
+/** A tester's own mistake of the cycle (closure.json#ownMistakesCorrected.items[]), in the closure's words. */
+export interface OwnMistakeView {
+  case: string;
+  earlier: string | null;
+  now: string | null;
+  what: string;
+}
+
+/** A headline figure the closure carries but the view could not read: the field that failed and what it must hold. */
+export interface UnreadableField {
+  field: string;
+  expected: string;
 }
 
 export interface ResidualRiskView {
@@ -120,6 +143,12 @@ export interface ClosureView {
   wrongStepNotes: WrongStepNote[];
   variances: Array<{ variance: string; reason: string | null }>;
   exitCriteria: ExitCriterionView[];
+  /** "7 of 9 exit criteria are met." computed from exitCriteria[].met; null when the closure lists no criteria. */
+  exitCriteriaSummary: string | null;
+  /** The tester's own mistakes of this cycle (closure.json#ownMistakesCorrected), printed by both documents; null when the closure has none. */
+  ownMistakes: { note: string | null; items: OwnMistakeView[] } | null;
+  /** Headline figures the closure carries but the view cannot read; the scripts refuse (exit 11) when this is not empty. */
+  unreadable: UnreadableField[];
   /** Exit criteria that are not met, each with the closure's stated reason. */
   unmetCriteria: ExitCriterionView[];
   /** Open questions grouped by the first audience named: PM, owner, developers, then any other, each group in id order. */
@@ -168,7 +197,8 @@ export function terminated(text: string): string {
 export function openDefectLine(o: OpenDefectItem): string {
   // The state already inside brackets ("Open (new this cycle)") is joined with a comma so the line never closes two brackets in a row.
   const state = o.state.replace(/\s*\(([^()]*)\)/g, ", $1");
-  return `${o.id} (${o.severity}, ${state})${o.title ? `: ${terminated(o.title)}` : "."}${o.awaits ? ` Awaits: ${terminated(o.awaits)}` : ""}`;
+  // Written without nesting: "DEF-001-AAA-API, Sev4 (Minor), PARTIALLY FIXED: Title. Awaits: ..."
+  return `${o.id}, ${o.severity}, ${state}${o.title ? `: ${terminated(o.title)}` : "."}${o.awaits ? ` Awaits: ${terminated(o.awaits)}` : ""}`;
 }
 
 function rate(passed: number | null, total: number | null): number | null {
@@ -233,6 +263,7 @@ function defectView(closure: Record<string, unknown>, records: readonly unknown[
   const fromRecords = (v: string): number | null => (records === null ? null : verdicts.filter((x) => x === v).length);
   const figures = resolveDefectFigures(closure, records);
   const baseline = isPlain(dm["baseline24"]) ? dm["baseline24"] : {};
+  const byVerdict = isPlain(dm["recordsByVerdict"]) ? dm["recordsByVerdict"] : {};
   const openPartially =
     countOf(dm["partiallyFixedOpen"]) ?? (records === null ? null : recs.filter((r, i) => verdicts[i] === "PARTIALLY FIXED" && isOpenApplicationDefect(r)).length);
   const closedWithoutVerdict =
@@ -240,9 +271,10 @@ function defectView(closure: Record<string, unknown>, records: readonly unknown[
   const headline: DefectHeadline = {
     open: num(dm["openApplicationDefects"]) ?? figures.open,
     openPartiallyFixed: openPartially,
-    fixed: countOf(isPlain(baseline["FIXED"]) ? baseline["FIXED"] : null) ?? fromRecords("FIXED"),
-    reframed: countOf(dm["reframedNotOpenApplicationDefects"]) ?? fromRecords("REFRAMED"),
-    reportWithdrawn: countOf(dm["reportWithdrawn"]) ?? fromRecords("REPORT WITHDRAWN"),
+    // The closure's own counts first (baseline24, then recordsByVerdict, which counts every record), the defect records last.
+    fixed: countOf(isPlain(baseline["FIXED"]) ? baseline["FIXED"] : null) ?? countOf(byVerdict["FIXED"]) ?? fromRecords("FIXED"),
+    reframed: countOf(dm["reframedNotOpenApplicationDefects"]) ?? countOf(byVerdict["REFRAMED"]) ?? fromRecords("REFRAMED"),
+    reportWithdrawn: countOf(dm["reportWithdrawn"]) ?? countOf(byVerdict["REPORT WITHDRAWN"]) ?? fromRecords("REPORT WITHDRAWN"),
     closedWithoutVerdict: closedWithoutVerdict !== null && closedWithoutVerdict > 0 ? closedWithoutVerdict : null,
   };
   const log: DefectLogRow[] = recs
@@ -325,6 +357,133 @@ export function rewriteSectionReferencesDeep<T>(value: T): T {
   return value;
 }
 
+/** An unmet or met-with-qualification exit criterion: the closure's `qualification` field, else the evidence of a met criterion that says it is met with a qualification. */
+export function exitQualification(entry: unknown): string | null {
+  if (!isPlain(entry) || entry["met"] !== true) return null;
+  const q = str(entry["qualification"]);
+  if (q !== null) return q;
+  const ev = str(entry["evidence"]);
+  return ev !== null && /\bqualification\b/i.test(ev) ? ev : null;
+}
+
+const countOrLength = (v: unknown): number | null => (Array.isArray(v) ? v.length : num(v));
+
+/** One compliance finding's counts: coverageGaps (else gapCount, else a gaps list) and highRatedGaps (an array of names: its length; else a number, else highSeverityGapCount, else bySeverity.High). */
+function findingCounts(f: Record<string, unknown>): { gaps: number | null; high: number | null } {
+  const bySeverity = isPlain(f["bySeverity"]) ? f["bySeverity"] : {};
+  return {
+    gaps: num(f["coverageGaps"]) ?? num(f["gapCount"]) ?? countOrLength(f["gaps"]),
+    high: countOrLength(f["highRatedGaps"]) ?? num(f["highSeverityGapCount"]) ?? num(bySeverity["High"]),
+  };
+}
+
+interface ComplianceRead {
+  rows: ComplianceRowView[];
+  totalGaps: number | null;
+  totalHighGaps: number | null;
+  reports: number | null;
+  problems: UnreadableField[];
+}
+
+/**
+ * Compliance counts through a fallback chain. Per standard: coverageGaps / gapCount and the length of highRatedGaps (or a number,
+ * highSeverityGapCount, bySeverity.High). Totals: complianceTotals when present and coherent (numbers, high not above gaps, equal to the
+ * rows when the rows are all readable), else the sum of the rows. With no findings the reports of reports/compliance fill the rows.
+ * When the closure carries compliance data (findings, totals, a status or a note) and no total can be read, the problems name the field.
+ */
+export function readCompliance(closure: Record<string, unknown>, fallback: NonNullable<ClosureViewInput["complianceReports"]>): ComplianceRead {
+  const problems: UnreadableField[] = [];
+  const findings = Array.isArray(closure["complianceFindings"]) ? closure["complianceFindings"] : [];
+  const totalsObj = isPlain(closure["complianceTotals"]) ? closure["complianceTotals"] : null;
+  const rows: ComplianceRowView[] = [];
+  findings.forEach((f, i) => {
+    if (!isPlain(f)) {
+      problems.push({ field: `complianceFindings[${i}]`, expected: "an object with regulation, coverageGaps (a number) and highRatedGaps (an array of names)" });
+      return;
+    }
+    const { gaps, high } = findingCounts(f);
+    if (gaps === null) problems.push({ field: `complianceFindings[${i}].coverageGaps`, expected: "a number" });
+    if (high === null) problems.push({ field: `complianceFindings[${i}].highRatedGaps`, expected: "an array of names (or a number)" });
+    rows.push({ regulation: regulationName(String(f["regulation"] ?? f["report"] ?? "not available")), gaps, highGaps: high });
+  });
+  if (findings.length === 0) {
+    for (const r of fallback) rows.push({ regulation: regulationName(typeof r.regulation === "string" && r.regulation.trim() !== "" ? r.regulation : r.name), gaps: r.gaps, highGaps: r.highGaps });
+  }
+  const sum = (xs: Array<number | null>): number | null => (xs.length > 0 && xs.every((x) => x !== null) ? (xs as number[]).reduce((a, b) => a + b, 0) : null);
+  const rowGaps = sum(rows.map((r) => r.gaps));
+  const rowHigh = sum(rows.map((r) => r.highGaps));
+  const tGaps = totalsObj === null ? null : (num(totalsObj["gaps"]) ?? num(totalsObj["totalGaps"]) ?? num(totalsObj["coverageGaps"]));
+  const tHigh = totalsObj === null ? null : (countOrLength(totalsObj["highSeverityGaps"]) ?? countOrLength(totalsObj["totalHighGaps"]) ?? countOrLength(totalsObj["highRatedGaps"]));
+  const coherent = tGaps !== null && tHigh !== null && tGaps >= 0 && tHigh >= 0 && tHigh <= tGaps && (rowGaps === null || rowGaps === tGaps) && (rowHigh === null || rowHigh === tHigh);
+  const totalGaps = coherent ? tGaps : rowGaps ?? tGaps;
+  const totalHighGaps = coherent ? tHigh : rowHigh ?? tHigh;
+  const tReports = totalsObj === null ? null : num(totalsObj["reports"]);
+  const reports = tReports ?? (rows.length > 0 ? rows.length : null);
+  const present = findings.length > 0 || totalsObj !== null || str(closure["complianceStatus"]) !== null || str(closure["complianceNote"]) !== null || Object.hasOwn(closure, "complianceFindings");
+  if (present && problems.length === 0 && (totalGaps === null || totalHighGaps === null)) {
+    problems.push(
+      totalsObj !== null && findings.length === 0
+        ? { field: "complianceTotals.gaps / complianceTotals.highSeverityGaps", expected: "numbers" }
+        : { field: "complianceFindings", expected: "an array with one entry per standard: regulation, coverageGaps (a number) and highRatedGaps (an array of names)" },
+    );
+  }
+  return { rows, totalGaps, totalHighGaps, reports, problems };
+}
+
+/** Exit criteria entries the view cannot count: an object without a true/false `met`. */
+function exitProblems(closure: Record<string, unknown>): UnreadableField[] {
+  const list = Array.isArray(closure["exitCriteria"]) ? closure["exitCriteria"] : [];
+  return list.flatMap((c, i) => (typeof c === "string" || (isPlain(c) && typeof c["met"] === "boolean") ? [] : [{ field: `exitCriteria[${i}].met`, expected: "true or false" }]));
+}
+
+/** Case figures and the open-defect headline the closure carries (a non-empty metrics, resultsSummary.counts or defectMetrics) but the view could not read. */
+function headlineProblems(closure: Record<string, unknown>, cases: CaseFigures, open: number | null): UnreadableField[] {
+  const out: UnreadableField[] = [];
+  const has = (v: unknown): boolean => isPlain(v) && Object.keys(v).length > 0;
+  const rs = isPlain(closure["resultsSummary"]) ? closure["resultsSummary"] : {};
+  if ((has(closure["metrics"]) || has(rs["counts"])) && (cases.passed === null || cases.failed === null)) {
+    out.push({ field: has(rs["counts"]) ? "resultsSummary.counts.passed / resultsSummary.counts.failed" : "metrics.passed / metrics.failed", expected: "numbers" });
+  }
+  if (has(closure["defectMetrics"]) && open === null) out.push({ field: "defectMetrics.openApplicationDefects", expected: "a number" });
+  return out;
+}
+
+/**
+ * The headline fields of a closure.json the executive documents cannot read, from the closure and the compliance reports alone (the deck
+ * script, which has no other inputs, uses this; the view lists the same compliance and exit-criteria problems plus the case and defect ones).
+ */
+export function closureReadProblems(closure: unknown, fallback: NonNullable<ClosureViewInput["complianceReports"]> = []): UnreadableField[] {
+  const c = isPlain(closure) ? closure : {};
+  return [...readCompliance(c, fallback).problems, ...exitProblems(c)];
+}
+
+/** The refusal text of the three scripts (exit 11): the first five fields, each with what it must hold. */
+export function describeUnreadable(problems: readonly UnreadableField[], max = 5): string {
+  const shown = problems.slice(0, max).map((p) => `  closure.json.${p.field}: write ${p.expected}`);
+  return `${problems.length} headline figure${problems.length === 1 ? "" : "s"} in closure.json cannot be read (first ${shown.length}):\n${shown.join("\n")}`;
+}
+
+/**
+ * Every closure.json key path the view reads, so a test can hold the real-shape fixture to it (a renamed field cannot pass again).
+ * "[]" stands for every entry of an array.
+ */
+export const CLOSURE_FIELDS_READ: readonly string[] = [
+  "metrics", "metrics.passRateBasisNote", "unavailableMetrics",
+  "resultsSummary.counts", "resultsSummary.caseOfRecord.basis", "resultsSummary.outOfScope[].caseId", "resultsSummary.outOfScope[].reason",
+  "reconciliations[].point", "reconciliations[].statement",
+  "defectMetrics.openApplicationDefects", "defectMetrics.partiallyFixedOpen.count", "defectMetrics.baseline24.FIXED.count",
+  "defectMetrics.recordsByVerdict.REFRAMED", "defectMetrics.recordsByVerdict.REPORT WITHDRAWN", "defectMetrics.openItems[].defectId", "defectMetrics.openItems[].severity",
+  "defectMetrics.openItems[].state", "defectMetrics.openItems[].title", "defectMetrics.openItems[].awaits",
+  "falsePasses.confirmed[].case", "falsePasses.confirmed[].finding", "falsePasses.confirmed[].latestResult",
+  "falsePasses.authThree.requirement", "falsePasses.authThree.wrongStep", "falsePasses.authThree.whatConforms", "falsePasses.authThree.whatThePassMeans",
+  "ownMistakesCorrected.note", "ownMistakesCorrected.items[].case", "ownMistakesCorrected.items[].earlier", "ownMistakesCorrected.items[].now", "ownMistakesCorrected.items[].what",
+  "variancesFromPlan[].variance", "variancesFromPlan[].reason",
+  "exitCriteria[].criterion", "exitCriteria[].met", "exitCriteria[].evidence",
+  "openQuestions[].id", "openQuestions[].priority", "openQuestions[].audience", "openQuestions[].question", "openQuestions[].status",
+  "residualRiskSummary[].riskId", "residualRiskSummary[].title", "residualRiskSummary[].rating", "residualRiskSummary[].mitigationStatus", "residualRiskSummary[].residualExposure",
+  "complianceFindings[].regulation", "complianceFindings[].coverageGaps", "complianceFindings[].highRatedGaps", "complianceNote", "complianceStatus",
+];
+
 /** The closure's view for the executive documents. See the interface comments for each field's source. */
 export function buildClosureView(input: ClosureViewInput): ClosureView {
   const closure = isPlain(input.closure) ? input.closure : {};
@@ -333,28 +492,20 @@ export function buildClosureView(input: ClosureViewInput): ClosureView {
     criterion: typeof c === "string" ? c : String(isPlain(c) ? (c["criterion"] ?? c["name"] ?? "not available") : "not available"),
     met: isPlain(c) && c["met"] === true,
     evidence: isPlain(c) ? (str(c["evidence"]) ?? str(c["difference"]) ?? str(c["reason"])) : null,
+    qualification: exitQualification(c),
   }));
+  const cases = caseFigures(closure, input.rollupCounts, input.executionSummary);
+  const omc = isPlain(closure["ownMistakesCorrected"]) ? closure["ownMistakesCorrected"] : null;
+  const ownItems: OwnMistakeView[] = omc === null || !Array.isArray(omc["items"]) ? [] : omc["items"].flatMap((i) => (isPlain(i) && str(i["what"]) !== null ? [{ case: str(i["case"]) ?? "A case", earlier: str(i["earlier"]), now: str(i["now"]), what: str(i["what"])! }] : []));
   const rs = isPlain(closure["resultsSummary"]) ? closure["resultsSummary"] : {};
   const oos = Array.isArray(rs["outOfScope"]) ? rs["outOfScope"] : null;
   const outOfScope =
     (oos ?? input.descopedFallback ?? []).flatMap((e) => (isPlain(e) && typeof e["caseId"] === "string" ? [{ caseId: e["caseId"], reason: str(e["reason"]) ?? "reason not recorded" }] : []));
-  const findings = Array.isArray(closure["complianceFindings"]) ? closure["complianceFindings"].filter(isPlain) : [];
-  const totals = isPlain(closure["complianceTotals"]) ? closure["complianceTotals"] : null;
-  const rows: ComplianceRowView[] =
-    findings.length > 0
-      ? findings.map((f) => ({ regulation: regulationName(String(f["regulation"] ?? f["report"] ?? "not available")), gaps: num(f["gapCount"]), highGaps: num(f["highSeverityGapCount"]) }))
-      : (input.complianceReports ?? []).map((r) => ({ regulation: regulationName(typeof r.regulation === "string" && r.regulation.trim() !== "" ? r.regulation : r.name), gaps: r.gaps, highGaps: r.highGaps }));
-  const sum = (xs: Array<number | null>): number | null => (xs.length > 0 && xs.every((x) => x !== null) ? (xs as number[]).reduce((a, b) => a + b, 0) : null);
+  const comp = readCompliance(closure, input.complianceReports ?? []);
   const compliance =
-    rows.length === 0 && totals === null
+    comp.rows.length === 0 && comp.totalGaps === null && comp.totalHighGaps === null
       ? null
-      : {
-          rows,
-          totalGaps: num(totals?.["gaps"]) ?? sum(rows.map((r) => r.gaps)),
-          totalHighGaps: num(totals?.["highSeverityGaps"]) ?? sum(rows.map((r) => r.highGaps)),
-          reports: num(totals?.["reports"]) ?? (rows.length > 0 ? rows.length : null),
-          note: str(closure["complianceNote"]),
-        };
+      : { rows: comp.rows, totalGaps: comp.totalGaps, totalHighGaps: comp.totalHighGaps, reports: comp.reports, note: str(closure["complianceNote"]) };
   const residual: ResidualRiskView[] = (Array.isArray(closure["residualRiskSummary"]) ? closure["residualRiskSummary"] : []).flatMap((r) => {
     if (!isPlain(r)) return [];
     const riskId = str(r["riskId"]);
@@ -366,7 +517,7 @@ export function buildClosureView(input: ClosureViewInput): ClosureView {
   });
   const fp = isPlain(closure["falsePasses"]) && Array.isArray(closure["falsePasses"]["confirmed"]) ? closure["falsePasses"]["confirmed"] : [];
   return {
-    cases: caseFigures(closure, input.rollupCounts, input.executionSummary),
+    cases,
     defects: headline,
     defectLog: log,
     openItems: openItemsOf(closure, log),
@@ -377,6 +528,9 @@ export function buildClosureView(input: ClosureViewInput): ClosureView {
       typeof v === "string" ? [{ variance: v, reason: null }] : isPlain(v) && str(v["variance"]) !== null ? [{ variance: str(v["variance"])!, reason: str(v["reason"]) }] : []
     ),
     exitCriteria,
+    exitCriteriaSummary: exitCriteria.length === 0 ? null : `${exitCriteria.filter((c) => c.met).length} of ${exitCriteria.length} exit criteria are met.`,
+    ownMistakes: ownItems.length === 0 ? null : { note: str(omc?.["note"]), items: ownItems },
+    unreadable: [...comp.problems, ...exitProblems(closure), ...headlineProblems(closure, cases, headline.open)],
     unmetCriteria: exitCriteria.filter((c) => !c.met),
     openQuestions: questions(closure),
     falsePasses: fp.flatMap((f) => (isPlain(f) && str(f["case"]) !== null && str(f["finding"]) !== null ? [{ case: str(f["case"])!, finding: str(f["finding"])!, latestResult: str(f["latestResult"]) }] : [])),

@@ -203,6 +203,10 @@ export interface TechnicalReportSpec {
   /** Narrative sections, all taken from the closure report; each is printed only when it has content. */
   variances?: Array<{ variance: string; reason: string | null }>;
   exitCriteria?: Array<{ criterion: string; met: boolean; evidence: string | null }>;
+  /** "7 of 9 exit criteria are met.", printed under the Exit Criteria heading. */
+  exitCriteriaSummary?: string | null;
+  /** Our own mistakes of the cycle, in the closure's words, printed after the passes that did not hold. */
+  ownMistakes?: { note: string | null; items: Array<{ case: string; earlier: string | null; now: string | null; what: string }> } | null;
   openQuestions?: Array<{ audience: string; questions: Array<{ id: string; priority: string | null; question: string; also?: string | null }> }>;
   falsePasses?: Array<{ case: string; finding: string; latestResult: string | null }>;
   /** A passed case whose first failure came from a wrong test step, in the closure's words; printed beside the false passes. */
@@ -240,7 +244,10 @@ export interface SignoffSpec {
   documentId: string;
   scope: string;
   decision: SignoffDecision;
-  exitCriteria: Array<{ criterion: string; met: boolean }>;
+  /** `note` is the closure's qualification of a met criterion, printed beside it. */
+  exitCriteria: Array<{ criterion: string; met: boolean; note?: string | null }>;
+  /** "7 of 9 exit criteria are met.", printed under the Exit Criteria heading. */
+  exitCriteriaSummary?: string | null;
   /** The line printed when exitCriteria is empty; defaults to "Exit criteria: not available". */
   exitCriteriaNote?: string;
   openDefectsSummary: string;
@@ -498,6 +505,7 @@ function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
   const blocks: React.ReactElement[] = [];
   if ((spec.exitCriteria ?? []).length > 0) {
     blocks.push(...sectionTitle("exit", "Exit Criteria"));
+    if (spec.exitCriteriaSummary) blocks.push(paragraph("exit-summary", spec.exitCriteriaSummary, true));
     (spec.exitCriteria ?? []).forEach((c, i) => {
       blocks.push(
         React.createElement(
@@ -527,6 +535,11 @@ function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
         if (text) blocks.push(paragraph(`ws-${i}-${label}`, `${label}: ${text}`));
       }
     });
+  }
+  if (spec.ownMistakes && spec.ownMistakes.items.length > 0) {
+    blocks.push(...sectionTitle("own", "Our Own Mistakes in This Cycle"));
+    if (spec.ownMistakes.note) blocks.push(paragraph("own-note", spec.ownMistakes.note));
+    spec.ownMistakes.items.forEach((m, i) => blocks.push(paragraph(`own-${i}`, `${m.case}${m.earlier || m.now ? ` (earlier result: ${m.earlier ?? "not recorded"}; now: ${m.now ?? "not recorded"})` : ""}: ${m.what}`)));
   }
   if ((spec.residualRisks ?? []).length > 0) {
     blocks.push(...sectionTitle("risk", "Residual Risks"));
@@ -614,7 +627,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
               ["Open application defects", formatCount(spec.defectHeadline.open)],
               ["Of which partially fixed", formatCount(spec.defectHeadline.openPartiallyFixed)],
               ["Fixed", formatCount(spec.defectHeadline.fixed)],
-              ["Reframed (requirement or hardening question, not open)", formatCount(spec.defectHeadline.reframed)],
+              ["Reframed", formatCount(spec.defectHeadline.reframed)],
               ["Report withdrawn", formatCount(spec.defectHeadline.reportWithdrawn)],
               ...(typeof spec.defectHeadline.closedWithoutVerdict === "number" ? [["Closed without a retest verdict", formatCount(spec.defectHeadline.closedWithoutVerdict)]] : []),
             ]),
@@ -634,6 +647,7 @@ function TechnicalReportDocument({ spec }: { spec: TechnicalReportSpec }) {
         )
       ),
       ...(spec.caseNote ? [React.createElement(Text, { key: "case-note", style: { ...baseStyles.body, marginTop: 8 } }, spec.caseNote)] : []),
+      ...(spec.defectHeadline !== undefined ? [React.createElement(Text, { key: "reframed-note", style: baseStyles.body }, "Reframed records are a requirement or hardening question, not open application defects.")] : []),
       ...(spec.reconciliation ? [React.createElement(Text, { key: "reconciliation", style: baseStyles.body }, `Reconciliation: ${spec.reconciliation}`)] : []),
       ...((spec.outOfScopeCases ?? []).length > 0
         ? [
@@ -883,10 +897,12 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
             ),
           ]
         : []),
+      ...(spec.exitCriteria.length > 0 && spec.exitCriteriaSummary ? [React.createElement(Text, { key: "exit-summary", style: { ...baseStyles.body, fontFamily: "Helvetica-Bold" } }, spec.exitCriteriaSummary)] : []),
       ...spec.exitCriteria.map((criterion, i) =>
         React.createElement(
           View,
-          { key: `exit-${i}`, style: { ...baseStyles.row, marginBottom: 6 } },
+          { key: `exit-${i}`, style: { marginBottom: 6 } },
+          React.createElement(View, { style: baseStyles.row },
           // The number lets the "not met" block below point at a criterion without repeating its text.
           React.createElement(Text, { style: { ...baseStyles.body, width: 16, marginRight: 4 } }, `${i + 1}.`),
           React.createElement(
@@ -908,6 +924,8 @@ function SignoffDocument({ spec }: { spec: SignoffSpec }) {
             },
             criterion.criterion
           )
+          ),
+          ...(criterion.note ? [React.createElement(Text, { key: `exit-note-${i}`, style: { ...baseStyles.body, marginLeft: 62, color: "#555555" } }, `Qualification: ${criterion.note}`)] : [])
         )
       ),
       // Further blocks from the closure report

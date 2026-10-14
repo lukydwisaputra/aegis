@@ -95,7 +95,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, openDefectLine, rewriteNationalIdTermsDeep, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, describeUnreadable, openDefectLine, rewriteNationalIdTermsDeep, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -134,12 +134,6 @@ const maxJargonSurvivors = Number.parseInt(maxJargonRaw, 10);
 
 // The closure reporter writes closure.json#exitCriteria from the test plan's exit criteria, [] when the
 // plan defines none; an absent key means the closure data does not say.
-const exitCriteria = Array.isArray(closure.exitCriteria)
-  ? closure.exitCriteria.map((c) => ({
-      criterion: typeof c === "string" ? c : String(c?.criterion ?? c?.name ?? "not available"),
-      met: c?.met === true,
-    }))
-  : [];
 const exitCriteriaNote = Array.isArray(closure.exitCriteria)
   ? "Exit criteria: not defined in the test plan"
   : "Exit criteria: not available";
@@ -168,6 +162,19 @@ const view = buildClosureView({
   complianceReports: complianceReports.filter((d) => d && typeof d === "object" && !Array.isArray(d)).map((d, i) => ({ name: `report-${i + 1}`, regulation: d.regulation, gaps: Array.isArray(d.gaps) ? d.gaps.length : null, highGaps: typeof d.highSeverityGapCount === "number" ? d.highSeverityGapCount : null })),
   descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
 });
+// A headline figure the closure carries but the view cannot read is never printed as "not available": exit 11, naming the closure.json field.
+if (view.unreadable.length > 0) {
+  console.error(`ERROR: ${describeUnreadable(view.unreadable)}\nThe closure report must carry these fields before this document is rendered.`);
+  process.exit(11);
+}
+// The exit criteria are the closure's own text, with "N of M exit criteria are met" computed from their met flags and the closure's
+// qualification of a met criterion (for example criterion 5 met only on a stated reading) printed beside it.
+const exitCriteria = view.exitCriteria.map((c) => ({ criterion: c.criterion, met: c.met, note: c.qualification }));
+const qualifiedAt = view.exitCriteria.flatMap((c, i) => (c.qualification !== null ? [i + 1] : []));
+const exitCriteriaSummary =
+  view.exitCriteriaSummary === null
+    ? null
+    : `${view.exitCriteriaSummary}${qualifiedAt.length === 0 ? "" : ` Criterion ${qualifiedAt.join(" and ")} ${qualifiedAt.length === 1 ? "is" : "are"} met with a stated qualification, shown beside ${qualifiedAt.length === 1 ? "it" : "them"}.`}`;
 // Tier 2, the sign-off being a formal attestation for stakeholders: the closure text this document prints (signoffFedTexts) must be plain
 // business language: no oracle, stub, mutants, env flag names, HTTP status numbers, CWE ids, route paths, snake_case codes, bare Sev codes ...
 // Exits 9 with the first 5 phrases, their fields and the plain replacement, before anything renders. The technical report is not held to
@@ -189,7 +196,13 @@ const sections = [];
   const c = view.cases;
   const lines = [];
   if (c.passed !== null || c.failed !== null || c.blocked !== null) {
-    lines.push(`${n(c.total)} checks were executed to a result: ${n(c.passed)} passed, ${n(c.failed)} failed, ${n(c.partial)} partly passed, ${n(c.blocked)} blocked${c.passRate === null ? "" : `; ${c.passRate}% passed`}.`);
+    // Only a check that reached a result (passed, failed or partly passed) was executed to a result; a blocked, skipped or undetermined
+    // check gave no verdict and is named as such. A figure the closure does not give is left out of the sentence, never printed as a placeholder.
+    const withResult = [c.passed, c.failed, c.partial];
+    const executed = withResult.every((v) => v !== null) ? withResult.reduce((a, b) => a + b, 0) : null;
+    const parts = [c.passed === null ? null : `${c.passed} passed`, c.failed === null ? null : `${c.failed} failed`, c.partial === null || c.partial === 0 ? null : `${c.partial} partly passed`].filter((p) => p !== null);
+    const noVerdict = [c.blocked === null || c.blocked === 0 ? null : `${c.blocked} blocked`, c.skipped === null || c.skipped === 0 ? null : `${c.skipped} skipped`, c.unknown === null || c.unknown === 0 ? null : `${c.unknown} undetermined`].filter((p) => p !== null);
+    lines.push(`${executed === null ? "Checks" : `${executed} ${executed === 1 ? "check was" : "checks were"}`} executed to a result: ${parts.join(", ")}${c.passRate === null ? "" : `; ${c.passRate}% of the ${n(c.total)} checks attempted passed`}.${noVerdict.length === 0 ? "" : ` ${noVerdict.join(", ")}: these checks gave no verdict.`}`.replace(/ of the not available checks attempted/, " of the checks attempted"));
   }
   // One paragraph: the case note already carries the closure's reconciliation when there is a case of record.
   if (c.note) lines.push({ quote: c.note });
@@ -200,9 +213,13 @@ if (view.variances.length > 0) sections.push({ title: "Variances from the test p
 {
   const d = view.defects;
   if (d.open !== null || d.fixed !== null || d.reframed !== null || d.reportWithdrawn !== null) {
-    const lines = [
-      `Open application defects: ${n(d.open)}${d.openPartiallyFixed === null ? "" : ` (${d.openPartiallyFixed} partially fixed, open until the developers fix the rest or confirm the current fix resolves everything)`}. Fixed: ${n(d.fixed)}. Reframed, a requirement or hardening question and not an open defect: ${n(d.reframed)}. Report withdrawn: ${n(d.reportWithdrawn)}.`,
-    ];
+    const sentence = [
+      d.open === null ? null : `Open application defects: ${d.open}${d.openPartiallyFixed === null ? "" : ` (${d.openPartiallyFixed} partially fixed, open until the developers fix the rest or confirm the current fix resolves everything)`}.`,
+      d.fixed === null ? null : `Fixed: ${d.fixed}.`,
+      d.reframed === null ? null : `Reframed, a requirement or hardening question and not an open defect: ${d.reframed}.`,
+      d.reportWithdrawn === null ? null : `Report withdrawn: ${d.reportWithdrawn}.`,
+    ].filter((p) => p !== null);
+    const lines = [sentence.join(" ")];
     if (d.closedWithoutVerdict !== null) lines.push(`Closed without a retest verdict: ${d.closedWithoutVerdict}.`);
     // Each open application defect: id, severity word, state, short title and what it awaits (the closure's words).
     for (const o of view.openItems) lines.push({ quote: `- ${openDefectLine(o)}` });
@@ -221,13 +238,23 @@ if (view.wrongStepNotes.length > 0) {
     ]),
   });
 }
-if (view.compliance !== null) {
+if (view.ownMistakes !== null) {
+  // Our own mistakes of the cycle, in the closure's words (Gate 3 requires them in every executive document).
+  sections.push({
+    title: "Our own mistakes corrected",
+    lines: [
+      ...(view.ownMistakes.note ? [{ quote: view.ownMistakes.note }] : []),
+      ...view.ownMistakes.items.map((m) => ({ quote: `- ${m.case}${m.earlier || m.now ? ` (earlier result: ${m.earlier ?? "not recorded"}; now: ${m.now ?? "not recorded"})` : ""}: ${m.what}` })),
+    ],
+  });
+}
+if (view.compliance !== null && view.compliance.totalGaps !== null && view.compliance.totalHighGaps !== null) {
   const k = view.compliance;
   const per = k.rows.filter((r) => r.gaps !== null).map((r) => `${r.regulation} ${r.gaps}${r.highGaps === null ? "" : ` (${r.highGaps} rated high)`}`).join(", ");
   sections.push({
     title: "Compliance coverage",
     lines: [
-      `${n(k.reports)} coverage reports list ${n(k.totalGaps)} test-coverage gaps, ${n(k.totalHighGaps)} rated high${per === "" ? "" : `: ${per}`}. These are gaps in test coverage. This document gives no release recommendation and no compliance verdict.`,
+      `${k.reports === null ? "The coverage reports" : `${k.reports} coverage reports`} list ${k.totalGaps} test-coverage gaps, ${k.totalHighGaps} rated high${per === "" ? "" : `: ${per}`}. These are gaps in test coverage. This document gives no release recommendation and no compliance verdict.`,
     ],
   });
 }
@@ -347,6 +374,7 @@ const specRaw = {
   decision,
   // The exit criteria are the closure's own text: printed as written, never rewritten (only wrapped to the page).
   exitCriteria,
+  exitCriteriaSummary,
   exitCriteriaNote: applyJargonRewrites(exitCriteriaNote),
   openDefectsSummary: applyJargonRewrites(openDefectsSummary),
   residualRisk: applyJargonRewrites(residualRisk),

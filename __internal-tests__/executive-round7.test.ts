@@ -90,8 +90,8 @@ describe('C: the sign-off lists the open application defects', () => {
     const { r, text } = sign();
     expect(r.status).toBe(0);
     expect(text).toContain('DEFECTS Open application defects: 2');
-    expect(text).toContain('- DEF-004-ENG-API (Sev3 (Major), PARTIALLY FIXED): Uploads above 4 MB are refused; the requirement says 20 MB. Awaits: A developer fix of the part that remains');
-    expect(text).toContain('- DEF-005-COMMS-EXP (Sev4 (Minor), No retest verdict, new this cycle, triaged): The message detail page fails for a malformed message id. Awaits: A developer fix and the product owner decision on priority.');
+    expect(text).toContain('- DEF-004-ENG-API, Sev3 (Major), PARTIALLY FIXED: Uploads above 4 MB are refused; the requirement says 20 MB. Awaits: A developer fix of the part that remains');
+    expect(text).toContain('- DEF-005-COMMS-EXP, Sev4 (Minor), No retest verdict, new this cycle, triaged: The message detail page fails for a malformed message id. Awaits: A developer fix and the product owner decision on priority.');
     expect(text).toContain('Signatories');
     expect(text).toContain('GATE 3 DECISION (owner)');
   });
@@ -101,7 +101,7 @@ describe('C: the sign-off lists the open application defects', () => {
     const rec = (id: string, title: string) => [`defects/${id}.json`, { id, title, severity: { code: 'Sev4', name: 'Minor' }, status: { code: 'Triaged', transitionedAt: '2026-10-12T10:00:00Z' } }] as const;
     const ok = fixture({ ...files, 'reports/closure/closure.json': { ...rest, defectMetrics: { openApplicationDefects: 1 } }, ...Object.fromEntries([rec('DEF-001-AUTH-UI', 'Login fails for plus-aliased email')]) });
     expect(run(SCRIPT.signoff, ok.root).status).toBe(0);
-    expect(flat(pdfText(path.join(ok.runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('- DEF-001-AUTH-UI (Sev4 (Minor), Open, new this cycle): Login fails for plus-aliased email');
+    expect(flat(pdfText(path.join(ok.runDir, 'reports', 'executive', 'signoff.pdf')))).toContain('- DEF-001-AUTH-UI, Sev4 (Minor), Open, new this cycle: Login fails for plus-aliased email');
     const bad = fixture({ ...files, 'reports/closure/closure.json': { ...rest, defectMetrics: { openApplicationDefects: 1 } }, ...Object.fromEntries([rec('DEF-001-AUTH-UI', 'Page returns 500 on login')]) });
     const x = run(SCRIPT.signoff, bad.root);
     expect(x.status).toBe(9);

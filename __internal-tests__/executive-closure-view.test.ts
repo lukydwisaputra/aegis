@@ -133,7 +133,7 @@ describe('the technical report', () => {
     expect(text).toContain('Open application defects\n2');
     expect(text).toContain('Of which partially fixed\n1');
     expect(text).toContain('Fixed\n2');
-    expect(text).toContain('Reframed (requirement or hardening question, not open)\n1');
+    expect(text).toContain('Reframed\n1');
     expect(text).toContain('Report withdrawn\n1');
     expect(text).not.toContain('Closed Defects');
   });
@@ -224,7 +224,7 @@ describe('the sign-off', () => {
 
   it('adds tests executed with the case figures and the reconciliation sentence', () => {
     expect(f).toContain('TESTS EXECUTED');
-    expect(f).toContain('116 checks were executed to a result: 93 passed, 18 failed, 1 partly passed, 4 blocked; 80.2% passed.');
+    expect(f).toContain('112 checks were executed to a result: 93 passed, 18 failed, 1 partly passed; 80.2% of the 116 checks attempted passed. 4 blocked: these checks gave no verdict.');
     expect(f).toContain('Figures are those of the case of record. TC-COMMS-007 taken on its messaging stand-in result (owner, Gate 2 condition 5). Rollup 92 passed (79.3%); execution summary 6 blocked as it has no partial status; case of record 93 passed (80.2%).');
     expect(f).not.toContain('Reconciliation:');
   });
@@ -304,8 +304,8 @@ describe('round 8', () => {
   it('1: the technical report prints each open defect (id, severity, state, title, awaits) before the defect log', () => {
     expect(t.r.status).toBe(0);
     expect(tf).toContain('Open Application Defects');
-    expect(tf).toContain('DEF-005-PART-UI (Sev4 (Minor), PARTIALLY FIXED): The save button stays disabled after a retry. Awaits: A developer fix of the part that remains.');
-    expect(tf).toContain('DEF-006-NEW-EXP (Sev4 (Minor), Open): The list scrolls past the last row. Awaits: The product owner decision on priority.');
+    expect(tf).toContain('DEF-005-PART-UI, Sev4 (Minor), PARTIALLY FIXED: The save button stays disabled after a retry. Awaits: A developer fix of the part that remains.');
+    expect(tf).toContain('DEF-006-NEW-EXP, Sev4 (Minor), Open: The list scrolls past the last row. Awaits: The product owner decision on priority.');
     expect(tf.indexOf('Open Application Defects')).toBeLessThan(tf.indexOf('Defect Log'));
   });
 
@@ -324,7 +324,7 @@ describe('round 8', () => {
       expect(doc).not.toContain('))');
       expect(doc).not.toMatch(/\(\([A-Za-z]/);
     }
-    expect(sf).toContain('DEF-005-PART-UI (Sev4 (Minor), PARTIALLY FIXED): The save button stays disabled after a retry. Awaits: A developer fix of the part that remains.');
+    expect(sf).toContain('DEF-005-PART-UI, Sev4 (Minor), PARTIALLY FIXED: The save button stays disabled after a retry. Awaits: A developer fix of the part that remains.');
   });
 
   it('3: a closure basis that is a full sentence is printed as a sentence, never inside brackets', () => {

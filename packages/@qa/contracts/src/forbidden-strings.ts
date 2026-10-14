@@ -1,3 +1,5 @@
+import { exitQualification } from "./closure-view.js";
+
 /**
  * STAKEHOLDER_FORBIDDEN_PATTERNS — Class B artefact brand-exposure check.
  * Any human-consumed report, defect, test case, RTM, closure, PR body, or
@@ -260,7 +262,8 @@ export function signoffFedTexts(closure: unknown, plainRisk?: ReadonlyMap<string
   (Array.isArray(c["exitCriteria"]) ? c["exitCriteria"] : []).forEach((e, i) => {
     const r = rec(e);
     add(`closure.json.exitCriteria[${i}].criterion`, typeof e === "string" ? e : (r["criterion"] ?? r["name"]));
-    if (r["met"] !== true) add(`closure.json.exitCriteria[${i}].evidence`, r["evidence"] ?? r["difference"] ?? r["reason"]);
+    if (r["met"] !== true || exitQualification(e) !== null) add(`closure.json.exitCriteria[${i}].evidence`, r["evidence"] ?? r["difference"] ?? r["reason"]);
+    add(`closure.json.exitCriteria[${i}].qualification`, r["qualification"]);
   });
   (Array.isArray(c["variancesFromPlan"]) ? c["variancesFromPlan"] : []).forEach((v, i) => {
     add(`closure.json.variancesFromPlan[${i}]`, typeof v === "string" ? v : undefined);
@@ -279,6 +282,11 @@ export function signoffFedTexts(closure: unknown, plainRisk?: ReadonlyMap<string
     if (typeof r["wrongStep"] !== "string") continue;
     for (const f of ["requirement", "wrongStep", "whatConforms", "whatThePassMeans"]) add(`closure.json.falsePasses.${key}.${f}`, r[f]);
   }
+  const own = rec(c["ownMistakesCorrected"]);
+  add("closure.json.ownMistakesCorrected.note", own["note"]);
+  (Array.isArray(own["items"]) ? own["items"] : []).forEach((it, i) => {
+    for (const f of ["case", "earlier", "now", "what"]) add(`closure.json.ownMistakesCorrected.items[${i}].${f}`, rec(it)[f]);
+  });
   (Array.isArray(c["residualRiskSummary"]) ? c["residualRiskSummary"] : []).forEach((r, i) => {
     const id = rec(r)["riskId"];
     const plain = typeof id === "string" ? plainRisk?.get(id) : undefined;

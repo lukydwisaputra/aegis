@@ -106,7 +106,7 @@ async function load(url, what) {
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
 const { computeCoverage } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, openDefectLine, rewriteSectionReferencesDeep } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, describeUnreadable, openDefectLine, rewriteSectionReferencesDeep } = await load(
   CONTRACTS,
   "the brand check",
 );
@@ -193,6 +193,12 @@ const view = buildClosureView({
   complianceReports: COMPLIANCE_FALLBACK,
   descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
 });
+// A headline figure the closure carries but the view cannot read (compliance totals, the exit-criteria count, the case counts, the open
+// defects) is never printed as "not available": the report is refused (exit 11), naming the closure.json field.
+if (view.unreadable.length > 0) {
+  console.error(`ERROR: ${describeUnreadable(view.unreadable)}\nThe closure report must carry these fields before this document is rendered.`);
+  process.exit(11);
+}
 const openDefects = view.defects.open;
 
 // Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
@@ -234,9 +240,11 @@ const specRaw = {
   outOfScopeCases: view.outOfScope,
   defects: view.defectLog.map((d) => ({ id: d.id, title: d.title, severity: d.severity, status: d.state })),
   compliance,
-  ...(view.compliance === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps } }),
+  ...(view.compliance === null || view.compliance.totalGaps === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps } }),
   variances: view.variances,
   exitCriteria: view.exitCriteria,
+  exitCriteriaSummary: view.exitCriteriaSummary,
+  ownMistakes: view.ownMistakes,
   openQuestions: view.openQuestions,
   falsePasses: view.falsePasses,
   wrongStepNotes: view.wrongStepNotes,

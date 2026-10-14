@@ -8,7 +8,7 @@
 // runs/{run}/reports/executive/executive-deck.json, runs a mandatory tone-check
 // pass (jargon → plain English) and writes runs/{run}/reports/executive/executive-deck.pdf.
 
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -127,7 +127,29 @@ async function load(url, what) {
 }
 
 const { renderSlideDeck, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits, rewriteNationalIdTerms } = await load(CONTRACTS, "the brand check");
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits, rewriteNationalIdTerms, closureReadProblems, describeUnreadable } = await load(CONTRACTS, "the brand check");
+
+// The deck states what the closure carries. A headline figure the closure holds but this build cannot read (compliance totals, the
+// exit-criteria count) is never printed or summarised as a placeholder: the deck is refused (exit 11), naming the closure.json field.
+{
+  const closureDoc = readJson(join(runDir, "reports", "closure", "closure.json"));
+  if (closureDoc && typeof closureDoc === "object" && !Array.isArray(closureDoc)) {
+    const reportsDir = join(runDir, "reports", "compliance");
+    const fallback = existsSync(reportsDir)
+      ? readdirSync(reportsDir).filter((f) => f.endsWith(".json")).flatMap((f) => {
+          const d = readJson(join(reportsDir, f));
+          return d && typeof d === "object" && !Array.isArray(d)
+            ? [{ name: f.replace(/\.json$/, ""), regulation: d.regulation, gaps: Array.isArray(d.gaps) ? d.gaps.length : typeof d.gaps === "number" ? d.gaps : null, highGaps: typeof d.highSeverityGapCount === "number" ? d.highSeverityGapCount : null }]
+            : [];
+        })
+      : [];
+    const problems = closureReadProblems(closureDoc, fallback);
+    if (problems.length > 0) {
+      console.error(`ERROR: ${describeUnreadable(problems)}\nThe closure report must carry these fields before the deck is rendered.`);
+      process.exit(11);
+    }
+  }
+}
 
 // Tier 2: the deck is business language, so engineering vocabulary (oracle, stub, mutants, env flags, HTTP status numbers, CWE ids, route
 // paths, snake_case codes, bare Sev codes ...) is refused too, with its plain replacement.
