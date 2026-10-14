@@ -233,7 +233,7 @@ describe('renderArtefacts', () => {
     putJson('cases/TC-ATT-002.json', { ...tc('TC-ATT-002'), rationale: 'a key the strict schema refuses' });
     put('cases/TC-ATT-002.md', handWritten);
     const r = await renderArtefacts(t.root, runId, TD);
-    expect(r).toEqual({ runId, written: 0, removed: 0, unchanged: 0, skipped: [{ file: 'cases/TC-ATT-002.json', reason: 'schema: (root): unrecognized_keys' }] });
+    expect(r).toEqual({ runId, written: 0, removed: 0, unchanged: 0, skipped: [{ file: 'cases/TC-ATT-002.json', reason: 'schema: (root): unrecognized_keys (rationale)' }] });
     expect(read('cases/TC-ATT-002.md')).toBe(handWritten);
     expect(rendered()).toEqual([]);
     expect(renderingStatus(t.root, runId).stale).toEqual(['cases/TC-ATT-002.md']);
@@ -594,5 +594,89 @@ describe('the lint of an invalid case JSON and the remedy text', () => {
     expect(mixed).toContain('1 case rendering error(s) (cases/TC-ATT-002.md:1 case-rendering-stale)');
     expect(mixed).toContain('1 lint error(s) in the customer-facing files (defects/DEF-001-AUTH-UI.md:3 qa-cycle)');
     expect(mixed).toContain('The owner records a project exception');
+  });
+});
+
+describe('final review fixes: misnamed JSON, unrecognized keys, unreadable directories', () => {
+  async function phaseActive(phase: 'design' | 'triage') {
+    runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    fastForward(t.root, runId, phase, { G1: { status: 'approved', decisions: 1 } });
+    await startPhase(t.root, runId, phase, ORCH);
+    if (phase === 'design') {
+      writeRunFile(t.root, runId, 'rtm.json', {});
+      await workTask(t.root, runId, 'T-design-1', TD, `${TD}-spv`);
+    } else {
+      await workTask(t.root, runId, 'T-triage-1', 'qa-defect-manager', 'qa-defect-manager-spv');
+      await workTask(t.root, runId, 'T-GATE-G2', ORCH, 'qa-orchestrator-spv');
+    }
+  }
+  const NOT_TC = 'file name is not a test case id (TC-{MODULE}-{NNN})';
+  const NOT_SCN = 'file name is not a scenario id (SCN-{MODULE}-{NNN})';
+  /** basicRun plus two misnamed case JSON, a misnamed scenario JSON, result files and an unrelated JSON (the last three ignored). */
+  function misnamed() {
+    basicRun();
+    putJson('cases/TC-ATT2-001.json', tc('TC-ATT-005'));
+    putJson('cases/TC-ATT-02.json', tc('TC-ATT-006'));
+    putJson('cases/TC-ATT-002-result-messaging.json', { testCaseId: 'TC-ATT-002', status: 'passed' });
+    putJson('cases/TC-ATT-003-mobile-result.json', { testCaseId: 'TC-ATT-003', status: 'passed' });
+    putJson('cases/index.json', {});
+    putJson('scenarios/SCN-AT-1.json', scenario({ scenarioId: 'SCN-ATT-009' }));
+  }
+  const expected = [
+    { file: 'cases/TC-ATT-02.json', reason: NOT_TC },
+    { file: 'cases/TC-ATT2-001.json', reason: NOT_TC },
+    { file: 'scenarios/SCN-AT-1.json', reason: NOT_SCN },
+  ];
+
+  it('a TC-*.json / SCN-*.json whose stem is not an id is invalid, never silently ignored; result files and other names stay ignored', async () => {
+    misnamed();
+    expect(renderingStatus(t.root, runId).invalid).toEqual(expected);
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r).toMatchObject({ written: 3, removed: 0, skipped: expected });
+  });
+
+  it('the design barrier names a misnamed case JSON', async () => {
+    await phaseActive('design');
+    misnamed();
+    await renderArtefacts(t.root, runId, TD);
+    const err = await completePhase(t.root, runId, 'design', ORCH).then(() => new Error('completed'), (e: Error & { code?: string }) => e);
+    expect(err).toMatchObject({ code: 'barrier' });
+    expect(err.message).toContain(`cases/TC-ATT2-001.json (invalid: ${NOT_TC})`);
+    expect(err.message).toContain(`scenarios/SCN-AT-1.json (invalid: ${NOT_SCN})`);
+  });
+
+  it('once rendered, the lint reports a misnamed case JSON as case-json-invalid', async () => {
+    await phaseActive('triage');
+    setConfig({ reportRules: {} });
+    misnamed();
+    await renderArtefacts(t.root, runId, ORCH);
+    const invalid = lintFindings(t.root, runId).findings.filter((f) => f.rule === 'case-json-invalid');
+    expect(invalid.map((f) => `${f.file} ${f.severity} ${f.message}`)).toEqual([
+      `cases/TC-ATT-02.json error ${NOT_TC}: fix the JSON, then run aegis cases render`,
+      `cases/TC-ATT2-001.json error ${NOT_TC}: fix the JSON, then run aegis cases render`,
+    ]);
+  });
+
+  it('an unrecognized key is named in the reason (a key that is not a plain identifier shows as <key>)', async () => {
+    basicRun();
+    putJson('cases/TC-ATT-004.json', { ...tc('TC-ATT-004'), techniqueRationale: 'Decision table.', S1234567D: 'x' });
+    const r = await renderArtefacts(t.root, runId, TD);
+    expect(r.skipped).toEqual([{ file: 'cases/TC-ATT-004.json', reason: 'schema: (root): unrecognized_keys (techniqueRationale, <key>)' }]);
+    expect(JSON.stringify(r.skipped)).not.toContain('S1234567D');
+  });
+
+  const root = typeof process.getuid === 'function' && process.getuid() === 0;
+  (root ? it.skip : it)('an unreadable cases/ directory is named as cannot read, and nothing is written', async () => {
+    basicRun();
+    fs.chmodSync(abs('cases'), 0o000);
+    try {
+      expect(renderingStatus(t.root, runId).invalid).toEqual([{ file: 'cases', reason: 'cannot read: EACCES' }]);
+      const r = await renderArtefacts(t.root, runId, TD);
+      expect(r).toEqual({ runId, written: 0, removed: 0, unchanged: 0, skipped: [{ file: 'cases', reason: 'cannot read: EACCES' }] });
+    } finally {
+      fs.chmodSync(abs('cases'), 0o755);
+    }
+    expect(exists('scenarios/SCN-ATT-001.md')).toBe(false);
+    expect(rendered()).toEqual([]);
   });
 });

@@ -72,8 +72,9 @@ export const LEGACY_MAIN_THREAD_RUN_WRITES: Readonly<Record<string, readonly str
   "qa-rerun-failed": ["{run}/rerun-*/**", "{run}/execution/results.json"],
   // intake/ is CLI-only, so it is not a qa-run-phase legacy path
   "qa-run-phase": PHASE_IDS.filter((phase) => phase !== "intake").map((phase) => `{run}/${phase}/**`),
-  // qa-health --fix removes orphan locks and deduplicates non-conflicting TC and defect ids
-  "qa-health": ["runs/**/*.lock", "{run}/reports/.locks/**", "{run}/cases/**", "{run}/defects/**"],
+  // qa-health --fix removes orphan locks and deduplicates non-conflicting TC and defect ids (a case is renumbered in its JSON only: the
+  // case Markdown is CLI-rendered, and cases/ itself is never removed)
+  "qa-health": ["runs/**/*.lock", "{run}/reports/.locks/**", "{run}/cases/*.json", "{run}/defects/**"],
   // _qa-init-project creates the runs/ directory
   "_qa-init-project": ["runs"],
 };
@@ -343,6 +344,11 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
     return { deny: `${via} ${abs} removes or moves runs/ or a run directory, with the CLI-only files in it; stop a run with /qa-stop instead` };
   }
   const cliOnly = isCliOnlyRunPath(ctx.aegisRoot, abs);
+  // A directory that is not CLI-only itself but holds CLI-only files (cases/ and scenarios/ hold the rendered Markdown, reports/ holds
+  // reports/work/): removing or moving it takes them along. No caller does it, legacy skill or not; a CLI-only directory keeps its own rule.
+  if (REMOVE_OPS.has(via) && !cliOnly && inRun !== null && CLI_ONLY_RUN_DIRS.some((d) => d === inRun || d.startsWith(`${inRun}/`))) {
+    return { deny: `${via} ${abs} removes or moves a directory that holds files written only by the aegis CLI (spec §4.2 H1 c); name the files literally` };
+  }
   if (caller.kind === "main") {
     const covered =
       cliOnly ? inRun !== null && isLock(inRun) && LOCK_REMOVERS.has(via)

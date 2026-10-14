@@ -101,9 +101,9 @@ The test case plan lists all planned cases with their provisional IDs, types, an
 
 ### 4.5 Phase 4 — Design
 
-`qa-test-designer` coordinates specialist workers who author test cases in parallel. Each case is written as JSON, `runs/<RUN-ID>/cases/<TC-ID>.json`, and each scenario as `runs/<RUN-ID>/scenarios/<SCN-ID>.json`; their Markdown is rendered from the JSON by `aegis cases render`, never written by hand.
+`qa-test-designer` writes the test cases itself; the specialists never write case JSON (only their result files). Each case is written as JSON, `runs/<RUN-ID>/cases/<TC-ID>.json`, and each scenario as `runs/<RUN-ID>/scenarios/<SCN-ID>.json`; their Markdown is rendered from the JSON by `aegis cases render`, never written by hand.
 
-For `STORY-AUTH-204` ("As a user I can log in with Google SSO"), `qa-ui-specialist` authored `TC-AUTH-031`:
+For `STORY-AUTH-204` ("As a user I can log in with Google SSO"), `qa-test-designer` wrote `TC-AUTH-031`:
 
 ```
 ID:           TC-AUTH-031
@@ -121,7 +121,7 @@ Expected:     Browser URL = /dashboard; user session cookie set
 Teardown:     Log out; clear session
 ```
 
-`qa-test-designer-spv` reviewed `TC-AUTH-031` and flagged the missing teardown step. The worker revised and the SPV approved.
+`qa-test-designer-spv` reviewed `TC-AUTH-031` and flagged the missing teardown step. The designer revised the JSON, rendered it again, and the SPV approved.
 
 ---
 

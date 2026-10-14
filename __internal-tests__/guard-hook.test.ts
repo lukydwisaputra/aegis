@@ -102,8 +102,31 @@ test('the case and scenario Markdown is CLI-written: the designer writes the JSO
   }
   const relative = guard({ tool_name: 'Bash', tool_input: { command: `find runs/${runId}/cases -name '*.md' -delete` }, ...designer });
   expect(relative.status).toBe(2);
+  // The designer's Write creates the directories; a mkdir of them through Bash is not in its role (designer prose).
+  expect(guard({ tool_name: 'Bash', tool_input: { command: `mkdir -p ${dir}/scenarios` }, ...designer }).status).toBe(2);
   // A read-only find in cases/ stays allowed.
   expect(guard({ tool_name: 'Bash', tool_input: { command: `find ${dir}/cases -name '*.md' -exec grep -l Given {} +` }, ...designer }).status).toBe(0);
+});
+
+test('the main thread never removes cases/ or scenarios/ (they hold the CLI-rendered Markdown); renumbering a case JSON stays a qa-health legacy write', () => {
+  const dir = runDir(t.root, runId);
+  fs.mkdirSync(path.join(dir, 'cases'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'scenarios'), { recursive: true });
+  for (const sub of ['cases', 'scenarios']) {
+    for (const command of [`rm -rf ${dir}/${sub}`, `rm -rf runs/${runId}/${sub}`, `mv ${dir}/${sub} ${t.root}/sandbox/old`]) {
+      const r = guard({ tool_name: 'Bash', tool_input: { command } });
+      expect([command, r.status]).toEqual([command, 2]);
+      expect(r.stderr).toMatch(/holds files written only by the aegis CLI/);
+    }
+  }
+  fs.writeFileSync(path.join(dir, 'cases', 'TC-AUTH-002.json'), '{}');
+  const rename = guard({ tool_name: 'Bash', tool_input: { command: `mv ${dir}/cases/TC-AUTH-002.json ${dir}/cases/TC-AUTH-009.json` } });
+  expect(rename.status).toBe(0);
+  expect(systemMessage(rename.stdout)).toMatch(/legacy direct run write by qa-health/);
+  // The legacy allowance is the case JSON only: another file under cases/ is a QA artefact the main thread never writes.
+  const note = guard({ tool_name: 'Write', tool_input: { file_path: path.join(dir, 'cases', 'notes.txt'), content: 'x' } });
+  expect(note.status).toBe(2);
+  expect(note.stderr).toMatch(/main thread never writes QA artefacts/);
 });
 
 test('a payload that is not JSON is allowed', () => {

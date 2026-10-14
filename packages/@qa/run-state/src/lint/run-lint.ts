@@ -10,7 +10,7 @@ import { readRun } from "../run.js";
 import { atomicWrite, iso } from "../util.js";
 import { scanPii } from "./pii.js";
 import { resolveRules } from "./rules.js";
-import { hasLongLine, MAX_LINE, maskPath } from "./mask.js";
+import { hasLongLine, MAX_LINE, MAX_TEXT_BYTES, maskPath } from "./mask.js";
 import { scanWithRules, type Finding } from "./text.js";
 import { dataFindings, dataRuleGroup, type DataStage } from "./data.js";
 import { renderingSnapshot } from "../render/artefacts.js";
@@ -39,6 +39,9 @@ const RENDER_RULES: ReadonlySet<string> = new Set([CASE_RENDERING_STALE, CASE_JS
 /** A case's rendered Markdown: `cases/{TC-id}.md`, directly under cases/. */
 const CASE_MD = /^cases\/TC-[^/]+\.md$/;
 
+
+type Skipped = LintReport["skipped"][number];
+
 /** Whether `aegis cases render` ever changed a file of the run: from then on the case Markdown is the CLI's, and a stale one is an error. */
 function hasRendered(root: string, runId: string): boolean {
   return readLines(busPath(root, runId)).some((l) => {
@@ -50,9 +53,6 @@ function hasRendered(root: string, runId: string): boolean {
     }
   });
 }
-const MAX_BYTES = 5 * 1024 * 1024;
-
-type Skipped = LintReport["skipped"][number];
 
 /** The regular files under `dir`, relative to `base`. A symbolic link (a file or a directory, working or dangling) is never followed: it is listed as skipped. */
 function walk(dir: string, base: string, out: string[], skipped: Skipped[]): void {
@@ -227,7 +227,7 @@ export function lintFindings(root: string, runId: string, stage?: DataStage): { 
     const abs = join(dir, rel);
     let text: string;
     try {
-      if (lstatSync(abs).size > MAX_BYTES) { skipped.push({ file: rel, reason: "larger than 5 MB" }); continue; }
+      if (lstatSync(abs).size > MAX_TEXT_BYTES) { skipped.push({ file: rel, reason: "larger than 5 MB" }); continue; }
       text = readFileSync(abs, "utf-8");
     } catch (e) {
       skipped.push({ file: rel, reason: `cannot read: ${errorCode(e)}` });

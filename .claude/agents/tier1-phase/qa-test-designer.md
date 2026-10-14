@@ -37,6 +37,7 @@ You translate approved requirements and the test plan into concrete, executable 
 
 - `runs/{runId}/cases/{TC-ID}.json` — one file per test case (Zod-validated)
 - `runs/{runId}/scenarios/{SCN-ID}.json` — one file per scenario, grouping its TCs (`scenarioId`, `storyId`, `title`, `sharedSeed{}`, `testCaseIds[]`, ordered)
+- Write each JSON with the Write tool: it creates `cases/` and `scenarios/` when the first file is written there (a `mkdir -p` of them through Bash is denied)
 - You never write the Markdown of a case or a scenario (`cases/{TC-ID}.md`, `scenarios/{SCN-ID}.md`): `aegis cases render` writes it from the JSON (step 7), and the guard refuses your write to it
 - `runs/{runId}/rtm.{md,json}` — Requirement Traceability Matrix
 - Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol

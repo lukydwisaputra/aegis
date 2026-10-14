@@ -8,7 +8,7 @@ export function casesCommand(): Command {
 
   cases
     .command("render")
-    .description("Write the Markdown next to each case and scenario JSON (the scenario heading from its story), remove the Markdown of a JSON that is gone or invalid, and name every JSON that was skipped")
+    .description("Write the Markdown next to each case and scenario JSON (the scenario heading from its story), remove the Markdown of a case or scenario whose JSON file is gone (the Markdown of a skipped JSON is kept), and name every JSON that was skipped")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
       action(async (o: { run?: string }) => {

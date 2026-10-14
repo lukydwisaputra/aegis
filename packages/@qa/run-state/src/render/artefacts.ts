@@ -16,7 +16,7 @@ import {
 import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed } from "../caller.js";
 import { RunStateError } from "../errors.js";
-import { maskPersonalData } from "../lint/mask.js";
+import { MAX_TEXT_BYTES, maskPersonalData } from "../lint/mask.js";
 import { busPath, runDir } from "../paths.js";
 import { readRun, withRunLock } from "../run.js";
 import { atomicWrite, iso } from "../util.js";
@@ -49,8 +49,15 @@ export interface RenderingStatus {
 type Kind = "cases" | "scenarios";
 
 /** The part of a schema this file uses (the zod schemas of @qa/contracts), so run-state needs no zod dependency of its own. */
+/** A zod issue: its path and code, and for an unrecognized_keys issue the keys (zod's message is never used: it can quote the input). */
+interface Issue {
+  path: Array<string | number>;
+  code: string;
+  keys?: string[];
+}
+
 interface Parser {
-  safeParse(v: unknown): { success: true; data: unknown } | { success: false; error: { issues: Array<{ path: Array<string | number>; code: string }> } };
+  safeParse(v: unknown): { success: true; data: unknown } | { success: false; error: { issues: Issue[] } };
 }
 
 interface Inspection {
@@ -67,20 +74,8 @@ interface Inspection {
   directoryRefused: boolean;
 }
 
-/** The same cap as the pre-gate lint: a larger file is not read. */
-const MAX_BYTES = 5 * 1024 * 1024;
-
 const byFile = (a: { file: string }, b: { file: string }): number => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 const errCode = (e: unknown): string => (e as NodeJS.ErrnoException | null)?.code ?? "unknown";
-
-/** The names in a run directory, sorted (never filesystem order); none when it does not exist. */
-function names(dir: string): string[] {
-  try {
-    return readdirSync(dir).sort();
-  } catch {
-    return [];
-  }
-}
 
 /** Whether a run directory may be read: absent (nothing to read) or a real directory. A symbolic link is never followed. */
 function directoryState(dir: string): "absent" | "ok" | string {
@@ -105,7 +100,7 @@ function readRegular(abs: string): { text: string } | { reason: string } {
   }
   if (st.isSymbolicLink()) return { reason: "symbolic link, not followed" };
   if (!st.isFile()) return { reason: "not a regular file" };
-  if (st.size > MAX_BYTES) return { reason: "larger than 5 MB" };
+  if (st.size > MAX_TEXT_BYTES) return { reason: "larger than 5 MB" };
   try {
     return { text: readFileSync(abs, "utf-8") };
   } catch (e) {
@@ -119,26 +114,46 @@ function safeSegment(seg: string | number): string {
   return /^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(seg) && checkBrandExposure(seg) === null && maskPersonalData(seg).text === seg ? seg : "<key>";
 }
 
-/** The schema failure as the path and the issue code of its first two issues: never zod's message, which can quote the input value. */
-function schemaReason(issues: ReadonlyArray<{ path: Array<string | number>; code: string }>): string {
-  return `schema: ${issues.slice(0, 2).map((i) => `${i.path.map(safeSegment).join(".") || "(root)"}: ${i.code}`).join("; ")}`;
+/**
+ * The schema failure as the path and the issue code of its first two issues: never zod's message, which can quote the input value. An
+ * unrecognized_keys issue also names its keys (the first 5), each a safe segment, so the designer knows which key to remove.
+ */
+function schemaReason(issues: ReadonlyArray<Issue>): string {
+  const keys = (i: Issue): string => {
+    if (i.code !== "unrecognized_keys" || !Array.isArray(i.keys) || i.keys.length === 0) return "";
+    const more = i.keys.length > 5 ? `, and ${i.keys.length - 5} more` : "";
+    return ` (${i.keys.slice(0, 5).map(safeSegment).join(", ")}${more})`;
+  };
+  return `schema: ${issues.slice(0, 2).map((i) => `${i.path.map(safeSegment).join(".") || "(root)"}: ${i.code}${keys(i)}`).join("; ")}`;
 }
 
+/** What a misnamed artefact JSON is told: the file name must be an id of its kind. */
+const BAD_NAME: Record<Kind, string> = {
+  cases: "file name is not a test case id (TC-{MODULE}-{NNN})",
+  scenarios: "file name is not a scenario id (SCN-{MODULE}-{NNN})",
+};
+const PREFIX: Record<Kind, string> = { cases: "TC-", scenarios: "SCN-" };
+/** A case's result file (TC-X-result.json, TC-X-mobile-result.json, TC-X-result-messaging.json): the specialists', never an artefact. */
+const RESULT_STEM = /-result$|-result-/;
+
 /**
- * The valid artefacts of one kind: `{dir}/{ID}.json` whose stem is an id of the kind (any other JSON, such as `TC-X-001-result.json`, is
- * not an artefact and is ignored), a regular file, valid against the schema, whose id equals the stem. Everything else is named in `invalid`.
+ * The valid artefacts of one kind: `{dir}/{ID}.json` whose stem is an id of the kind, a regular file, valid against the schema, whose id
+ * equals the stem. A TC-*.json / SCN-*.json whose stem is not an id is named in `invalid` (a misnamed artefact is never silently dropped);
+ * a result file and any JSON without the kind's prefix is not an artefact and is ignored. Everything else that fails is named in `invalid`.
  */
 function readKind<T>(
-  dir: string, kind: Kind, idSchema: Parser, schema: Parser, idOf: (v: T) => string, invalid: Inspection["invalid"]
+  dir: string, all: readonly string[], kind: Kind, idSchema: Parser, schema: Parser, idOf: (v: T) => string, invalid: Inspection["invalid"]
 ): Map<string, T> {
   const out = new Map<string, T>();
-  const all = names(dir);
   const stems = new Set(all.filter((n) => n.endsWith(".json")).map((n) => n.slice(0, -".json".length)));
   for (const name of all) {
     if (!name.endsWith(".json")) continue;
     const stem = name.slice(0, -".json".length);
-    if (!idSchema.safeParse(stem).success) continue;
     const file = `${kind}/${name}`;
+    if (!idSchema.safeParse(stem).success) {
+      if (stem.startsWith(PREFIX[kind]) && !RESULT_STEM.test(stem)) invalid.push({ file, reason: BAD_NAME[kind] });
+      continue;
+    }
     const read = readRegular(join(dir, name));
     if ("reason" in read) { invalid.push({ file, reason: read.reason }); continue; }
     let raw: unknown;
@@ -215,9 +230,18 @@ function inspect(root: string, runId: string): Inspection {
   const invalid: Inspection["invalid"] = [];
   const rendered = new Map<string, string>();
   const readable: Record<Kind, boolean> = { cases: true, scenarios: true };
+  // The sorted names of each directory (never filesystem order), read once; absent is empty, and an unreadable one is refused like a link.
+  const listing: Record<Kind, string[]> = { cases: [], scenarios: [] };
   let directoryRefused = false;
   for (const kind of ["cases", "scenarios"] as const) {
-    const state = directoryState(join(dir, kind));
+    let state = directoryState(join(dir, kind));
+    if (state === "ok") {
+      try {
+        listing[kind] = readdirSync(join(dir, kind)).sort();
+      } catch (e) {
+        state = `cannot read: ${errCode(e)}`;
+      }
+    }
     if (state === "absent" || state === "ok") continue;
     invalid.push({ file: kind, reason: state });
     readable[kind] = false;
@@ -225,7 +249,7 @@ function inspect(root: string, runId: string): Inspection {
   }
   const storiesDir = directoryState(join(dir, "stories")) === "ok" ? join(dir, "stories") : null;
 
-  const parsedCases = readable.cases ? readKind<TestCase>(join(dir, "cases"), "cases", TestCaseIdSchema, TestCaseSchema, (c) => c.id, invalid) : new Map<string, TestCase>();
+  const parsedCases = readable.cases ? readKind<TestCase>(join(dir, "cases"), listing.cases, "cases", TestCaseIdSchema, TestCaseSchema, (c) => c.id, invalid) : new Map<string, TestCase>();
   const cases = new Map<string, TestCase>();
   for (const [id, tc] of parsedCases) {
     const text = renderCaseMarkdown(tc);
@@ -233,7 +257,7 @@ function inspect(root: string, runId: string): Inspection {
     cases.set(id, tc);
     rendered.set(`cases/${id}.md`, text);
   }
-  const scenarios = readable.scenarios ? readKind<Scenario>(join(dir, "scenarios"), "scenarios", ScenarioIdSchema, ScenarioSchema, (s) => s.scenarioId, invalid) : new Map<string, Scenario>();
+  const scenarios = readable.scenarios ? readKind<Scenario>(join(dir, "scenarios"), listing.scenarios, "scenarios", ScenarioIdSchema, ScenarioSchema, (s) => s.scenarioId, invalid) : new Map<string, Scenario>();
   const stories = new Map<string, UserStory | undefined>();
   for (const [id, s] of scenarios) {
     const text = renderScenarioMarkdown(s, cases, readStory(storiesDir, s.storyId, stories));
@@ -253,7 +277,7 @@ function inspect(root: string, runId: string): Inspection {
   const heldBack: string[] = [];
   for (const [kind, idSchema] of [["cases", TestCaseIdSchema], ["scenarios", ScenarioIdSchema]] as const) {
     if (!readable[kind]) continue;
-    for (const name of names(join(dir, kind))) {
+    for (const name of listing[kind]) {
       const stem = name.slice(0, -".md".length);
       if (!name.endsWith(".md") || !idSchema.safeParse(stem).success) continue;
       const rel = `${kind}/${name}`;
