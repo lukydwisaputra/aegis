@@ -66,11 +66,38 @@ describe('intake.references copies pinned repositories into intake/references/{n
   it('a pinned reference with an edited or untracked file is refused: the pin means the commit, not the tree', () => {
     const dir = path.join(t.root, 'intake-d');
     fs.writeFileSync(path.join(ref, 'baseline/booking/rules.md'), 'edited after the commit');
-    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/has 1 uncommitted or untracked path\(s\) \(baseline\/booking\/rules\.md\)/);
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/has 1 file\(s\) to copy that differ from the pinned commit \(baseline\/booking\/rules\.md\)/);
     git('checkout', '--', '.');
     fs.writeFileSync(path.join(ref, 'baseline/new.md'), 'untracked');
     expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/new\.md/);
     expect(fs.existsSync(path.join(dir, 'references'))).toBe(false);
+  });
+
+  it('only the files that will be copied are checked: an untracked file outside the globs is fine', () => {
+    const dir = path.join(t.root, 'intake-o');
+    fs.writeFileSync(path.join(ref, 'notes.txt'), 'untracked, never copied');
+    const [r] = copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['baseline/**'] }], dir);
+    expect(r?.files).toEqual(['baseline/booking/rules.md']);
+  });
+
+  it('a gitignored file that the globs match is refused: it would be copied and the pin says nothing about it', () => {
+    fs.writeFileSync(path.join(ref, '.gitignore'), 'baseline/local.md\n');
+    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'add', '.gitignore');
+    git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-qm', 'ignore');
+    const pinned = git('rev-parse', 'HEAD');
+    fs.writeFileSync(path.join(ref, 'baseline/local.md'), 'ignored but present');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['baseline/**'] }], path.join(t.root, 'intake-i'))).toThrow(/baseline\/local\.md/);
+  });
+
+  it('a git failure is a refusal, not a clean tree', () => {
+    fs.writeFileSync(path.join(ref, '.git', 'index'), 'garbage');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], path.join(t.root, 'intake-g'))).toThrow(/git status failed .* the pinned reference cannot be checked/);
+  });
+
+  it('a refused --intake glob leaves no run directory either', async () => {
+    const before = fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : [];
+    await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full', intake: ['../secrets/**'] }, 'owner')).rejects.toThrow('without ".."');
+    expect(fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : []).toEqual(before);
   });
 
   it('an unpinned reference is copied as it stands, edits included', () => {

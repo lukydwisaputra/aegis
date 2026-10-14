@@ -42,6 +42,14 @@ function walk(dir: string, rel: string, out: string[], skip: string): void {
   }
 }
 
+/** The refusals copyIntake would make, without creating anything: `aegis run create` calls it before it allocates the run directory. */
+export function assertIntakeCopyable(root: string, targetProjectRoot: string, sources: string[]): void {
+  const globs = sources.map((g) => g.replace(/^(?:\.\/)+/, ""));
+  globs.forEach(assertSafeGlob);
+  const target = resolve(root, targetProjectRoot);
+  if (globs.length > 0 && !existsSync(target)) throw new RunStateError("invalid-input", `targetProjectRoot ${target} does not exist; cannot copy intake sources`);
+}
+
 /**
  * Copy target files matching `globs` (aegis.config.json#intake.sources, or --intake) into `intakeDir`,
  * keeping their target-relative paths (spec §6.3). Always creates `intakeDir`; returns the copied paths.
@@ -92,21 +100,36 @@ export interface ResolvedReference {
   globs: string[];
   dir: string;
   sha: string | null;
-}
-
-function dirtyPaths(dir: string): string[] {
-  try {
-    return execFileSync("git", ["-C", dir, "status", "--porcelain", "--untracked-files=all", "--", "."], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] })
-      .split("\n")
-      .filter((l) => l !== "");
-  } catch {
-    return [];
-  }
+  /** The reference-relative files the globs match: what is copied. */
+  files: string[];
 }
 
 /**
- * Check every reference (globs, root, pinned sha, a clean tree for a pinned one) and return what is to be copied. Nothing is created:
- * `aegis run create` calls this before it allocates the run directory, so a refusal leaves no half-made run behind.
+ * The copied files git does not vouch for: modified, untracked or ignored (an ignored file is copied too, and the pin says nothing
+ * about it). Only the files that will be copied are asked about. A git failure is a refusal: the pin cannot be trusted unchecked.
+ */
+function dirtyPaths(dir: string, files: readonly string[]): string[] {
+  const dirty: string[] = [];
+  // In batches: a reference can hold thousands of files, more than one command line carries.
+  for (let i = 0; i < files.length; i += 200) {
+    try {
+      const out = execFileSync(
+        "git",
+        ["-C", dir, "status", "--porcelain", "-z", "--untracked-files=all", "--ignored=matching", "--", ...files.slice(i, i + 200).map((f) => `:(literal)${f}`)],
+        { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] }
+      );
+      dirty.push(...out.split("\0").filter((l) => l !== ""));
+    } catch (e) {
+      const detail = (e as { stderr?: Buffer | string }).stderr?.toString().trim() || (e as Error).message;
+      throw new RunStateError("invalid-input", `git status failed in ${dir}, so the pinned reference cannot be checked: ${detail.split("\n")[0]}`);
+    }
+  }
+  return dirty;
+}
+
+/**
+ * Check every reference (globs, root, pinned sha, and for a pinned one that the files to copy match the commit) and return what is to be
+ * copied. Nothing is created: `aegis run create` calls this before it allocates the run directory, so a refusal leaves no half-made run.
  */
 export function resolveIntakeReferences(root: string, references: IntakeReference[]): ResolvedReference[] {
   return references.map((ref) => {
@@ -118,23 +141,23 @@ export function resolveIntakeReferences(root: string, references: IntakeReferenc
     if (ref.sha !== undefined && sha !== ref.sha) {
       throw new RunStateError("invalid-input", `intake reference ${ref.name}: ${dir} is at ${sha ?? "no git HEAD"}, pinned ${ref.sha}`);
     }
-    // The working tree is what gets copied, so a pin only means that commit when the tree matches it.
-    const dirty = ref.sha === undefined ? [] : dirtyPaths(dir);
+    const patterns = globs.map(globToRegExp);
+    const all: string[] = [];
+    walk(dir, "", all, resolve(root));
+    const files = all.filter((f) => patterns.some((p) => p.test(f)));
+    // The working tree is what gets copied, so a pin only means that commit when the files to copy match it.
+    const dirty = ref.sha === undefined ? [] : dirtyPaths(dir, files);
     if (dirty.length > 0) {
-      throw new RunStateError("invalid-input", `intake reference ${ref.name}: ${dir} has ${dirty.length} uncommitted or untracked path(s) (${dirty.slice(0, 3).map((l) => l.slice(3)).join(", ")}${dirty.length > 3 ? ", ..." : ""}); the pin ${ref.sha} means that commit: commit, stash or remove them`);
+      throw new RunStateError("invalid-input", `intake reference ${ref.name}: ${dir} has ${dirty.length} file(s) to copy that differ from the pinned commit (${dirty.slice(0, 3).map((l) => l.slice(3)).join(", ")}${dirty.length > 3 ? ", ..." : ""}); the pin ${ref.sha} means that commit: commit, stash, remove or exclude them`);
     }
-    return { ref, globs, dir, sha };
+    return { ref, globs, dir, sha, files };
   });
 }
 
 export function copyIntakeReferences(root: string, references: IntakeReference[], intakeDir: string, resolved: ResolvedReference[] = resolveIntakeReferences(root, references)): CopiedReference[] {
-  return resolved.map(({ ref, globs, dir, sha }) => {
+  return resolved.map(({ ref, dir, sha, files: copied }) => {
     const dest = join(intakeDir, "references", ref.name);
     mkdirSync(dest, { recursive: true });
-    const patterns = globs.map(globToRegExp);
-    const files: string[] = [];
-    walk(dir, "", files, resolve(root));
-    const copied = files.filter((f) => patterns.some((p) => p.test(f)));
     for (const f of copied) {
       mkdirSync(dirname(join(dest, f)), { recursive: true });
       copyFileSync(join(dir, f), join(dest, f));

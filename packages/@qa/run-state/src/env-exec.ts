@@ -62,7 +62,7 @@ export function envExecInfo(root: string, runId: string): EnvExecInfo {
       if (m.secret) forced[name] = value;
     }
     injected.push(...m.to);
-    if (m.secret && value.length >= 8) secrets.push(value);
+    if (m.secret && value.length >= 4) secrets.push(value);
   }
   return { environment, injected, missing, cwd: resolve(root, readRunConfig(root).targetProjectRoot), vars, forced, secrets };
 }
@@ -75,22 +75,27 @@ export function envExecInfo(root: string, runId: string): EnvExecInfo {
  */
 export function redactionForms(secrets: readonly string[]): string[] {
   const forms = new Set<string>();
+  const derived = (f: string, raw: string): void => {
+    if (f !== raw && f.length >= 8) forms.add(f);
+  };
   for (const secret of secrets) {
-    if (secret.length < 8) continue;
+    if (secret.length < 4) continue;
     forms.add(secret);
-    forms.add(encodeURIComponent(secret));
-    forms.add(JSON.stringify(secret).slice(1, -1));
-    forms.add(Buffer.from(secret, "utf-8").toString("hex"));
+    const pct = encodeURIComponent(secret);
+    derived(pct, secret);
+    derived(pct.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase()), secret);
+    derived(JSON.stringify(secret).slice(1, -1), secret);
+    const hex = Buffer.from(secret, "utf-8").toString("hex");
+    derived(hex, secret);
+    derived(hex.toUpperCase(), secret);
     for (let offset = 0; offset < 3; offset++) {
       const b64 = Buffer.from("\0".repeat(offset) + secret, "utf-8").toString("base64").replace(/=+$/, "");
       const inner = b64.slice(Math.ceil((offset * 8) / 6), -1);
-      if (inner.length >= 8) {
-        forms.add(inner);
-        forms.add(inner.replace(/\+/g, "-").replace(/\//g, "_"));
-      }
+      derived(inner, secret);
+      derived(inner.replace(/\+/g, "-").replace(/\//g, "_"), secret);
     }
   }
-  return [...forms].filter((f) => f.length >= 8).sort((x, y) => y.length - x.length);
+  return [...forms].sort((x, y) => y.length - x.length);
 }
 
 /** Replaces every secret value in `text` with [redacted]. */
@@ -112,8 +117,11 @@ function pipeRedacted(from: Readable, to: NodeJS.WriteStream, forms: readonly st
       to.write(redactSecrets(buf.slice(0, cut + 1), forms));
       buf = buf.slice(cut + 1);
     } else if (buf.length > 65_536 + hold) {
-      to.write(redactSecrets(buf.slice(0, -hold), forms));
-      buf = buf.slice(-hold);
+      // Redact the whole buffer first, then emit all but its last hold - 1 characters: a form that straddles the cut is either whole
+      // (and already replaced) or has fewer than hold characters inside the buffer, so only the held tail can carry a part of one.
+      const redacted = redactSecrets(buf, forms);
+      to.write(redacted.slice(0, -(hold - 1)));
+      buf = redacted.slice(-(hold - 1));
     }
   });
   return new Promise((done) => {
@@ -129,13 +137,22 @@ export interface EnvExecResult {
   environment: string;
   injected: string[];
   missing: string[];
+  /** false when the command ran but env.executed could not be appended (the failure is also written to stderr). */
+  auditRecorded: boolean;
 }
 
 /**
  * Runs `cmd` in the target root with the allowlisted QA secrets injected; the child's output is redacted. A non-secret variable the
  * caller's own environment already sets is kept (an explicit override wins, for the app address); a secret one never is: the injected
- * value always reaches the child, so the redactor knows every secret the child holds. Records env.executed (the command redacted, the
- * exit code, the injected names) once the child exits. Resolves the child's exit code.
+ * value always reaches the child, so the redactor knows every secret the child holds. SIGINT, SIGTERM and SIGHUP are forwarded to the
+ * child, so stopping the CLI stops the runner and the audit below is still written. Records env.executed (the command redacted, the
+ * exit code, the injected names) once the child exits; when that append fails the command's exit code is still returned, with
+ * `auditRecorded: false` and a message on stderr, because the tests already ran. Resolves the child's exit code.
+ *
+ * What this does NOT do: restrict what the command does with the credentials. The agent chooses the command, and a command that sends
+ * $SUPABASE_SERVICE_ROLE_KEY to a network host or writes it to a file leaves no trace in the redacted output. The guarantee is the
+ * usual ways a runner prints a credential are redacted, the callers are limited (caller.ts) and every run is recorded; it is not that an
+ * agent can never move a credential somewhere else. Fixed runner entry points or egress control would be the next step.
  */
 export async function execWithEnv(root: string, runId: string, caller: string, cmd: string[], env: NodeJS.ProcessEnv = process.env): Promise<EnvExecResult> {
   if (cmd.length === 0) throw new RunStateError("invalid-input", "env exec needs a command after --");
@@ -144,15 +161,30 @@ export async function execWithEnv(root: string, runId: string, caller: string, c
   const forms = redactionForms(info.secrets);
   const exitCode = await new Promise<number>((done, fail) => {
     const child = spawn(cmd[0]!, cmd.slice(1), { cwd: info.cwd, env: merged, stdio: ["inherit", "pipe", "pipe"] });
+    const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+    const forward = (sig: NodeJS.Signals): void => void child.kill(sig);
+    for (const sig of signals) process.on(sig, forward);
     const piped = Promise.all([pipeRedacted(child.stdout!, process.stdout, forms), pipeRedacted(child.stderr!, process.stderr, forms)]);
-    child.on("error", (e) => fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`)));
-    child.on("close", (code) => void piped.then(() => done(code ?? 1)));
+    child.on("error", (e) => {
+      for (const sig of signals) process.off(sig, forward);
+      fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`));
+    });
+    child.on("close", (code) => {
+      for (const sig of signals) process.off(sig, forward);
+      void piped.then(() => done(code ?? 1));
+    });
   });
-  // The audit record: who ran what, where, with which injected names. The command line is redacted like the output.
-  await appendChained(
-    { type: "env.executed", ts: new Date().toISOString(), runId, agent: caller, environment: info.environment, command: redactSecrets(cmd.join(" "), forms).slice(0, 600), exitCode, injected: info.injected },
-    busPath(root, runId),
-    { emittedBy: caller, runId }
-  );
-  return { exitCode, environment: info.environment, injected: info.injected, missing: info.missing };
+  let auditRecorded = true;
+  try {
+    // The audit record: who ran what, where, with which injected names. The command line is redacted like the output.
+    await appendChained(
+      { type: "env.executed", ts: new Date().toISOString(), runId, agent: caller, environment: info.environment, command: redactSecrets(cmd.join(" "), forms).slice(0, 600), exitCode, injected: info.injected },
+      busPath(root, runId),
+      { emittedBy: caller, runId }
+    );
+  } catch (e) {
+    auditRecorded = false;
+    process.stderr.write(`aegis: env.executed could not be recorded (${(e as Error).message}); the command ran and exited ${exitCode}\n`);
+  }
+  return { exitCode, environment: info.environment, injected: info.injected, missing: info.missing, auditRecorded };
 }

@@ -105,17 +105,33 @@ describe('env exec: a secret is never replaced by the caller\'s environment', ()
 describe('env exec redacts the usual ways a runner prints a credential', () => {
   it('knows the value, its url-encoded, JSON, hex and base64 (all three alignments) and base64url forms, and skips a short secret', () => {
     const secret = 'se/cret+value="x"-1234567890';
-    const forms = redactionForms([secret, 'short']);
+    const forms = redactionForms([secret, 'short', 'devkey1']);
     expect(forms).toContain(secret);
     expect(forms).toContain(encodeURIComponent(secret));
     expect(forms).toContain(Buffer.from(secret).toString('hex'));
-    expect(forms.some((f) => f.includes('short'))).toBe(false);
+    expect(forms).toContain(Buffer.from(secret).toString('hex').toUpperCase());
+    expect(forms).toContain(encodeURIComponent(secret).replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase()));
+    expect(forms.some((f) => f.includes('short'))).toBe(true); // 5 characters: still redacted as written
+    expect(redactionForms(['abc'])).toEqual([]); // under 4 characters: nothing to look for
     for (const prefix of ['', 'a', 'ab', 'abc']) {
       const b64 = Buffer.from(prefix + secret).toString('base64');
       expect(redactSecrets(`header ${b64} trailer`, forms)).toContain('[redacted]');
       const url = b64.replace(/\+/g, '-').replace(/\//g, '_');
       expect(redactSecrets(`token=${url}`, forms)).toContain('[redacted]');
     }
+  });
+
+  it('a secret under 8 characters is redacted as written, not injected silently', async () => {
+    const file = secretsPath(t.root, 'development');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8') + 'BLIND_INDEX_DEV_KEY=devkey1\n');
+    const chunks: string[] = [];
+    const spy = jest.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { chunks.push(String(c)); return true; }) as never);
+    try {
+      await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', 'console.log("key=" + process.env.BLIND_INDEX_DEV_KEY)']);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(chunks.join('')).toBe('key=[redacted]\n');
   });
 
   it('a long secret that straddles the flush point of an output with no newline is still redacted', async () => {
@@ -125,9 +141,10 @@ describe('env exec redacts the usual ways a runner prints a credential', () => {
     const chunks: string[] = [];
     const spy = jest.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { chunks.push(String(c)); return true; }) as never);
     try {
-      // Separate writes (separate data events): no newline, a flush forced by the buffer limit while the secret is still arriving.
-      const code = `(async () => { const k = process.env.SUPABASE_SERVICE_ROLE_KEY; const w = (x) => new Promise((r) => process.stdout.write(x, r)); const nap = () => new Promise((r) => setTimeout(r, 60));
-        await w('a'.repeat(65_000)); await nap(); await w('a'.repeat(600) + k.slice(0, 300)); await nap(); await w(k.slice(300) + 'b'.repeat(50)); })()`;
+      // Separate writes (separate data events), no newline: the 66,000 characters stay under the flush threshold (65,536 plus the 800-character
+      // hold-back of this key's hex form); the second write pushes the buffer over it, and the cut falls inside the key.
+      const code = `(async () => { const k = process.env.SUPABASE_SERVICE_ROLE_KEY; const w = (x) => new Promise((r) => process.stdout.write(x, r)); const nap = () => new Promise((r) => setTimeout(r, 80));
+        await w('a'.repeat(66_000)); await nap(); await w(k + 'b'.repeat(500)); })()`;
       await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
     } finally {
       spy.mockRestore();
@@ -136,6 +153,34 @@ describe('env exec redacts the usual ways a runner prints a credential', () => {
     expect(out).toContain('[redacted]');
     expect(out).not.toContain('L'.repeat(40));
     expect(out).not.toContain('x'.repeat(100));
+  });
+});
+
+describe('env exec when the audit cannot be written, and when it is stopped', () => {
+  it('still returns the exit code, says so on stderr and reports auditRecorded false', async () => {
+    fs.chmodSync(busPath(t.root, runId), 0o444);
+    const err: string[] = [];
+    const spy = jest.spyOn(process.stderr, 'write').mockImplementation(((c: unknown) => { err.push(String(c)); return true; }) as never);
+    try {
+      const r = await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', 'process.exit(5)']);
+      expect(r).toMatchObject({ exitCode: 5, auditRecorded: false });
+    } finally {
+      spy.mockRestore();
+      fs.chmodSync(busPath(t.root, runId), 0o644);
+    }
+    expect(err.join('')).toMatch(/env\.executed could not be recorded .*the command ran and exited 5/);
+  });
+
+  it('forwards SIGTERM to the runner and still records the run', async () => {
+    const marker = path.join(t.root, 'got-sigterm');
+    const code = `process.on('SIGTERM', () => { require('fs').writeFileSync(${JSON.stringify(marker)}, 'x'); process.exit(7); }); setInterval(() => {}, 1000); console.log('ready')`;
+    const pending = execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
+    await new Promise((r) => setTimeout(r, 700));
+    process.emit('SIGTERM');
+    const r = await pending;
+    expect(fs.existsSync(marker)).toBe(true);
+    expect(r).toMatchObject({ exitCode: 7, auditRecorded: true });
+    expect(events(t, runId).find((e) => e.type === 'env.executed')).toMatchObject({ exitCode: 7 });
   });
 });
 
