@@ -10,7 +10,7 @@ import { readRun } from "../run.js";
 import { atomicWrite, iso } from "../util.js";
 import { scanPii } from "./pii.js";
 import { resolveRules } from "./rules.js";
-import { scanWithRules, type Finding } from "./text.js";
+import { hasLongLine, MAX_LINE, scanWithRules, type Finding } from "./text.js";
 
 export interface LintReport {
   runId: string;
@@ -20,6 +20,8 @@ export interface LintReport {
   warnings: number;
   filesScanned: number;
   skipped: Array<{ file: string; reason: string }>;
+  /** Set when files were skipped: they never block, but the gate refusal and this report say so. */
+  note?: string;
   findings: Finding[];
 }
 
@@ -88,18 +90,22 @@ function jsonStrings(value: unknown, out: string[], key?: string): void {
   else if (value !== null && typeof value === "object") for (const [k, v] of Object.entries(value)) jsonStrings(v, out, k);
 }
 
+/** The sentence that makes a skipped file visible at the gate: a skipped file never blocks, but nobody should believe it was read. */
+export const notScannedNote = (n: number): string => `${n} file(s) were not scanned (see skipped in the report)`;
+
 /**
  * The one text of a refusal by the lint, shared by the phase barrier and the gate opening so the two cannot drift:
- * the count and the first 10 findings as file:line rule, and what to do about them.
+ * the count and the first 10 findings as file:line rule, and what can be done about them. While the phase is active a correction task fixes the
+ * files; once it is complete nothing can be corrected inside the run, so the gate-open variant names the owner's recovery.
  */
-export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "file" | "line" | "rule">[], at: "phase-complete" | "gate-open"): string {
+export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "file" | "line" | "rule">[], at: "phase-complete" | "gate-open", notScanned = 0): string {
   const shown = errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ");
   const head = `${errors.length} lint error(s) in the customer-facing files (${shown}${errors.length > 10 ? "; ..." : ""})`;
   const tail =
     at === "phase-complete"
-      ? `fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`
-      : `run aegis lint run --gate ${gate} for the detail, fix each in the agent that wrote the file, then open the gate again`;
-  return `${head}. ${at === "phase-complete" ? `Gate ${gate} cannot open with them: ` : ""}${tail}`;
+      ? `Gate ${gate} cannot open with them: fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`
+      : `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json for a finding that is acceptable and then opens the gate again; a finding that is not acceptable needs the files rewritten, which only a reopened phase allows. Run aegis lint run --gate ${gate} for the detail`;
+  return `${head}. ${tail}${notScanned > 0 ? `. ${notScannedNote(notScanned)}` : ""}`;
 }
 
 /** The findings over the run's customer-facing files; reads only. */
@@ -127,12 +133,13 @@ export function lintFindings(root: string, runId: string): { filesScanned: numbe
         const strings: string[] = [];
         jsonStrings(JSON.parse(text), strings);
         text = strings.join("\n");
-      } catch (e) {
-        skipped.push({ file: rel, reason: `not valid JSON: ${(e as Error).message.slice(0, 80)}` });
+      } catch {
+        skipped.push({ file: rel, reason: "not valid JSON" }); // never the parser text: it echoes the input, personal data included
         continue;
       }
     }
     filesScanned++;
+    if (hasLongLine(text)) skipped.push({ file: rel, reason: `line over ${MAX_LINE} characters: scanned in part` });
     // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
     if (!WORKING_RECORD.test(rel)) findings.push(...scanWithRules(rel, text, rules, config.reportRules.allow));
     findings.push(...scanPii(rel, text, config.reportRules.pii));
@@ -148,7 +155,7 @@ export async function lintRun(root: string, runId: string, gate: string, caller:
   readRun(root, runId);
   const { filesScanned, skipped, findings } = lintFindings(root, runId);
   const errors = findings.filter((f) => f.severity === "error").length;
-  const report: LintReport = { runId, gate, ok: errors === 0, errors, warnings: findings.length - errors, filesScanned, skipped, findings };
+  const report: LintReport = { runId, gate, ok: errors === 0, errors, warnings: findings.length - errors, filesScanned, skipped, ...(skipped.length > 0 ? { note: notScannedNote(skipped.length) } : {}), findings };
   const rel = `reports/lint/gate-${gate}.json`;
   mkdirSync(join(runDir(root, runId), "reports", "lint"), { recursive: true });
   atomicWrite(join(runDir(root, runId), rel), JSON.stringify(report, null, 2) + "\n");

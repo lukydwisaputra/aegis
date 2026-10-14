@@ -57,6 +57,8 @@ You are forbidden against the production environment (`forbiddenSpecialists` con
 
 7. **Sandbox for scratch.** k6 tuning scripts and Lighthouse trial runs go to a sandbox dir, removed with `rm -rf sandbox/{date}-{slug}` once the spec is committed. This cleanup is safe because the durable proof of exploration is the `sandbox.explored` event already emitted in Step 2 (carrying `artifactPath` and `targetSpecRef`), not the scratch directory itself — the SPV verifies compliance via the event.
 
+The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Load test run against production or a non-mutating environment

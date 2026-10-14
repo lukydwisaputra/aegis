@@ -1,5 +1,5 @@
 import type { ReportRules } from "../config.js";
-import type { Finding } from "./text.js";
+import { clipLines, MAX_LINE, type Finding } from "./text.js";
 
 const WEIGHTS = [2, 7, 6, 5, 4, 3, 2];
 const TABLE: Readonly<Record<string, string>> = { S: "JZIHGFEDCBA", T: "JZIHGFEDCBA", F: "XWUTRQPNMLK", G: "XWUTRQPNMLK", M: "XWUTRQPNJLK" };
@@ -27,9 +27,10 @@ const DATE_AFTER_PLUS = /^\+\d{4}-\d{2}-\d{2}/;
 /** A bare 8-digit number is a phone only next to one of these words: it is far more often an id or a count. */
 const PHONE_CUE = /(?<![A-Za-z])(?:phones?|mobiles?|tel|telephone|contacts?|contacted|contacting|call|calls|called|calling|sms|whatsapp|hp|handphones?|hand phones?|numbers?|no\.|dial|dials|dialed|dialled|dialing|dialling)(?![A-Za-z])/i;
 
-const LABEL = String.raw`(?:(?:full|first|last)\s*name|surname|name)`;
-const NAME_LINE = new RegExp(String.raw`^\s*(?:(?:[-*+]|\d+[.)])\s+)?[*_]*["'\x60]?\s*${LABEL}\s*["'\x60]?[*_]*\s*:\s*[*_]*\s*(.*)$`, "i");
-const NAME_CELL = new RegExp(String.raw`^\s*\|\s*[*_]*\s*${LABEL}\s*[*_]*\s*\|\s*([^|]*?)\s*(?:\||$)`, "i");
+const LABEL = String.raw`(?:(?:full|first|last)\s{0,3}name|surname|name)`;
+// Label gaps are bounded and never two adjacent unbounded `\s*`, so a line of 100k spaces cannot make the match quadratic.
+const NAME_LINE = new RegExp(String.raw`^[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?[*_]*["'\x60]?[ \t]{0,20}${LABEL}[ \t]{0,20}["'\x60]?[*_]*[ \t]{0,20}:[ \t]{0,20}[*_]*[ \t]{0,20}(.*)$`, "i");
+const NAME_CELL = new RegExp(String.raw`^[ \t]*\|[ \t]{0,20}[*_]*[ \t]{0,20}${LABEL}[ \t]{0,20}[*_]*[ \t]{0,20}\|[ \t]{0,20}([^|]*)`, "i");
 
 /** Words that name a part of an application, not a person: `Name: Volunteer Registration` is a label. */
 const APPLICATION_NOUNS: ReadonlySet<string> = new Set([
@@ -56,9 +57,10 @@ const maskNric = (v: string): string => `${v[0]}****${v.slice(-4)}`;
 interface Span { start: number; end: number; shown: string }
 
 /** The line with every span masked, and where each span's mask landed. Overlapping spans share one mask over their union. */
-function render(line: string, spans: readonly Span[]): { text: string; at: Map<Span, [number, number]> } {
+function render(line: string, spans: readonly Span[]): { text: string; at: Map<Span, [number, number]>; groups: Array<{ start: number; end: number; from: number; to: number }> } {
   const sorted = [...spans].sort((a, b) => a.start - b.start || b.end - a.end);
   const at = new Map<Span, [number, number]>();
+  const groups: Array<{ start: number; end: number; from: number; to: number }> = [];
   let text = "";
   let cursor = 0;
   for (let i = 0; i < sorted.length;) {
@@ -72,10 +74,11 @@ function render(line: string, spans: readonly Span[]): { text: string; at: Map<S
     const from = text.length;
     text += shown;
     for (const g of group) at.set(g, [from, text.length]);
+    groups.push({ start, end, from, to: text.length });
     cursor = end;
     i = j;
   }
-  return { text: text + line.slice(cursor), at };
+  return { text: text + line.slice(cursor), at, groups };
 }
 
 /** At most 120 characters of the masked line that still contain the match. */
@@ -93,7 +96,8 @@ function cells(row: string): string[] {
   return parts.map((c) => c.trim());
 }
 
-const TABLE_SEPARATOR = /^\s*\|?[\s:|-]*-[\s:|-]*$/;
+/** A table separator row is only spaces, colons, pipes and at least one dash; the two tests are each linear. */
+const isTableSeparator = (l: string): boolean => /^[\s:|-]*$/.test(l) && l.includes("-");
 
 /** For every line inside a Markdown table body, the cells of that table's header row (computed once per table), else null. */
 function tableHeaders(lines: readonly string[]): Array<string[] | null> {
@@ -105,7 +109,7 @@ function tableHeaders(lines: readonly string[]): Array<string[] | null> {
     if (top === -1) {
       top = i;
       const next = lines[i + 1];
-      header = next !== undefined && TABLE_SEPARATOR.test(next) ? cells(l) : null;
+      header = next !== undefined && isTableSeparator(next) ? cells(l) : null;
       out.push(null);
       return;
     }
@@ -132,12 +136,54 @@ function looksLikeAPerson(value: string): boolean {
   return names >= 2;
 }
 
+/** The value of a `Name: ...` line or a `| Name | ... |` cell when it looks like a person, else null. */
+function labelledPerson(raw: string): string | null {
+  const labelled = NAME_CELL.exec(raw) ?? NAME_LINE.exec(raw);
+  if (labelled === null) return null;
+  const value = (labelled[1] ?? "").replace(/[\s*_,;]+$/, "").replace(/^[\s*_]*["'\u201c\u2018\x60]+|["'\u201d\u2019\x60]+$/g, "").trim();
+  return looksLikeAPerson(value) ? value : null;
+}
+
+/**
+ * The line with every personal-data value masked (a valid NRIC, an email outside the reserved domains, a phone number, a person name under a label),
+ * and a function that maps an offset of the original line to the masked one. Used for the context stored with every finding, wording ones included.
+ */
+export function maskPersonalData(rawLine: string): { text: string; map: (offset: number, side: "start" | "end") => number } {
+  const raw = rawLine.length > MAX_LINE ? rawLine.slice(0, MAX_LINE) : rawLine;
+  const spans: Span[] = [];
+  for (const m of raw.matchAll(NRIC)) {
+    const compact = `${m[1]}${m[2]}${m[3]}`;
+    if (validNric(compact)) spans.push({ start: m.index, end: m.index + m[0].length, shown: maskNric(compact) });
+  }
+  for (const m of raw.matchAll(EMAIL)) {
+    const domain = m[1]!.toLowerCase();
+    if (!RESERVED_DOMAIN.test(domain) && !isVersionLike(domain)) spans.push({ start: m.index, end: m.index + m[0].length, shown: mask(m[0]) });
+  }
+  for (const m of raw.matchAll(PHONE)) if (!DATE_AFTER_PLUS.test(m[0].trim())) spans.push({ start: m.index, end: m.index + m[0].length, shown: mask(m[0]) });
+  const person = labelledPerson(raw);
+  if (person !== null) {
+    const at = raw.lastIndexOf(person);
+    if (at >= 0) spans.push({ start: at, end: at + person.length, shown: "***" });
+  }
+  const r = render(raw, spans);
+  const map = (offset: number, side: "start" | "end"): number => {
+    let delta = 0;
+    for (const g of r.groups) {
+      if (offset >= g.end) delta += g.to - g.from - (g.end - g.start);
+      else if (offset > g.start || (offset === g.start && side === "end")) return side === "start" ? g.from : g.to;
+      else break;
+    }
+    return offset + delta;
+  };
+  return { text: r.text, map };
+}
+
 /** Personal data that could be real, in a customer-facing file. Allowed: a value that cannot exist, a reserved domain, a declared synthetic form, a masked value. Quoted text, code spans and fences are read too: a customer reads them. */
 export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Finding[] {
   const out: Finding[] = [];
   const phonePatterns = pii.syntheticPhonePatterns.map((p) => new RegExp(p));
   const declared = new Set(pii.syntheticValues.map(squash));
-  const lines = text.split("\n");
+  const lines = clipLines(text).split("\n");
   const headers = tableHeaders(lines);
   lines.forEach((raw, index) => {
     const line = index + 1;
@@ -173,12 +219,9 @@ export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Fi
         out.push({ rule: f.rule, severity: "error", file, line, message: f.message, context: windowOf(shown.text, from, to) });
       }
     }
-    const labelled = NAME_CELL.exec(raw) ?? NAME_LINE.exec(raw);
-    if (labelled !== null) {
-      const value = (labelled[1] ?? "").replace(/[\s*_,;]+$/, "").replace(/^[\s*_]*["'\u201c\u2018\x60]+|["'\u201d\u2019\x60]+$/g, "").trim();
-      if (looksLikeAPerson(value) && !isSynthetic(value, pii.syntheticNamePrefixes) && !declared.has(squash(value))) {
-        out.push({ rule: "pii-name", severity: "error", file, line, message: `a full name that could be a real person: use a name that starts with ${pii.syntheticNamePrefixes.filter((p) => p.trim() !== "").slice(0, 3).join(", ")} for test data`, context: "Name: ***" });
-      }
+    const person = labelledPerson(raw);
+    if (person !== null && !isSynthetic(person, pii.syntheticNamePrefixes) && !declared.has(squash(person))) {
+      out.push({ rule: "pii-name", severity: "error", file, line, message: `a full name that could be a real person: use a name that starts with ${pii.syntheticNamePrefixes.filter((p) => p.trim() !== "").slice(0, 3).join(", ")} for test data`, context: "Name: ***" });
     }
   });
   return out.sort((a, b) => a.line - b.line || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0));

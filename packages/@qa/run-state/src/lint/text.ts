@@ -1,3 +1,5 @@
+import { maskPersonalData } from "./pii.js";
+
 export interface Finding {
   rule: string;
   severity: "error" | "warning";
@@ -15,50 +17,55 @@ function maskInline(raw: string): string {
   return raw
     .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, blank)
     .replace(/(?<=^|[\s(\[:,])"[^"\n]{0,200}"/g, blank)
-    .replace(/“[^”\n]*”/g, blank);
+    .replace(/“[^”\n]{0,200}”/g, blank);
 }
 
-/** One pass over the lines; returns the index of a fence still open at the end (or -1). `plain` lists opening lines to read as prose. */
-function maskPass(rawLines: readonly string[], plain: ReadonlySet<number>): { out: string[]; unclosed: number } {
-  const out: string[] = [];
-  let open: { char: string; len: number; at: number } | null = null;
-  rawLines.forEach((raw, i) => {
-    const blankLine = " ".repeat(raw.length);
-    if (open !== null) {
-      const close = FENCE_CLOSE.exec(raw);
-      const marker = close?.[1] ?? "";
-      if (close !== null && marker[0] === open.char && marker.length >= open.len) open = null;
-      out.push(blankLine);
-      return;
-    }
-    const opening = plain.has(i) ? null : FENCE_OPEN.exec(raw);
-    if (opening !== null) {
-      const marker = /^\s*(`+|~+)/.exec(raw)?.[1] ?? "```";
-      open = { char: marker[0] ?? "`", len: marker.length, at: i };
-      out.push(blankLine);
-      return;
-    }
-    out.push(maskInline(raw));
-  });
-  return { out, unclosed: open === null ? -1 : (open as { at: number }).at };
+/** A line longer than this is scanned in its first MAX_LINE characters only (a minified blob is not prose, and a pattern must stay fast on it). */
+export const MAX_LINE = 20_000;
+/** The text with every line cut to MAX_LINE characters. */
+export function clipLines(text: string): string {
+  return text.split("\n").some((l) => l.length > MAX_LINE) ? text.split("\n").map((l) => l.slice(0, MAX_LINE)).join("\n") : text;
 }
+/** Whether any line of the text is over MAX_LINE. */
+export const hasLongLine = (text: string): boolean => text.split("\n").some((l) => l.length > MAX_LINE);
 
 /**
  * The lines of `text` with everything that is not the author's own prose blanked out with spaces (so columns and line numbers stay):
  * fenced code blocks (``` or ~~~), inline code spans, and double-quoted runs (straight or curly) on one line, which is where a
- * requirement or an error message is quoted verbatim. A fence that is never closed is read as prose, so it cannot hide the rest.
+ * requirement or an error message is quoted verbatim. A fence that is never closed is read as prose, so it cannot hide the rest:
+ * one pass remembers where the open fence began, and at the end the lines from there on are masked once as plain text.
  */
 export function maskedLines(text: string): Array<{ line: number; text: string }> {
   const rawLines = text.split("\n");
-  const plain = new Set<number>();
-  for (;;) {
-    const { out, unclosed } = maskPass(rawLines, plain);
-    if (unclosed < 0) return out.map((t, i) => ({ line: i + 1, text: t }));
-    plain.add(unclosed);
-  }
+  const out: string[] = [];
+  let open: { char: string; len: number; at: number } | null = null;
+  rawLines.forEach((raw, i) => {
+    if (open !== null) {
+      const close = FENCE_CLOSE.exec(raw);
+      const marker = close?.[1] ?? "";
+      if (close !== null && marker[0] === open.char && marker.length >= open.len) open = null;
+      out.push(" ".repeat(raw.length));
+      return;
+    }
+    if (FENCE_OPEN.test(raw)) {
+      const marker = /^\s*(`+|~+)/.exec(raw)?.[1] ?? "```";
+      open = { char: marker[0] ?? "`", len: marker.length, at: i };
+      out.push(" ".repeat(raw.length));
+      return;
+    }
+    out.push(maskInline(raw));
+  });
+  const unclosed = open as { at: number } | null;
+  if (unclosed !== null) for (let i = unclosed.at; i < rawLines.length; i++) out[i] = maskInline(rawLines[i]!);
+  return out.map((t, i) => ({ line: i + 1, text: t }));
 }
 
 const WINDOW = 40;
+
+/** The context stored with a finding: the line with every personal-data value masked (a wording finding never carries a real value), around the match. */
+function contextOf(shown: ReturnType<typeof maskPersonalData>, start: number, end: number): string {
+  return shown.text.slice(Math.max(0, shown.map(start, "start") - WINDOW), shown.map(end, "end") + WINDOW).trim();
+}
 
 export interface ResolvedRuleLike {
   id: string;
@@ -73,11 +80,13 @@ export interface ResolvedRuleLike {
  * A blank `allow` entry is ignored: an empty phrase would overlap every match and silence the whole lint.
  */
 export function scanWithRules(file: string, text: string, rules: readonly ResolvedRuleLike[], allow: readonly string[]): Finding[] {
+  text = clipLines(text);
   const originals = text.split("\n");
   const findings: Finding[] = [];
   const allowLower = allow.map((a) => a.trim().toLowerCase()).filter((a) => a !== "");
   for (const { line, text: masked } of maskedLines(text)) {
     const orig = originals[line - 1] ?? "";
+    let shownLine: ReturnType<typeof maskPersonalData> | null = null;
     const origLower = orig.toLowerCase();
     const allowed: Array<[number, number]> = [];
     for (const phrase of allowLower) {
@@ -90,7 +99,7 @@ export function scanWithRules(file: string, text: string, rules: readonly Resolv
         const start = m.index;
         const end = start + m[0].length;
         if (allowed.some(([s, e]) => s < end && e > start)) continue;
-        findings.push({ rule: rule.id, severity: rule.severity, file, line, message: rule.message, context: orig.slice(Math.max(0, start - WINDOW), end + WINDOW).trim() });
+        findings.push({ rule: rule.id, severity: rule.severity, file, line, message: rule.message, context: contextOf(shownLine ??= maskPersonalData(orig), start, end) });
       }
     }
   }

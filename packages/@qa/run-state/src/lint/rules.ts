@@ -23,14 +23,30 @@ function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
       ].join("|"),
       `"cycle" for the QA run: ${QA_PROCESS} (use "test window" or "run")`,
     ),
-    rule("qa-round", String.raw`\b(?:this|that)\s+round\b(?!-\w)|\bround\s+\d+\b(?![.,]\d)(?!-\w)`, `"round" for a QA pass: ${QA_PROCESS}`),
+    rule("qa-round", String.raw`\b(?:this|that)\s+round\b(?![\s-]trip)(?!-\w)|\bround\s+\d+\b(?![.,]\d)(?!-\w)`, `"round" for a QA pass: ${QA_PROCESS}`),
     rule("re-verified", String.raw`\bre-?verified\b`, `write "re-tested": "re-verified" is not the customer-facing word`),
     rule("report-history", String.raw`\b(?:prior|previous|earlier|first)\s+drafts?\b|\bsince\s+the\s+previous\s+version\b|\b(?:previous|earlier|prior)\s+(?:version|figure|count)s?\s+of\s+(?:this|the)\s+report\b`, "a customer report states the final facts only: leave out what an earlier draft or version said"),
-    rule("internal-task-id", String.raw`\bT-(?:\d+|[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*-\d+|GATE-G\d+)\b`, "an internal task id: name the test case or the defect instead"),
+    rule("internal-task-id", String.raw`(?<![\w-])T-(?:\d+|[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*-\d+|GATE-G\d+)\b`, "an internal task id: name the test case or the defect instead"),
+    rule(
+      "gate-history",
+      [
+        String.raw`\b(?:after|per|following|since)\s+(?:the\s+)?(?:owner'?s?\s+)?(?:gate\s*[123]|G[123])\s+(?:rejection|decision|reject)\b`,
+        String.raw`\bowner\s+G[123]\s+(?:rejection|decision)\b`,
+        String.raw`\bthe\s+(?:closure\s+)?draft\s+said\b`,
+        String.raw`\bthis\s+(?:version|final\s+pass)\s+corrects\b`,
+        String.raw`\breported\s+earlier\b`,
+      ].join("|"),
+      "a customer report states the final facts only: leave out the owner's gate decisions and what an earlier draft said",
+    ),
   ];
   // Only a run the owner scoped to automated testing: the mention is a finding, a run with a manual budget may describe it.
   if (manualBudgetPercent === 0) {
-    rules.push(rule("manual-testing", String.raw`\bmanual(?:ly)?[\s-]+(?:test(?:s|ing|ed)?|budget|categor(?:y|ies)|execution|required\s+test\s+cases?)\b`, "this run is automated-only: leave out every mention of manual testing"));
+    rules.push(rule("manual-testing", [
+      String.raw`\bmanual(?:ly)?[\s-]+(?:test(?:s|ing|ed)?|budget|categor(?:y|ies)|execution|required\s+test\s+cases?)\b`,
+      String.raw`\bexecuted\s+manually\b`,
+      String.raw`\bmanual\s+verification\b`,
+      String.raw`\bmanually\s+(?:executed|verified|tested)\b`,
+    ].join("|"), "this run is automated-only: leave out every mention of manual testing"));
   }
   return rules;
 }

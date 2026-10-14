@@ -109,7 +109,7 @@ export interface ReportRules {
   extend: ReportRuleSpec[];
   /** Default rule ids switched off. */
   disable: string[];
-  /** Phrases that are never reported (matched case-insensitively against the matched text and its 40-character neighbourhood). */
+  /** Phrases the wording rules never report: a phrase silences a match only when its span overlaps the match (case-insensitive), never a different finding beside it. */
   allow: string[];
   pii: {
     syntheticEmailDomains: string[];
@@ -173,6 +173,7 @@ function reportRules(value: unknown): ReportRules {
   const p = (pii ?? {}) as Record<string, unknown>;
   const phonePatterns = stringList(p["syntheticPhonePatterns"], "reportRules.pii.syntheticPhonePatterns");
   phonePatterns.forEach((pattern, i) => {
+    if (pattern.trim() === "") throw new RunStateError("invalid-input", `aegis.config.json#reportRules.pii.syntheticPhonePatterns[${i}] must not be blank`);
     if (!compiles(pattern, "")) {
       throw new RunStateError("invalid-input", `aegis.config.json#reportRules.pii.syntheticPhonePatterns[${i}] is not a valid regular expression`);
     }
@@ -192,6 +193,15 @@ function reportRules(value: unknown): ReportRules {
       syntheticValues,
     },
   };
+}
+
+/** testing.manualBudgetPercent: absent is null (the manual-testing rule stays off), present must be a number. */
+function manualBudgetPercent(testing: unknown): number | null {
+  if (testing === null || typeof testing !== "object") return null;
+  const v = (testing as Record<string, unknown>)["manualBudgetPercent"];
+  if (v === undefined) return null;
+  if (typeof v !== "number" || !Number.isFinite(v)) throw new RunStateError("invalid-input", "aegis.config.json#testing.manualBudgetPercent must be a number");
+  return v;
 }
 
 export function readRunConfig(root: string): RunConfig {
@@ -220,8 +230,6 @@ export function readRunConfig(root: string): RunConfig {
     intakeReferences: intakeReferences(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["references"] : undefined),
     messaging,
     reportRules: reportRules(raw["reportRules"]),
-    manualBudgetPercent: testing !== null && typeof testing === "object" && typeof (testing as Record<string, unknown>)["manualBudgetPercent"] === "number"
-      ? ((testing as Record<string, unknown>)["manualBudgetPercent"] as number)
-      : null,
+    manualBudgetPercent: manualBudgetPercent(testing),
   };
 }

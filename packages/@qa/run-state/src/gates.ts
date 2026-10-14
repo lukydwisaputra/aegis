@@ -49,8 +49,9 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
       throw new RunStateError("barrier", `gate ${gate} needs a passing qa-orchestrator-spv review of task ${gateTaskId(gate)}`);
     }
     if (gate === "G2" || gate === "G3") {
-      const lint = lintFindings(root, runId).findings.filter((f) => f.severity === "error");
-      if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open")}`);
+      const scan = lintFindings(root, runId);
+      const lint = scan.findings.filter((f) => f.severity === "error");
+      if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open", scan.skipped.length)}`);
     }
     const ts = iso(now);
     const prev = state.gates[gate];

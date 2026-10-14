@@ -121,6 +121,8 @@ tests/qa/
 
 When a spec, factory or fixture needs the QA environment's Supabase credentials or dev keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_DEV_KEY`, `BLIND_INDEX_DEV_KEY`), run it as `aegis env exec -- <command>` (for example `aegis env exec -- npx playwright test <QA tests>/<dir> --project=<one qa project>`): the CLI injects exactly those names from the run environment's QA secrets, redacts them from the output and refuses a read-only environment. `aegis env check` lists the injected names, never a value. Never read the secrets file, never copy a value into a spec, a log, a work report or evidence, and never report "missing credentials" as Blocked without first trying `aegis env exec`; a name `env check` lists as missing is the one thing to report.
 
+The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
+
 ## Quality Standards (SPV rejects if violated)
 
 - `test` imported from `@playwright/test` directly (must come from auth fixture)
