@@ -114,6 +114,8 @@ describe('intake.references copies pinned repositories into intake/references/{n
       expect(copyIntakeReferences(t.root, [{ name: 'ok', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s1'))[0]?.files).toEqual(['sub/x.md']);
       fs.writeFileSync(path.join(ref, 'sub', 'x.md'), 'edited after the pin');
       expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s2'))).toThrow(/sub/);
+      git('config', 'submodule.sub.ignore', 'all'); // a config that hides the submodule from a plain status does not hide it from the pin check
+      expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha: pinned, sources: ['sub/**'] }], path.join(t.root, 'intake-s3'))).toThrow(/sub/);
     } finally {
       fs.rmSync(sub, { recursive: true, force: true });
     }

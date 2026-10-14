@@ -123,14 +123,16 @@ function dirtyPaths(dir: string, files: readonly string[]): string[] {
   // Status paths are relative to the repository root; the copied files are relative to `dir`, which may be a subdirectory of it.
   const prefix = git(["rev-parse", "--show-prefix"]).trim();
   const copied = new Set(files.map((f) => prefix + f));
-  const fields = git(["status", "--porcelain", "-z", "--untracked-files=all", "--ignored=matching", "--", "."]).split("\0").filter((l) => l !== "");
+  // Every directory above a copied file, with its trailing slash: git reports a submodule or an untracked nested repository as that directory.
+  const holding = new Set<string>();
+  for (const f of copied) for (let at = f.indexOf("/"); at !== -1; at = f.indexOf("/", at + 1)) holding.add(f.slice(0, at + 1));
+  const fields = git(["status", "--porcelain", "-z", "--untracked-files=all", "--ignored=matching", "--ignore-submodules=none", "--", "."]).split("\0").filter((l) => l !== "");
   const dirty: string[] = [];
   for (let i = 0; i < fields.length; i++) {
     const entry = fields[i]!;
-    if (/^[RC]/.test(entry)) i++; // a rename or copy carries its original path in the next field
+    if (/[RC]/.test(entry.slice(0, 2))) i++; // a rename or copy, staged or not, carries its original path in the next field
     const path = entry.slice(3);
-    const dirPath = path.endsWith("/") ? path : `${path}/`;
-    if (copied.has(path) || [...copied].some((f) => f.startsWith(dirPath))) dirty.push(entry);
+    if (copied.has(path) || holding.has(path.endsWith("/") ? path : `${path}/`)) dirty.push(entry);
   }
   return dirty;
 }

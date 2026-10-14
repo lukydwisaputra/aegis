@@ -121,6 +121,12 @@ describe('env exec redacts the usual ways a runner prints a credential', () => {
     }
   });
 
+  it('knows both spellings of the characters encodeURIComponent leaves raw (pa\'ss -> pa%27ss)', () => {
+    const forms = redactionForms(["pa'ss"]);
+    expect(forms).toContain('pa%27ss');
+    expect(redactSecrets('u=pa%27ss&v=pa\'ss', forms)).toBe('u=[redacted]&v=[redacted]');
+  });
+
   it('keeps the percent-encoded and JSON forms of a short secret (p@ss -> p%40ss) and never cuts its own marker', () => {
     const forms = redactionForms(['p@ss', 'x"yz1']);
     expect(redactSecrets('postgres://u:p%40ss@h and {"k":"x\\"yz1"}', forms)).toBe('postgres://u:[redacted]@h and {"k":"[redacted]"}');
@@ -215,6 +221,19 @@ describe('env exec when the audit cannot be written, and when it is stopped', ()
     const r = await stopped(`process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); console.log('ready')`, '300');
     expect(r).toMatchObject({ exitCode: 137, auditRecorded: true });
   });
+
+  it('an unusable AEGIS_ENV_EXEC_KILL_MS falls back to the default instead of killing the runner at once', async () => {
+    const r = await stopped(`process.on('SIGTERM', () => setTimeout(() => process.exit(7), 300)); setInterval(() => {}, 1000); console.log('ready')`, '');
+    expect(r.exitCode).toBe(7);
+  });
+
+  it('does not wait for a grandchild that keeps the output pipes open: the runner exiting ends the run after the drain limit', async () => {
+    const code = `require('child_process').spawn('sleep', ['6'], { stdio: ['ignore', 'inherit', 'inherit'] }).unref(); console.log('runner done')`;
+    const started = Date.now();
+    const r = await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
+    expect(r).toMatchObject({ exitCode: 0, auditRecorded: true });
+    expect(Date.now() - started).toBeLessThan(5_000);
+  }, 15_000);
 
   it('removes its signal listeners when the runner exits', async () => {
     const before = process.listeners('SIGTERM').length;

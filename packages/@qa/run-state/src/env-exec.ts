@@ -85,8 +85,11 @@ export function redactionForms(secrets: readonly string[]): string[] {
     if (secret.length < 4) continue;
     forms.add(secret);
     const pct = encodeURIComponent(secret);
-    derived(pct, secret, 4);
-    derived(pct.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase()), secret, 4);
+    // encodeURIComponent leaves !'()*~ raw; Python's quote, curl and others write them as %XX, so both spellings are looked for.
+    for (const spelled of [pct, pct.replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)]) {
+      derived(spelled, secret, 4);
+      derived(spelled.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase()), secret, 4);
+    }
     derived(JSON.stringify(secret).slice(1, -1), secret, 4);
     const hex = Buffer.from(secret, "utf-8").toString("hex");
     derived(hex, secret);
@@ -101,47 +104,67 @@ export function redactionForms(secrets: readonly string[]): string[] {
   return [...forms].sort((x, y) => y.length - x.length);
 }
 
-const redactors = new WeakMap<readonly string[], RegExp>();
+const escapeRe = (f: string): string => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** One global regex over every form, longest first, so a replacement is never scanned again by a later form. */
+function redactionRegex(forms: readonly string[]): RegExp | null {
+  return forms.length === 0 ? null : new RegExp([...forms].sort((x, y) => y.length - x.length).map(escapeRe).join("|"), "g");
+}
+
+/** Replaces every secret form in `text` with [redacted], in one pass: a four-character secret cannot cut the marker itself. */
+export function redactSecrets(text: string, secrets: readonly string[]): string {
+  const re = redactionRegex(secrets);
+  return re === null ? text : text.replace(re, "[redacted]");
+}
 
 /**
- * Replaces every secret form in `text` with [redacted], in one pass (longest form first at each position), so an inserted marker is
- * never scanned again by a later form: a four-character secret cannot cut "[redacted]" itself.
+ * Where a buffer of raw output can be cut for flushing: at `cut` (the buffer length less hold - 1), or earlier when a form straddles that
+ * point, so a form is always either wholly before the cut (and redacted on emit) or wholly after it (and held). The held tail stays raw,
+ * so it is scanned once, with whatever arrives next.
  */
-export function redactSecrets(text: string, secrets: readonly string[]): string {
-  if (secrets.length === 0) return text;
-  let re = redactors.get(secrets);
-  if (re === undefined) {
-    const longestFirst = [...secrets].sort((x, y) => y.length - x.length);
-    re = new RegExp(longestFirst.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
-    redactors.set(secrets, re);
+function flushPoint(buf: string, cut: number, re: RegExp | null): number {
+  if (re === null) return cut;
+  re.lastIndex = 0;
+  for (let m = re.exec(buf); m !== null; m = re.exec(buf)) {
+    if (m.index >= cut) break;
+    if (m.index + m[0].length > cut) return m.index;
   }
-  return text.replace(re, "[redacted]");
+  return cut;
 }
+
+/** How long, after the runner exited, a grandchild that kept the pipes open may keep the CLI waiting for the last of the output. */
+const DRAIN_MS = 2_000;
 
 function pipeRedacted(from: Readable, to: NodeJS.WriteStream, forms: readonly string[]): Promise<void> {
   // With no newline in sight, keep back the longest form (and at least 256 characters) so a secret that straddles a flush is still seen whole.
   const hold = Math.max(256, ...forms.map((f) => f.length));
+  const re = redactionRegex(forms);
+  const emit = (text: string): void => void to.write(re === null ? text : text.replace(re, "[redacted]"));
   let buf = "";
   from.setEncoding("utf-8");
   from.on("data", (chunk: string) => {
     buf += chunk;
-    const cut = Math.max(buf.lastIndexOf("\n"), buf.lastIndexOf("\r"));
-    if (cut >= 0) {
-      to.write(redactSecrets(buf.slice(0, cut + 1), forms));
-      buf = buf.slice(cut + 1);
+    const nl = Math.max(buf.lastIndexOf("\n"), buf.lastIndexOf("\r"));
+    if (nl >= 0) {
+      emit(buf.slice(0, nl + 1));
+      buf = buf.slice(nl + 1);
     } else if (buf.length > 65_536 + hold) {
-      // Redact the whole buffer first, then emit all but its last hold - 1 characters: a form that straddles the cut is either whole
-      // (and already replaced) or has fewer than hold characters inside the buffer, so only the held tail can carry a part of one.
-      const redacted = redactSecrets(buf, forms);
-      to.write(redacted.slice(0, -(hold - 1)));
-      buf = redacted.slice(-(hold - 1));
+      const cut = flushPoint(buf, buf.length - (hold - 1), re);
+      emit(buf.slice(0, cut));
+      buf = buf.slice(cut);
     }
   });
   return new Promise((done) => {
-    from.on("end", () => {
-      if (buf !== "") to.write(redactSecrets(buf, forms));
+    // "close" as well as "end": the stream is destroyed when the drain limit below gives up on a pipe a grandchild still holds.
+    let finished = false;
+    const finish = (): void => {
+      if (finished) return;
+      finished = true;
+      if (buf !== "") emit(buf);
       done();
-    });
+    };
+    from.on("end", finish);
+    from.on("close", finish);
   });
 }
 
@@ -154,13 +177,22 @@ export interface EnvExecResult {
   auditRecorded: boolean;
 }
 
+/** AEGIS_ENV_EXEC_KILL_MS (tests): a whole number of milliseconds Node can time, else the default. */
+function killAfterMs(): number {
+  const n = Number(process.env["AEGIS_ENV_EXEC_KILL_MS"]);
+  return Number.isInteger(n) && n >= 1 && n <= 2_147_483_647 ? n : 10_000;
+}
+
 /**
  * Runs `cmd` in the target root with the allowlisted QA secrets injected; the child's output is redacted. A non-secret variable the
  * caller's own environment already sets is kept (an explicit override wins, for the app address); a secret one never is: the injected
  * value always reaches the child, so the redactor knows every secret the child holds. SIGINT, SIGTERM and SIGHUP are forwarded to the
- * child, so stopping the CLI stops the runner and the audit below is still written. Records env.executed (the command redacted, the
- * exit code, the injected names) once the child exits; when that append fails the command's exit code is still returned, with
- * `auditRecorded: false` and a message on stderr, because the tests already ran. Resolves the child's exit code.
+ * child, so stopping the CLI stops the runner, and the audit below is still written: the listeners stay until it is. A runner that
+ * ignores the signal is killed after a grace period; a grandchild that keeps the output pipes open is waited for at most DRAIN_MS after
+ * the runner exits (it is not killed: the runner is not put in its own process group). On a terminal Ctrl-C already reaches the runner
+ * through the foreground process group, so a SIGINT is forwarded only if the runner is still there a second later. Records env.executed
+ * (the command redacted, the exit code, the injected names) once the child exits; when that append fails the command's exit code is
+ * still returned, with `auditRecorded: false` and a message on stderr, because the tests already ran. Resolves the child's exit code.
  *
  * What this does NOT do: restrict what the command does with the credentials. The agent chooses the command, and a command that sends
  * $SUPABASE_SERVICE_ROLE_KEY to a network host or writes it to a file leaves no trace in the redacted output. The guarantee is the
@@ -172,39 +204,56 @@ export async function execWithEnv(root: string, runId: string, caller: string, c
   const info = envExecInfo(root, runId);
   const merged: NodeJS.ProcessEnv = { ...info.vars, ...env, ...info.forced };
   const forms = redactionForms(info.secrets);
-  const killAfterMs = Number(process.env["AEGIS_ENV_EXEC_KILL_MS"] ?? 10_000);
-  const exitCode = await new Promise<number>((done, fail) => {
-    const child = spawn(cmd[0]!, cmd.slice(1), { cwd: info.cwd, env: merged, stdio: ["inherit", "pipe", "pipe"] });
-    let spawned = false;
-    child.on("spawn", () => { spawned = true; });
-    const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
-    let escalation: NodeJS.Timeout | undefined;
-    // A stop signal for the CLI is a stop signal for the runner: forward it once, and if the runner is still there after killAfterMs
-    // kill it, so the CLI (whose default signal exit these listeners replace) cannot be left waiting on a runner that ignores it. On a
-    // terminal Ctrl-C already reached the runner through the foreground process group, so SIGINT is not sent a second time.
-    const forward = (sig: NodeJS.Signals): void => {
-      if (!(sig === "SIGINT" && process.stdin.isTTY)) child.kill(sig);
-      escalation ??= setTimeout(() => void child.kill("SIGKILL"), killAfterMs);
-      escalation.unref();
-    };
-    for (const sig of signals) process.on(sig, forward);
-    const cleanup = (): void => {
-      for (const sig of signals) process.off(sig, forward);
-      if (escalation !== undefined) clearTimeout(escalation);
-    };
-    const piped = Promise.all([pipeRedacted(child.stdout!, process.stdout, forms), pipeRedacted(child.stderr!, process.stderr, forms)]);
-    child.on("error", (e) => {
-      // Node also emits "error" when a signal cannot be delivered; only a runner that never started is a failure to report.
-      if (spawned) return;
-      cleanup();
-      fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`));
+  const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+  const timers: NodeJS.Timeout[] = [];
+  let forward: (sig: NodeJS.Signals) => void = () => undefined;
+  const cleanup = (): void => {
+    for (const sig of signals) process.off(sig, forward);
+    for (const t of timers) clearTimeout(t);
+  };
+  let exitCode: number;
+  try {
+    exitCode = await new Promise<number>((done, fail) => {
+      const child = spawn(cmd[0]!, cmd.slice(1), { cwd: info.cwd, env: merged, stdio: ["inherit", "pipe", "pipe"] });
+      let spawned = false;
+      let exited = false;
+      child.on("spawn", () => { spawned = true; });
+      const later = (ms: number, fn: () => void): void => {
+        const t = setTimeout(() => { if (!exited) fn(); }, ms);
+        t.unref();
+        timers.push(t);
+      };
+      let escalated = false;
+      forward = (sig) => {
+        if (exited) return;
+        if (sig === "SIGINT" && process.stdin.isTTY) later(1_000, () => void child.kill("SIGINT"));
+        else child.kill(sig);
+        if (!escalated) {
+          escalated = true;
+          later(killAfterMs(), () => void child.kill("SIGKILL"));
+        }
+      };
+      for (const sig of signals) process.on(sig, forward);
+      const piped = Promise.all([pipeRedacted(child.stdout!, process.stdout, forms), pipeRedacted(child.stderr!, process.stderr, forms)]);
+      child.on("error", (e) => {
+        // Node also emits "error" when a signal cannot be delivered; only a runner that never started is a failure to report.
+        if (spawned) return;
+        fail(new RunStateError("invalid-input", `cannot run ${cmd[0]}: ${e.message}`));
+      });
+      // "exit", not "close": "close" waits for the pipes to end, and a grandchild that holds them would keep the CLI waiting.
+      child.on("exit", (code, signal) => {
+        exited = true;
+        // A runner killed by a signal has no exit code: 128 + the signal number, as a shell reports it.
+        const status = code ?? (signal !== null ? 128 + (osConstants.signals[signal] ?? 0) : 1);
+        const giveUp = setTimeout(() => { child.stdout?.destroy(); child.stderr?.destroy(); }, DRAIN_MS);
+        giveUp.unref();
+        void piped.then(() => { clearTimeout(giveUp); done(status); });
+      });
     });
-    child.on("close", (code, signal) => {
-      cleanup();
-      // A runner killed by a signal has no exit code: 128 + the signal number, as a shell reports it.
-      void piped.then(() => done(code ?? (signal !== null ? 128 + (osConstants.signals[signal] ?? 0) : 1)));
-    });
-  });
+  } catch (e) {
+    cleanup();
+    throw e;
+  }
   let auditRecorded = true;
   try {
     // The audit record: who ran what, where, with which injected names. The command line is redacted like the output.
@@ -216,6 +265,8 @@ export async function execWithEnv(root: string, runId: string, caller: string, c
   } catch (e) {
     auditRecorded = false;
     process.stderr.write(`aegis: env.executed could not be recorded (${(e as Error).message}); the command ran and exited ${exitCode}\n`);
+  } finally {
+    cleanup();
   }
   return { exitCode, environment: info.environment, injected: info.injected, missing: info.missing, auditRecorded };
 }
