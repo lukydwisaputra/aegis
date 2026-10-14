@@ -30,10 +30,11 @@ export type Observed = PageSignature | { role: string; url: string; error: strin
 /**
  * Text that is data, not structure: UUIDs, long hex ids, long mixed letter-digit tokens (cuid, ULID, nanoid) and digits become `#`
  * so a counter, a date, a row id or a row count is not a change. The token rule is alphanumeric only (no hyphen or underscore), so a
- * slug such as `user-profile-edit-2` keeps its words.
+ * slug such as `user-profile-edit-2` and a word with a trailing digit such as `userProfileEditForm2` keep their words.
  */
 const ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{12,}/gi;
-const TOKEN = /\b(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{13,}\b/g;
+// Interleaved letters and digits (a digit next to a letter on both sides of the run): `userProfileEditForm2` is a word with a suffix, `clx9k3j2h0000` is an id.
+const TOKEN = /\b(?=[A-Za-z0-9]*\d[A-Za-z])(?=[A-Za-z0-9]*[A-Za-z]\d)[A-Za-z0-9]{13,}\b/g;
 const flat = (s: unknown): string => String(s ?? "").replace(ID, "#").replace(TOKEN, "#").replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
 const NOISE = /failed to load resource|favicon/i;
 
@@ -51,12 +52,20 @@ export function signatureOf(raw: RawPage): PageSignature {
   };
 }
 
-/** URLs of any scheme (and localhost addresses) become `<url>`, Bearer and Basic credentials `<credential>`; cut to 120 characters. */
+/**
+ * Cut to 120 characters after replacing what can carry a secret or a host: URLs of any scheme, `Authorization:` header values, Bearer
+ * or Basic followed by a credential-looking token (8+ characters with a digit, or a lowercase letter next to an uppercase letter or
+ * symbol, so the words in "Basic authentication failed" stay), IP and localhost addresses with a port, and `token=`, `key=`,
+ * `secret=` or `password=` pairs.
+ */
 export function redactError(message: string): string {
   return message
     .replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, "<url>")
-    .replace(/\b(?:Bearer|Basic)\s+\S+/gi, "<credential>")
+    .replace(/\bAuthorization:\s*(?:(?:Bearer|Basic)\s+)?\S+/gi, "Authorization: <credential>")
+    .replace(/\b(?:Bearer|Basic|bearer|basic)\s+(?=\S{8})(?=\S*(?:[a-z][A-Z._~+/=-]|\d))\S+/g, "<credential>")
+    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}:\d+\S*/g, "<url>")
     .replace(/\blocalhost:\d+\S*/gi, "<url>")
+    .replace(/\b[a-z0-9_]*(?:token|key|secret|password)=\S+/gi, "<redacted>")
     .slice(0, 120);
 }
 
@@ -173,12 +182,12 @@ export interface SourceIdentity {
   dirtyHash: string | null;
 }
 
-/** Git run without the caller's repository overrides, so a hook or a parent git process cannot point it at another checkout. */
+/** Environment variables that point git at another repository, index or object store: removed so a hook or a parent git process cannot redirect it. */
+const GIT_OVERRIDES = ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
+
 function git(dir: string, args: string[]): string | null {
   const env = { ...process.env };
-  delete env["GIT_DIR"];
-  delete env["GIT_WORK_TREE"];
-  delete env["GIT_INDEX_FILE"];
+  for (const k of GIT_OVERRIDES) delete env[k];
   try {
     return execFileSync("git", ["-C", dir, ...args], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024, env });
   } catch {
@@ -197,41 +206,48 @@ function normaliseDir(d: string): string | null {
 
 /**
  * Where the app source stands: `head` is the last commit that touched anything outside `excludeDirs` (so a commit of QA files only does
- * not move it), and `dirtyHash` covers every uncommitted change (modified, deleted, renamed and untracked-not-ignored files, by path and
- * content; a rename enters the hash with both its old and its new path). Gitignored files, including `.env*`, are not read.
- * `excludeDirs` (target-relative) leave out the QA tree and the tests directory, which change every round. A directory that is not a
- * git checkout gives null parts. Call it outside run.lock: hashing a large dirty tree is synchronous. It never throws.
+ * not move it; with every path excluded, or a repository holding only QA commits, it falls back to the repository HEAD), and
+ * `dirtyHash` covers every uncommitted change (modified, deleted, renamed and untracked-not-ignored files, by path and content; a
+ * rename enters the hash with both its old and its new path). Every path and every content enters the hash behind its tag and its
+ * byte length, so no two different trees frame the same bytes. Gitignored files, including `.env*`, are not read. `excludeDirs`
+ * (target-relative) leave out the QA tree and the tests directory, which change every round. A directory that is not a git checkout
+ * gives null parts. Call it outside run.lock: hashing a large dirty tree is synchronous. It never throws.
  */
 export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]): SourceIdentity {
   const dirs = excludeDirs.map(normaliseDir).filter((d): d is string => d !== null);
   const headOfAll = git(targetDir, ["rev-parse", "HEAD"])?.trim() ?? null;
-  const headOfSource = dirs.length === 0 ? null : git(targetDir, ["log", "-1", "--format=%H", "HEAD", "--", ".", ...dirs.map((d) => `:(exclude,literal)${d}`)])?.trim() ?? null;
-  const head = headOfAll === null ? null : headOfSource !== null && /^[0-9a-f]{40}$/.test(headOfSource) ? headOfSource : headOfAll;
+  const scoped = git(targetDir, ["log", "-1", "--format=%H", "HEAD", "--", ".", ...dirs.map((d) => `:(exclude,literal)${d}`)])?.trim() ?? "";
+  const head = headOfAll === null ? null : /^[0-9a-f]{40}$/.test(scoped) ? scoped : headOfAll;
   const changed = git(targetDir, ["diff", "HEAD", "--name-only", "--no-renames", "--relative", "-z"]);
   const untracked = git(targetDir, ["ls-files", "--others", "--exclude-standard", "-z"]);
   if (head === null || changed === null || untracked === null) return { head, dirtyHash: null };
   const skip = (p: string): boolean => dirs.some((d) => p === d || p.startsWith(`${d}/`));
   const names = [...new Set([...changed.split("\0"), ...untracked.split("\0")])].filter((p) => p !== "" && !skip(p)).sort();
   const h = createHash("sha256");
+  const frame = (tag: string, payload: Buffer): void => {
+    h.update(`${tag}${payload.length}\0`).update(payload);
+  };
   for (const p of names) {
-    h.update(p).update("\0").update(fileFrame(join(targetDir, p))).update("\0");
+    frame("P", Buffer.from(p));
+    const f = fileFrame(join(targetDir, p));
+    frame(f.tag, f.payload);
   }
   return { head, dirtyHash: h.digest("hex") };
 }
 
-/** One unambiguous framing per kind: D deleted or missing, F file, L symlink, S directory or submodule path, U unreadable. */
-function fileFrame(abs: string): Buffer | string {
+/** One tag per kind: D deleted or missing, F file content, B big file (size and mtime), L symlink target, S directory or submodule path, U unreadable. */
+function fileFrame(abs: string): { tag: string; payload: Buffer } {
+  const none = Buffer.alloc(0);
   try {
     const st = lstatSync(abs);
-    if (st.isSymbolicLink()) return `L\0${readlinkSync(abs)}`;
-    if (st.isDirectory()) return "S\0";
-    if (!st.isFile()) return "S\0";
+    if (st.isSymbolicLink()) return { tag: "L", payload: Buffer.from(readlinkSync(abs)) };
+    if (!st.isFile()) return { tag: "S", payload: none };
     // A huge file is hashed by size and mtime, not read into memory.
-    if (st.size > 5 * 1024 * 1024) return `F\0big:${st.size}:${st.mtimeMs}`;
-    return Buffer.concat([Buffer.from("F\0"), readFileSync(abs)]);
+    if (st.size > 5 * 1024 * 1024) return { tag: "B", payload: Buffer.from(`${st.size}:${st.mtimeMs}`) };
+    return { tag: "F", payload: readFileSync(abs) };
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    return code === "ENOENT" || code === "ENOTDIR" ? "D\0" : "U\0"; // an unreadable file must not stop Explore from completing
+    return { tag: code === "ENOENT" || code === "ENOTDIR" ? "D" : "U", payload: none }; // an unreadable file must not stop Explore from completing
   }
 }
 

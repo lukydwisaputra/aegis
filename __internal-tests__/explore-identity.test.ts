@@ -28,6 +28,9 @@ describe('signatureOf', () => {
     expect(hash('row-clx9k3j2h0000')).toBe(hash('row-cm1a2b3c4d5e6'));
     expect(hash('item-01ARZ3NDEKTSV4RRFFQ69G5FAV')).toBe(hash('item-01BX5ZZKBKACTAV9WEVGEMMVRZ'));
     expect(hash('user-profile-edit-2')).not.toBe(hash('user-settings-edit-2'));
+    expect(hash('userProfileEditForm2')).not.toBe(hash('userSettingsEditForm2'));
+    expect(hash('internationalization2')).not.toBe(hash('characterization2'));
+    expect(hash('customerprofile2')).not.toBe(hash('customersettings2'));
   });
 });
 
@@ -114,6 +117,10 @@ describe('redactError', () => {
     expect(redactError('connect ws://h.test/s?k=1 failed')).toBe('connect <url> failed');
     expect(redactError('401 with Bearer abc.def-ghi')).not.toContain('abc.def-ghi');
     expect(redactError('Basic dXNlcjpwYXNz rejected')).not.toContain('dXNlcjpwYXNz');
+    expect(redactError('sent Authorization: Basic zzzz')).toBe('sent Authorization: <credential>');
+    expect(redactError('Basic authentication failed')).toBe('Basic authentication failed');
+    expect(redactError('refused 10.0.0.5:8080/x?y=1 twice')).toBe('refused <url> twice');
+    expect(redactError('bad api_key=abc123 and Token=xyz')).toBe('bad <redacted> and <redacted>');
     expect(redactError('refused localhost:3000/a?token=abc')).toBe('refused <url>');
   });
 });
@@ -204,9 +211,42 @@ describe('sourceIdentity', () => {
     expect(sourceIdentity(dir, ['aegis']).dirtyHash).not.toBe(base.dirtyHash);
   });
 
-  it('entries with an empty or .. segment exclude nothing and do not throw', () => {
+  it('entries with an empty or .. segment exclude nothing: a real change stays visible', () => {
+    const dropped = ['', '..', '../x', '.'];
+    const base = sourceIdentity(dir, dropped);
+    expect(base).toEqual(sourceIdentity(dir, []));
+    fs.writeFileSync(path.join(dir, 'app.ts'), 'changed');
+    expect(sourceIdentity(dir, dropped).dirtyHash).not.toBe(base.dirtyHash);
+    expect(sourceIdentity(dir, dropped)).toEqual(sourceIdentity(dir, []));
+  });
+
+  it('a commit touching only aegis2 moves the head when excluding aegis', () => {
+    fs.mkdirSync(path.join(dir, 'aegis2'));
+    const base = sourceIdentity(dir, ['aegis']);
+    fs.writeFileSync(path.join(dir, 'aegis2', 'x'), 'x');
+    git('add', '.');
+    git('commit', '-qm', 'aegis2');
+    expect(sourceIdentity(dir, ['aegis']).head).not.toBe(base.head);
+  });
+
+  it('ignores GIT_DIR and the other git overrides in the environment', () => {
+    const other = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-other-'));
+    const oe = cleanEnv();
+    const og = (...a: string[]) => execFileSync('git', ['-C', other, '-c', 'user.email=t@e.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...a], { encoding: 'utf8', env: oe });
+    og('init', '-q');
+    fs.writeFileSync(path.join(other, 'o.ts'), 'other');
+    og('add', '.');
+    og('commit', '-qm', 'other');
     const base = sourceIdentity(dir, []);
-    expect(sourceIdentity(dir, ['', '..', '../x', '.'])).toEqual(base);
+    const saved = process.env['GIT_DIR'];
+    process.env['GIT_DIR'] = path.join(other, '.git');
+    try {
+      expect(sourceIdentity(dir, [])).toEqual(base);
+    } finally {
+      if (saved === undefined) delete process.env['GIT_DIR'];
+      else process.env['GIT_DIR'] = saved;
+      fs.rmSync(other, { recursive: true, force: true });
+    }
   });
 
   it('head ignores commits that touch only excluded directories, and moves with a commit of source', () => {
