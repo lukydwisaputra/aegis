@@ -6,6 +6,7 @@ export * from "./run.js";
 export * from "./tasks.js";
 export * from "./task-list.js";
 export * from "./submit.js";
+export { cutToFit, trimOverlong, type TrimmedField } from "./util.js";
 export * from "./integrity.js";
 export * from "./locks.js";
 export * from "./phase-map.js";

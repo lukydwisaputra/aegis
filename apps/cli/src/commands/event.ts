@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { appendChained, EventBusRefusal } from "@qa/event-bus";
-import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, RunStateError } from "@qa/run-state";
+import { AegisEventSchema } from "@qa/contracts";
+import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, RunStateError, trimOverlong } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function eventCommand(): Command {
@@ -27,12 +28,16 @@ export function eventCommand(): Command {
           throw new RunStateError("invalid-input", "--json must be a JSON object");
         }
         assertEventConsistent(o.type, fields as Record<string, unknown>);
+        let event: Record<string, unknown> = { runId, ...(fields as Record<string, unknown>), type: o.type, ts: new Date().toISOString() };
+        // A free-text field over its limit (an observation summary of 340 characters where 300 fit) is cut, not refused for a turn.
+        const parsed = AegisEventSchema.safeParse(event);
+        // paths, commands and grouping keys stay exact: a cut evidence item is a broken reference, a cut component a different key
+        const exact = (path: ReadonlyArray<string | number>): boolean => path.includes("evidence") || path.includes("component") || path.includes("path");
+        const cut = parsed.success ? null : trimOverlong(event, parsed.error.issues as never, exact);
+        if (cut !== null && cut.trimmed.length > 0) event = cut.value as Record<string, unknown>;
         try {
-          return await appendChained(
-            { runId, ...(fields as Record<string, unknown>), type: o.type, ts: new Date().toISOString() },
-            busPath(ctx.root, runId),
-            { emittedBy: ctx.caller, runId }
-          );
+          const recorded = await appendChained(event, busPath(ctx.root, runId), { emittedBy: ctx.caller, runId });
+          return cut !== null && cut.trimmed.length > 0 ? { ...recorded, trimmed: cut.trimmed } : recorded;
         } catch (e) {
           if (e instanceof EventBusRefusal) throw new RunStateError("invalid-input", e.message);
           throw e;

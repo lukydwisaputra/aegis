@@ -19,11 +19,11 @@ async function parseError(argv: string[]) {
 
 describe('commander parse errors are JSON envelopes (CO-04)', () => {
   it('a missing mandatory option is invalid-input, exit 2', async () => {
-    const err = await parseError(['task', 'claim']);
+    const err = await parseError(['task', 'add']);
     expect(err).toMatchObject({ code: 'commander.missingMandatoryOptionValue' });
     expect(envelopeFor(err!)).toEqual({
       exitCode: 2,
-      stderr: JSON.stringify({ error: 'invalid-input', message: "required option '--task <id>' not specified" }) + '\n',
+      stderr: JSON.stringify({ error: 'invalid-input', message: "required option '--id <id>' not specified" }) + '\n',
     });
   });
 
@@ -105,9 +105,9 @@ describe('locks (CO-04)', () => {
 
 (stale ? it.skip : it)('the built CLI prints the envelope and exits 2; --version still works', () => {
   const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { cwd: ROOT, encoding: 'utf-8', env: { ...process.env, AEGIS_AGENT: 'qa-ui-specialist' } });
-  const bad = run('task', 'claim');
+  const bad = run('task', 'add');
   expect(bad.status).toBe(2);
-  expect(JSON.parse(bad.stderr)).toEqual({ error: 'invalid-input', message: "required option '--task <id>' not specified" });
+  expect(JSON.parse(bad.stderr)).toEqual({ error: 'invalid-input', message: "required option '--id <id>' not specified" });
   const v = run('--version');
   expect({ status: v.status, out: v.stdout.trim() }).toEqual({ status: 0, out: '1.0.0' });
 });

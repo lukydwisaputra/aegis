@@ -35,6 +35,8 @@ export function idCommand(): Command {
   id.command("next")
     .description("Mint the next ID of a kind")
     .addOption(new Option("--kind <kind>", "id kind").choices(["TC", "DEF", "STORY", "REQ", "RISK", "AC"]).makeOptionMandatory())
+    // The counters are shared by every run, so there is nothing to select; accepted so the call that every other command takes is not refused.
+    .addOption(new Option("--run <id>", "accepted and ignored: ids come from the shared counters").hideHelp())
     .option("--module <code>", "module code (TC, DEF, STORY, REQ, RISK)")
     .option("--story <id>", "story id (AC)")
     .addOption(new Option("--category <c>", "AC category").choices(["happy", "rejection", "edge"]))

@@ -42,6 +42,46 @@ export function formatLimitIssues(input: unknown, issues: LimitIssue[]): string 
     .join("; ");
 }
 
+export interface TrimmedField {
+  field: string;
+  from: number;
+  to: number;
+}
+
+/** A string cut to `max` characters, at the last space of its final fifth when there is one, and ended with an ellipsis. */
+export function cutToFit(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let head = text.slice(0, max - 1);
+  // a cut between the two halves of a surrogate pair (an emoji) would leave a lone half behind
+  if (/[\uD800-\uDBFF]$/.test(head)) head = head.slice(0, -1);
+  const space = head.lastIndexOf(" ");
+  return `${space > max * 0.8 ? head.slice(0, space) : head}\u2026`;
+}
+
+/**
+ * The strings of `input` that are over their length limit (`issues` from a failed schema parse), cut to the limit: an agent that wrote
+ * 512 characters where 500 fit gets its report recorded with the last words shortened, not refused for a turn. `keep` says which fields must
+ * stay exact (a rule that is stored as a lesson is refused, never shortened). Returns a copy and what was cut; the input is not changed.
+ * A missing minimum, a wrong type or an id format is never touched here: those stay refusals.
+ */
+export function trimOverlong(input: unknown, issues: LimitIssue[], keep: (path: ReadonlyArray<string | number>) => boolean = () => false): { value: unknown; trimmed: TrimmedField[] } {
+  const value = JSON.parse(JSON.stringify(input)) as unknown;
+  const trimmed: TrimmedField[] = [];
+  for (const i of issues) {
+    if (i.code !== "too_big" || i.type !== "string" || typeof i.maximum !== "number" || keep(i.path)) continue;
+    let parent: unknown = value;
+    for (const key of i.path.slice(0, -1)) parent = parent !== null && typeof parent === "object" ? (parent as Record<string | number, unknown>)[key] : undefined;
+    const last = i.path[i.path.length - 1];
+    if (parent === null || typeof parent !== "object" || last === undefined) continue;
+    const cur = (parent as Record<string | number, unknown>)[last];
+    if (typeof cur !== "string" || cur.length <= i.maximum) continue;
+    const kept = cutToFit(cur, i.maximum);
+    (parent as Record<string | number, unknown>)[last] = kept;
+    trimmed.push({ field: i.path.join("."), from: cur.length, to: kept.length });
+  }
+  return { value, trimmed };
+}
+
 const LOCK_OPTIONS = { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } };
 
 /** Hold an exclusive cross-process lock on `lockPath` (created empty if missing, never truncated) while `fn` runs. */
