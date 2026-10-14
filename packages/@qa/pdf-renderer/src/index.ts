@@ -209,6 +209,8 @@ export interface TechnicalReportSpec {
   ownMistakes?: { note: string | null; items: Array<{ case: string; earlier: string | null; now: string | null; what: string }> } | null;
   openQuestions?: Array<{ audience: string; questions: Array<{ id: string; priority: string | null; question: string; also?: string | null }> }>;
   falsePasses?: Array<{ case: string; finding: string; latestResult: string | null }>;
+  /** The closure's statement that those passes are our own mistakes, and its mechanism (the cause), printed first in the same section. */
+  falsePassStatement?: { note: string | null; mechanism: string | null } | null;
   /** A passed case whose first failure came from a wrong test step, in the closure's words; printed beside the false passes. */
   wrongStepNotes?: Array<{ requirement: string | null; wrongStep: string; whatConforms: string | null; whatThePassMeans: string | null }>;
   residualRisks?: Array<{ title: string; rating: string | null; mitigationStatus: string | null; residualExposure: string | null }>;
@@ -526,8 +528,10 @@ function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
     blocks.push(...sectionTitle("var", "Variances from the Test Plan"));
     (spec.variances ?? []).forEach((v, i) => blocks.push(paragraph(`var-${i}`, `${v.variance}${v.reason ? ` Reason: ${v.reason}` : ""}`)));
   }
-  if ((spec.falsePasses ?? []).length > 0 || (spec.wrongStepNotes ?? []).length > 0) {
+  if ((spec.falsePasses ?? []).length > 0 || (spec.wrongStepNotes ?? []).length > 0 || spec.falsePassStatement) {
     blocks.push(...sectionTitle("fp", "Passes That Did Not Hold"));
+    if (spec.falsePassStatement?.note) blocks.push(paragraph("fp-note", spec.falsePassStatement.note, true));
+    if (spec.falsePassStatement?.mechanism) blocks.push(paragraph("fp-mech", `Mechanism: ${spec.falsePassStatement.mechanism}`));
     (spec.falsePasses ?? []).forEach((f, i) => blocks.push(paragraph(`fp-${i}`, `${f.case}: ${f.finding}${f.latestResult ? ` Latest result: ${f.latestResult}` : ""}`)));
     (spec.wrongStepNotes ?? []).forEach((n, i) => {
       blocks.push(paragraph(`ws-${i}-t`, "A wrong test step", true));
@@ -549,7 +553,8 @@ function narrativePages(spec: TechnicalReportSpec): React.ReactElement[] {
   }
   if ((spec.openQuestions ?? []).length > 0) {
     blocks.push(...sectionTitle("oq", "Open Questions"));
-    blocks.push(paragraph("oq-intro", "Decisions the QA team has not been given. Each question names who decides."));
+    const oqTotal = (spec.openQuestions ?? []).reduce((a, g) => a + g.questions.length, 0);
+    blocks.push(paragraph("oq-intro", `${oqTotal} open ${oqTotal === 1 ? "question" : "questions"}. Decisions the QA team has not been given. Each question names who decides.`));
     (spec.openQuestions ?? []).forEach((g, gi) => {
       blocks.push(paragraph(`oq-g-${gi}`, `For ${g.audience} (${g.questions.length})`, true));
       g.questions.forEach((q, qi) => blocks.push(paragraph(`oq-${gi}-${qi}`, `${q.id}${q.priority ? ` [${q.priority}]` : ""}: ${q.question}${q.also ? ` [also: ${q.also}]` : ""}`)));

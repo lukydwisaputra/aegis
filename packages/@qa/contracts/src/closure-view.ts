@@ -154,9 +154,13 @@ export interface ClosureView {
   /** Open questions grouped by the first audience named: PM, owner, developers, then any other, each group in id order. */
   openQuestions: Array<{ audience: string; questions: OpenQuestionView[] }>;
   falsePasses: Array<{ case: string; finding: string; latestResult: string | null }>;
+  /** closure.json#falsePasses.note (the passes are our own mistakes) and .mechanism (the cause), in the closure's words; null when the closure has neither. */
+  falsePassStatement: { note: string | null; mechanism: string | null } | null;
   residualRisks: ResidualRiskView[];
   compliance: { rows: ComplianceRowView[]; totalGaps: number | null; totalHighGaps: number | null; reports: number | null; note: string | null } | null;
   outOfScope: Array<{ caseId: string; reason: string }>;
+  /** How many checks are out of scope: resultsSummary.counts.outOfScope, else metrics.outOfScope, else the length of the list. */
+  outOfScopeCount: number;
 }
 
 /** Proper names of the compliance reports, by their regulation key. */
@@ -474,7 +478,7 @@ export const CLOSURE_FIELDS_READ: readonly string[] = [
   "defectMetrics.openApplicationDefects", "defectMetrics.partiallyFixedOpen.count", "defectMetrics.baseline24.FIXED.count",
   "defectMetrics.recordsByVerdict.REFRAMED", "defectMetrics.recordsByVerdict.REPORT WITHDRAWN", "defectMetrics.openItems[].defectId", "defectMetrics.openItems[].severity",
   "defectMetrics.openItems[].state", "defectMetrics.openItems[].title", "defectMetrics.openItems[].awaits",
-  "falsePasses.confirmed[].case", "falsePasses.confirmed[].finding", "falsePasses.confirmed[].latestResult",
+  "falsePasses.note", "falsePasses.mechanism", "falsePasses.confirmed[].case", "falsePasses.confirmed[].finding", "falsePasses.confirmed[].latestResult",
   "falsePasses.authThree.requirement", "falsePasses.authThree.wrongStep", "falsePasses.authThree.whatConforms", "falsePasses.authThree.whatThePassMeans",
   "ownMistakesCorrected.note", "ownMistakesCorrected.items[].case", "ownMistakesCorrected.items[].earlier", "ownMistakesCorrected.items[].now", "ownMistakesCorrected.items[].what",
   "variancesFromPlan[].variance", "variancesFromPlan[].reason",
@@ -534,9 +538,11 @@ export function buildClosureView(input: ClosureViewInput): ClosureView {
     unmetCriteria: exitCriteria.filter((c) => !c.met),
     openQuestions: questions(closure),
     falsePasses: fp.flatMap((f) => (isPlain(f) && str(f["case"]) !== null && str(f["finding"]) !== null ? [{ case: str(f["case"])!, finding: str(f["finding"])!, latestResult: str(f["latestResult"]) }] : [])),
+    falsePassStatement: isPlain(closure["falsePasses"]) && (str(closure["falsePasses"]["note"]) !== null || str(closure["falsePasses"]["mechanism"]) !== null) ? { note: str(closure["falsePasses"]["note"]), mechanism: str(closure["falsePasses"]["mechanism"]) } : null,
     residualRisks: residual,
     compliance,
     outOfScope,
+    outOfScopeCount: num(isPlain(rs["counts"]) ? rs["counts"]["outOfScope"] : null) ?? num(isPlain(closure["metrics"]) ? closure["metrics"]["outOfScope"] : null) ?? outOfScope.length,
   };
 }
 

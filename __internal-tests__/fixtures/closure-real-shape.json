@@ -136,15 +136,47 @@
     "outOfScope": [
       {
         "caseId": "TC-EEE-005",
-        "reason": "Neutral reason text."
+        "reason": "Neutral reason 1 for the out of scope check."
       },
       {
         "caseId": "TC-EEE-006",
-        "reason": "Neutral reason text."
+        "reason": "Neutral reason 2 for the out of scope check."
       },
       {
         "caseId": "TC-EEE-007",
-        "reason": "Neutral reason text."
+        "reason": "Neutral reason 3 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-008",
+        "reason": "Neutral reason 4 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-009",
+        "reason": "Neutral reason 5 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-010",
+        "reason": "Neutral reason 6 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-011",
+        "reason": "Neutral reason 7 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-012",
+        "reason": "Neutral reason 8 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-013",
+        "reason": "Neutral reason 9 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-014",
+        "reason": "Neutral reason 10 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-016",
+        "reason": "Neutral reason 11 for the out of scope check."
       }
     ],
     "notCarriedIntoRun": [
@@ -509,30 +541,50 @@
     "confirmed": [
       {
         "case": "TC-CCC-007",
-        "finding": "Neutral finding text.",
-        "latestResult": "Neutral latest result text."
+        "finding": "Neutral finding 1.",
+        "latestResult": "Pass after correction 1."
       },
       {
         "case": "TC-DDD-007 (API angle)",
-        "finding": "Neutral finding text.",
-        "latestResult": "Neutral latest result text."
+        "finding": "Neutral finding 2.",
+        "latestResult": "Pass after correction 2."
       },
       {
         "case": "TC-HHH-011",
-        "finding": "Neutral finding text.",
-        "latestResult": "Neutral latest result text."
+        "finding": "Neutral finding 3.",
+        "latestResult": "Pass after correction 3."
+      },
+      {
+        "case": "TC-HHH-015",
+        "finding": "Neutral finding 4.",
+        "latestResult": "Pass after correction 4."
+      },
+      {
+        "case": "TC-KKK-002 (assertion 3 of 3)",
+        "finding": "Neutral finding 5.",
+        "latestResult": "Pass after correction 5."
+      },
+      {
+        "case": "TC-KKK-012",
+        "finding": "Neutral finding 6.",
+        "latestResult": "Pass after correction 6."
+      },
+      {
+        "case": "TC-BBB-003",
+        "finding": "Neutral finding 7.",
+        "latestResult": "Pass after correction 7."
       }
     ],
     "count": 7,
     "method": "Neutral method text.",
-    "mechanism": "Neutral mechanism text.",
+    "mechanism": "Undeterminable: the earlier evidence is empty and no output was kept. This is a QA process finding, not an application defect.",
     "authThree": {
-      "requirement": "Neutral requirement text.",
-      "wrongStep": "Neutral wrong step text.",
-      "whatConforms": "Neutral what conforms text.",
-      "whatThePassMeans": "Neutral what the pass means text."
+      "requirement": "AC-AAA-002-R5: after five wrong codes, when the sixth attempt is made, the account is locked.",
+      "wrongStep": "Step 4 of the case expected the lock on the fifth wrong code itself.",
+      "whatConforms": "The build locks on the fifth wrong code and refuses the sixth.",
+      "whatThePassMeans": "The case is recorded as a pass because its results match step 4 as written."
     },
-    "note": "Neutral note text."
+    "note": "These passes of the first report are our own mistakes: the checks behind them could not have held."
   },
   "ownMistakesCorrected": {
     "note": "Our own mistakes, stated plainly. They are test-side mistakes of the QA team, not application defects, and no defect was filed for them.",
@@ -613,6 +665,481 @@
       "triageSummaryQuestion": 3,
       "related": [
         "DEF-010-HHH-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-5",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 4?",
+      "triageSummaryQuestion": 5,
+      "related": [
+        "DEF-010-HHH-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-6",
+      "priority": "low",
+      "audience": "developers",
+      "question": "Neutral open question 5?",
+      "triageSummaryQuestion": 6,
+      "related": [
+        "DEF-001-KKK-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-7",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 6?",
+      "triageSummaryQuestion": 7,
+      "related": [
+        "DEF-005-DDD-EXP",
+        "DEF-012-HHH-A11Y"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-8",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 7?",
+      "triageSummaryQuestion": 8,
+      "related": [
+        "DEF-003-III-EXP",
+        "TC-III-007"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-9",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 8?",
+      "triageSummaryQuestion": 9,
+      "related": [
+        "DEF-002-DDD-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-10",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 9?",
+      "triageSummaryQuestion": 10,
+      "related": [
+        "DEF-005-AAA-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-11",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 10?",
+      "triageSummaryQuestion": 11,
+      "related": [
+        "DEF-004-CCC-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-12",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 11?",
+      "triageSummaryQuestion": 12,
+      "related": [
+        "DEF-001-GGG-EXP",
+        "TC-GGG-007",
+        "TC-GGG-008"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-13",
+      "priority": "low",
+      "audience": "owner",
+      "question": "Neutral open question 12?",
+      "triageSummaryQuestion": 13,
+      "related": [
+        "DEF-001-GGG-EXP",
+        "DEF-004-AAA-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-14",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 13?",
+      "triageSummaryQuestion": 14,
+      "related": [
+        "DEF-003-HHH-SEC"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-15",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 14?",
+      "triageSummaryQuestion": 15,
+      "related": [
+        "DEF-004-DDD-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-16",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 15?",
+      "triageSummaryQuestion": 16,
+      "related": [
+        "DEF-007-III-API",
+        "TC-III-005"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-17",
+      "priority": "low",
+      "audience": "developers",
+      "question": "Neutral open question 16?",
+      "triageSummaryQuestion": 17,
+      "related": [
+        "DEF-003-CCC-API",
+        "TC-CCC-003"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-18",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 17?",
+      "triageSummaryQuestion": 18,
+      "related": [
+        "TC-III-004"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-19",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 18?",
+      "triageSummaryQuestion": 19,
+      "related": [
+        "TC-III-006"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-20",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 19?",
+      "triageSummaryQuestion": 20,
+      "related": [
+        "TC-KKK-003"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-21",
+      "priority": "high",
+      "audience": "PM",
+      "question": "Neutral open question 20?",
+      "triageSummaryQuestion": 21,
+      "related": [
+        "TC-DDD-007",
+        "TC-HHH-015"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-22",
+      "priority": "high",
+      "audience": "PM",
+      "question": "Neutral open question 21?",
+      "triageSummaryQuestion": 22,
+      "related": [
+        "RISK-AUTH-014"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-23",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 22?",
+      "triageSummaryQuestion": 23,
+      "related": [
+        "DEF-001-CCC-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-24",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 23?",
+      "triageSummaryQuestion": 24,
+      "related": [
+        "DEF-001-CCC-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-25",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 24?",
+      "triageSummaryQuestion": 25,
+      "related": [
+        "TC-BBB-022"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-26",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 25?",
+      "triageSummaryQuestion": 26,
+      "related": [
+        "TC-BBB-011"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-27",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 26?",
+      "triageSummaryQuestion": 27,
+      "related": [
+        "TC-CCC-004",
+        "RISK-AUTH-014"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-28",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 27?",
+      "triageSummaryQuestion": 28,
+      "related": [
+        "RISK-PROC-013"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-29",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 28?",
+      "triageSummaryQuestion": 29,
+      "related": [
+        "TC-DDD-004",
+        "TC-III-006"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-30",
+      "priority": "high",
+      "audience": "developers",
+      "question": "Neutral open question 29?",
+      "triageSummaryQuestion": 30,
+      "related": [
+        "DEF-006-DDD-API",
+        "TC-DDD-007"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-31",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 30?",
+      "triageSummaryQuestion": 31,
+      "related": [
+        "TC-DDD-007",
+        "DEF-004-DDD-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-32",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 31?",
+      "triageSummaryQuestion": 32,
+      "related": [
+        "TC-DDD-007",
+        "DEF-006-DDD-API"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-33",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 32?",
+      "triageSummaryQuestion": 33,
+      "related": [
+        "TC-EEE-005",
+        "RISK-ENV-004"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-34",
+      "priority": "high",
+      "audience": "owner",
+      "question": "Neutral open question 33?",
+      "related": [
+        "RISK-SPD-003"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-35",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 34?",
+      "related": [
+        "DEF-002-BBB-API",
+        "RISK-ATT-002"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-36",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 35?",
+      "related": [
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-37",
+      "priority": "low",
+      "audience": "owner",
+      "question": "Neutral open question 36?",
+      "related": [
+        "DEF-004-CCC-EXP",
+        "DEF-005-AAA-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-38",
+      "priority": "high",
+      "audience": "owner",
+      "question": "Neutral open question 37?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-39",
+      "priority": "low",
+      "audience": "owner",
+      "question": "Neutral open question 38?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-40",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 39?",
+      "related": [
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-41",
+      "priority": "medium",
+      "audience": "owner and data protection officer",
+      "question": "Neutral open question 40?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-42",
+      "priority": "medium",
+      "audience": "PM and data protection officer",
+      "question": "Neutral open question 41?",
+      "related": [
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-43",
+      "priority": "medium",
+      "audience": "PM and data protection officer",
+      "question": "Neutral open question 42?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-44",
+      "priority": "medium",
+      "audience": "owner and data protection officer",
+      "question": "Neutral open question 43?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-45",
+      "priority": "medium",
+      "audience": "owner and data protection officer",
+      "question": "Neutral open question 44?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-46",
+      "priority": "high",
+      "audience": "owner",
+      "question": "Neutral open question 45?",
+      "related": [
+        "TC-BBB-016",
+        "TC-CCC-007",
+        "TC-KKK-013"
       ],
       "status": "open"
     }

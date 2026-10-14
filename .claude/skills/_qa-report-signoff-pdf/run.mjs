@@ -210,6 +210,24 @@ const sections = [];
   if (lines.length > 0) sections.push({ title: "Tests executed", lines });
 }
 if (view.variances.length > 0) sections.push({ title: "Variances from the test plan", lines: view.variances.map((v) => ({ quote: `- ${v.variance}${v.reason ? ` Reason: ${v.reason}` : ""}` })) });
+// The passes of the first report that did not hold: the closure's own statement that they are our own mistakes, its mechanism (the
+// cause) and the cases. Without a note the script says it plainly itself.
+if (view.falsePasses.length > 0 || view.falsePassStatement !== null) {
+  const st = view.falsePassStatement;
+  sections.push({
+    title: "Passes that did not hold",
+    lines: [
+      ...(st?.note ? [{ quote: st.note }] : view.falsePasses.length > 0 ? [`${view.falsePasses.length} ${view.falsePasses.length === 1 ? "pass" : "passes"} of the first report did not hold. They are our own mistakes.`] : []),
+      ...(st?.mechanism ? [{ quote: `Mechanism: ${st.mechanism}` }] : []),
+      ...(view.falsePasses.length > 0 ? [{ quote: `Cases: ${view.falsePasses.map((f) => f.case).join("; ")}.` }] : []),
+    ],
+  });
+}
+// The open questions: the count and the split by the first audience named; the questions themselves are in the technical report.
+{
+  const total = view.openQuestions.reduce((a, g) => a + g.questions.length, 0);
+  if (total > 0) sections.push({ title: "Open questions", lines: [`${total} open ${total === 1 ? "question is" : "questions are"} recorded for decision, by the first audience named: ${view.openQuestions.map((g) => `${g.audience} ${g.questions.length}`).join(", ")}. Each is listed in the technical report.`] });
+}
 {
   const d = view.defects;
   if (d.open !== null || d.fixed !== null || d.reframed !== null || d.reportWithdrawn !== null) {
@@ -265,7 +283,7 @@ if (view.unmetCriteria.length > 0) {
     lines: view.exitCriteria.flatMap((c, i) => (c.met ? [] : [{ quote: `Criterion ${i + 1}: ${c.evidence ? c.evidence : "no difference recorded in the closure report."}` }])),
   });
 }
-if (view.outOfScope.length > 0) sections.push({ title: "Out of scope", lines: view.outOfScope.map((o) => ({ quote: `${o.caseId}: ${o.reason}` })) });
+if (view.outOfScope.length > 0) sections.push({ title: "Out of scope", lines: [`${view.outOfScopeCount} ${view.outOfScopeCount === 1 ? "check is" : "checks are"} out of scope by the owner's decision and in none of the counts above.`, ...view.outOfScope.map((o) => ({ quote: `${o.caseId}: ${o.reason}` }))] });
 
 // The same resolver as the technical report: closure.json#defectMetrics.confirmedOpen first, then the
 // defect records' status codes; neither present → "Open defects: not available".

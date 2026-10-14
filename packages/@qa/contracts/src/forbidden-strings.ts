@@ -282,6 +282,8 @@ export function signoffFedTexts(closure: unknown, plainRisk?: ReadonlyMap<string
     if (typeof r["wrongStep"] !== "string") continue;
     for (const f of ["requirement", "wrongStep", "whatConforms", "whatThePassMeans"]) add(`closure.json.falsePasses.${key}.${f}`, r[f]);
   }
+  add("closure.json.falsePasses.note", rec(c["falsePasses"])["note"]);
+  add("closure.json.falsePasses.mechanism", rec(c["falsePasses"])["mechanism"]);
   const own = rec(c["ownMistakesCorrected"]);
   add("closure.json.ownMistakesCorrected.note", own["note"]);
   (Array.isArray(own["items"]) ? own["items"] : []).forEach((it, i) => {

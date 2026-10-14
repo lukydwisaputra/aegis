@@ -247,6 +247,7 @@ const specRaw = {
   ownMistakes: view.ownMistakes,
   openQuestions: view.openQuestions,
   falsePasses: view.falsePasses,
+  falsePassStatement: view.falsePassStatement,
   wrongStepNotes: view.wrongStepNotes,
   residualRisks: view.residualRisks,
 };

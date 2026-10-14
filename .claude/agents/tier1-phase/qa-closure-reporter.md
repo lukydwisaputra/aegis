@@ -96,6 +96,7 @@ The technical report, the sign-off and the deck read these exact key names (`CLO
 - Case counts: `resultsSummary.counts` (`designed`, `attempted`, `passed`, `failed`, `blocked`, `partial`, `skipped`, `notAttempted`, `outOfScope`, all numbers) and `metrics` (the same numbers plus `passRate`); `resultsSummary.caseOfRecord` with `basis` (one sentence).
 - Compliance: `complianceFindings[]`, one per standard: `regulation`, `coverageGaps` (a number) and `highRatedGaps` (an ARRAY of the names of the gaps rated high; the renderers count its length). `complianceTotals` is optional: `{ "reports", "gaps", "highSeverityGaps" }` as numbers, used only when it agrees with the findings. Also `complianceNote` and `complianceStatus` (sentences, no verdict).
 - Exit criteria: `exitCriteria[]` of `{ "criterion", "met" (true or false), "evidence" }`, optionally `qualification`. A criterion that is met only on a stated reading says so in `qualification`, or begins its `evidence` with "Met, with a qualification"; both documents print it beside the criterion. The documents compute "N of M exit criteria are met" from the `met` flags, so no count is typed.
+- False passes: `falsePasses.note` (one plain sentence saying the passes of the first report are our own mistakes), `falsePasses.mechanism` (the cause), `falsePasses.confirmed[]` of `{ "case", "finding", "latestResult" }` and, for a wrong test step, `falsePasses.<key>` of `{ "requirement", "wrongStep", "whatConforms", "whatThePassMeans" }`; the technical report and the sign-off print the note and the mechanism in your words.
 - Own mistakes: `ownMistakesCorrected` of `{ "note", "items": [ { "case", "earlier", "now", "what" } ] }`, plain words, printed by the technical report and the sign-off.
 - Defects: `defectMetrics.openApplicationDefects`, `defectMetrics.partiallyFixedOpen.count`, `defectMetrics.baseline24.FIXED.count`, `defectMetrics.recordsByVerdict` (the counts under `REFRAMED` and `REPORT WITHDRAWN`) and `defectMetrics.openItems[]` of `{ "defectId", "severity" ("Sev4 (Minor)"), "state", "title", "awaits" }`.
 
@@ -120,6 +121,8 @@ defectMetrics.openItems[].severity
 defectMetrics.openItems[].state
 defectMetrics.openItems[].title
 defectMetrics.openItems[].awaits
+falsePasses.note
+falsePasses.mechanism
 falsePasses.confirmed[].case
 falsePasses.confirmed[].finding
 falsePasses.confirmed[].latestResult
