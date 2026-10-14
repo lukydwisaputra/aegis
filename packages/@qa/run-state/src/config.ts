@@ -44,6 +44,10 @@ export interface RunConfig {
   intakeReferences: IntakeReference[];
   /** NEW-07: aegis.config.json#messaging, null when absent. */
   messaging: MessagingConfig | null;
+  /** Project rules for `aegis lint` of the customer-facing run files. */
+  reportRules: ReportRules;
+  /** aegis.config.json#testing.manualBudgetPercent, null when absent. */
+  manualBudgetPercent: number | null;
 }
 
 function stringList(value: unknown, key: string): string[] {
@@ -92,6 +96,93 @@ function intakeReferences(value: unknown): IntakeReference[] {
   });
 }
 
+export interface ReportRuleSpec {
+  id: string;
+  pattern: string;
+  flags?: string;
+  message: string;
+  severity?: "error" | "warning";
+}
+
+export interface ReportRules {
+  /** Rules added to the defaults. */
+  extend: ReportRuleSpec[];
+  /** Default rule ids switched off. */
+  disable: string[];
+  /** Phrases that are never reported (matched case-insensitively against the matched text and its 40-character neighbourhood). */
+  allow: string[];
+  pii: { syntheticEmailDomains: string[]; syntheticNamePrefixes: string[]; syntheticPhonePatterns: string[] };
+}
+
+export const DEFAULT_SYNTHETIC_NAME_PREFIXES = ["QA", "Test", "E2E", "Dummy", "Sample"];
+
+function compiles(pattern: string, flags: string): boolean {
+  try {
+    new RegExp(pattern, flags);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function reportRules(value: unknown): ReportRules {
+  if (value !== undefined && (value === null || typeof value !== "object" || Array.isArray(value))) {
+    throw new RunStateError("invalid-input", "aegis.config.json#reportRules must be an object");
+  }
+  const r = (value ?? {}) as Record<string, unknown>;
+  let extend: ReportRuleSpec[] = [];
+  if (r["extend"] !== undefined) {
+    if (!Array.isArray(r["extend"])) throw new RunStateError("invalid-input", "aegis.config.json#reportRules.extend must be a list");
+    const seen = new Set<string>();
+    extend = r["extend"].map((entry, i) => {
+      const key = `reportRules.extend[${i}]`;
+      if (entry === null || typeof entry !== "object") throw new RunStateError("invalid-input", `aegis.config.json#${key} must be an object`);
+      const e = entry as Record<string, unknown>;
+      if (typeof e["id"] !== "string" || e["id"].trim() === "") throw new RunStateError("invalid-input", `aegis.config.json#${key}.id must be a non-empty string`);
+      if (seen.has(e["id"])) throw new RunStateError("invalid-input", `aegis.config.json#reportRules.extend: id "${e["id"]}" is listed twice`);
+      seen.add(e["id"]);
+      if (typeof e["pattern"] !== "string") throw new RunStateError("invalid-input", `aegis.config.json#${key}.pattern must be a string`);
+      if (e["flags"] !== undefined && typeof e["flags"] !== "string") throw new RunStateError("invalid-input", `aegis.config.json#${key}.flags must be a string`);
+      const flags = typeof e["flags"] === "string" ? e["flags"] : undefined;
+      if (!compiles(e["pattern"], flags ?? "i")) {
+        throw new RunStateError("invalid-input", `aegis.config.json#${key}.pattern is not a valid regular expression`);
+      }
+      if (typeof e["message"] !== "string") throw new RunStateError("invalid-input", `aegis.config.json#${key}.message must be a string`);
+      if (e["severity"] !== undefined && e["severity"] !== "error" && e["severity"] !== "warning") {
+        throw new RunStateError("invalid-input", `aegis.config.json#${key}.severity must be error or warning`);
+      }
+      return {
+        id: e["id"],
+        pattern: e["pattern"],
+        ...(flags !== undefined ? { flags } : {}),
+        message: e["message"],
+        severity: (e["severity"] as "error" | "warning" | undefined) ?? "error",
+      };
+    });
+  }
+  const pii = r["pii"];
+  if (pii !== undefined && (pii === null || typeof pii !== "object" || Array.isArray(pii))) {
+    throw new RunStateError("invalid-input", "aegis.config.json#reportRules.pii must be an object");
+  }
+  const p = (pii ?? {}) as Record<string, unknown>;
+  const phonePatterns = stringList(p["syntheticPhonePatterns"], "reportRules.pii.syntheticPhonePatterns");
+  phonePatterns.forEach((pattern, i) => {
+    if (!compiles(pattern, "")) {
+      throw new RunStateError("invalid-input", `aegis.config.json#reportRules.pii.syntheticPhonePatterns[${i}] is not a valid regular expression`);
+    }
+  });
+  return {
+    extend,
+    disable: stringList(r["disable"], "reportRules.disable"),
+    allow: stringList(r["allow"], "reportRules.allow"),
+    pii: {
+      syntheticEmailDomains: stringList(p["syntheticEmailDomains"], "reportRules.pii.syntheticEmailDomains"),
+      syntheticNamePrefixes: p["syntheticNamePrefixes"] === undefined ? [...DEFAULT_SYNTHETIC_NAME_PREFIXES] : stringList(p["syntheticNamePrefixes"], "reportRules.pii.syntheticNamePrefixes"),
+      syntheticPhonePatterns: phonePatterns,
+    },
+  };
+}
+
 export function readRunConfig(root: string): RunConfig {
   let raw: Record<string, unknown>;
   try {
@@ -100,6 +191,7 @@ export function readRunConfig(root: string): RunConfig {
     throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
   }
   const intake = raw["intake"];
+  const testing = raw["testing"];
   // Compliance is on by default (AUD-055): an absent key means all six; only an explicit [] turns the phase off.
   const compliance = raw["compliance"] === undefined ? [...COMPLIANCE_REGULATIONS] : stringList(raw["compliance"], "compliance");
   // A regulation with no qa-compliance-<id> agent could never get a task, so the Compliance barrier would never pass.
@@ -116,5 +208,9 @@ export function readRunConfig(root: string): RunConfig {
     intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
     intakeReferences: intakeReferences(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["references"] : undefined),
     messaging,
+    reportRules: reportRules(raw["reportRules"]),
+    manualBudgetPercent: testing !== null && typeof testing === "object" && typeof (testing as Record<string, unknown>)["manualBudgetPercent"] === "number"
+      ? ((testing as Record<string, unknown>)["manualBudgetPercent"] as number)
+      : null,
   };
 }
