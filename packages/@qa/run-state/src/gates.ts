@@ -17,11 +17,12 @@ import {
   type RunState,
 } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
+import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
-import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
+import { busPath, gateDecisionPath, gatesDir, runDir, taskmasterDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
 import { commitRun, readRun, withRunLock } from "./run.js";
@@ -98,13 +99,21 @@ export interface DecideGateInput {
   decision: GateDecisionValue;
   note: string;
   reopenPhase?: string;
+  /** A rejection whose reopened phases include Explore: do not carry the web explorer's discovery over, explore again. */
+  reExplore?: boolean;
   now?: Date;
 }
+
+const EXPLORER = "qa-web-explorer";
+const isExplorerTask = (t: Task): boolean => t.phase === "explore" && t.assignee === EXPLORER;
 
 /**
  * Owner decision on an open gate (spec §3.2). A rejection reopens `reopenPhase` (default: the gated phase) through
  * the gated phase: every attempt so far on their tasks is recorded in run.json#supersededAttempts and the tasks go back
  * to pending, so only new work can pass the barrier again. It never reopens a phase at or before the previous gate's phase.
+ * Explore reuse: when the reopened phases include Explore but start before it, and `reExplore` is not set, a done qa-web-explorer
+ * task keeps its status and attempts and Explore goes back to pending marked `carried`, with the identity of the earlier Explore.
+ * Explore then cannot complete until the explore probe verified the carried discovery against the running app.
  * Retryable: until the final run.json write and the gate.decided event both land, the gate stays open, so a failed
  * call can be repeated and ends with one decision file and one event.
  * Lock order: run.lock -> task-file lock -> event-bus lock.
@@ -126,6 +135,15 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
   } else if (input.reopenPhase !== undefined) {
     throw new RunStateError("invalid-input", "--reopen-phase is only valid with --decision rejected");
   }
+  const reopened = reopen !== undefined ? reopenedPhaseIds(reopen, gate) : [];
+  if (input.reExplore === true && !reopened.includes("explore")) {
+    throw new RunStateError(
+      "invalid-input",
+      reopen === undefined
+        ? "--re-explore is only valid with --decision rejected"
+        : `--re-explore needs a rejection that reopens explore; this one reopens ${reopened.join(", ")}`
+    );
+  }
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     const record = state.gates[gate];
@@ -137,11 +155,21 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
       ...(reopen !== undefined ? { reopenPhase: reopen } : {}), decidedBy: "owner", decidedAt: ts,
     };
 
+    // The web explorer's discovery is carried over when Explore is reopened only because an earlier phase was, and its task is done.
+    let carry = false;
+    if (reopen !== undefined && reopen !== "explore" && reopened.includes("explore") && input.reExplore !== true) {
+      carry = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).some((t) => isExplorerTask(t) && t.status === "done");
+    }
     let open = state;
+    let phases: RunState["phases"] | undefined;
     if (reopen !== undefined) {
       // The superseded attempts land first, while the gate is still open: the barrier never trusts the old work,
       // and a failure below leaves a gate the owner can decide again.
-      open = await reopenPhaseTasks(root, runId, state, new Set<string>(reopenedPhaseIds(reopen, gate)), ts);
+      open = await reopenPhaseTasks(root, runId, state, new Set<string>(reopened), ts, carry ? isExplorerTask : undefined);
+      phases = reopenPhases(open, reopen, gate);
+      // reopenPhases replaced the record: the identity comes from the earlier Explore.
+      const identity = open.phases["explore"]?.identity;
+      if (carry) phases["explore"] = { status: "pending", carried: true, ...(identity !== undefined ? { identity } : {}) };
     }
 
     publishDecision(root, runId, decision);
@@ -150,13 +178,16 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
       // A block or stop that landed while the gate was open stays in force.
       status: open.status === "awaiting-gate" ? "running" : open.status,
       gates: { ...open.gates, [gate]: { ...record, status: input.decision, decidedAt: ts, decisions: sequence } },
-      ...(reopen !== undefined ? { phases: reopenPhases(open, reopen, gate), currentPhase: null } : {}),
+      ...(phases !== undefined ? { phases, currentPhase: null } : {}),
       updatedAt: ts,
     };
     // Unrecorded: the gate goes back to open so the same decision can be retried (publishDecision overwrites it).
     await commitRun(root, open, next, () =>
       appendChained(
-        { type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note, ...(reopen !== undefined ? { reopenPhase: reopen } : {}) },
+        {
+          type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note,
+          ...(reopen !== undefined ? { reopenPhase: reopen } : {}), ...(input.reExplore === true ? { reExplore: true } : {}),
+        },
         busPath(root, runId),
         { emittedBy: caller, runId }
       )

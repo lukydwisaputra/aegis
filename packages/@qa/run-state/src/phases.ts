@@ -22,6 +22,7 @@ import { relevantRegulations, showsPersonalData } from "./compliance.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";
+import { exploreIdentity } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
@@ -124,11 +125,16 @@ export async function startPhase(root: string, runId: string, phase: string, cal
       throw new RunStateError("env-blocked", `cannot start env-data: ${readOnly}; record it with aegis phase complete --phase env-data --not-applicable`);
     }
     const ts = iso(now);
+    // Explore keeps a carried-over discovery and the identity of the earlier Explore: the probe still has to verify it.
+    const prev = id === "explore" ? state.phases[id] : undefined;
     const next: RunState = {
       ...state,
       status: "running",
       currentPhase: id,
-      phases: { ...state.phases, [id]: { status: "in-progress", startedAt: ts } },
+      phases: {
+        ...state.phases,
+        [id]: { status: "in-progress", startedAt: ts, ...(prev?.carried === true ? { carried: true } : {}), ...(prev?.identity !== undefined ? { identity: prev.identity } : {}) },
+      },
       updatedAt: ts,
     };
     await commitRun(root, state, next, () => appendChained({ type: "run.phase.started", ts, runId, phase: id }, busPath(root, runId), { emittedBy: caller, runId }));
@@ -262,6 +268,9 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       problems.push(`gate ${gate} is not approved`);
     }
   }
+  if (phase === "explore" && state.phases["explore"]?.carried === true) {
+    problems.push("carried-over discovery has not been verified: run the explore probe (it compares the running app with the baseline and reopens the explorer when the app changed)");
+  }
   problems.push(...outputProblems(root, runId, phase));
   return problems;
 }
@@ -299,6 +308,8 @@ export async function completePhase(root: string, runId: string, phase: string, 
   // Spec §6.1 item 4. A failing verify records integrity.violation and blocks the run itself.
   const integrity = await verifyRunIntegrity(root, runId, caller, opts.now);
   if (!integrity.ok) throw new RunStateError("integrity-failed", `event log does not verify: ${integrity.errors.join("; ")}`);
+  // Explore records where the target source stood. Hashed before run.lock is taken; exploreIdentity never throws (nulls when unreadable).
+  const identity = id === "explore" && opts.notApplicable !== true ? exploreIdentity(root) : undefined;
 
   const outcome = await withRunLock(root, runId, async (): Promise<{ state: RunState } | { preflight: string }> => {
     const state = readRun(root, runId);
@@ -328,7 +339,7 @@ export async function completePhase(root: string, runId: string, phase: string, 
       snapshot = scanSnapshot(root, runId);
     }
     const record = state.phases[id]!;
-    const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, ...snapshot, status: "completed", completedAt: ts } }, updatedAt: ts };
+    const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, ...snapshot, ...(identity !== undefined ? { identity } : {}), status: "completed", completedAt: ts } }, updatedAt: ts };
     await commitRun(root, state, next, () =>
       appendChained({ type: "run.phase.completed", ts, runId, phase: id, result: "done" }, busPath(root, runId), { emittedBy: caller, runId })
     );

@@ -34,7 +34,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "phase.start": "phase start --phase <id> [--run <id>]",
   "phase.complete": "phase complete --phase <id> [--not-applicable] [--run <id>]",
   "gate.open": "gate open --gate G1|G2|G3 [--run <id>]",
-  "gate.decide": "gate decide --gate G1|G2|G3 --decision approved|approved-with-conditions|rejected --note <text> [--reopen-phase <id>] [--run <id>]",
+  "gate.decide": "gate decide --gate G1|G2|G3 --decision approved|approved-with-conditions|rejected --note <text> [--reopen-phase <id>] [--re-explore] [--run <id>]",
   "gate.auto-decide": "gate auto-decide --gate G2 [--run <id>]",
   "run.complete": "run complete [--run <id>]",
   "escalation.decide": "escalation decide --task <id> --decision retry|accept-with-risk|abort --reason <text> [--run <id>]",

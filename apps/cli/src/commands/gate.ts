@@ -22,14 +22,18 @@ export function gateCommand(): Command {
     .addOption(new Option("--decision <d>", "decision").choices(["approved", "approved-with-conditions", "rejected"]).makeOptionMandatory())
     .requiredOption("--note <text>", "the owner's note, recorded verbatim")
     .option("--reopen-phase <id>", "phase to return to (rejected only; default: the gated phase)")
+    .option("--re-explore", "with a rejection that reopens Explore: do not reuse the earlier discovery, explore again")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
-      action((o: { gate: string; decision: DecideGateInput["decision"]; note: string; reopenPhase?: string; run?: string }) => {
+      action((o: { gate: string; decision: DecideGateInput["decision"]; note: string; reopenPhase?: string; reExplore?: boolean; run?: string }) => {
         const ctx = context();
         return decideGate(
           ctx.root,
           runIdFor(ctx, o.run),
-          { gate: o.gate, decision: o.decision, note: o.note, ...(o.reopenPhase !== undefined ? { reopenPhase: o.reopenPhase } : {}) },
+          {
+            gate: o.gate, decision: o.decision, note: o.note,
+            ...(o.reopenPhase !== undefined ? { reopenPhase: o.reopenPhase } : {}), ...(o.reExplore === true ? { reExplore: true } : {}),
+          },
           ctx.caller
         );
       })

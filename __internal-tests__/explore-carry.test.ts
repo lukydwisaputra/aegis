@@ -1,0 +1,278 @@
+import { execFileSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { readLines } from '@qa/event-bus';
+import { createTaskmasterClient } from '@qa/taskmaster-client';
+import {
+  busPath, claimTask, completePhase, createRun, decideEscalation, decideGate, exploreIdentity, openGate, probeExplore, readRun, releaseTask, runDir, startPhase,
+  submitReview, submitWorkReport, takeBaseline, taskmasterDir,
+  type DecideGateInput, type PageFetcher, type PageRef, type RawObservation,
+} from '@qa/run-state';
+import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+import { fastForward, ORCH, review, workReport, workTask, writeRunFile } from './helpers/pipeline';
+
+const EXPLORER = 'qa-web-explorer';
+const SESSION = 'qa-exploratory-specialist';
+const CARRIED = 'carried-over discovery has not been verified: run the explore probe (it compares the running app with the baseline and reopens the explorer when the app changed)';
+
+let t: TmpAegis | null = null;
+let target = '';
+let runId = '';
+
+const git = (...args: string[]) => execFileSync('git', ['-C', target, ...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+afterEach(() => {
+  t?.cleanup();
+  t = null;
+  if (target !== '') fs.rmSync(target, { recursive: true, force: true });
+  target = '';
+});
+
+const root = () => t!.root;
+const events = () => readLines(busPath(root(), runId)).map((l) => JSON.parse(l) as Record<string, any>);
+const lastOf = (type: string) => events().filter((e) => e.type === type).pop();
+const tm = () => createTaskmasterClient(taskmasterDir(root(), runId));
+const status = async (id: string) => (await tm().get(id))!.status;
+const explore = () => readRun(root(), runId).phases['explore']!;
+const setConfig = (over: Record<string, unknown>) => {
+  const cfg = path.join(root(), 'aegis.config.json');
+  fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), ...over }));
+};
+
+const DISCOVERY = { pages: [{ role: 'volunteer', url: '/home' }, { role: 'volunteer', url: '/events' }] };
+const ROLES = [{ role: 'volunteer', storageState: 'tests/qa/state/volunteer.json' }];
+
+/** A fetcher answering every page unchanged, or with another heading for the pages in `changed`. */
+function fetcher(changed: string[] = []): { factory: () => Promise<PageFetcher>; visit: jest.Mock } {
+  const visit = jest.fn(async (p: PageRef): Promise<RawObservation> => ({
+    role: p.role, url: p.url, finalPath: p.url, status: 200, title: `Page ${p.url}`, h1: changed.includes(p.url) ? 'Something else' : 'Heading', testids: ['nav'], consoleErrors: [],
+  }));
+  return { factory: async () => ({ visit, close: async () => undefined }), visit };
+}
+
+/** Another attempt of a reopened task: claim, new work report, release done, passing review. */
+async function redo(taskId: string, agent: string, n: number): Promise<void> {
+  await claimTask(root(), runId, taskId, agent);
+  const w = path.join(root(), `redo-w-${taskId}-${n}.json`);
+  fs.writeFileSync(w, JSON.stringify(workReport(agent, taskId)));
+  await submitWorkReport(root(), runId, w, agent);
+  await releaseTask(root(), runId, taskId, 'done', agent);
+  const r = path.join(root(), `redo-r-${taskId}-${n}.json`);
+  fs.writeFileSync(r, JSON.stringify(review(`${agent}-spv`, agent, taskId, 'passed')));
+  await submitReview(root(), runId, r, `${agent}-spv`);
+}
+
+interface SetupOptions {
+  /** Take a baseline of the explored pages while Explore is in progress (default true). */
+  baseline?: boolean;
+  /** The explorer's task released failed and accepted with risk by the owner, instead of done. */
+  explorerFailed?: boolean;
+}
+
+/**
+ * A full run whose target is a real git repo: Explore completed (explorer and session tasks reviewed, a baseline when asked), then
+ * Planning completed and G1 open.
+ */
+async function toOpenG1(opts: SetupOptions = {}): Promise<void> {
+  t = makeAegisRoot();
+  target = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-carry-'));
+  git('init', '-q');
+  git('config', 'user.email', 'qa@example.com');
+  git('config', 'user.name', 'QA');
+  fs.mkdirSync(path.join(target, 'src'));
+  fs.writeFileSync(path.join(target, 'src', 'app.ts'), 'export const app = 1;\n');
+  git('add', '.');
+  git('commit', '-q', '-m', 'init');
+  setConfig({ targetProjectRoot: target, testsDir: path.join(target, 'tests', 'qa') });
+  runId = (await createRun(root(), { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+  fastForward(root(), runId, 'explore');
+  await startPhase(root(), runId, 'explore', ORCH);
+  if (opts.explorerFailed) {
+    await workTask(root(), runId, 'T-explore-1', EXPLORER, null, 'passed', 'failed');
+    await decideEscalation(root(), runId, { taskId: 'T-explore-1', decision: 'accept-with-risk', reason: 'The crawl stopped at the login wall; accepted for this pilot' }, 'owner');
+  } else {
+    await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv');
+  }
+  await workTask(root(), runId, 'T-explore-2', SESSION, 'qa-exploratory-specialist-spv');
+  writeRunFile(root(), runId, 'discovery-report.json', DISCOVERY);
+  writeRunFile(root(), runId, 'env-auth-report.json', { roles: ROLES });
+  if (opts.baseline !== false) await takeBaseline(root(), runId, ORCH, fetcher().factory);
+  await completePhase(root(), runId, 'explore', ORCH);
+  await startPhase(root(), runId, 'planning', ORCH);
+  writeRunFile(root(), runId, 'plan.json', {});
+  writeRunFile(root(), runId, 'risk-register.json', {});
+  await workTask(root(), runId, 'T-planning-1', 'qa-test-planner', 'qa-test-planner-spv');
+  await workTask(root(), runId, 'T-GATE-G1', ORCH, 'qa-orchestrator-spv');
+  await completePhase(root(), runId, 'planning', ORCH);
+  await openGate(root(), runId, 'G1', ORCH);
+}
+
+/** After a rejection: the phases before Explore done again (test shortcut), then Explore started. */
+async function backToExplore(): Promise<void> {
+  fastForward(root(), runId, 'explore');
+  await startPhase(root(), runId, 'explore', ORCH);
+}
+
+const reject = (over: Partial<DecideGateInput> = {}) =>
+  decideGate(root(), runId, { gate: 'G1', decision: 'rejected', note: 'Developer answers change the stories', reopenPhase: 'requirements', ...over }, 'owner');
+
+describe('a gate rejection carries the web-explorer discovery over', () => {
+  it('completing Explore records the source identity', async () => {
+    await toOpenG1();
+    const head = git('rev-parse', 'HEAD');
+    expect(explore()).toMatchObject({ status: 'completed', identity: { head, dirtyHash: expect.stringMatching(/^[0-9a-f]{64}$/) } });
+    expect(explore().identity).toEqual(exploreIdentity(root()));
+  });
+
+  it('a G1 rejection that reopens Requirements keeps the web-explorer task done and its attempts, marks discovery carried and keeps the identity; the other explore tasks reopen', async () => {
+    await toOpenG1();
+    const earlierIdentity = explore().identity;
+    expect(earlierIdentity).toBeDefined();
+    await reject();
+    expect(await status('T-explore-1')).toBe('done');
+    expect(await status('T-explore-2')).toBe('pending');
+    expect(await status('T-planning-1')).toBe('pending');
+    const s = readRun(root(), runId);
+    expect(s.phases['explore']).toEqual({ status: 'pending', carried: true, identity: earlierIdentity });
+    expect(s.phases['requirements']).toEqual({ status: 'pending' });
+    expect(s.supersededAttempts?.['T-explore-1']).toBeUndefined();
+    expect(s.supersededAttempts?.['T-explore-2']).toEqual({ [SESSION]: 1 });
+    const e = lastOf('gate.decided')!;
+    expect(e).toMatchObject({ decision: 'rejected', reopenPhase: 'requirements' });
+    expect(e).not.toHaveProperty('reExplore');
+  });
+
+  it('carried survives startPhase; Explore cannot complete until a verify probe ran; after a reuse probe it completes and records the identity', async () => {
+    await toOpenG1();
+    const earlierIdentity = explore().identity;
+    await reject();
+    await backToExplore();
+    expect(explore()).toMatchObject({ status: 'in-progress', carried: true, identity: earlierIdentity });
+    await redo('T-explore-2', SESSION, 2);
+    await expect(completePhase(root(), runId, 'explore', ORCH)).rejects.toMatchObject({ code: 'barrier', message: `phase explore cannot complete: ${CARRIED}` });
+    // An uncommitted edit since: the pages decide (reuse), the identity is recorded fresh at completion.
+    fs.writeFileSync(path.join(target, 'src', 'app.ts'), 'export const app = 2;\n');
+    const f = fetcher();
+    const r = await probeExplore(root(), runId, ORCH, f.factory);
+    expect(r).toMatchObject({ decision: 'reuse', reopened: [] });
+    expect(r.hints).toContainEqual(expect.stringContaining('dirtyHash'));
+    expect(f.visit).toHaveBeenCalledTimes(2);
+    const done = await completePhase(root(), runId, 'explore', ORCH);
+    expect(done.phases['explore']).toMatchObject({ status: 'completed', identity: exploreIdentity(root()) });
+    expect(done.phases['explore']!.carried).toBeUndefined();
+    expect(done.phases['explore']!.identity).not.toEqual(earlierIdentity);
+    // The explorer's work was reused: one attempt, never superseded.
+    expect(await status('T-explore-1')).toBe('done');
+    expect(fs.readdirSync(path.join(runDir(root(), runId), 'reports', 'work')).filter((n) => n.startsWith(`${EXPLORER}.T-explore-1.`))).toEqual([`${EXPLORER}.T-explore-1.1.json`]);
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toBeUndefined();
+  });
+
+  it('after a full probe (explorer reopened) the explorer runs again, a new baseline is taken, and Explore completes', async () => {
+    await toOpenG1();
+    await reject();
+    await backToExplore();
+    const r = await probeExplore(root(), runId, ORCH, fetcher(['/home', '/events']).factory);
+    expect(r).toMatchObject({ decision: 'full', reopened: ['T-explore-1'] });
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(explore().carried).toBeUndefined();
+    // The superseded attempt does not satisfy the barrier: the explorer must run again.
+    await redo('T-explore-2', SESSION, 2);
+    await expect(completePhase(root(), runId, 'explore', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/task T-explore-1 is pending/) });
+    await redo('T-explore-1', EXPLORER, 2);
+    const b = await takeBaseline(root(), runId, ORCH, fetcher(['/home', '/events']).factory);
+    expect(b).toMatchObject({ pages: 2, unavailable: null });
+    const done = await completePhase(root(), runId, 'explore', ORCH);
+    expect(done.phases['explore']).toMatchObject({ status: 'completed', identity: exploreIdentity(root()) });
+    expect(events().filter((e) => e.type === 'explore.probed').map((e) => `${e.mode} ${e.decision}`)).toEqual(['baseline none', 'verify full', 'baseline none']);
+  });
+
+  it('--reopen-phase explore and --re-explore reopen everything as before, nothing is carried, and the event records reExplore', async () => {
+    await toOpenG1();
+    await reject({ reopenPhase: 'explore' });
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(await status('T-explore-2')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
+    expect(lastOf('gate.decided')).not.toHaveProperty('reExplore');
+
+    t!.cleanup();
+    fs.rmSync(target, { recursive: true, force: true });
+    await toOpenG1();
+    await reject({ reExplore: true });
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(await status('T-explore-2')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
+    expect(lastOf('gate.decided')).toMatchObject({ decision: 'rejected', reopenPhase: 'requirements', reExplore: true });
+    // Started again, Explore is not carried: it completes on new work without a probe.
+    await backToExplore();
+    expect(explore().carried).toBeUndefined();
+    await redo('T-explore-1', EXPLORER, 2);
+    await redo('T-explore-2', SESSION, 2);
+    await expect(completePhase(root(), runId, 'explore', ORCH)).resolves.toMatchObject({ phases: { explore: { status: 'completed' } } });
+  });
+
+  it('--re-explore is refused on an approval and when the reopened range does not include Explore', async () => {
+    await toOpenG1();
+    const before = events().length;
+    await expect(decideGate(root(), runId, { gate: 'G1', decision: 'approved', note: 'fine', reExplore: true }, 'owner')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/--re-explore/) });
+    await expect(decideGate(root(), runId, { gate: 'G1', decision: 'approved-with-conditions', note: 'fine', reExplore: true }, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(reject({ reopenPhase: 'planning', reExplore: true })).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/--re-explore.*explore/) });
+    // The default reopen phase of G1 is Planning, after Explore.
+    await expect(decideGate(root(), runId, { gate: 'G1', decision: 'rejected', note: 'Rework the plan', reExplore: true }, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+    // Nothing was written: the gate is still open, every task as it was.
+    expect(events()).toHaveLength(before);
+    expect(readRun(root(), runId).gates['G1']).toMatchObject({ status: 'open' });
+    expect(await status('T-explore-1')).toBe('done');
+    expect(await status('T-planning-1')).toBe('done');
+    // reExplore false is the same as leaving it out.
+    await reject({ reExplore: false });
+    expect(explore()).toMatchObject({ status: 'pending', carried: true });
+  });
+
+  it('a rejection that does not reach Explore carries nothing', async () => {
+    await toOpenG1();
+    const earlier = explore();
+    await reject({ reopenPhase: 'planning' });
+    expect(explore()).toEqual(earlier);
+    expect(explore().carried).toBeUndefined();
+    expect(await status('T-explore-1')).toBe('done');
+    expect(await status('T-explore-2')).toBe('done');
+    expect(await status('T-planning-1')).toBe('pending');
+  });
+
+  it('an explorer task that was not done (released failed, accepted with risk) carries nothing: it is reopened', async () => {
+    await toOpenG1({ explorerFailed: true });
+    expect(await status('T-explore-1')).toBe('failed');
+    await reject();
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
+  });
+
+  it('a run without a baseline is carried and the probe answers full: the explorer runs again', async () => {
+    await toOpenG1({ baseline: false });
+    await reject();
+    expect(explore()).toMatchObject({ status: 'pending', carried: true });
+    await backToExplore();
+    const f = fetcher();
+    const r = await probeExplore(root(), runId, ORCH, f.factory);
+    expect(r).toMatchObject({ decision: 'full', reason: 'no baseline of the explored pages was taken in this run', reopened: ['T-explore-1'] });
+    expect(f.visit).not.toHaveBeenCalled();
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(explore().carried).toBeUndefined();
+  });
+
+  it('completing Explore never fails on an unreadable source identity (the target is not a git checkout)', async () => {
+    t = makeAegisRoot();
+    target = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-nogit-'));
+    setConfig({ targetProjectRoot: target, testsDir: path.join(target, 'tests', 'qa') });
+    runId = (await createRun(root(), { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    fastForward(root(), runId, 'explore');
+    await startPhase(root(), runId, 'explore', ORCH);
+    await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv');
+    writeRunFile(root(), runId, 'discovery-report.json', DISCOVERY);
+    const done = await completePhase(root(), runId, 'explore', ORCH);
+    expect(done.phases['explore']).toMatchObject({ status: 'completed', identity: { head: null, dirtyHash: null } });
+  });
+});
