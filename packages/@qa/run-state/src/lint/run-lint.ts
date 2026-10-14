@@ -105,19 +105,23 @@ export type LintBlockStage = "phase-complete" | "gate-open" | "execution";
 const listed = (errors: readonly Pick<Finding, "file" | "line" | "rule">[]): string =>
   `${errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ")}${errors.length > 10 ? "; ..." : ""}`;
 
-/** What fixes a data error, per rule group, while its phase is still active (stated truthfully: who can write what). */
-function dataRemedies(groups: ReadonlySet<string>): string[] {
+/** What fixes a data error, per rule, while its phase is still active (stated truthfully: who can write what). */
+function dataRemedies(rules: ReadonlySet<string>): string[] {
   const out: string[] = [];
-  if (groups.has("blocked-qa-side")) {
+  const inGroup = (group: string, except: readonly string[] = []): boolean => [...rules].some((r) => dataRuleGroup(r) === group && !except.includes(r));
+  if (inGroup("blocked-qa-side", ["blocked-unreadable"])) {
     out.push("for a Blocked result, add a correction task for the specialist that wrote the result file to the active phase (the defect manager cannot write result files): it fixes the QA-side cause and re-runs the check, or records blockedCause honestly (product-dependency with blockedDependency naming the dependency, or requirement-gap)");
   }
-  if (groups.has("defect-origin")) {
-    out.push("for the origin fields of a defect, the defect manager edits the record while Triage is active (aegis defect amend cannot change originConfirmation)");
+  if (rules.has("blocked-unreadable")) {
+    out.push("for blocked-unreadable, which result file is the case of record comes from the owner's gate decision, so a specialist correction task does not fix it: the owner settles the declaration (one result file with caseOfRecord and its caseOfRecordReason); the other Blocked checks run once it is fixed");
   }
-  if (groups.has("defect-counts")) {
+  if (inGroup("defect-origin")) {
+    out.push("for the origin fields of a defect, add a correction task for the defect manager in Triage (its earlier task is already done): it edits the record (aegis defect amend cannot change originConfirmation)");
+  }
+  if (inGroup("defect-counts")) {
     out.push("for defect counts, status or the RTM defect map, aegis defect amend corrects a status or retest verdict, aegis rtm sync-defects rebuilds the map, and the defect manager re-records the defect management summary with the figures of aegis metrics defects");
   }
-  if (groups.has("env-probe")) out.push("for the environment probe, fix the environment and run the probe again");
+  if (inGroup("env-probe")) out.push("for the environment probe, fix the environment and run the probe again");
   return out;
 }
 
@@ -142,14 +146,15 @@ export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "f
   }
   if (data.length > 0) {
     const head = `${data.length} data check error(s) in the run's records (${listed(data)})`;
+    const rules = new Set(data.map((f) => f.rule));
     const groups = new Set(data.map((f) => dataRuleGroup(f.rule) ?? ""));
     let tail: string;
     if (at === "gate-open") {
       tail = `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.disable with the rule group: ${[...groups].filter((g) => g !== "").sort().join(", ")}) in aegis.config.json and the orchestrator opens the gate again, or the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`;
     } else if (at === "execution") {
-      tail = `Execution cannot complete with them: ${dataRemedies(groups).join("; ")}; then complete the phase again`;
+      tail = `Execution cannot complete with them: ${dataRemedies(rules).join("; ")}; then complete the phase again`;
     } else {
-      tail = `Gate ${gate} cannot open with them: ${dataRemedies(groups).join("; ")}; run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
+      tail = `Gate ${gate} cannot open with them: ${dataRemedies(rules).join("; ")}; run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
     }
     parts.push(`${head}. ${tail}`);
   }

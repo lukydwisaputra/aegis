@@ -1,5 +1,7 @@
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { staleBuild } from '@qa/alignment';
 import { busPath, completePhase, createRun, dataFindings, lintBlockMessage, lintFindings, lintRun, nextStep, openGate, readRun, runDir, startPhase, type Finding } from '@qa/run-state';
 import { appendChained, readLines } from '@qa/event-bus';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
@@ -131,6 +133,10 @@ describe('Blocked rules', () => {
     put('cases/TC-PART-010-result-api.json', { status: 'blocked', caseOfRecord: true, caseOfRecordReason: 'G2 decision' });
     put('cases/TC-PART-010-result-stub.json', { status: 'pass', caseOfRecord: true, caseOfRecordReason: 'G2 decision' });
     expect(brief(data('execution'))).toEqual(['blocked-unreadable|error|cases/TC-PART-010-result-api.json|TC-PART-010']);
+    // It says the other Blocked checks did not run: a missing cause elsewhere surfaces only once the declaration is settled.
+    put('cases/TC-PART-006-result.json', { status: 'blocked' });
+    expect(data('execution').map((f) => f.rule)).toEqual(['blocked-unreadable']);
+    expect(data('execution')[0]!.message).toContain('the other Blocked checks of the run did not run and run once it is fixed');
   });
 
   it('the Execution barrier runs ONLY the Blocked rules (no text or PII findings), names the cases, and a specialist correction task can fix it (add task, rewrite the record, complete)', async () => {
@@ -335,6 +341,7 @@ describe('lintBlockMessage with data errors', () => {
     expect(phase).toMatch(/^1 lint error\(s\) in the customer-facing files \(defects\/DEF-001-AUTH-UI\.md:1 qa-cycle\)\. Gate G2 cannot open with them: fix each with a correction task/);
     expect(phase).toContain("2 data check error(s) in the run's records (cases/TC-AUTH-001-result.json:1 blocked-no-cause; defects/DEF-001-AUTH-UI.json:1 defect-origin-missing)");
     expect(phase).toContain('the defect manager cannot write result files');
+    expect(phase).toContain('add a correction task for the defect manager in Triage');
     expect(phase).toContain('aegis defect amend cannot change originConfirmation');
     expect(phase.endsWith('2 file(s) were not scanned (see skipped in the report)')).toBe(true);
     const open = lintBlockMessage('G2', [blocked, origin], 'gate-open');
@@ -342,6 +349,65 @@ describe('lintBlockMessage with data errors', () => {
     expect(open).not.toContain('correction task');
     const exec = lintBlockMessage('G2', [blocked], 'execution');
     expect(exec).toMatch(/^1 data check error\(s\).*Execution cannot complete with them: for a Blocked result, add a correction task for the specialist/);
-    expect(exec).not.toMatch(/customer-facing files|Gate G2 cannot open|defect manager edits/);
+    expect(exec).not.toMatch(/customer-facing files|Gate G2 cannot open|defect manager in Triage/);
+  });
+  it('blocked-unreadable has its own remedy: the case of record comes from the owner\'s gate decision, not a specialist correction task', () => {
+    const unreadable = { file: 'cases/TC-PART-010-result-api.json', line: 1, rule: 'blocked-unreadable', kind: 'data' as const };
+    const alone = lintBlockMessage('G2', [unreadable], 'execution');
+    expect(alone).toContain("for blocked-unreadable, which result file is the case of record comes from the owner's gate decision, so a specialist correction task does not fix it");
+    expect(alone).toContain('the other Blocked checks run once it is fixed');
+    expect(alone).not.toContain('add a correction task for the specialist');
+    // With another Blocked error both remedies are named.
+    expect(lintBlockMessage('G2', [unreadable, blocked], 'execution')).toMatch(/correction task for the specialist.*owner's gate decision/);
+  });
+});
+
+const ROOT = path.join(__dirname, '..');
+const CLI = path.join(ROOT, 'apps', 'cli', 'dist', 'index.js');
+// Locally the CLI tests need a fresh `pnpm build`; skip with a reason rather than fail. CI always runs them.
+const stale = process.env.CI ? null : staleBuild(ROOT);
+if (stale) console.warn(`lint-data CLI tests skipped: ${stale} (run pnpm build)`);
+const withCli = stale ? it.skip : it;
+const cliLint = () => {
+  const env = { ...process.env, AEGIS_AGENT: ORCH, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+  const r = spawnSync(process.execPath, [CLI, 'lint', 'run', '--gate', 'G2', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
+  return { status: r.status, stdout: r.stdout, out: JSON.parse(r.stdout) as { findings: Finding[]; truncated: boolean; errors: number; warnings: number } };
+};
+
+describe('the data findings in the report and the CLI output', () => {
+  const nricNote = "yes, on volunteer S1234567D's account";
+  const longEmail = 'volunteer.registration.second.contact.address.recorded@gmail.com';
+
+  withCli('no record text reaches a finding unmasked: not the reproducedOnClean value, not an email cut before masking; nor the report file or the CLI output', async () => {
+    expect(longEmail.length).toBeGreaterThan(60);
+    putDefect('DEF-001-AUTH-UI', { originConfirmation: { ruledOut: ['stale build'], reproducedOnClean: nricNote, evidenceRef: 'evidence/DEF-001-AUTH-UI/repro.png' } });
+    putDefect('DEF-002-AUTH-UI', { id: longEmail, originConfirmation: { ruledOut: [], reproducedOnClean: true, evidenceRef: 'evidence/DEF-002-AUTH-UI/repro.png' } });
+    const found = data();
+    expect(ofGroup(/^defect-origin/, found)).toEqual([
+      'defect-origin-not-clean|error|defects/DEF-001-AUTH-UI.json|DEF-001-AUTH-UI: reproducedOnClean a string',
+      expect.stringMatching(/^defect-origin-missing\|error\|defects\/DEF-002-AUTH-UI\.json\|v\*+: originConfirmation ruledOut missing$/),
+    ]);
+    expect(JSON.stringify(found)).not.toMatch(/volunteer\.registration|S1234567D|yes, on volunteer/);
+    const { stdout } = cliLint();
+    const report = fs.readFileSync(path.join(runDir(t.root, runId), 'reports/lint/gate-G2.json'), 'utf8');
+    for (const shown of [stdout, report]) {
+      expect(shown).toContain('defect-origin-not-clean');
+      expect(shown).not.toContain('S1234567D');
+      expect(shown).not.toContain(nricNote);
+      expect(shown).not.toContain('volunteer.registration');
+    }
+  });
+
+  withCli('errors come before warnings in the CLI output, so a data error after 50+ wording warnings is never cut', async () => {
+    setConfig({ reportRules: { extend: [{ id: 'soft', pattern: 'maybe', message: 'm', severity: 'warning' }] } });
+    put('defects/DEF-001-AUTH-UI.md', Array.from({ length: 60 }, () => 'maybe a defect').join('\n') + '\n');
+    put('cases/TC-AUTH-001.json', { id: 'TC-AUTH-001' });
+    put('cases/TC-AUTH-001-result.json', { status: 'blocked', notes: 'harness' });
+    const { status, out } = cliLint();
+    expect(status).toBe(3);
+    expect(out).toMatchObject({ errors: 1, warnings: 60, truncated: true });
+    expect(out.findings).toHaveLength(50);
+    expect(out.findings[0]).toMatchObject({ rule: 'blocked-no-cause', severity: 'error', kind: 'data' });
+    expect(out.findings.slice(1).every((f) => f.rule === 'soft')).toBe(true);
   });
 });

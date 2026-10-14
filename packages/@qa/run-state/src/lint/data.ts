@@ -38,8 +38,10 @@ export const DATA_RULES: Readonly<Record<string, DataRuleGroup>> = {
 /** The group of a data rule id, or undefined for a wording or personal-data rule. */
 export const dataRuleGroup = (rule: string): DataRuleGroup | undefined => DATA_RULES[rule];
 
-/** A piece of record text in a finding: never more than 60 characters, personal data masked. */
-const snippet = (s: string): string => maskPersonalData(s.slice(0, 60)).text;
+/** How much of a record value is masked before the cut: enough that a cut never splits a value the masker would have caught. */
+const MASK_PREFIX = 1000;
+/** A piece of record text in a finding: personal data masked over a bounded prefix FIRST, then cut at 60 characters. */
+const snippet = (s: string): string => maskPersonalData(s.slice(0, MASK_PREFIX)).text.slice(0, 60);
 
 const finding = (rule: string, severity: Finding["severity"], file: string, message: string, context: string): Finding =>
   ({ rule, severity, file: maskPath(file), line: 1, message, context, kind: "data" });
@@ -51,7 +53,8 @@ const NO_CAUSE =
 const NO_DEPENDENCY = "name the product dependency exactly in blockedDependency (for example Singpass, MyInfo, Stripe, S3)";
 const REQUIREMENT_GAP = "record the ambiguity in the requirement ambiguity report";
 const SUSPECT = "the note of this product-dependency Blocked result reads like a QA-side fault: check that the dependency is real and exists now";
-const UNREADABLE_CASE = "the result files of this case disagree on which is the case of record (two declare caseOfRecord, or one gives no caseOfRecordReason): the Blocked checks cannot read it";
+const UNREADABLE_CASE =
+  "the result files of this case disagree on which is the case of record (two declare caseOfRecord, or one gives no caseOfRecordReason); the other Blocked checks of the run did not run and run once it is fixed";
 
 /** Words that name no dependency at all. */
 const GENERIC_DEPENDENCY: ReadonlySet<string> = new Set(["api", "service", "server", "data", "env", "tbd", "none", "unknown", "n/a"]);
@@ -148,7 +151,7 @@ function readDefects(dir: string): DefectFiles {
     }
     if (!isPlain(record)) {
       out.unusable.add(fileId);
-      out.findings.push(finding("defect-unreadable", "warning", rel, DEFECT_NOT_JSON, fileId));
+      out.findings.push(finding("defect-unreadable", "warning", rel, DEFECT_NOT_JSON, snippet(fileId)));
       continue;
     }
     const id = typeof record["id"] === "string" ? record["id"] : fileId;
@@ -163,6 +166,9 @@ function readDefects(dir: string): DefectFiles {
   return out;
 }
 
+/** What a field holds, never its text: a boolean or null as itself, anything else by its type. */
+const kindOf = (v: unknown): string => (v === undefined ? "missing" : v === null ? "null" : typeof v === "boolean" ? String(v) : Array.isArray(v) ? "a list" : `a ${typeof v}`);
+
 function originFindings(files: DefectFiles): Finding[] {
   const out: Finding[] = [];
   for (const { name, id, record } of files.records) {
@@ -175,7 +181,7 @@ function originFindings(files: DefectFiles): Finding[] {
     if (missing.length > 0) out.push(finding("defect-origin-missing", "error", rel, ORIGIN_MISSING, `${snippet(id)}: originConfirmation ${missing.join(", ")} missing`));
     // An exploratory candidate (-EXP) and a carried defect with a retest verdict have no clean reproduction of their own to record.
     if (!/-EXP$/i.test(id) && defectRetestVerdict(record) === null && oc?.["reproducedOnClean"] !== true) {
-      out.push(finding("defect-origin-not-clean", "error", rel, ORIGIN_NOT_CLEAN, `${snippet(id)}: reproducedOnClean ${oc === undefined ? "missing" : JSON.stringify(oc["reproducedOnClean"] ?? null)}`));
+      out.push(finding("defect-origin-not-clean", "error", rel, ORIGIN_NOT_CLEAN, `${snippet(id)}: reproducedOnClean ${oc === undefined ? "missing" : kindOf(oc["reproducedOnClean"])}`));
     }
   }
   return out;
@@ -226,7 +232,7 @@ function countFindings(root: string, runId: string, dir: string, counts: DefectR
       for (const items of Object.values(counts?.openItems ?? {})) for (const i of items) bySeverity[i.severity ?? "unclassified"] = (bySeverity[i.severity ?? "unclassified"] ?? 0) + 1;
       const actual = nonZero(bySeverity)!;
       if (stated === null || stated.join(",") !== actual.join(",")) {
-        out.push(finding("defect-severity-mismatch", "error", "events.jsonl", SEVERITY_MISMATCH, `severityBreakdown ${snippet(stated === null ? "unreadable" : `{${stated.join(", ")}}`)} vs {${actual.join(", ")}}`));
+        out.push(finding("defect-severity-mismatch", "error", "events.jsonl", SEVERITY_MISMATCH, `severityBreakdown ${snippet(stated === null ? "unreadable" : `{${stated.join(", ")}}`)} vs ${snippet(`{${actual.join(", ")}}`)}`));
       }
     }
   }
@@ -248,7 +254,7 @@ function countFindings(root: string, runId: string, dir: string, counts: DefectR
   const missing = [...ids].filter((id) => !mapped.has(id)).sort();
   const extra = [...mapped].filter((id) => !ids.has(id)).sort();
   if (missing.length > 0 || extra.length > 0) {
-    const listed = [...missing.map((id) => `missing ${id}`), ...extra.map((id) => `extra ${snippet(id)}`)];
+    const listed = [...missing.map((id) => `missing ${snippet(id)}`), ...extra.map((id) => `extra ${snippet(id)}`)];
     out.push(finding("defect-rtm-mismatch", "error", "rtm.json", RTM_MISMATCH, `${listed.slice(0, 5).join(", ")}${listed.length > 5 ? `, ... (${listed.length})` : ""}`));
   }
   return out;
