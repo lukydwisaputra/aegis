@@ -531,6 +531,19 @@ export const LintCompletedEventSchema = EventBase.extend({
   report: z.string(),
 });
 
+/** `aegis explore probe` took a baseline of the explored pages, or compared the running app with it and decided what is reused. */
+export const ExploreProbedEventSchema = EventBase.extend({
+  type: z.literal("explore.probed"),
+  agent: z.string(),
+  mode: z.enum(["baseline", "verify"]),
+  decision: z.enum(["reuse", "partial", "full", "none"]),
+  pages: z.number().int().nonnegative(),
+  same: z.number().int().nonnegative(),
+  changed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  hints: z.array(z.string()),
+});
+
 export const RtmRenderedEventSchema = EventBase.extend({
   type: z.literal("rtm.rendered"),
   agent: z.string(),
@@ -1893,6 +1906,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RtmRenderedEventSchema,
   EnvExecutedEventSchema,
   LintCompletedEventSchema,
+  ExploreProbedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,

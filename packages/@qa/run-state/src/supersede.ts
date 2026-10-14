@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import type { RunState } from "@qa/contracts";
-import { createTaskmasterClient } from "@qa/taskmaster-client";
+import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { taskmasterDir } from "./paths.js";
 import { writeRun } from "./run.js";
 import { workDir } from "./submit.js";
@@ -31,11 +31,12 @@ export function supersedeAttempts(root: string, runId: string, state: RunState, 
  * run.json#supersededAttempts and written first, while the caller's precondition still holds (the gate is open, the run is
  * completed), so a failure below leaves a state the same command can retry. Then each done or failed task is reopened; a task
  * already pending was reopened by an earlier try (or by submitReview, under submit.lock, not run.lock) and is skipped.
- * Returns the state it wrote. Shared by a gate rejection (decideGate) and a reissue (reissueRun); call it under run.lock.
+ * Returns the state it wrote. Shared by a gate rejection (decideGate), a reissue (reissueRun) and the explore probe; call it under run.lock.
+ * A task for which `keep` returns true is left as it is: it is neither superseded nor reopened, and keeps its attempts.
  */
-export async function reopenPhaseTasks(root: string, runId: string, state: RunState, phases: ReadonlySet<string>, ts: string): Promise<RunState> {
+export async function reopenPhaseTasks(root: string, runId: string, state: RunState, phases: ReadonlySet<string>, ts: string, keep: (task: Task) => boolean = () => false): Promise<RunState> {
   const client = createTaskmasterClient(taskmasterDir(root, runId));
-  const tasks = (await client.list()).filter((t) => t.phase !== undefined && phases.has(t.phase));
+  const tasks = (await client.list()).filter((t) => t.phase !== undefined && phases.has(t.phase) && !keep(t));
   const open: RunState = { ...state, supersededAttempts: supersedeAttempts(root, runId, state, new Set(tasks.map((t) => t.id))), updatedAt: ts };
   writeRun(root, open);
   for (const t of tasks) {

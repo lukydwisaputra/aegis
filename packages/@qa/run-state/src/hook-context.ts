@@ -54,6 +54,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "env.exec": "env exec [--run <id>] -- <command...>",
   "env.check": "env check [--run <id>]",
   "lint.run": "lint run --gate G2|G3 [--run <id>]",
+  "explore.probe": "explore probe [--baseline] [--run <id>]",
 };
 
 /** NEW-07: each messaging adapter with the hints that identify it in a target, so the scanner never hard-codes a provider. */
