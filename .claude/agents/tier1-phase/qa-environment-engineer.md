@@ -81,6 +81,7 @@ scope=data never seeds on a read-only environment. There the orchestrator record
    - Implement `create()` + `cleanup()` pair — cleanup called in `afterEach`; track created records with `FactoryCleanupTracker` from `tests/qa/support/test-helpers.ts`
    - Prefix: `qa_`, `test_`, `e2e_`; email plus-aliases: `base+qa@domain.com`
    - Never seed real PII; never seed into production env
+   - Factories generate well-formed phone numbers (a leading 8 or 9) because the application validates them; the reports mask them, and a case names its factory instead of carrying literal personal data
 
 5. **Wire environment variables.** For each environment in scope:
    - Verify `aegis/secrets/.env.{env}` exists (gitignored; non-example only)

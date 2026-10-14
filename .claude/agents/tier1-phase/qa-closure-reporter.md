@@ -123,6 +123,8 @@ You run twice per cycle, and your brief names the `pass`. The draft pass (Closur
 
 6. **Submit, release, stop.** Append `closure.report-drafted` as your last event, then submit your work report (key decisions made, coverage gaps identified, lessons applied) and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
+The pre-gate lint refuses Gate 3 while a customer-facing file carries QA-process wording in context, an internal task id, or personal data that could be real (an NRIC, an email, a phone number, a person name), so you never write them. A finding is fixed in the source JSON and the file is rewritten, never argued with. A phone number is written masked (`+65 9100 ****`) in every file the customer reads, a case's test data included: the case names its factory, and the real-format numbers stay in the test code.
+
 ## Customer-facing wording (shared rule)
 
 Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.

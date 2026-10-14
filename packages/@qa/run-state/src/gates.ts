@@ -20,6 +20,7 @@ import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
+import { lintFindings } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
@@ -46,6 +47,13 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
     if (step.kind !== "open-gate" || step.gate !== gate) throw new RunStateError("out-of-order", `cannot open ${gate}: ${describeStep(step)}`);
     if (!gateTaskPassed(root, runId, state, gate)) {
       throw new RunStateError("barrier", `gate ${gate} needs a passing qa-orchestrator-spv review of task ${gateTaskId(gate)}`);
+    }
+    if (gate === "G2" || gate === "G3") {
+      const lint = lintFindings(root, runId).findings.filter((f) => f.severity === "error");
+      if (lint.length > 0) {
+        const shown = lint.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ");
+        throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lint.length} lint error(s) in the customer-facing files (${shown}${lint.length > 10 ? "; ..." : ""}). Run aegis lint run --gate ${gate} for the detail, fix each in the agent that wrote the file, then open the gate again`);
+      }
     }
     const ts = iso(now);
     const prev = state.gates[gate];

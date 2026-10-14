@@ -84,6 +84,14 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `environments` — per-env URLs, allowed specialists, and `mutating` flag
 - `ports` — dashboard (3030), dashboardApi (3031), k6 (5665); the messaging stub port is messaging.stubPort (4010)
 - `dashboard.projectName` — appears in all customer-facing report output
+- `reportRules` — what the pre-gate lint (`aegis lint run`, run before G2 and G3) checks in the customer-facing files; each key is optional:
+  - `extend` — extra wording rules (`{id, pattern, message, severity?}`)
+  - `disable` — ids of built-in rules the project turns off
+  - `allow` — phrases the project uses on purpose, so the wording rules skip them
+  - `pii.syntheticValues` — exact personal-data values declared as test data that cannot be real
+  - `pii.syntheticEmailDomains` — email domains that are always synthetic
+  - `pii.syntheticNamePrefixes` — name prefixes that mark a synthetic person (for example `QA Test`)
+  - `pii.syntheticPhonePatterns` — phone patterns the project's factories generate
 
 Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severity limits) live in `thresholds.yaml`.
 

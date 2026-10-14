@@ -13,6 +13,7 @@ export type RunStateErrorCode =
   | "no-work-report"
   | "out-of-order"
   | "barrier"
+  | "lint-failed"
   | "preflight-failed"
   | "integrity-failed"
   | "escalation-pending"

@@ -109,7 +109,7 @@ You translate approved requirements and the test plan into concrete, executable 
 
    Set `testTechnique` when: (a) a secondary specialist must run alongside the primary, OR (b) the test design technique applied is worth recording for traceability (BoundaryValue, EquivalencePartition, StateTransition, DecisionTable, Pairwise, Regression, Smoke, Flow).
 
-   **Ground steps in source code.** Prefer test steps that reference actual source routes/components/handlers from `target-profile.json#sourceInventory` over paraphrased documentation. **Mark which factory each test needs in `testData`** (e.g. `testData: { factory: "user", role: "admin" }`) so qa-ui-specialist knows which factory's `create()` to call in `beforeEach` for seed data.
+   **Ground steps in source code.** Prefer test steps that reference actual source routes/components/handlers from `target-profile.json#sourceInventory` over paraphrased documentation. **Mark which factory each test needs in `testData`** (e.g. `testData: { factory: "user", role: "admin" }`) so qa-ui-specialist knows which factory's `create()` to call in `beforeEach` for seed data. A case names its factory and never carries literal personal data (an NRIC, a phone number, a person name): the factories generate well-formed numbers (a leading 8 or 9) because the application validates them, and the reports mask them.
 
 6. **Build the RTM.** One row per requirement. Columns: requirementId, description, source, priority, storyId, scenarioId, designDoc, testCaseIds[], testStatus, defectIds[], verificationMethod, status, owner, complianceTags[], viewportScope, manualReason (for manual TCs).
 
