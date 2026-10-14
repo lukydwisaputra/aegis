@@ -521,6 +521,16 @@ export const EnvExecutedEventSchema = EventBase.extend({
   injected: z.array(z.string()),
 });
 
+/** `aegis lint` ran over the customer-facing files before a gate; the report is reports/lint/gate-{G}.json. */
+export const LintCompletedEventSchema = EventBase.extend({
+  type: z.literal("lint.completed"),
+  agent: z.string(),
+  gate: z.enum(["G2", "G3"]),
+  errors: z.number().int().nonnegative(),
+  warnings: z.number().int().nonnegative(),
+  report: z.string(),
+});
+
 export const RtmRenderedEventSchema = EventBase.extend({
   type: z.literal("rtm.rendered"),
   agent: z.string(),
@@ -1882,6 +1892,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RtmDefectMapSyncedEventSchema,
   RtmRenderedEventSchema,
   EnvExecutedEventSchema,
+  LintCompletedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,

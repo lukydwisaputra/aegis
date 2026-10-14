@@ -85,6 +85,7 @@ Every event includes `ts: string` (ISO-8601 UTC).
 | `env.write-blocked` | env, agent, action |
 | `env.specialist-blocked` | env, specialist |
 | `env.executed` | agent, environment, command (redacted), exitCode, injected (names only) |
+| `lint.completed` | agent, gate (G2 or G3), errors, warnings, report (reports/lint/gate-{G}.json) |
 | `aegis.territory.violated` | agent, attemptedPath |
 
 ### Discovery & auth
