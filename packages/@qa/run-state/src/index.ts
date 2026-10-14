@@ -30,3 +30,4 @@ export * from "./metrics-coverage.js";
 export * from "./defect-amend.js";
 export * from "./lint/text.js";
 export * from "./lint/rules.js";
+export * from "./lint/pii.js";
