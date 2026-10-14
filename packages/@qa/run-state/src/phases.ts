@@ -29,7 +29,7 @@ import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
-import { attemptsIn, reviewDir, workDir } from "./submit.js";
+import { attemptsIn, reviewDir, reviewPassed, workDir } from "./submit.js";
 import { reopenPhaseTasks } from "./supersede.js";
 import { formatIssues, iso, loadJson } from "./util.js";
 
@@ -180,13 +180,6 @@ export function gateTaskPassed(root: string, runId: string, state: RunState, gat
   return reviewPassed(root, runId, ORCHESTRATOR, taskId, latest);
 }
 
-/** A passing review of `attempt` by the paired SPV of `agent`. */
-export function reviewPassed(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
-  const file = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
-  if (!existsSync(file)) return false;
-  const review = ReviewSchema.safeParse(loadJson(file));
-  return review.success && review.data.reviewer === pairedSpv(agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
-}
 
 
 /** Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. */

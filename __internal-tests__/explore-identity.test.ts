@@ -112,17 +112,41 @@ describe('selectPages', () => {
     expect(selectPages([{ role: 'a', route: '/x' }], '${PREVIEW_URL}').skipped).toEqual([{ role: 'a', route: '/x', reason: 'invalid page address' }]);
     expect(selectPages([{ role: 'a', route: '/unsubscribe?t=1' }], 'https://app.test', [/unsubscribe/]).skipped[0]?.reason).toBe('skip pattern');
   });
-  it('skips side-effect routes and pages with a sensitive query parameter, storing only the path; ordinary words and parameters stay', () => {
-    const side = ['/auth/callback', '/verify-email', '/account/confirm/42', '/password-reset', '/activate', '/unsubscribe', '/invites/accept', '/magic-link'];
+  it('skips a route only when a whole word of a path segment is a side-effect word; words inside other words stay', () => {
+    const side = ['/auth/callback', '/verify-email', '/reset-password', '/accept-invite', '/magic-link', '/account/confirm/42', '/users/deactivate', '/resetPassword', '/unsubscribe'];
     const r = selectPages(side.map((route) => ({ role: 'a', route })), 'https://app.test');
     expect(r.pages).toEqual([]);
     expect(r.skipped.map((s) => s.reason)).toEqual(side.map(() => 'side-effect route'));
-    const queries = ['/login?token=abc', '/sso?code=1&state=2', '/x?api_key=k', '/y?access_token=t', '/z?signature=s', '/w?password=p', '/v?secret=s'];
-    const q = selectPages(queries.map((route) => ({ role: 'a', route })), 'https://app.test');
-    expect(q.pages).toEqual([]);
-    expect(q.skipped).toEqual(queries.map((route) => ({ role: 'a', route: route.slice(0, route.indexOf('?')), reason: 'sensitive query' })));
-    const kept = selectPages([{ role: 'a', route: '/search?keyword=x&postcode=1' }, { role: 'a', route: '/statements' }, { role: 'a', route: '/reports?status=new' }], 'https://app.test');
-    expect(kept.pages.map((p) => p.url)).toEqual(['/search?keyword=x&postcode=1', '/statements', '/reports?status=new']);
+    const kept = ['/presets', '/settings/presets', '/invites', '/callbacks', '/confirmations', '/resettlement-cases', '/invitations', '/verified'];
+    expect(selectPages(kept.map((route) => ({ role: 'a', route })), 'https://app.test')).toEqual({ pages: kept.map((url) => ({ role: 'a', url })), skipped: [] });
+  });
+  it('skips a page whose query names a credential (by whole word, camelCase aware), or is exactly code, state or key; other names stay', () => {
+    const sensitive = ['accessToken', 'apiKey', 'api_key', 'API-KEY', 'access_key', 'jwt', 'otp', 'X-Amz-Credential', 'X-Amz-Signature', 'nonce', 'ticket', 'client_secret', 'password', 'code', 'State', 'key'];
+    const r = selectPages(sensitive.map((name, i) => ({ role: 'a', route: `/p${i}?page=1&${name}=v` })), 'https://app.test');
+    expect(r.pages).toEqual([]);
+    expect(r.skipped).toEqual(sensitive.map((_n, i) => ({ role: 'a', route: `/p${i}`, reason: 'sensitive query' })));
+    const kept = ['postcode', 'keyword', 'statement', 'zip_code', 'currency_code', 'sort_key', 'status', 'authCode'];
+    expect(selectPages(kept.map((name) => ({ role: 'a', route: `/list?${name}=new` })), 'https://app.test').pages.map((p) => p.url)).toEqual(kept.map((name) => `/list?${name}=new`));
+  });
+  it('every skipped entry stores the pathname only, never the query', () => {
+    const r = selectPages([
+      { role: 'a', route: '/x/[id]?token=SECRET' },
+      { role: 'a', route: '/logout?token=SECRET' },
+      { role: 'a', route: '/auth/callback?code=SECRET' },
+      { role: 'a', route: '/home?token=SECRET' },
+      { role: 'a', route: '/skipme?token=SECRET' },
+      { role: 'a', url: 'https://other.example/x?token=SECRET' },
+    ], 'https://app.test', [/skipme/]);
+    expect(r.skipped).toEqual([
+      { role: 'a', route: '/x/[id]', reason: 'dynamic route pattern' },
+      { role: 'a', route: '/logout', reason: 'logout-like route' },
+      { role: 'a', route: '/auth/callback', reason: 'side-effect route' },
+      { role: 'a', route: '/home', reason: 'sensitive query' },
+      { role: 'a', route: '/skipme', reason: 'skip pattern' },
+      { role: 'a', route: '/x', reason: 'other origin' },
+    ]);
+    expect(selectPages([{ role: 'a', route: '/y?token=SECRET' }], '${PREVIEW_URL}').skipped).toEqual([{ role: 'a', route: '/y', reason: 'invalid page address' }]);
+    expect(JSON.stringify(r)).not.toContain('SECRET');
   });
 });
 
@@ -186,7 +210,7 @@ describe('sourceIdentity', () => {
   it('never reads an environment file that is not gitignored: its content and its presence leave the identity unchanged; template variants count', () => {
     const base = sourceIdentity(dir, []);
     fs.mkdirSync(path.join(dir, 'apps', 'web'), { recursive: true });
-    for (const name of ['.env', '.env.local', 'apps/web/.env.production']) {
+    for (const name of ['.env', '.env.local', 'apps/web/.env.production', '.envrc', '.env-local', '.env_test']) {
       fs.writeFileSync(path.join(dir, name), 'SECRET=first');
       expect(sourceIdentity(dir, [])).toEqual(base);
       fs.writeFileSync(path.join(dir, name), 'SECRET=second');

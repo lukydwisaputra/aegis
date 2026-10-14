@@ -267,7 +267,7 @@ describe('the Playwright page fetcher without a browser', () => {
     expect(reads).not.toHaveBeenCalled();
   });
 
-  it('records a same-origin server error while loading as response <status>, which the signature counts as an error', async () => {
+  it('records server errors (500 or more) on the page\'s own responses as response <status>, which the signature counts as an error; fetch/xhr calls to any origin are covered below', async () => {
     const { page } = fakePage({ responses: [[500, 'http://localhost:5173/api/vault/42', 'fetch'], [502, 'https://cdn.example/x.js', 'script'], [404, 'http://localhost:5173/favicon.ico'], [503, 'http://localhost:5173/rest/v1/x', 'document']] });
     const r = await visitWith(page);
     expect(r).toMatchObject({ consoleErrors: ['Uncaught TypeError', 'boom', 'response 500', 'response 503'] });

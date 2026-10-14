@@ -55,7 +55,8 @@ export interface ProbeResult {
   report: string;
 }
 
-const BASELINE_REL = "reports/explore/baseline.json";
+/** The baseline, run-relative; a rejection that reopens Explore without carrying removes it (gates.ts). */
+export const BASELINE_REL = "reports/explore/baseline.json";
 /** The probe report, run-relative; a rejection that reopens Explore removes it (gates.ts). */
 export const PROBE_REL = "reports/explore/probe.json";
 const BUDGET_ERROR = "not observed (time budget)";
@@ -204,7 +205,7 @@ function probeSetting(root: string, runId: string, environment: string): ProbeSe
 }
 
 /** Settles `work` or gives up after `ms`; the timer never keeps the process alive. */
-export async function within<T>(work: Promise<T>, ms: number): Promise<{ done: true; value: T } | { done: false }> {
+export async function settleWithin<T>(work: Promise<T>, ms: number): Promise<{ done: true; value: T } | { done: false }> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<{ done: false }>((res) => {
     timer = setTimeout(() => res({ done: false }), Math.max(0, ms));
@@ -232,7 +233,7 @@ async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budg
   let fetcher: PageFetcher;
   const starting = Promise.resolve().then(factory);
   try {
-    const started = await within(starting, budgetMs);
+    const started = await settleWithin(starting, budgetMs);
     if (!started.done) {
       // A fetcher that starts after the call gave up is closed as soon as it exists.
       starting.then((f) => f.close()).catch(() => undefined);
@@ -254,7 +255,7 @@ async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budg
       visit.catch(() => undefined); // a visit that rejects after its time ran out must not be an unhandled rejection
       let raw: RawObservation;
       try {
-        const r = await within(visit, left);
+        const r = await settleWithin(visit, left);
         raw = r.done ? r.value : { ...page, error: BUDGET_ERROR };
       } catch (e) {
         raw = { ...page, error: messageOf(e) };
@@ -265,7 +266,7 @@ async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budg
   } finally {
     const closing = Promise.resolve().then(() => fetcher.close());
     closing.catch(() => undefined);
-    await within(closing, closeMs).catch(() => undefined);
+    await settleWithin(closing, closeMs).catch(() => undefined);
   }
   return { observed };
 }

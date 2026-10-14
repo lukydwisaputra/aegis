@@ -21,7 +21,7 @@ import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { explorerAccepted, isExplorerTask } from "./explore/explorer.js";
-import { PROBE_REL } from "./explore/probe.js";
+import { BASELINE_REL, PROBE_REL } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir, taskmasterDir } from "./paths.js";
@@ -195,13 +195,16 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
         { emittedBy: caller, runId }
       )
     );
-    // A probe decision belongs to the Explore round it was taken in: a rejection that reopens Explore makes it stale. Removed only
-    // once the decision is recorded; a file that cannot be removed does not undo the decision.
+    // A probe decision belongs to the Explore round it was taken in: a rejection that reopens Explore makes it stale. Without a carry
+    // the explorer crawls again and its new accepted work takes a new baseline, so the old one goes too. Removed only once the
+    // decision is recorded; a file that cannot be removed does not undo the decision.
     if (reopened.includes("explore")) {
-      try {
-        rmSync(join(runDir(root, runId), PROBE_REL), { force: true });
-      } catch {
-        // stale but harmless: the orchestrator uses a probe report only when it is newer than the start of Explore
+      for (const rel of carry ? [PROBE_REL] : [PROBE_REL, BASELINE_REL]) {
+        try {
+          rmSync(join(runDir(root, runId), rel), { force: true });
+        } catch {
+          // stale but harmless: a probe report is used only when newer than the start of Explore, a baseline is taken again
+        }
       }
     }
     return decision;

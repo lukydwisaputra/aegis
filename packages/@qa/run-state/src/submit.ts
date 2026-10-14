@@ -42,6 +42,14 @@ export interface ReviewResult extends SubmitResult {
 
 export const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
 export const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
+
+/** A passing review of `attempt` by the paired SPV of `agent`. */
+export function reviewPassed(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
+  const file = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
+  if (!fs.existsSync(file)) return false;
+  const review = ReviewSchema.safeParse(loadJson(file));
+  return review.success && review.data.reviewer === pairedSpv(agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
+}
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
 const ALLOC_TRIES = 5;

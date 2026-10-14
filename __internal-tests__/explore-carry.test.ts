@@ -76,6 +76,8 @@ interface SetupOptions {
   secondExplorerFailed?: boolean;
   /** The explorer's crawl released done three times, rejected by its SPV each time, and accepted with risk by the owner. */
   explorerRejectedThenAccepted?: boolean;
+  /** The explorer's crawl rejected three times, retried by the owner's escalation decision, and passed on attempt 4. */
+  explorerRetriedThenPassed?: boolean;
 }
 
 /**
@@ -96,7 +98,12 @@ async function toOpenG1(opts: SetupOptions = {}): Promise<void> {
   runId = (await createRun(root(), { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
   fastForward(root(), runId, 'explore');
   await startPhase(root(), runId, 'explore', ORCH);
-  if (opts.explorerRejectedThenAccepted) {
+  if (opts.explorerRetriedThenPassed) {
+    await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv', 'requested-changes');
+    for (const n of [2, 3]) await redo('T-explore-1', EXPLORER, n, 'requested-changes');
+    await decideEscalation(root(), runId, { taskId: 'T-explore-1', decision: 'retry', reason: 'Crawl the admin area too and try again' }, 'owner');
+    await redo('T-explore-1', EXPLORER, 4);
+  } else if (opts.explorerRejectedThenAccepted) {
     await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv', 'requested-changes');
     for (const n of [2, 3]) await redo('T-explore-1', EXPLORER, n, 'requested-changes');
     await decideEscalation(root(), runId, { taskId: 'T-explore-1', decision: 'accept-with-risk', reason: 'The crawl misses the admin area; accepted for this pilot' }, 'owner');
@@ -347,6 +354,51 @@ describe('a gate rejection carries the web-explorer discovery over', () => {
     expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 3 });
     expect(lastOf('gate.decided')).not.toHaveProperty('carried');
   });
+
+  it('a crawl retried after an escalation and then passed is carried, after a baseline was taken', async () => {
+    await toOpenG1({ explorerRetriedThenPassed: true });
+    expect(fs.existsSync(path.join(runDir(root(), runId), 'reports', 'explore', 'baseline.json'))).toBe(true);
+    await reject();
+    expect(await status('T-explore-1')).toBe('done');
+    expect(explore()).toMatchObject({ status: 'pending', carried: true });
+    expect(lastOf('gate.decided')).toMatchObject({ carried: true });
+  });
+
+  it('an explorer task that is done but has no review of its latest attempt is not carried', async () => {
+    await toOpenG1();
+    fs.rmSync(path.join(runDir(root(), runId), 'reports', 'review', `${EXPLORER}.T-explore-1.1.json`));
+    await reject();
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    expect(lastOf('gate.decided')).not.toHaveProperty('carried');
+  });
+
+  it('a rejection that reopens Explore without carrying removes the baseline after the decision; a carrying one keeps it', async () => {
+    await toOpenG1();
+    const baselineFile = path.join(runDir(root(), runId), 'reports', 'explore', 'baseline.json');
+    expect(fs.existsSync(baselineFile)).toBe(true);
+    const bus = busPath(root(), runId);
+    const good = fs.readFileSync(bus, 'utf8');
+    fs.appendFileSync(bus, '{"seq":99,"prevH');
+    await expect(reject({ reopenPhase: 'explore' })).rejects.toThrow(/torn tail/);
+    expect(fs.existsSync(baselineFile)).toBe(true);
+    fs.writeFileSync(bus, good);
+    await reject({ reopenPhase: 'explore' });
+    expect(fs.existsSync(baselineFile)).toBe(false);
+
+    t!.cleanup();
+    fs.rmSync(target, { recursive: true, force: true });
+    await toOpenG1();
+    await reject({ reExplore: true });
+    expect(fs.existsSync(path.join(runDir(root(), runId), 'reports', 'explore', 'baseline.json'))).toBe(false);
+
+    t!.cleanup();
+    fs.rmSync(target, { recursive: true, force: true });
+    await toOpenG1();
+    await reject();
+    expect(explore()).toMatchObject({ carried: true });
+    expect(fs.existsSync(path.join(runDir(root(), runId), 'reports', 'explore', 'baseline.json'))).toBe(true);
+  }, 30_000);
 
   it('a rejection that reopens Explore removes the probe report of the earlier round, after the decision is recorded', async () => {
     await toOpenG1();

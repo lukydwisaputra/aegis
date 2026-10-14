@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { environmentBaseUrl, readRun, RunStateError, runDir, targetDirOf, within, type PageFetcher, type PageRef, type RawObservation } from "@qa/run-state";
+import { environmentBaseUrl, readRun, RunStateError, runDir, settleWithin, targetDirOf, type PageFetcher, type PageRef, type RawObservation } from "@qa/run-state";
 
 /**
  * The real page fetcher of the explore probe: one headless Chromium from the TARGET's Playwright (never a dependency of this repo), one
@@ -243,7 +243,7 @@ export async function visitPage(newPage: () => Promise<PageLike>, ref: PageRef, 
       await p.close().catch(() => undefined);
     }
   };
-  const raced = await within(work(), capMs);
+  const raced = await settleWithin(work(), capMs);
   const result: RawObservation = raced.done ? raced.value : { role, url, error: VISIT_CAPPED };
   finished = true;
   if ("error" in result && result.error === VISIT_CAPPED) page?.close().catch(() => undefined);
@@ -256,7 +256,7 @@ export async function visitPage(newPage: () => Promise<PageLike>, ref: PageRef, 
  * Playwright's own exit handler, which kills the browser processes it launched when the Node process exits.
  */
 export async function closeBrowser(browser: BrowserLike, ms: number = BROWSER_CLOSE_MS): Promise<void> {
-  await within(Promise.resolve().then(() => browser.close()).catch(() => undefined), ms);
+  await settleWithin(Promise.resolve().then(() => browser.close()).catch(() => undefined), ms);
 }
 
 export interface FetcherDeps {

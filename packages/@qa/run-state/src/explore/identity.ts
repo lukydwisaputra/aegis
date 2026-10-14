@@ -117,16 +117,30 @@ export interface PageRef {
 
 const DYNAMIC = /\[[^\]]+\]|\/:[A-Za-z_]|\{[^}]+\}/;
 const LOGOUT = /(?:^|\/)(?:log-?out|sign-?out|switch-profile)(?:[/?#]|$)/i;
-/** A path segment whose GET can change state (consume a one-time link, confirm, reset, unsubscribe, accept an invite). */
-const SIDE_EFFECT = /(?:^|\/)[^/]*(?:callback|verify|confirm|reset|activate|unsubscribe|invite|magic)[^/]*(?:\/|$)/i;
-/** A query parameter that carries a credential or a one-time value (`token`, `access_token`, `api_key`, `code`, `state`, ...). */
-const SENSITIVE_PARAM = /^(?:.*[_-])?(?:token|code|key|secret|password|signature|state)$/i;
+/** Lowercase words of a name: split on `-`, `_`, `.`, spaces and camelCase boundaries (`resetPassword`, `X-Amz-Credential`). */
+function wordsOf(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[-_.\s]+/)
+    .filter((w) => w !== "");
+}
+/** A whole word of a path segment whose GET can change state (consume a one-time link, confirm, reset, unsubscribe, accept an invite). */
+const SIDE_EFFECT_WORDS = new Set(["callback", "verify", "confirm", "reset", "activate", "deactivate", "reactivate", "unsubscribe", "invite", "accept", "magic"]);
+/** A whole word of a query parameter name that carries a credential or a one-time value. */
+const SENSITIVE_WORDS = new Set(["token", "secret", "password", "signature", "credential", "jwt", "otp", "nonce", "ticket"]);
+/** Parameter names that are sensitive only as the whole name (`code`, `state`, `key`), and the API key spellings. */
+const SENSITIVE_NAMES = new Set(["code", "state", "key", "apikey", "api_key", "api-key", "access_key"]);
+
+const isSideEffectPath = (pathname: string): boolean => pathname.split("/").some((seg) => wordsOf(seg).some((w) => SIDE_EFFECT_WORDS.has(w)));
+const isSensitiveParam = (name: string): boolean => SENSITIVE_NAMES.has(name.toLowerCase()) || wordsOf(name).some((w) => SENSITIVE_WORDS.has(w));
 
 /**
  * The concrete pages a probe visits, from a discovery report's `pages` array: each entry needs a role and a `url` or `route`.
- * Other origins, route patterns (`/x/[id]`), logout-like routes (a GET there changes the session), side-effect routes (callback,
- * verify, confirm, reset, activate, unsubscribe, invite, magic) and pages whose query holds a sensitive parameter (stored by path
- * only) are skipped and named.
+ * Other origins, route patterns (`/x/[id]`), logout-like routes (a GET there changes the session), side-effect routes (a whole word
+ * such as callback, verify, reset or invite in a path segment) and pages whose query holds a sensitive parameter are skipped and named.
+ * A skipped entry stores the pathname only, never the query.
  */
 export function selectPages(entries: unknown, baseOrigin: string, extraSkip: readonly RegExp[] = []): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> } {
   const pages: PageRef[] = [];
@@ -152,7 +166,7 @@ export function selectPages(entries: unknown, baseOrigin: string, extraSkip: rea
       path = u.pathname + u.search;
       pathname = u.pathname;
     } catch {
-      skipped.push({ role, route: where.slice(0, 80), reason: "invalid page address" });
+      skipped.push({ role, route: where.split(/[?#]/)[0]!.slice(0, 80), reason: "invalid page address" });
       continue;
     }
     const decode = (v: string): string => {
@@ -164,23 +178,23 @@ export function selectPages(entries: unknown, baseOrigin: string, extraSkip: rea
     };
     const decoded = decode(path);
     if (skips.some((re) => re.test(decoded))) {
-      skipped.push({ role, route: path, reason: "skip pattern" });
+      skipped.push({ role, route: pathname, reason: "skip pattern" });
       continue;
     }
     // Only the pathname is a route pattern: brackets in a query string (`?filter[status]=new`) are data.
     if (DYNAMIC.test(decode(pathname))) {
-      skipped.push({ role, route: path, reason: "dynamic route pattern" });
+      skipped.push({ role, route: pathname, reason: "dynamic route pattern" });
       continue;
     }
     if (LOGOUT.test(path)) {
-      skipped.push({ role, route: path, reason: "logout-like route" });
+      skipped.push({ role, route: pathname, reason: "logout-like route" });
       continue;
     }
-    if (SIDE_EFFECT.test(decode(pathname))) {
+    if (isSideEffectPath(decode(pathname))) {
       skipped.push({ role, route: pathname, reason: "side-effect route" });
       continue;
     }
-    if ([...new URLSearchParams(path.slice(pathname.length)).keys()].some((k) => SENSITIVE_PARAM.test(k))) {
+    if ([...new URLSearchParams(path.slice(pathname.length)).keys()].some(isSensitiveParam)) {
       skipped.push({ role, route: pathname, reason: "sensitive query" });
       continue;
     }
@@ -227,7 +241,7 @@ function normaliseDir(d: string): string | null {
  * not move it; with every path excluded, or a repository holding only QA commits, it falls back to the repository HEAD), and
  * `dirtyHash` covers every uncommitted change (modified, deleted, renamed and untracked-not-ignored files, by path and content; a
  * rename enters the hash with both its old and its new path). Every path and every content enters the hash behind its tag and its
- * byte length, so no two different trees frame the same bytes. Gitignored files are not read, and neither is an environment file (`.env`, `.env.<anything>`, except the example, sample and template variants) that is not gitignored. `excludeDirs`
+ * byte length, so no two different trees frame the same bytes. Gitignored files are not read, and neither is an environment file (`.env`, `.envrc`, `.env.<anything>`, `.env-<anything>`, `.env_<anything>`, except the example, sample and template variants) that is not gitignored. `excludeDirs`
  * (target-relative) leave out the QA tree and the tests directory, which change every round. A directory that is not a git checkout
  * gives null parts. Call it outside run.lock: hashing a large dirty tree is synchronous. It never throws.
  */
@@ -242,7 +256,7 @@ export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]
   // An environment file is never read, gitignored or not; the example, sample and template variants are source and count.
   const envFile = (p: string): boolean => {
     const base = p.slice(p.lastIndexOf("/") + 1);
-    return /^\.env(\..*)?$/.test(base) && !/\.(example|sample|template)$/.test(base);
+    return /^\.env(?:[._-].*|rc)?$/.test(base) && !/\.(example|sample|template)$/.test(base);
   };
   const skip = (p: string): boolean => envFile(p) || dirs.some((d) => p === d || p.startsWith(`${d}/`));
   const names = [...new Set([...changed.split("\0"), ...untracked.split("\0")])].filter((p) => p !== "" && !skip(p)).sort();
