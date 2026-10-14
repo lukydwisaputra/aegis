@@ -63,6 +63,8 @@ export interface TaskmasterClient {
 
   /** Cancel a pending task that was never claimed. Throws ClaimError if it is not pending or was claimed. */
   cancel(taskId: string, reason: string): Promise<void>;
+  /** Cancels a pending or in-progress task (the owner clearing a stuck claim); a finished task is never touched. */
+  abandon(taskId: string, reason: string): Promise<void>;
 
   /** Return a finished task to pending so it can be claimed again (SPV requested changes). */
   reopen(taskId: string): Promise<void>;
@@ -271,6 +273,23 @@ export function createTaskmasterClient(taskmasterDir: string): TaskmasterClient 
       try {
         const task = readTaskFile(filePath);
         if (task.status !== "pending" || task.claimedBy !== undefined) {
+          throw new ClaimError(taskId, task.status);
+        }
+        writeTaskFile(filePath, { ...task, status: "cancelled", cancelledAt: nowIso(), cancelReason: reason });
+      } finally {
+        await release();
+      }
+    },
+
+    async abandon(taskId, reason) {
+      const filePath = taskFilePath(tasksDir, taskId);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Task "${taskId}" not found`);
+      }
+      const release = await lockfile.lock(filePath, LOCK_OPTIONS);
+      try {
+        const task = readTaskFile(filePath);
+        if (task.status !== "pending" && task.status !== "in-progress") {
           throw new ClaimError(taskId, task.status);
         }
         writeTaskFile(filePath, { ...task, status: "cancelled", cancelledAt: nowIso(), cancelReason: reason });

@@ -93,7 +93,7 @@ describe('C: the sign-off lists the open application defects', () => {
     expect(text).toContain('- DEF-004-ENG-API, Sev3 (Major), PARTIALLY FIXED: Uploads above 4 MB are refused; the requirement says 20 MB. Awaits: A developer fix of the part that remains');
     expect(text).toContain('- DEF-005-COMMS-EXP, Sev4 (Minor), No retest verdict, new this cycle, triaged: The message detail page fails for a malformed message id. Awaits: A developer fix and the product owner decision on priority.');
     expect(text).toContain('Signatories');
-    expect(text).toContain('GATE 3 DECISION (owner)');
+    expect(text).toContain('CLOSURE DECISION');
   });
 
   it('falls back to the open defect records when the closure lists no open items, and holds the titles to plain language', () => {

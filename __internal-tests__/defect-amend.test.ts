@@ -172,6 +172,24 @@ describe('aegis defect amend', () => {
   });
 });
 
+describe('aegis defect amend: customer-facing wording', () => {
+  it('refuses a tooling word in a new value (the hook does not see a CLI write), names no pattern, and leaves the record alone', async () => {
+    const before = fs.readFileSync(file(`defects/${ID}.json`), 'utf8');
+    for (const text of ['see work report 3 for the retest', 'the SPV requested changes twice', 'recorded in the defect map', 'the CLI refused it']) {
+      const err = await amend([{ path: 'retestVerdict.reason', value: text }]).catch((e) => e);
+      expect(err).toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/describe the application, not how the QA work was done: it matches a tooling word/) });
+      expect(String(err.message)).not.toContain(text);
+    }
+    expect(fs.readFileSync(file(`defects/${ID}.json`), 'utf8')).toBe(before);
+    expect(events().find((e) => e.type === 'defect.amended')).toBeUndefined();
+  });
+
+  it('still accepts plain application wording', async () => {
+    const res = await amend([{ path: 'retestVerdict.reason', value: 'The burst returned 25 x 403 and no 429; authorisation holds.' }]);
+    expect(res.changes).toHaveLength(1);
+  });
+});
+
 describe('aegis rtm unlink', () => {
   const rtm = () => ({
     runId: 'RUN-X',

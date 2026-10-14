@@ -23,7 +23,7 @@ AEGIS_AGENT=owner node "$AEGIS" run create --env development --module AUTH >/dev
 AEGIS_AGENT=qa-orchestrator node "$AEGIS" phase start --phase intake >/dev/null
 # 4 parallel claims by 4 specialists, cap = 2
 agents=(qa-ui-specialist qa-api-specialist qa-database-specialist qa-security-specialist)
-tasks=(T-A T-B T-C T-D)
+tasks=(T-1 T-2 T-3 T-4)
 for i in 0 1 2 3; do
   AEGIS_AGENT=qa-test-executor node "$AEGIS" task add --id "${tasks[$i]}" --title "task ${tasks[$i]}" --agent "${agents[$i]}" >/dev/null
 done
@@ -75,7 +75,7 @@ expect_refusal() { # <label> <code> <agent-or-empty> args...
   if [ "$rc" != 2 ] || ! grep -q "\"error\":\"$code\"" <<<"$err"; then fail "contract $label: expected exit 2 + $code"; fi
 }
 err=""
-expect_refusal "owner-claim" caller-forbidden owner task claim --task T-A
+expect_refusal "owner-claim" caller-forbidden owner task claim --task T-1
 expect_refusal "no-agent" caller-unknown "" run status
 expect_refusal "undeclared-field" invalid-input qa-web-explorer event append --type discovery.step-complete --json '{"step":"scan","artifact":"discovery/scan.json","artefact":"y"}'
 grep -q "undeclared field" <<<"$err" || fail "contract undeclared-field: expected the bus refusal"

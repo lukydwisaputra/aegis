@@ -238,7 +238,7 @@ describe('sign-off document (Deliverable 2)', () => {
 
   it('prints the owner\'s Gate 3 decision under its own label, never a release verdict', () => {
     const text = flat(pdfText(pdf));
-    expect(text).toContain('GATE 3 DECISION (owner)');
+    expect(text).toContain('CLOSURE DECISION');
     expect(text).toContain('APPROVED WITH CONDITIONS');
     expect(text).not.toMatch(/RELEASE VERDICT|CONDITIONAL|NO-GO|\bGO\b/);
     expect(text).toContain(PROJECT);
@@ -475,6 +475,62 @@ describe('A3: coverage.json noData', () => {
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
     expect(text).toContain('Requirements Coverage\nnot available');
     expect(text).not.toMatch(/(^|\n)0\.0%/);
+  });
+});
+
+describe('a malformed case-of-record declaration is a refusal, not a stack trace (both scripts)', () => {
+  const TWO = {
+    'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0 } },
+    'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+    'rtm.json': { rows: [{ requirementId: 'REQ-COMMS-01', description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' }, testCaseIds: ['TC-COMMS-007'], defectIds: [], testStatus: 'Covered' }] },
+    'cases/TC-COMMS-007.json': { id: 'TC-COMMS-007' },
+    'cases/TC-COMMS-007-result.json': { status: 'partial', caseOfRecord: true, caseOfRecordReason: 'a' },
+    'cases/TC-COMMS-007-result-messaging.json': { status: 'pass', caseOfRecord: true, caseOfRecordReason: 'b' },
+  };
+  it.each([['technical', SCRIPT.technical], ['signoff', SCRIPT.signoff]])('the %s script exits 10 and names the case and both files', (_name, script) => {
+    const { root, runDir } = fixture(TWO);
+    const res = run(script, root);
+    expect(res.status).toBe(10);
+    expect(res.stderr).toMatch(/^ERROR: TC-COMMS-007: result files .* both declare "caseOfRecord": true/);
+    expect(res.stderr).not.toMatch(/\n\s+at /);
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive'))).toBe(false);
+  });
+});
+
+describe('the technical report and the sign-off state the same figures from the same inputs', () => {
+  const CASES = {
+    'rtm.json': { rows: [{ requirementId: 'REQ-COMMS-01', description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' }, testCaseIds: ['TC-AUTH-001', 'TC-AUTH-002'], defectIds: [], testStatus: 'Covered' }] },
+    'cases/TC-AUTH-001.json': { id: 'TC-AUTH-001' },
+    'cases/TC-AUTH-002.json': { id: 'TC-AUTH-002' },
+    'cases/TC-AUTH-001-result.json': { status: 'pass' },
+    'cases/TC-AUTH-002-result.json': { status: 'fail' },
+  };
+  const FILES = {
+    ...FULL_RUN,
+    ...CASES,
+    // closure says 5 checks; the case files hold 2 and there is no coverage.json: both scripts recompute from the case files.
+    'reports/closure/closure.json': { cycleDate: '2026-10-04', metrics: { passed: 40, failed: 3, blocked: 2 }, defectMetrics: { totalLogged: 5, confirmedOpen: 3 } },
+    'reports/compliance/vendor-audit.json': { sectionsCovered: ['X-1'], gaps: ['X-2'] },
+  };
+  const { root, runDir } = fixture(FILES);
+  const tech = run(SCRIPT.technical, root);
+  const sign = run(SCRIPT.signoff, root);
+  const text = (f: string) => flat(pdfText(path.join(runDir, 'reports', 'executive', f)));
+
+  it('both exit 0', () => {
+    expect(tech.status).toBe(0);
+    expect(sign.status).toBe(0);
+  });
+
+  it('both count the cases from the case files when coverage.json is missing, not from the closure copy', () => {
+    expect(text('technical-report.pdf')).toContain('Total Tests 2');
+    expect(text('signoff.pdf')).toMatch(/2 checks were executed to a result: 1 passed, 1 failed/);
+  });
+
+  it('both name a compliance report without a regulation by its file name, never report-N', () => {
+    expect(text('technical-report.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).not.toMatch(/report-\d/);
   });
 });
 
@@ -730,7 +786,7 @@ describe('the sign-off decision banner', () => {
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toMatchObject({ decision });
     expect(JSON.parse(r.stdout)).not.toHaveProperty('verdict');
-    expect(text).toContain(`GATE 3 DECISION (owner) ${shown}`);
+    expect(text).toContain(`CLOSURE DECISION ${shown}`);
     if (decision === 'approved') expect(text).not.toContain('WITH CONDITIONS'); // 'APPROVED' is a prefix of the other text
   });
 
@@ -912,6 +968,25 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Total Tests\n4');
     expect(text).toContain('Pass Rate\n50.0%');
     expect(text).toContain('Partial\nnot available');
+  });
+
+  it('results that record a ruling (out_of_scope, deferred, not_verified) are printed apart and stay out of the pass rate and of Undetermined', () => {
+    const ruled = {
+      'rtm.json': { rows: [{ requirementId: 'REQ-AUTH-01', testStatus: 'Covered' }] },
+      ...Object.fromEntries(['001', '002', '003', '004', '005', '006'].map((n) => [`cases/TC-AUTH-${n}.json`, { id: `TC-AUTH-${n}` }])),
+      'cases/TC-AUTH-001-result.json': { status: 'passed' }, 'cases/TC-AUTH-002-result.json': { status: 'passed' }, 'cases/TC-AUTH-003-result.json': { status: 'failed' },
+      'cases/TC-AUTH-004-result.json': { status: 'out_of_scope' }, 'cases/TC-AUTH-005-result.json': { status: 'deferred' }, 'cases/TC-AUTH-006-result.json': { status: 'not_verified' },
+      'reports/closure/closure.json': { metrics: { passed: 2, failed: 1, blocked: 0 } },
+    };
+    const { root, runDir } = fixture(ruled);
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Total Tests\n6');
+    expect(text).toContain('Undetermined\n0');
+    expect(text).toContain('Out of scope\n1');
+    expect(text).toContain('Deferred\n1');
+    expect(text).toContain('Not verified\n1');
+    expect(text).toContain('Pass Rate\n66.7%'); // 2 passed of the 3 that ran to a verdict
   });
 
   it('closed records without a retest verdict are stated apart, and a flagged-for-owner record is neither open nor closed', () => {

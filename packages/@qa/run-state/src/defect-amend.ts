@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure, defectRetestVerdict, isOpenApplicationDefect } from "@qa/contracts";
+import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure, checkToolingWords, defectRetestVerdict, isOpenApplicationDefect } from "@qa/contracts";
 import { readdirSync } from "node:fs";
 import { appendChained, readAll, typeFilter } from "@qa/event-bus";
 import { assertCallerAllowed, OWNER } from "./caller.js";
@@ -155,8 +155,14 @@ export async function amendDefect(root: string, runId: string, defectId: string,
     seen.add(t.path);
     // The refusal never echoes the matching pattern: it would print the very term the reports must not carry.
     let branded = false;
-    eachString(t.value, (s) => { if (checkBrandExposure(s) !== null) branded = true; });
+    let tooling = false;
+    eachString(t.value, (s) => {
+      if (checkBrandExposure(s) !== null) branded = true;
+      if (checkToolingWords(s) !== null) tooling = true;
+    });
     if (branded) throw new RunStateError("invalid-input", `the new value of ${t.path} is quoted in the reports and must not name the framework or an agent: it matches a forbidden term`);
+    // defects/** is customer-facing (the H1 hook checks the same patterns on a write); the CLI writes the file itself, outside the hook.
+    if (tooling) throw new RunStateError("invalid-input", `the new value of ${t.path} is quoted in the reports and must describe the application, not how the QA work was done: it matches a tooling word (the CLI, the defect map, event or review counts, work reports); reword it`);
   }
   const file = defectFile(root, runId, defectId);
   return withRunLock(root, runId, async () => {
@@ -179,7 +185,8 @@ export async function amendDefect(root: string, runId: string, defectId: string,
       changes.push({ path: t.path, oldValue: oldValue === undefined ? null : oldValue, newValue: t.value, oldDigest: digest(oldValue), newDigest: digest(t.value) });
     }
     if (changes.length === 0) throw new RunStateError("invalid-input", `nothing changes: every given value already equals the record's`);
-    const added = [...issueKeys(next)].filter((k) => !issueKeys(before).has(k));
+    const issuesBefore = issueKeys(before);
+    const added = [...issueKeys(next)].filter((k) => !issuesBefore.has(k));
     if (added.length > 0) throw new RunStateError("invalid-input", `the amended record would be invalid: ${added.join("; ")}`);
     for (const [field, schema] of [["requirementId", RequirementIdSchema], ["userStory", StoryIdSchema]] as const) {
       if (changes.some((c) => c.path === field)) {
@@ -371,6 +378,8 @@ export interface SyncResult {
   rowLinksRemoved: Array<{ requirementId: string; defectId: string }>;
   /** Open records whose requirementId has no row in rtm.json, or that name none: not linked, for the defect manager to decide. */
   unlinked: Array<{ defectId: string; requirementId: string | null }>;
+  /** Defect record files that could not be read or have an id the schema refuses; their map entries were kept untouched. */
+  unreadable: string[];
   rtmMdUpdated: boolean;
   reason: string;
 }
@@ -380,7 +389,7 @@ export interface SyncResult {
  * records. One entry per defect record: severity (the record's severity.code), title, requirementId and storyId (the record's userStory)
  * are taken from the record; retestCaseId, caseOrigin, acIds, wave, fixPr, verdictOracle, note and any other key of an existing entry are
  * kept; a new entry gets retestCaseId from the record's testCaseId, empty acIds and verdictOracle, a null wave and fixPr, and a note saying
- * those were not recorded. An entry whose defect has no record is removed (and a second entry of one defect). A record that names no
+ * those were not recorded. An entry whose defect has no record is removed (and a second entry of one defect), unless its record file exists but cannot be read (not JSON, not an object, an id the schema refuses): that entry is kept and the file listed in `unreadable`. A run with no record file at all but a non-empty map is refused, never emptied. A record that names no
  * requirement (an untraced defect) keeps an existing entry's requirement and story. The `defectIds` of the requirement row named by a
  * record's requirementId gain the defect when it is missing, but ONLY for a defect that is open as an application defect (the
  * openApplicationDefects rule): that is the record's own explicit link, so nothing is guessed, and a FIXED, REFRAMED or REPORT WITHDRAWN
@@ -400,23 +409,44 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
     const { text: priorText, doc } = readRtm(file, runId);
     const rows = doc["rows"] as unknown[];
     const records = new Map<string, Record<string, unknown>>();
-    for (const name of existsSync(defectsDir) ? readdirSync(defectsDir).filter((n) => /^DEF-.*\.json$/.test(n)).sort() : []) {
+    // Record files this command could not use (not JSON, not an object, or an id the schema refuses): their map entries are kept, never
+    // dropped for want of a record, and the owner is told which files to repair.
+    const unreadable = new Set<string>();
+    const recordFiles = existsSync(defectsDir) ? readdirSync(defectsDir).filter((n) => /^DEF-.*\.json$/.test(n)).sort() : [];
+    const oldMap = Array.isArray(doc["defectMap"]) ? (doc["defectMap"] as unknown[]) : [];
+    // No record files at all while the map has entries: a missing or emptied defects/ directory is far likelier than every defect being deleted.
+    if (recordFiles.length === 0 && oldMap.length > 0) {
+      throw new RunStateError("invalid-input", `run ${runId} has no defect record under defects/ but rtm.json#defectMap has ${oldMap.length} entr${oldMap.length === 1 ? "y" : "ies"}; refusing to drop them all: restore defects/ or edit the map by hand`);
+    }
+    for (const name of recordFiles) {
+      const fileId = name.replace(/\.json$/, "");
       let rec: unknown;
       try {
         rec = JSON.parse(readFileSync(join(defectsDir, name), "utf-8"));
       } catch {
+        unreadable.add(fileId);
         continue;
       }
-      const id = isPlain(rec) && typeof rec["id"] === "string" ? rec["id"] : name.replace(/\.json$/, "");
+      const id = isPlain(rec) && typeof rec["id"] === "string" ? rec["id"] : fileId;
       if (isPlain(rec) && DefectIdSchema.safeParse(id).success) records.set(id, rec);
+      else {
+        unreadable.add(fileId);
+        unreadable.add(id);
+      }
     }
-    const oldMap = Array.isArray(doc["defectMap"]) ? (doc["defectMap"] as unknown[]) : [];
     const byId = new Map<string, Record<string, unknown>>();
     let duplicatesRemoved = 0;
     const removed: string[] = [];
     for (const e of oldMap) {
       if (!isPlain(e) || typeof e["defectId"] !== "string") continue;
-      if (!records.has(e["defectId"])) { removed.push(e["defectId"]); continue; }
+      if (!records.has(e["defectId"])) {
+        if (unreadable.has(e["defectId"])) {
+          // Its record file exists but cannot be read: keep the entry as it is.
+          if (byId.has(e["defectId"])) duplicatesRemoved++;
+          else byId.set(e["defectId"], e);
+        } else removed.push(e["defectId"]);
+        continue;
+      }
       if (byId.has(e["defectId"])) { duplicatesRemoved++; continue; }
       byId.set(e["defectId"], e);
     }
@@ -475,7 +505,7 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
       // an unreadable log leaves the list empty: the added ids still name every re-created entry
     }
     const recreatedWithDefaults = added.filter((id) => droppedBefore.has(id));
-    const base = { runId, added, recreatedWithDefaults, updated, removed, duplicatesRemoved, rowLinksAdded, rowLinksRemoved, unlinked, reason };
+    const base = { runId, added, recreatedWithDefaults, updated, removed, duplicatesRemoved, rowLinksAdded, rowLinksRemoved, unlinked, unreadable: [...unreadable].sort(), reason };
     if (!changed) return { ...base, changed: false, rtmMdUpdated: false };
     doc["defectMap"] = newMap;
     atomicWrite(file, JSON.stringify(doc, null, 2) + "\n");

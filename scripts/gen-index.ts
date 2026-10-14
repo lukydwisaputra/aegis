@@ -283,8 +283,29 @@ export function buildManifest(projects: ProjectData[], generatedAt: string): obj
   return { generatedAt, projects: projects.map((p) => ({ name: p.name, runs: p.runs })) };
 }
 
+/**
+ * A run whose closure shape no resolver reads yields dashes. When the manifest already published values for it, keep them: the
+ * figures are not lost, only unreadable from what the collector holds today (a run copied without a closure.json). Fields that
+ * resolve now always win.
+ */
+export function carryForward(projects: ProjectData[], previous: unknown): ProjectData[] {
+  const before = new Map<string, RunSummary>();
+  for (const p of (previous as { projects?: ProjectData[] } | undefined)?.projects ?? []) for (const r of p.runs ?? []) before.set(`${p.name}/${r.runId}`, r);
+  const FIELDS = ['passed', 'failed', 'blocked', 'passRate', 'defects'] as const;
+  return projects.map((p) => ({
+    ...p,
+    runs: p.runs.map((r) => {
+      const old = before.get(`${p.name}/${r.runId}`);
+      if (old === undefined) return r;
+      const kept: RunSummary = { ...r };
+      for (const f of FIELDS) if (kept[f] === DASH && old[f] !== undefined && old[f] !== DASH) kept[f] = old[f];
+      return kept;
+    }),
+  }));
+}
+
 export function regenerate(targetDir: string, generatedAt: string): void {
-  const projects = scanCollector(targetDir);
+  const projects = carryForward(scanCollector(targetDir), readJson(join(targetDir, 'manifest.json')));
   writeFileSync(join(targetDir, 'README.md'), renderRootReadme(projects));
   writeFileSync(join(targetDir, 'manifest.json'), JSON.stringify(buildManifest(projects, generatedAt), null, 2) + '\n');
   for (const p of projects) {

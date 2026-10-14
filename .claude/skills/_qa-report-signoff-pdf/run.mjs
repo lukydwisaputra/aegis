@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 // file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
 const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
 const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
+const METRICS = new URL("../../../packages/@qa/metrics/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, "..", "..", "..");
@@ -57,12 +58,17 @@ function readJson(path) {
 }
 
 /** Every JSON document of a directory, or null when the directory is absent. */
-function readJsonGlob(dir) {
+function readJsonEntries(dir) {
   if (!existsSync(dir)) return null;
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => readJson(join(dir, f)))
-    .filter((v) => v !== null);
+    .map((f) => ({ name: f.replace(/\.json$/, ""), doc: readJson(join(dir, f)) }))
+    .filter((e) => e.doc !== null);
+}
+
+function readJsonGlob(dir) {
+  const entries = readJsonEntries(dir);
+  return entries === null ? null : entries.map((e) => e.doc);
 }
 
 const gate3 = readJson(join(runDir, "gates", "gate-3-decision.json"));
@@ -78,7 +84,8 @@ const riskRegister = readJson(join(runDir, "risk-register.json")) ?? {};
 const plan = readJson(join(runDir, "plan.json")) ?? {};
 // null when the run has no defects/ directory: the open-defect figure is then not available, never 0.
 const defects = readJsonGlob(join(runDir, "defects"));
-const complianceReports = readJsonGlob(join(runDir, "reports", "compliance")) ?? [];
+const complianceEntries = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
+const complianceReports = complianceEntries.map((e) => e.doc);
 
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
@@ -95,6 +102,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
+const { resolveCheckCounts, CaseOfRecordError } = await load(METRICS, "the coverage computation");
 const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, describeUnreadable, openDefectLine, rewriteNationalIdTermsDeep, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
@@ -141,9 +149,17 @@ const exitCriteriaNote = Array.isArray(closure.exitCriteria)
 // The same closure view as the technical report (buildClosureView), so the two documents state the same figures. The closure is the
 // source of truth: a case-of-record block or reconciliation it carries wins over the metric files, which only fill what it lacks.
 const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
-const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
-const rollupCounts =
-  coverageDoc && coverageDoc.noData !== true && coverageDoc.counts && COUNT_KEYS.every((k) => typeof coverageDoc.counts[k] === "number") ? coverageDoc.counts : null;
+let rollupCounts;
+try {
+  ({ counts: rollupCounts } = resolveCheckCounts(runDir, coverageDoc));
+} catch (e) {
+  // A malformed case-of-record declaration: the collector's coverage command gives the same message; this script exits 10, not a stack trace.
+  if (e instanceof CaseOfRecordError) {
+    console.error(`ERROR: ${e.message}`);
+    process.exit(10);
+  }
+  throw e;
+}
 const plainRisk = new Map();
 try {
   const plainDoc = readJson(join(runDir, "reports", "executive", "residual-risks.json"));
@@ -159,7 +175,7 @@ const view = buildClosureView({
   rollupCounts,
   executionSummary: readJson(join(runDir, "execution-summary.json")),
   plainRisk,
-  complianceReports: complianceReports.filter((d) => d && typeof d === "object" && !Array.isArray(d)).map((d, i) => ({ name: `report-${i + 1}`, regulation: d.regulation, gaps: Array.isArray(d.gaps) ? d.gaps.length : null, highGaps: typeof d.highSeverityGapCount === "number" ? d.highSeverityGapCount : null })),
+  complianceReports: complianceEntries.filter(({ doc }) => typeof doc === "object" && !Array.isArray(doc)).map(({ name, doc }) => ({ name, regulation: doc.regulation, gaps: Array.isArray(doc.gaps) ? doc.gaps.length : typeof doc.gaps === "number" && Number.isFinite(doc.gaps) ? doc.gaps : null, highGaps: typeof doc.highSeverityGapCount === "number" && Number.isFinite(doc.highSeverityGapCount) ? doc.highSeverityGapCount : null })),
   descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
 });
 // A headline figure the closure carries but the view cannot read is never printed as "not available": exit 11, naming the closure.json field.
@@ -202,7 +218,7 @@ const sections = [];
     const executed = withResult.every((v) => v !== null) ? withResult.reduce((a, b) => a + b, 0) : null;
     const parts = [c.passed === null ? null : `${c.passed} passed`, c.failed === null ? null : `${c.failed} failed`, c.partial === null || c.partial === 0 ? null : `${c.partial} partly passed`].filter((p) => p !== null);
     const noVerdict = [c.blocked === null || c.blocked === 0 ? null : `${c.blocked} blocked`, c.skipped === null || c.skipped === 0 ? null : `${c.skipped} skipped`, c.unknown === null || c.unknown === 0 ? null : `${c.unknown} undetermined`].filter((p) => p !== null);
-    lines.push(`${executed === null ? "Checks" : `${executed} ${executed === 1 ? "check was" : "checks were"}`} executed to a result: ${parts.join(", ")}${c.passRate === null ? "" : `; ${c.passRate}% of the ${n(c.total)} checks attempted passed`}.${noVerdict.length === 0 ? "" : ` ${noVerdict.join(", ")}: these checks gave no verdict.`}`.replace(/ of the not available checks attempted/, " of the checks attempted"));
+    lines.push(`${executed === null ? "Checks" : `${executed} ${executed === 1 ? "check was" : "checks were"}`} executed to a result: ${parts.join(", ")}${c.passRate === null ? "" : `; ${c.passRate}% of the ${n(c.passRateBase ?? c.total)} checks attempted passed${c.passRateBase !== null && c.total !== null && c.passRateBase < c.total ? ", not counting the checks recorded as out of scope, deferred or not verified" : ""}`}.${noVerdict.length === 0 ? "" : ` ${noVerdict.join(", ")}: these checks gave no verdict.`}`.replace(/ of the not available checks attempted/, " of the checks attempted"));
   }
   // One paragraph: the case note already carries the closure's reconciliation when there is a case of record.
   if (c.note) lines.push({ quote: c.note });
@@ -266,13 +282,13 @@ if (view.ownMistakes !== null) {
     ],
   });
 }
-if (view.compliance !== null && view.compliance.totalGaps !== null && view.compliance.totalHighGaps !== null) {
+if (view.compliance !== null && view.compliance.totalGaps !== null) {
   const k = view.compliance;
   const per = k.rows.filter((r) => r.gaps !== null).map((r) => `${r.regulation} ${r.gaps}${r.highGaps === null ? "" : ` (${r.highGaps} rated high)`}`).join(", ");
   sections.push({
     title: "Compliance coverage",
     lines: [
-      `${k.reports === null ? "The coverage reports" : `${k.reports} coverage reports`} list ${k.totalGaps} test-coverage gaps, ${k.totalHighGaps} rated high${per === "" ? "" : `: ${per}`}. These are gaps in test coverage. This document gives no release recommendation and no compliance verdict.`,
+      `${k.reports === null ? "The coverage reports" : `${k.reports} coverage reports`} list ${k.totalGaps} test-coverage gaps${k.totalHighGaps === null ? "" : `, ${k.totalHighGaps} rated high`}${per === "" ? "" : `: ${per}`}. These are gaps in test coverage. This document gives no release recommendation and no compliance verdict.`,
     ],
   });
 }

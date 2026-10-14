@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { addTask, cancelTask, claimTask, listTasks, releaseTask } from "@qa/run-state";
+import { abandonTask, addTask, cancelTask, claimTask, listTasks, releaseTask } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function taskCommand(): Command {
@@ -43,6 +43,16 @@ export function taskCommand(): Command {
         return releaseTask(ctx.root, runIdFor(ctx, o.run), o.task, o.result, ctx.caller);
       })
     );
+
+  task.command("abandon")
+    .description("Owner only: clear an in-progress task that can never finish (no work report waiting for review); records task.cancelled")
+    .requiredOption("--task <id>", "task id")
+    .requiredOption("--reason <text>", "why the task is abandoned")
+    .option("--run <runId>", "run id (default: the active run)")
+    .action(action(async (o: { task: string; reason: string; run?: string }) => {
+      const ctx = context();
+      return abandonTask(ctx.root, runIdFor(ctx, o.run), o.task, o.reason, ctx.caller);
+    }));
 
   task.command("cancel")
     .description("Withdraw a never-claimed pending task (its creator only)")

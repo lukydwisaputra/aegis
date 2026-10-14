@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 /** What one check came to: worst first, see WORST_FIRST. */
-export type Outcome = "fail" | "blocked" | "partial" | "skipped" | "unknown" | "pass" | "no-op";
+export type Outcome = "fail" | "blocked" | "partial" | "skipped" | "unknown" | "not-verified" | "deferred" | "out-of-scope" | "pass" | "no-op";
 
 const CASE_FILE = /^(TC-[A-Z]{2,8}-\d{3,})\.json$/;
 export const RESULT_FILE = /^(TC-[A-Z]{2,8}-\d{3,})(?:-(desktop|tablet|mobile))?-result\.json$/;
@@ -16,12 +16,15 @@ export const VIEWPORTS = ["desktop", "tablet", "mobile"] as const;
 export type Viewport = (typeof VIEWPORTS)[number];
 
 /** Worst first: the outcome of a TC with several results is the first of these any of them has. */
-const WORST_FIRST: readonly Outcome[] = ["fail", "blocked", "partial", "skipped", "unknown", "pass", "no-op"];
+const WORST_FIRST: readonly Outcome[] = ["fail", "blocked", "partial", "skipped", "unknown", "not-verified", "deferred", "out-of-scope", "pass", "no-op"];
 /** Outcomes of a check that did not run to a verdict. */
-export const NOT_EXECUTED: ReadonlySet<Outcome> = new Set<Outcome>(["blocked", "skipped", "unknown"]);
+export const NOT_EXECUTED: ReadonlySet<Outcome> = new Set<Outcome>(["blocked", "skipped", "unknown", "not-verified", "deferred", "out-of-scope"]);
+/** Outcomes that are a recorded ruling on a check (a scope or verification decision), not a test verdict: counted apart, outside the pass rate. */
+export const RULED: ReadonlySet<Outcome> = new Set<Outcome>(["not-verified", "deferred", "out-of-scope"]);
 const SYNONYMS: Readonly<Record<string, Outcome>> = {
   pass: "pass", passed: "pass", fail: "fail", failed: "fail", blocked: "blocked", partial: "partial",
   skipped: "skipped", skip: "skipped", "no-op": "no-op", noop: "no-op",
+  not_verified: "not-verified", "not-verified": "not-verified", deferred: "deferred", out_of_scope: "out-of-scope", "out-of-scope": "out-of-scope",
 };
 
 export const outcomeOf = (status: unknown): Outcome => (typeof status === "string" ? (SYNONYMS[status.trim().toLowerCase()] ?? "unknown") : "unknown");

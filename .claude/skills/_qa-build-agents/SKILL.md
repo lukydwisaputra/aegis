@@ -27,7 +27,7 @@ Processes all agent YAML/JSON definition files in the Aegis framework and resolv
 2. Scan `--agents-dir` recursively for `*.yaml` and `*.json` agent definition files.
 3. For each file containing a `modelTier` field, resolve it against the policy map.
 4. Validate the resolved model ID is a recognised Anthropic model name.
-5. Write the resolved `model` field into the agent file alongside (or replacing) `modelTier`.
+5. Write the resolved `model` field into the agent file alongside (or replacing) `modelTier`, and the tier's `efforts:` value as `effort:` on the next line. A tier with no `efforts:` entry, or an effort of `low`, is refused.
 6. Track which files were updated and which already had the correct value (no-op).
 7. If any `modelTier` value has no mapping in policy, emit a warning and skip that file.
 8. Write a build manifest to `build/agents-manifest.json` listing all resolved assignments.

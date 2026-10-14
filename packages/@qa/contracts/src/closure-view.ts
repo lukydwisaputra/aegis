@@ -41,6 +41,8 @@ export interface CaseFigures extends CaseCounts {
   note: string | null;
   /** The closure's own reconciliation of the case figures, when it has one. */
   reconciliation: string | null;
+  /** The checks the pass rate is taken over: the checks that ran to a verdict (the rollup's ruled checks, out of scope, deferred or not verified, are left out). */
+  passRateBase: number | null;
 }
 
 export interface DefectHeadline {
@@ -180,7 +182,7 @@ export interface ClosureViewInput {
   /** The defect records (defects/DEF-*.json), or null when the run has none. */
   defects: readonly unknown[] | null;
   /** The check counts of the coverage rollup (reports/metrics/coverage.json#counts, or the script's own recomputation), or null. */
-  rollupCounts: { passed: number; failed: number; partial: number; blocked: number; skipped: number; unknown: number; attempted: number } | null;
+  rollupCounts: { passed: number; failed: number; partial: number; blocked: number; skipped: number; unknown: number; attempted: number; ruledOutOfScope?: number; deferred?: number; notVerified?: number } | null;
   /** The executor's execution-summary.json, or null. */
   executionSummary: unknown;
   /** The customer-readable sentence of a risk by riskId (reports/executive/residual-risks.json), when the run has one. */
@@ -205,8 +207,14 @@ export function openDefectLine(o: OpenDefectItem): string {
   return `${o.id}, ${o.severity}, ${state}${o.title ? `: ${terminated(o.title)}` : "."}${o.awaits ? ` Awaits: ${terminated(o.awaits)}` : ""}`;
 }
 
+/** Pass rate over the checks that ran to a verdict; the caller leaves out ruled checks (out of scope, deferred, not verified), which have a result but no verdict. */
 function rate(passed: number | null, total: number | null): number | null {
   return passed === null || total === null || total <= 0 ? null : round1((100 * passed) / total);
+}
+
+/** Checks whose result records a ruling (out of scope, deferred, not verified): in attempted, but they ran to no verdict. */
+function ruledChecks(rollup: NonNullable<ClosureViewInput["rollupCounts"]>): number {
+  return (rollup.ruledOutOfScope ?? 0) + (rollup.deferred ?? 0) + (rollup.notVerified ?? 0);
 }
 
 function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput["rollupCounts"], execSummary: unknown): CaseFigures {
@@ -218,7 +226,7 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
       ? { passed: metrics["passedCaseOfRecord"], failed: metrics["failedCaseOfRecord"] ?? metrics["failed"], blocked: metrics["blockedCaseOfRecord"], partial: metrics["partialCaseOfRecord"], passRate: metrics["passRateCaseOfRecord"], basis: null }
       : null;
   const cor = block ?? fromMetrics;
-  const rollupFig: CaseCounts | null = rollup === null ? null : { passed: rollup.passed, failed: rollup.failed, partial: rollup.partial, blocked: rollup.blocked, skipped: rollup.skipped, unknown: rollup.unknown, total: rollup.attempted, passRate: rate(rollup.passed, rollup.attempted) };
+  const rollupFig: CaseCounts | null = rollup === null ? null : { passed: rollup.passed, failed: rollup.failed, partial: rollup.partial, blocked: rollup.blocked, skipped: rollup.skipped, unknown: rollup.unknown, total: rollup.attempted, passRate: rate(rollup.passed, rollup.attempted - ruledChecks(rollup)) };
   const reconciliations = Array.isArray(closure["reconciliations"]) ? closure["reconciliations"] : [];
   const rec = reconciliations.find((r) => isPlain(r) && typeof r["point"] === "string" && /case figures|case counts|pass rate/i.test(r["point"]) && str(r["statement"]) !== null);
   const reconciliation = isPlain(rec) ? str(rec["statement"]) : str(metrics["passRateBasisNote"]);
@@ -235,7 +243,8 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
     const figs: CaseCounts = {
       passed, failed: num(cor["failed"]), partial: num(cor["partial"]), blocked: num(cor["blocked"]),
       skipped: rollup?.skipped ?? null, unknown: rollup?.unknown ?? null, total,
-      passRate: num(cor["passRate"]) ?? rate(passed, total),
+      // the base is the checks that ran to a verdict: with the rollup's attempted count as the total, its ruled checks are left out
+      passRate: num(cor["passRate"]) ?? rate(passed, rollup !== null && total === rollup.attempted ? total - ruledChecks(rollup) : total),
     };
     const parts = [
       rollupFig === null ? null : fmt("Coverage rollup", rollupFig, rollupFig.passRate),
@@ -246,15 +255,15 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
     // ONE paragraph: the case-of-record statement, its basis, then either the closure's own reconciliation (which already states the rollup,
     // the execution summary and the case of record) or, without one, the three bases built from the numbers. Never both.
     const body = reconciliation !== null ? terminated(reconciliation) : `${parts.join(". ")}.`;
-    return { source: "case-of-record", ...figs, note: `Figures are those of the case of record.${basis === null ? "" : ` ${terminated(basis)}`} ${body}`, reconciliation };
+    return { source: "case-of-record", ...figs, passRateBase: rollup !== null && total === rollup.attempted ? total - ruledChecks(rollup) : total, note: `Figures are those of the case of record.${basis === null ? "" : ` ${terminated(basis)}`} ${body}`, reconciliation };
   }
-  if (rollupFig !== null) return { source: "rollup", ...rollupFig, note: null, reconciliation };
+  if (rollupFig !== null) return { source: "rollup", ...rollupFig, passRateBase: rollup === null ? null : rollup.attempted - ruledChecks(rollup), note: null, reconciliation };
   const passed = num(metrics["passed"]);
   const failed = num(metrics["failed"]);
   const blocked = num(metrics["blocked"]);
   const total = passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
-  if (passed === null && failed === null && blocked === null) return { source: "none", passed: null, failed: null, partial: null, blocked: null, skipped: null, unknown: null, total: null, passRate: null, note: null, reconciliation };
-  return { source: "closure", passed, failed, partial: null, blocked, skipped: num(metrics["skipped"]), unknown: null, total, passRate: num(metrics["passRate"]) ?? rate(passed, total), note: null, reconciliation };
+  if (passed === null && failed === null && blocked === null) return { source: "none", passRateBase: null, passed: null, failed: null, partial: null, blocked: null, skipped: null, unknown: null, total: null, passRate: null, note: null, reconciliation };
+  return { source: "closure", passRateBase: total, passed, failed, partial: null, blocked, skipped: num(metrics["skipped"]), unknown: null, total, passRate: num(metrics["passRate"]) ?? rate(passed, total), note: null, reconciliation };
 }
 
 const VERDICT_ORDER: Readonly<Record<string, number>> = { "PARTIALLY FIXED": 0, "NOT FIXED": 0, "CANNOT VERIFY": 0, REFRAMED: 2, "REPORT WITHDRAWN": 3, FIXED: 4 };

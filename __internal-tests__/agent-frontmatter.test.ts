@@ -1,5 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
+import { MODEL_RATES } from "@qa/metrics";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 // Resolve aegis root from the test file's location, not the test runner cwd —
@@ -258,6 +260,16 @@ function pickRequiredSections(tierDir: string, name: string): string[] {
 const agents = findAgents();
 const policy = loadModelPolicy();
 
+/** Reads a top-level `tiers:` / `efforts:` map of the policy as tier -> value. */
+function policyMap(key: "tiers" | "efforts"): Record<string, string> {
+  const doc = parseYaml(readFileSync(MODEL_POLICY_PATH, "utf-8")) as Record<string, Record<string, string> | undefined>;
+  const map = doc[key];
+  if (!map) throw new Error(`model-policy.yaml has no top-level ${key}: map`);
+  return map;
+}
+const tierModels = policyMap("tiers");
+const tierEfforts = policyMap("efforts");
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("agent frontmatter — sanity", () => {
@@ -299,6 +311,12 @@ describe.each(agents)("agent file: $relPath", (agent) => {
   it("modelTier in frontmatter matches the tier in model-policy.yaml", () => {
     const policyTier = policy.agentToTier.get(fm.name!);
     expect(fm.modelTier).toBe(policyTier);
+  });
+
+  it("model and effort in frontmatter are the ones model-policy.yaml gives its tier", () => {
+    const tier = policy.agentToTier.get(fm.name!)!;
+    expect(fm.raw["model"]).toBe(tierModels[tier]);
+    expect(fm.raw["effort"]).toBe(tierEfforts[tier]);
   });
 
   it("declares only allowed tools", () => {
@@ -405,6 +423,23 @@ describe.each(agents)("agent file: $relPath", (agent) => {
       );
     }
     expect(true).toBe(true); // assertion lives in the throw above for a clearer message
+  });
+});
+
+describe("model-policy.yaml — effort floor", () => {
+  it("gives every tier a model and an effort, and never low", () => {
+    for (const tier of policy.validTiers) {
+      expect(tierModels[tier]).toMatch(/^claude-/);
+      expect(["medium", "high", "xhigh", "max"]).toContain(tierEfforts[tier]);
+    }
+  });
+
+  it("prices every tier and ingestion model in tokenRates and in the metrics MODEL_RATES", () => {
+    const doc = parseYaml(readFileSync(MODEL_POLICY_PATH, "utf-8")) as { tokenRates: Record<string, unknown>; ingestion: Record<string, string> };
+    for (const model of new Set([...Object.values(tierModels), ...Object.values(doc.ingestion)])) {
+      expect(doc.tokenRates).toHaveProperty([model]);
+      expect(MODEL_RATES).toHaveProperty([model]);
+    }
   });
 });
 

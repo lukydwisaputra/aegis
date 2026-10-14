@@ -214,7 +214,7 @@ describe('the sign-off', () => {
 
   it('keeps the Gate 3 banner, the exit criteria, the open-defect summary and the signature block', () => {
     expect(r.status).toBe(0);
-    expect(f).toContain('GATE 3 DECISION (owner)');
+    expect(f).toContain('CLOSURE DECISION');
     expect(f).toContain('APPROVED WITH CONDITIONS');
     expect(f).toContain('Exit Criteria');
     expect(f).toContain('OPEN DEFECTS SUMMARY');
@@ -372,5 +372,25 @@ describe('round 8', () => {
     expect(pm.questions.find((q) => q.id === 'OQ-2')!.also).toBeNull();
     expect(tf).toContain('OQ-1 [high]: Is the first reading right? If yes nothing changes. [also: security officer]');
     expect(tf).not.toMatch(/OQ-2 \[high\][^\n]*also:/);
+  });
+});
+
+describe('the rollup pass rate leaves ruled checks out, as the technical report does', () => {
+  it('2 passed of 6 attempted with 3 ruled checks is 66.7%, never 33.3%', () => {
+    const v = buildClosureView({ closure: {}, defects: null, rollupCounts: { passed: 2, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, attempted: 6, ruledOutOfScope: 1, deferred: 1, notVerified: 1 }, executionSummary: null });
+    expect(v.cases).toMatchObject({ source: 'rollup', total: 6, passed: 2, passRate: 66.7 });
+  });
+
+  it('a case-of-record block with no passRate of its own gets the same ruled-excluded base', () => {
+    const closure = { resultsSummary: { caseOfRecord: { passed: 2, failed: 1, blocked: 0, partial: 0 } } };
+    const rollupCounts = { passed: 2, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, attempted: 6, ruledOutOfScope: 1, deferred: 1, notVerified: 1 };
+    const v = buildClosureView({ closure, defects: null, rollupCounts, executionSummary: null });
+    expect(v.cases).toMatchObject({ source: 'case-of-record', passRate: 66.7 });
+    expect(v.cases.note).toContain('Coverage rollup: 2 passed, 1 failed, 0 partial, 0 blocked (66.7% passed)');
+  });
+
+  it('without ruled counts the rate is passed over attempted, unchanged', () => {
+    const v = buildClosureView({ closure: {}, defects: null, rollupCounts: { passed: 2, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, attempted: 6 }, executionSummary: null });
+    expect(v.cases.passRate).toBe(33.3);
   });
 });

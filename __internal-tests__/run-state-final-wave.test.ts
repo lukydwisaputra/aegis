@@ -3,7 +3,7 @@ import * as path from 'path';
 import { readLines } from '@qa/event-bus';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, busPath, cancelTask, claimTask, completePhase, createRun, decideEscalation, nextStep, notApplicableReason, readRun,
+  abandonTask, addTask, busPath, cancelTask, claimTask, completePhase, createRun, decideEscalation, nextStep, notApplicableReason, readRun,
   releaseTask, requestStop, resumeRun, runDir, runJsonPath, startPhase, submitReview, submitWorkReport, taskmasterDir,
 } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
@@ -352,6 +352,28 @@ describe('I6: task assignee and cancel', () => {
     await reviewed('T-design-1', TD, `${TD}-spv`, 'requested-changes');
     expect(await task('T-design-1')).toMatchObject({ status: 'pending' });
     await expect(cancelTask(t.root, runId, 'T-design-1', 'drop it', ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/was claimed before/) });
+  });
+
+  it('abandon: the owner clears an in-progress task whose claim holds no work report; records task.cancelled', async () => {
+    await design();
+    await addTask(t.root, runId, { id: 'T-design-3', title: 'd3', agent: TD }, ORCH);
+    await expect(abandonTask(t.root, runId, 'T-design-3', 'stuck', 'owner')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/pending/) });
+    await claimTask(t.root, runId, 'T-design-3', TD);
+    await expect(abandonTask(t.root, runId, 'T-design-3', 'stuck', ORCH)).rejects.toMatchObject({ code: 'caller-forbidden' });
+    await expect(abandonTask(t.root, runId, 'T-design-3', '  ', 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(abandonTask(t.root, runId, 'T-design-3', 'its id could not carry a work report', 'owner')).resolves.toMatchObject({ status: 'cancelled' });
+    expect(events().pop()).toMatchObject({ type: 'task.cancelled', taskId: 'T-design-3', agent: TD, emittedBy: 'owner', reason: 'abandoned by the owner: its id could not carry a work report' });
+    await expect(abandonTask(t.root, runId, 'T-design-3', 'again', 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+
+  it('abandon refuses a task holding a fresh work report, a finished task and a gate task', async () => {
+    await design();
+    await addTask(t.root, runId, { id: 'T-design-4', title: 'd4', agent: TD }, ORCH);
+    await claimTask(t.root, runId, 'T-design-4', TD);
+    await submitWorkReport(t.root, runId, tmp(workReport(TD, 'T-design-4')), TD);
+    await expect(abandonTask(t.root, runId, 'T-design-4', 'x', 'owner')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/work report/) });
+    await releaseTask(t.root, runId, 'T-design-4', 'done', TD);
+    await expect(abandonTask(t.root, runId, 'T-design-4', 'x', 'owner')).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/done/) });
   });
 
   it('cancel refuses a gate task (added in its gated phase)', async () => {
