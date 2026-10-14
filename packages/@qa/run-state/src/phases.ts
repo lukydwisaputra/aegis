@@ -27,6 +27,7 @@ import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
+import { dataFindings } from "./lint/data.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, reviewPassed, workDir } from "./submit.js";
@@ -238,6 +239,11 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
   }
   // A gated phase of a full cycle ends with its gate-precondition task (spec §3.2); smoke's G2 is auto-decided.
   if (state.cycleType === "full") {
+    // The Blocked data checks while Execution is still active, where a specialist can still fix the result: no wording or personal-data rule here.
+    if (phase === "execution") {
+      const data = dataFindings(root, runId, "execution", new Set(readRunConfig(root).reportRules.disable)).filter((f) => f.severity === "error");
+      if (data.length > 0) problems.push(lintBlockMessage("G2", data, "execution"));
+    }
     for (const gate of GATE_IDS) {
       if (GATE_AFTER[gate] !== phase) continue;
       const id = gateTaskId(gate);
@@ -250,7 +256,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       // The lint is a barrier while the phase is still active: once it completes, nothing can reopen it to fix a file.
       // openGate checks again (a file may change between the two), as the safety net.
       if (gate === "G2" || gate === "G3") {
-        const scan = lintFindings(root, runId);
+        const scan = lintFindings(root, runId, gate === "G2" ? "G2" : undefined);
         const lint = scan.findings.filter((f) => f.severity === "error");
         if (lint.length > 0) problems.push(lintBlockMessage(gate, lint, "phase-complete", notScannedCount(scan.skipped)));
       }

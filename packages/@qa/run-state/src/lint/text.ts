@@ -7,6 +7,8 @@ export interface Finding {
   line: number;
   message: string;
   context: string;
+  /** "data" for a data check (lint/data.ts): the run's records disagree. Absent means a wording or personal-data finding in a customer-facing file. */
+  kind?: "text" | "data";
 }
 
 const FENCE_OPEN = /^\s*(`{3,}[^`]*|~{3,}.*)$/;
