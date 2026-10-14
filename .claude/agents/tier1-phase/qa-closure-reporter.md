@@ -55,7 +55,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
   "cycleDate": "2026-07-27",           // or run.json#createdAt; the index shows "—" without one
   "metrics": {
     "passed": 886, "failed": 0, "blocked": 0,
-    "passRate": 100.0,                  // headline rate as a plain number
+    "passRate": 100.0,                  // headline rate as a plain number: passed over the checks that ran to a verdict (attempted less ruledOutOfScope, deferred and notVerified)
     "requirementsCoverage": 92.5        // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
   },
   "defectMetrics": {

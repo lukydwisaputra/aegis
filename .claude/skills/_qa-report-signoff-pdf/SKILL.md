@@ -9,7 +9,7 @@ description: "Internal: render the formal sign-off attestation PDF (Deliverable 
 
 ## Purpose
 
-Renders `runs/{runId}/reports/executive/signoff.pdf` — the formal industry-standard sign-off attestation (Deliverable 2 of three from `qa-executive-reporter`). The sign-off prints the owner's recorded Gate 3 decision (APPROVED, APPROVED WITH CONDITIONS or REJECTED) under the label GATE 3 DECISION (owner); it is the owner's decision, not a QA verdict or recommendation.
+Renders `runs/{runId}/reports/executive/signoff.pdf` — the formal industry-standard sign-off attestation (Deliverable 2 of three from `qa-executive-reporter`). The sign-off prints the owner's recorded Gate 3 decision (APPROVED, APPROVED WITH CONDITIONS or REJECTED) under the label CLOSURE DECISION; it is the owner's decision, not a QA verdict or recommendation.
 
 The skill is a thin orchestrator. It pulls the decision from `gate-3-decision.json`, the exit criteria from the closure report, the residual risk from the risk register or, when that holds none, from the closure report, and renders into the `SignoffSpec` shape.
 

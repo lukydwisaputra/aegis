@@ -238,7 +238,7 @@ describe('sign-off document (Deliverable 2)', () => {
 
   it('prints the owner\'s Gate 3 decision under its own label, never a release verdict', () => {
     const text = flat(pdfText(pdf));
-    expect(text).toContain('GATE 3 DECISION (owner)');
+    expect(text).toContain('CLOSURE DECISION');
     expect(text).toContain('APPROVED WITH CONDITIONS');
     expect(text).not.toMatch(/RELEASE VERDICT|CONDITIONAL|NO-GO|\bGO\b/);
     expect(text).toContain(PROJECT);
@@ -786,7 +786,7 @@ describe('the sign-off decision banner', () => {
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toMatchObject({ decision });
     expect(JSON.parse(r.stdout)).not.toHaveProperty('verdict');
-    expect(text).toContain(`GATE 3 DECISION (owner) ${shown}`);
+    expect(text).toContain(`CLOSURE DECISION ${shown}`);
     if (decision === 'approved') expect(text).not.toContain('WITH CONDITIONS'); // 'APPROVED' is a prefix of the other text
   });
 
@@ -968,6 +968,25 @@ describe('the technical report takes check counts from coverage.json and closed 
     expect(text).toContain('Total Tests\n4');
     expect(text).toContain('Pass Rate\n50.0%');
     expect(text).toContain('Partial\nnot available');
+  });
+
+  it('results that record a ruling (out_of_scope, deferred, not_verified) are printed apart and stay out of the pass rate and of Undetermined', () => {
+    const ruled = {
+      'rtm.json': { rows: [{ requirementId: 'REQ-AUTH-01', testStatus: 'Covered' }] },
+      ...Object.fromEntries(['001', '002', '003', '004', '005', '006'].map((n) => [`cases/TC-AUTH-${n}.json`, { id: `TC-AUTH-${n}` }])),
+      'cases/TC-AUTH-001-result.json': { status: 'passed' }, 'cases/TC-AUTH-002-result.json': { status: 'passed' }, 'cases/TC-AUTH-003-result.json': { status: 'failed' },
+      'cases/TC-AUTH-004-result.json': { status: 'out_of_scope' }, 'cases/TC-AUTH-005-result.json': { status: 'deferred' }, 'cases/TC-AUTH-006-result.json': { status: 'not_verified' },
+      'reports/closure/closure.json': { metrics: { passed: 2, failed: 1, blocked: 0 } },
+    };
+    const { root, runDir } = fixture(ruled);
+    expect(run(SCRIPT.technical, root).status).toBe(0);
+    const text = pdfText(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'));
+    expect(text).toContain('Total Tests\n6');
+    expect(text).toContain('Undetermined\n0');
+    expect(text).toContain('Out of scope\n1');
+    expect(text).toContain('Deferred\n1');
+    expect(text).toContain('Not verified\n1');
+    expect(text).toContain('Pass Rate\n66.7%'); // 2 passed of the 3 that ran to a verdict
   });
 
   it('closed records without a retest verdict are stated apart, and a flagged-for-owner record is neither open nor closed', () => {

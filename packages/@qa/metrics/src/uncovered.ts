@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { type UncoveredCause } from "@qa/contracts";
-import { NOT_EXECUTED, descopedCases, readJson, scanChecks, type CheckState } from "./outcomes.js";
+import { NOT_EXECUTED, RULED, descopedCases, readJson, scanChecks, type CheckState } from "./outcomes.js";
 
 /** A cause a keyword rule can assign. not-attempted is never keyword-assigned: it follows from a check having no result file. */
 export type KeywordCause = Exclude<UncoveredCause, "not-attempted">;
@@ -92,8 +92,9 @@ function closureOrigins(runDir: string): Map<string, string> {
 }
 
 /**
- * Pure: the checks that gave no verdict (worst outcome blocked, skipped or undeterminable, or designed with no result file), each
- * with one cause. A check with no result file is not-attempted, and only that is. Any other row takes the first CAUSE_RULES match
+ * Pure: the checks that gave no verdict (worst outcome blocked, skipped or undeterminable, or designed with no result file). A check
+ * whose result records a ruling (out of scope, deferred, not verified) is not listed: it is counted apart in `counts`, so the rows add
+ * up to blocked + skipped + unknown + notAttempted. Each row has one cause. A check with no result file is not-attempted, and only that is. Any other row takes the first CAUSE_RULES match
  * on the text of its result files (the specialists' own words), else on the closure row's origin text, else testing-side when a
  * scoped viewport has no result, else "other". `checks` and `descoped` may be passed when the caller has already scanned the run and read run.json. A case the owner descoped is never listed. Writes nothing.
  */
@@ -110,7 +111,7 @@ export function classifyUncovered(
     let row: UncoveredRow;
     if (state.outcome === undefined) {
       row = { id, cause: "not-attempted", via: "no result file" };
-    } else if (NOT_EXECUTED.has(state.outcome)) {
+    } else if (NOT_EXECUTED.has(state.outcome) && !RULED.has(state.outcome)) {
       const fromResult = state.texts.length === 0 ? undefined : keywordRule(state.texts.join("\n"));
       const origin = origins.get(id);
       const fromOrigin = fromResult !== undefined || origin === undefined ? undefined : keywordRule(origin);

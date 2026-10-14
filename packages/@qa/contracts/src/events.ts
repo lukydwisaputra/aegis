@@ -621,6 +621,17 @@ export const RunResumedEventSchema = EventBase.extend({
   taskId: z.string().optional(),
 });
 
+/**
+ * Legacy: written by the short-lived `aegis run reopen` command (replaced by `run reissue`). Kept so event logs that
+ * hold one still verify; nothing emits it any more.
+ */
+export const RunReopenedEventSchema = EventBase.extend({
+  type: z.literal("run.reopened"),
+  runId: RunIdSchema,
+  phase: z.string(),
+  reason: z.string(),
+});
+
 export const RunReissuedEventSchema = EventBase.extend({
   type: z.literal("run.reissued"),
   runId: RunIdSchema,
@@ -1867,6 +1878,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RunPhaseFailedEventSchema,
   RunPromotionFailedEventSchema,
   RunResumedEventSchema,
+  RunReopenedEventSchema,
   RunReissuedEventSchema,
   RunDescopedEventSchema,
   RunStopRequestedEventSchema,

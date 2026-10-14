@@ -156,12 +156,19 @@ const blocked = rollupCounts ? rollupCounts.blocked : metric("blocked");
 const partialCount = rollupCounts ? rollupCounts.partial : null;
 const undeterminedCount = rollupCounts ? rollupCounts.unknown : null;
 // Checks the owner descoped are in none of the counts above: printed apart, and only when there is one.
-const outOfScopeCount = rollupCounts && num(rollupCounts.outOfScope) !== null && rollupCounts.outOfScope > 0 ? rollupCounts.outOfScope : undefined;
+// Checks whose result records a ruling (out of scope, deferred, not verified) have a result but no verdict: counted apart, outside the pass rate.
+const ruledCount = (k) => (rollupCounts && num(rollupCounts[k]) !== null && rollupCounts[k] > 0 ? rollupCounts[k] : 0);
+const ruledOutOfScope = ruledCount("ruledOutOfScope");
+const deferredCount = ruledCount("deferred");
+const notVerifiedCount = ruledCount("notVerified");
+const ruledTotal = ruledOutOfScope + deferredCount + notVerifiedCount;
+const outOfScopeTotal = ruledCount("outOfScope") + ruledOutOfScope;
+const outOfScopeCount = outOfScopeTotal > 0 ? outOfScopeTotal : undefined;
 const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
 const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
-// With counts the pass rate is passed over attempted, one decimal, so it agrees with the Passed cell; closure's own rate (which a
+// With counts the pass rate is passed over the checks that ran to a verdict (attempted less the ruled ones), one decimal, so it agrees with the Passed cell; closure's own rate (which a
 // roll-up counting a partial case as a pass can skew) is used only without counts.
-const passRate = rollupCounts ? (rollupCounts.attempted > 0 ? Math.round((1000 * rollupCounts.passed) / rollupCounts.attempted) / 10 : null) : metric("passRate");
+const passRate = rollupCounts ? (rollupCounts.attempted - ruledTotal > 0 ? Math.round(((100 * rollupCounts.passed) / (rollupCounts.attempted - ruledTotal)) * 10) / 10 : null) : metric("passRate");
 
 // The closure is the source of truth for what the report prints; the metric files and the defect records only fill what it does not
 // carry. buildClosureView reads, from closure.json: the case figures (the case-of-record block when it has one, else the rollup counts),
@@ -209,6 +216,8 @@ const spec = {
     skipped: cor ? c.skipped : skippedCount,
     undetermined: cor ? c.unknown : undeterminedCount,
     ...(outOfScopeCount !== undefined ? { outOfScope: outOfScopeCount } : {}),
+    ...(deferredCount > 0 ? { deferred: deferredCount } : {}),
+    ...(notVerifiedCount > 0 ? { notVerified: notVerifiedCount } : {}),
     passRate: cor ? c.passRate : passRate,
     coveragePercent: coverageNoData ? null : (rollupCoverage ?? metric("requirementsCoverage", "coverage")),
     openDefects,

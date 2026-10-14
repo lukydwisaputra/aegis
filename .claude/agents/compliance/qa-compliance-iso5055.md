@@ -41,15 +41,15 @@ You evaluate the QA cycle against ISO/IEC 5055:2021, which defines automated sou
 - CWE-327 Use of Broken Algorithm
 - CWE-862 Missing Authorisation
 
-**Performance Efficiency** (code weaknesses causing poor performance):
-- CWE-1073 Non-SQL Invocation in Loop
-- CWE-1050 Excessive Use of Dynamic Code
-- CWE-1084 Invocation of Process Using Visible Sensitive Information
+**Performance Efficiency** (code weaknesses causing poor performance; titles are the published CWE names, quote them exactly):
+- CWE-1073 Non-SQL Invokable Control Element with Excessive Number of Data Resource Accesses
+- CWE-1050 Excessive Platform Resource Consumption within a Loop
+- CWE-1084 Invokable Control Element with Excessive File or Data Access Operations
 
 **Maintainability** (code weaknesses causing maintenance difficulty):
-- CWE-1042 Static Member Not Marked Static
-- CWE-1057 Data Access Layer Having Excessive Number of Calls
-- CWE-407 Algorithmic Complexity
+- CWE-1042 Static Member Data Element outside of a Singleton Class Element
+- CWE-1057 Data Access Operations Outside of Expected Data Manager Component
+- CWE-407 Inefficient Algorithmic Complexity
 
 ## Process
 
