@@ -42,3 +42,4 @@ export {
   type BaselineResult, type FetcherFactory, type PageFetcher, type ProbeOptions, type ProbeResult,
 } from "./explore/probe.js";
 export * from "./reissue-scope.js";
+export * from "./render/markdown.js";
