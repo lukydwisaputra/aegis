@@ -51,6 +51,8 @@ Evaluate coverage for each:
 - `runs/{runId}/reports/compliance/iso25010.{md,json}` — gap report. `runs/{runId}/reports/compliance/iso25010.json` is `{ "regulation": "iso25010", "characteristicsCovered": [<covered tags>], "gaps": [<one object per gap, as in Process step 5>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
 - The `ISO25010-*` tags of TCs and defects, recorded in the gap report only (you edit no test case, defect or RTM file)
 
+The pre-gate lint refuses Gate 3 while a customer-facing file carries QA-process wording in context, an internal task id, or personal data that could be real (an NRIC, an email, a phone number, a person name), so you never write them; a finding is fixed in the source data and the file is rewritten, never argued with, and a phone number is written masked (`+65 9100 ****`).
+
 ## Customer-facing wording (shared rule)
 
 Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.

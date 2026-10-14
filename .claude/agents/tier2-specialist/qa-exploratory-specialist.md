@@ -105,6 +105,8 @@ At session end (durable):
 
 9. **Submit, release, stop.** Append `exploratory.session-complete` as your last event, then submit your work report and release your task (Task Protocol steps 3–4).
 
+The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one. Name a session after its charter, never after a task id: an evidence path that carries a task id (the task id plus a session number) and is cited by a defect, the RTM or a compliance report is an internal task id the lint rejects.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Charter lacks a scope, technique, and goal (all three required)

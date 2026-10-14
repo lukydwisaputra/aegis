@@ -113,6 +113,8 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 
 8. **Infer user journeys.** From link graphs and form sequences, infer the likely user flows (e.g., "Login → Dashboard → Create Appointment → Confirm"). Document in discovery report for qa-test-designer.
 
+The files you write that a customer later reads (discovery notes and defect candidates) are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Form submitted during discovery crawl

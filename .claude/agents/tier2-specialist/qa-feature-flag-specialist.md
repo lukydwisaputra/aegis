@@ -46,6 +46,8 @@ If no flag system is detected, emit `specialist.no-op`, then submit your work re
 
 5. **Flag-conditional defect tagging.** Any defect found in one flag state but not the other gets the flag name as a tag in `defect.flags[]`.
 
+The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
+
 ## Quality Standards (SPV rejects if violated)
 
 - Only one flag state tested (both ON and OFF required)

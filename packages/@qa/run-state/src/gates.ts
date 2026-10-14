@@ -20,6 +20,7 @@ import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
+import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
@@ -46,6 +47,11 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
     if (step.kind !== "open-gate" || step.gate !== gate) throw new RunStateError("out-of-order", `cannot open ${gate}: ${describeStep(step)}`);
     if (!gateTaskPassed(root, runId, state, gate)) {
       throw new RunStateError("barrier", `gate ${gate} needs a passing qa-orchestrator-spv review of task ${gateTaskId(gate)}`);
+    }
+    if (gate === "G2" || gate === "G3") {
+      const scan = lintFindings(root, runId);
+      const lint = scan.findings.filter((f) => f.severity === "error");
+      if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open", notScannedCount(scan.skipped))}`);
     }
     const ts = iso(now);
     const prev = state.gates[gate];

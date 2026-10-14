@@ -51,6 +51,8 @@ If `target-profile.json#hasRealtimeFeatures` is false (the scanner found no `ws:
 
 5. **Race condition tests.** Two concurrent clients subscribe to the same channel; both receive the same event exactly once.
 
+The result files you write under `cases/` are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
+
 ## Quality Standards (SPV rejects if violated)
 
 - A `specialist.no-op` without a readable `hasRealtimeFeatures: false`, or real-time tests skipped without a `specialist.no-op` when that flag is false

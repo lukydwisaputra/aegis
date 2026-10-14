@@ -107,7 +107,7 @@ describe('every dispatch waits for its child (fix round)', () => {
   });
 
   it('the final pass states the no-compliance line', () => {
-    expect(read(CLOSURE)).toContain('"No compliance assessment applied to this cycle."');
+    expect(read(CLOSURE)).toContain('"No compliance assessment applied to this run."');
   });
 });
 

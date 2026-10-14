@@ -27,6 +27,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "rtm.sync-defects": ["rtm.defect-map-synced"],
   "rtm.render": ["rtm.rendered"],
   "env.exec": ["env.executed"],
+  "lint.run": ["lint.completed"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {
