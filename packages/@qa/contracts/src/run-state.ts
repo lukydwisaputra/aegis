@@ -22,6 +22,10 @@ export const PhaseRecordSchema = z
     // Scan only: whether target-profile.json showed personal data when Scan completed; compliance relevance reads this
     // snapshot (AUD-055). Absent on runs scanned before P2b, which counts as true.
     personalData: z.boolean().optional(),
+    // Explore only: the web explorer's discovery was carried over by a gate rejection and the explore probe has not verified it yet.
+    carried: z.boolean().optional(),
+    // Explore only: where the target source stood (last app commit and a hash of the uncommitted changes); a hint next to the probe's decision.
+    identity: z.object({ head: z.string().nullable(), dirtyHash: z.string().nullable() }).strict().optional(),
   })
   .strict();
 

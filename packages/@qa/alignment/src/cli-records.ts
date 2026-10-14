@@ -28,6 +28,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "rtm.render": ["rtm.rendered"],
   "env.exec": ["env.executed"],
   "lint.run": ["lint.completed"],
+  "explore.probe": ["explore.probed"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {

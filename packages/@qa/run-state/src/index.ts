@@ -33,3 +33,5 @@ export * from "./lint/rules.js";
 export * from "./lint/pii.js";
 export * from "./lint/mask.js";
 export * from "./lint/run-lint.js";
+export * from "./explore/identity.js";
+export * from "./explore/probe.js";

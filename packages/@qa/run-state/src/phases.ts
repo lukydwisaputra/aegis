@@ -22,13 +22,14 @@ import { relevantRegulations, showsPersonalData } from "./compliance.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";
+import { exploreIdentity } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
-import { attemptsIn, reviewDir, workDir } from "./submit.js";
+import { attemptsIn, reviewDir, reviewPassed, workDir } from "./submit.js";
 import { reopenPhaseTasks } from "./supersede.js";
 import { formatIssues, iso, loadJson } from "./util.js";
 
@@ -124,11 +125,16 @@ export async function startPhase(root: string, runId: string, phase: string, cal
       throw new RunStateError("env-blocked", `cannot start env-data: ${readOnly}; record it with aegis phase complete --phase env-data --not-applicable`);
     }
     const ts = iso(now);
+    // Explore keeps a carried-over discovery and the identity of the earlier Explore: the probe still has to verify it.
+    const prev = id === "explore" ? state.phases[id] : undefined;
     const next: RunState = {
       ...state,
       status: "running",
       currentPhase: id,
-      phases: { ...state.phases, [id]: { status: "in-progress", startedAt: ts } },
+      phases: {
+        ...state.phases,
+        [id]: { status: "in-progress", startedAt: ts, ...(prev?.carried === true ? { carried: true } : {}), ...(prev?.identity !== undefined ? { identity: prev.identity } : {}) },
+      },
       updatedAt: ts,
     };
     await commitRun(root, state, next, () => appendChained({ type: "run.phase.started", ts, runId, phase: id }, busPath(root, runId), { emittedBy: caller, runId }));
@@ -174,13 +180,6 @@ export function gateTaskPassed(root: string, runId: string, state: RunState, gat
   return reviewPassed(root, runId, ORCHESTRATOR, taskId, latest);
 }
 
-/** A passing review of `attempt` by the paired SPV of `agent`. */
-export function reviewPassed(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
-  const file = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
-  if (!existsSync(file)) return false;
-  const review = ReviewSchema.safeParse(loadJson(file));
-  return review.success && review.data.reviewer === pairedSpv(agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
-}
 
 
 /** Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. */
@@ -262,6 +261,9 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       problems.push(`gate ${gate} is not approved`);
     }
   }
+  if (phase === "explore" && state.phases["explore"]?.carried === true) {
+    problems.push("carried-over discovery has not been verified: run the explore probe (it compares the running app with the baseline and reopens the explorer when the app changed)");
+  }
   problems.push(...outputProblems(root, runId, phase));
   return problems;
 }
@@ -288,6 +290,17 @@ function scanSnapshot(root: string, runId: string): { existingTestsCount: number
   return { existingTestsCount: profile.data.existingTests.files.length, personalData: showsPersonalData(profile.data) };
 }
 
+/** Lock-free: the phase is the one in progress and its barrier has no problem now. Any error counts as no (the locked check decides). */
+async function completionLikely(root: string, runId: string, id: PhaseId): Promise<boolean> {
+  try {
+    const state = readRun(root, runId);
+    const step = nextStep(state);
+    return step.kind === "continue-phase" && step.phase === id && (await barrierProblems(root, runId, state, id)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
 export interface CompletePhaseOptions {
   notApplicable?: boolean;
   now?: Date;
@@ -299,6 +312,9 @@ export async function completePhase(root: string, runId: string, phase: string, 
   // Spec §6.1 item 4. A failing verify records integrity.violation and blocks the run itself.
   const integrity = await verifyRunIntegrity(root, runId, caller, opts.now);
   if (!integrity.ok) throw new RunStateError("integrity-failed", `event log does not verify: ${integrity.errors.join("; ")}`);
+  // Explore records where the target source stood. Hashed before run.lock is taken, and only when a lock-free pre-check of the order
+  // and the barrier passes (a refused completion hashes nothing); exploreIdentity never throws (nulls when unreadable).
+  let identity = id === "explore" && opts.notApplicable !== true && (await completionLikely(root, runId, id)) ? exploreIdentity(root) : undefined;
 
   const outcome = await withRunLock(root, runId, async (): Promise<{ state: RunState } | { preflight: string }> => {
     const state = readRun(root, runId);
@@ -321,6 +337,8 @@ export async function completePhase(root: string, runId: string, phase: string, 
     }
     const problems = await barrierProblems(root, runId, state, id);
     if (problems.length > 0) throw new RunStateError("barrier", `phase ${id} cannot complete: ${problems.join("; ")}`);
+    // The pre-check refused but the phase can complete now (the state changed in between): hash under the lock, rarely.
+    if (id === "explore" && identity === undefined) identity = exploreIdentity(root);
     let snapshot = {};
     if (id === "scan") {
       const preflight = preflightProblem(root, runId, state);
@@ -328,7 +346,7 @@ export async function completePhase(root: string, runId: string, phase: string, 
       snapshot = scanSnapshot(root, runId);
     }
     const record = state.phases[id]!;
-    const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, ...snapshot, status: "completed", completedAt: ts } }, updatedAt: ts };
+    const next: RunState = { ...state, phases: { ...state.phases, [id]: { ...record, ...snapshot, ...(identity !== undefined ? { identity } : {}), status: "completed", completedAt: ts } }, updatedAt: ts };
     await commitRun(root, state, next, () =>
       appendChained({ type: "run.phase.completed", ts, runId, phase: id, result: "done" }, busPath(root, runId), { emittedBy: caller, runId })
     );

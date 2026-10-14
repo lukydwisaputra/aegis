@@ -25,6 +25,8 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 - `tests/qa/pages/**/*.ts` — generated POM skeletons organised by URL path (read target project)
 - `runs/{runId}/evidence/discovery/` — screenshot baselines
 - `runs/{runId}/defect-candidates/*.json` — the defect candidates the crawl filed
+- `runs/{runId}/env-auth-report.json` — the role names the page entries must use
+- `runs/{runId}/reports/explore/probe.json` and `runs/{runId}/reports/explore/baseline.json` — only for a diff-mode attempt: the changed pages the worker was given and the pages of the earlier accepted crawl
 - `agent-memory/qa-web-explorer/lessons.md`
 
 ## Review Checklist
@@ -40,12 +42,14 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 8. **Skip patterns respected.** If `aegis.config.json.discovery.skipPatterns` is configured, the work report confirms those patterns were not visited.
 9. **Correct browser tool used.** Work report confirms browser interactions were performed via Playwright MCP (`mcp__playwright__*`) or Playwright CLI (`playwright-cli`). If the work report or evidence shows `@playwright/test` Node API used for page navigation during discovery (e.g., `chromium.launch()`, `browser.newPage()`), flag as requested-changes — `@playwright/test` is for executing known scripts, not observation-driven crawling.
 10. **Candidates, not defects.** Every surface defect is a file under `defect-candidates/` whose evidence exists under `evidence/discovery/`, and nothing was written under `defects/`. A defect opened by the explorer = requested-changes.
+11. **Page entries the CLI can revisit.** `discovery-report.json` has a `pages` array, and every entry carries `role`, `url` and `route`. The `url` is the concrete same-origin address visited (path and query, such as `/volunteers/42`), never a route pattern such as `/volunteers/[id]` (that belongs in `route`), and never another origin. Every `role` is spelled exactly as a role name in `env-auth-report.json` (the CLI skips a page whose role is not listed there, as `role not in env-auth-report`). No `pages` array, or entries without `role` or `url` = requested-changes (a later rerun could not be verified page by page). A single entry whose `url` is a route pattern, or whose `role` is not in `env-auth-report.json` = passed-with-notes.
+12. **Diff mode.** When the worker's brief listed changed pages (the `changedPages` of `probe.json`), the work report says the attempt ran in diff mode, the pages visited are those listed plus new same-origin links found on them, and every page of `baseline.json` that is not in the changed list still has its entry in `discovery-report.json` as recorded. A diff-mode report that keeps the unchanged entries passes item 6 as a whole: the kept entries count towards the URL map, the data-testid inventory, the console errors and the journeys. Item 7 is judged on the pages visited in this attempt; the kept pages keep their earlier screenshots. An unchanged entry dropped or rewritten = requested-changes.
 
 ## Verdict
 
 - `passed` — all checks pass
 - `passed-with-notes` — single-role only, missing discovery sections; emit CorrectiveInstruction
-- `requested-changes` — form submissions, POM overwrites, POM written directly under `tests/qa/pages/` with no URL-path subfolder, probe scripts found in `tests/qa/specs/`; block
+- `requested-changes` — form submissions, POM overwrites, POM written directly under `tests/qa/pages/` with no URL-path subfolder, probe scripts found in `tests/qa/specs/`, a `discovery-report.json` without a `pages` array or with entries lacking `role` or a concrete `url`, an unchanged entry dropped or rewritten in diff mode; block
 
 ## Submitting Your Verdict
 
@@ -71,6 +75,9 @@ reads:
   - "{tests}/qa/specs/**"
   - "{run}/evidence/discovery/**"
   - "{run}/defect-candidates/*.json"
+  - "{run}/env-auth-report.json"
+  - "{run}/reports/explore/probe.json"
+  - "{run}/reports/explore/baseline.json"
   - "agent-memory/qa-web-explorer/lessons.md"
 writes: []
 emits:

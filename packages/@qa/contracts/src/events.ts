@@ -531,6 +531,19 @@ export const LintCompletedEventSchema = EventBase.extend({
   report: z.string(),
 });
 
+/** `aegis explore probe` took a baseline of the explored pages, or compared the running app with it and decided what is reused. */
+export const ExploreProbedEventSchema = EventBase.extend({
+  type: z.literal("explore.probed"),
+  agent: z.string(),
+  mode: z.enum(["baseline", "verify"]),
+  decision: z.enum(["reuse", "partial", "full", "none"]),
+  pages: z.number().int().nonnegative(),
+  same: z.number().int().nonnegative(),
+  changed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  hints: z.array(z.string()),
+});
+
 export const RtmRenderedEventSchema = EventBase.extend({
   type: z.literal("rtm.rendered"),
   agent: z.string(),
@@ -1742,6 +1755,10 @@ export const GateDecidedEventSchema = EventBase.extend({
   sequence: z.number().int().positive(),
   note: z.string().min(1),
   reopenPhase: PhaseIdSchema.optional(),
+  // A rejection whose reopened phases include Explore, decided with --re-explore: the web explorer's discovery is not carried over.
+  reExplore: z.boolean().optional(),
+  // The rejection carried the web explorer's discovery over: Explore is pending and a probe verifies the discovery before reuse.
+  carried: z.literal(true).optional(),
 });
 
 export const GateAutoDecidedEventSchema = EventBase.extend({
@@ -1893,6 +1910,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RtmRenderedEventSchema,
   EnvExecutedEventSchema,
   LintCompletedEventSchema,
+  ExploreProbedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,

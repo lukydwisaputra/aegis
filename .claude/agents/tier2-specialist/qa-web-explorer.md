@@ -57,10 +57,12 @@ In both cases: read the accessibility snapshot after each navigation to extract 
 - `tests/qa/fixtures/auth.fixture.ts` — per-role auth fixtures
 - `runs/{runId}/intake/**` — the requirement documents the run copied from the target, at their target-relative paths (read to understand what areas to prioritise)
 - `agent-memory/qa-web-explorer/lessons.md`
+- `runs/{runId}/env-auth-report.json` — the role names whose saved sessions the CLI uses to revisit your pages
+- `runs/{runId}/reports/explore/probe.json` — only in diff mode (below): the probe's `changedPages` list, when your brief points to it instead of listing the pages
 
 ## Outputs
 
-- `runs/{runId}/discovery-report.{md,json}` — URL map, page inventory, data-testid inventory, console errors, inferred user journeys
+- `runs/{runId}/discovery-report.{md,json}` — URL map, page inventory, data-testid inventory, console errors, inferred user journeys. Each entry of the `pages` array in `discovery-report.json` carries `role` (the role whose session visited it, spelled exactly as a role name of the run's env-auth report (see Inputs), since the CLI revisits the page with that role's saved session), `url` (the concrete same-origin address you visited, path and query such as `/volunteers/42?tab=history`, never a route pattern) and `route` (the parameterised pattern, such as `/volunteers/[id]`), next to the page details. The CLI revisits these `url`s, as each `role`, to tell whether the app changed since your crawl: an entry without a concrete `url` cannot be checked and makes the next rerun explore in full.
 - `tests/qa/pages/{url-path}/{route-slug}.page.ts` — POM skeletons organised by URL path hierarchy (only if not already present)
 - `runs/{runId}/evidence/discovery/` — screenshot baselines per page per role
 - `runs/{runId}/defect-candidates/{slug}.json` — suspected UI defects (console errors, broken images, layout overflow, contrast), one per file (`DefectCandidateSchema`, `proposedType` UI or A11Y); qa-defect-manager confirms their origin in Triage
@@ -93,7 +95,7 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 3. **Authenticate per role.** Use the per-role auth fixture. Crawl each role's authenticated view separately — different roles see different UI.
 
 4. **BFS-crawl from entry points.** Use `playwright-cli open <entryPoint>` then `playwright-cli goto <url>` for each subsequent page. After each navigation, run `playwright-cli snapshot` to receive the accessibility tree, then `playwright-cli screenshot` for the baseline PNG. For each page reached:
-   - Capture URL + route pattern (parameterised: `/users/[id]` not `/users/42`)
+   - Capture the concrete URL visited (`/users/42`, the entry's `url`) and its route pattern (parameterised: `/users/[id]`, the entry's `route`), with the role
    - Page title and main section headings
    - All `data-testid` values found on the page
    - All form fields (label, type, name, validation text) — WITHOUT filling or submitting
@@ -111,7 +113,9 @@ Dynamic segments (e.g. `/users/42`) are collapsed to their pattern form (e.g. `/
 
 7. **Generate POM skeletons.** For each discovered page, derive the output path from the page's URL: take each path segment, collapse dynamic ID segments to `[id]`, and write to `tests/qa/pages/{url-path}/{route-slug}.page.ts` (e.g. `/auth/callback` → `tests/qa/pages/auth/callback.page.ts`, `/users/42/profile` → `tests/qa/pages/users/[id]/profile.page.ts`). Create the file only if it does not already exist. Include: `goto()`, locators for all data-testid elements found, and a `// TODO: add actions` comment. Never overwrite existing POM files.
 
-8. **Infer user journeys.** From link graphs and form sequences, infer the likely user flows (e.g., "Login → Dashboard → Create Appointment → Confirm"). Document in discovery report for qa-test-designer.
+8. **Diff mode.** Diff mode applies only when your brief lists changed pages (each a role and a url, from the probe's `changedPages` in `probe.json`) and that report's `decidedAt` is later than the start of the current Explore phase (the brief says so; a report from an earlier round is ignored and you crawl in full). Then the app changed only there since your last accepted crawl: visit only those pages, as their role, plus any new same-origin link found on them that `discovery-report.json` does not list yet, and apply steps 4 to 7 to them. Merge the result into `discovery-report.{md,json}`: replace the entries of the pages you visited, add the new ones, remove an entry only when its page now redirects away or no longer exists, and keep every other entry exactly as recorded. Existing POM files stay untouched as always. Without a changed-page list in the brief you crawl in full (steps 1 to 7), as on a first run.
+
+9. **Infer user journeys.** From link graphs and form sequences, infer the likely user flows (e.g., "Login → Dashboard → Create Appointment → Confirm"). Document in discovery report for qa-test-designer.
 
 The files you write that a customer later reads (discovery notes and defect candidates) are scanned for personal data (a valid NRIC, an email outside the reserved domains, a phone number, a named person): write test data as a masked value or as a declared synthetic value, never a real-looking one.
 
@@ -125,6 +129,8 @@ The files you write that a customer later reads (discovery notes and defect cand
 - Screenshot not captured for any crawled page
 - POM skeleton generated with locators that use CSS class or XPath
 - `@playwright/test` Node API used for browser interactions during discovery (wrong tool — MCP or `playwright-cli` CLI required for decision-as-you-go crawl work)
+- `discovery-report.json` without a `pages` array, or with entries lacking `role` or a concrete same-origin `url`
+- In diff mode, an unchanged entry of `discovery-report.json` dropped or rewritten
 
 ## Task Protocol
 
@@ -158,6 +164,8 @@ reads:
   - "{tests}/qa/fixtures/auth.fixture.ts"
   - "{run}/intake/**"
   - agent-memory/qa-web-explorer/lessons.md
+  - "{run}/env-auth-report.json"
+  - "{run}/reports/explore/probe.json"
 writes:
   - "{run}/discovery-report.{md,json}"
   - "{tests}/qa/pages/{url-path}/{route-slug}.page.ts"
