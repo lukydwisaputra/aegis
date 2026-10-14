@@ -10,7 +10,8 @@ import { readRun } from "../run.js";
 import { atomicWrite, iso } from "../util.js";
 import { scanPii } from "./pii.js";
 import { resolveRules } from "./rules.js";
-import { hasLongLine, MAX_LINE, scanWithRules, type Finding } from "./text.js";
+import { hasLongLine, MAX_LINE, maskPath } from "./mask.js";
+import { scanWithRules, type Finding } from "./text.js";
 
 export interface LintReport {
   runId: string;
@@ -90,6 +91,10 @@ function jsonStrings(value: unknown, out: string[], key?: string): void {
   else if (value !== null && typeof value === "object") for (const [k, v] of Object.entries(value)) jsonStrings(v, out, k);
 }
 
+const PARTLY = "line over";
+/** Files that were not read at all: a file scanned in part (a very long line, which the personal-data rules read in full) was scanned. */
+export const notScannedCount = (skipped: ReadonlyArray<{ reason: string }>): number => skipped.filter((s) => !s.reason.startsWith(PARTLY)).length;
+
 /** The sentence that makes a skipped file visible at the gate: a skipped file never blocks, but nobody should believe it was read. */
 export const notScannedNote = (n: number): string => `${n} file(s) were not scanned (see skipped in the report)`;
 
@@ -104,7 +109,7 @@ export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "f
   const tail =
     at === "phase-complete"
       ? `Gate ${gate} cannot open with them: fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`
-      : `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json for a finding that is acceptable and then opens the gate again; a finding that is not acceptable needs the files rewritten, which only a reopened phase allows. Run aegis lint run --gate ${gate} for the detail`;
+      : `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json; the orchestrator then opens the gate again; if the files still need rewriting, the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`;
   return `${head}. ${tail}${notScanned > 0 ? `. ${notScannedNote(notScanned)}` : ""}`;
 }
 
@@ -139,14 +144,15 @@ export function lintFindings(root: string, runId: string): { filesScanned: numbe
       }
     }
     filesScanned++;
-    if (hasLongLine(text)) skipped.push({ file: rel, reason: `line over ${MAX_LINE} characters: scanned in part` });
+    if (hasLongLine(text)) skipped.push({ file: rel, reason: `${PARTLY} ${MAX_LINE} characters: scanned in part` });
     // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
     if (!WORKING_RECORD.test(rel)) findings.push(...scanWithRules(rel, text, rules, config.reportRules.allow));
     findings.push(...scanPii(rel, text, config.reportRules.pii));
   }
-  skipped.sort((a, b) => a.file.localeCompare(b.file));
-  findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));
-  return { filesScanned, skipped, findings };
+  // A path is the handle for the fix and stays, but a personal-data value in it (S1234567D.md) is masked like any other.
+  const shownSkipped = skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file));
+  const shownFindings = findings.map((f) => ({ ...f, file: maskPath(f.file) })).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));
+  return { filesScanned, skipped: shownSkipped, findings: shownFindings };
 }
 
 export async function lintRun(root: string, runId: string, gate: string, caller: string, now?: Date): Promise<LintReport> {
@@ -155,7 +161,7 @@ export async function lintRun(root: string, runId: string, gate: string, caller:
   readRun(root, runId);
   const { filesScanned, skipped, findings } = lintFindings(root, runId);
   const errors = findings.filter((f) => f.severity === "error").length;
-  const report: LintReport = { runId, gate, ok: errors === 0, errors, warnings: findings.length - errors, filesScanned, skipped, ...(skipped.length > 0 ? { note: notScannedNote(skipped.length) } : {}), findings };
+  const report: LintReport = { runId, gate, ok: errors === 0, errors, warnings: findings.length - errors, filesScanned, skipped, ...(notScannedCount(skipped) > 0 ? { note: notScannedNote(notScannedCount(skipped)) } : {}), findings };
   const rel = `reports/lint/gate-${gate}.json`;
   mkdirSync(join(runDir(root, runId), "reports", "lint"), { recursive: true });
   atomicWrite(join(runDir(root, runId), rel), JSON.stringify(report, null, 2) + "\n");

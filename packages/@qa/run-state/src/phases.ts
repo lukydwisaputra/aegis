@@ -25,7 +25,7 @@ import { readEscalationDecision } from "./escalation.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
-import { lintBlockMessage, lintFindings } from "./lint/run-lint.js";
+import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, workDir } from "./submit.js";
@@ -253,7 +253,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       if (gate === "G2" || gate === "G3") {
         const scan = lintFindings(root, runId);
         const lint = scan.findings.filter((f) => f.severity === "error");
-        if (lint.length > 0) problems.push(lintBlockMessage(gate, lint, "phase-complete", scan.skipped.length));
+        if (lint.length > 0) problems.push(lintBlockMessage(gate, lint, "phase-complete", notScannedCount(scan.skipped)));
       }
     }
   }

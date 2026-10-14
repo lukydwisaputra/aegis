@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { createRun, lintBlockMessage, lintRun, maskedLines, maskPersonalData, readRunConfig, resolveRules, runDir, scanPii, scanWithRules } from '@qa/run-state';
+import { createRun, lintBlockMessage, lintRun, maskedLines, maskPersonalData, notScannedCount, readRunConfig, resolveRules, runDir, scanPii, scanWithRules } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
 const PII = { syntheticEmailDomains: [], syntheticNamePrefixes: ['QA', 'Test', 'E2E', 'Dummy', 'Sample'], syntheticPhonePatterns: [], syntheticValues: [] };
@@ -149,10 +149,13 @@ describe('minors', () => {
 
   it('gate-history flags the owner gate decisions and earlier drafts, and leaves a gate to a building alone', () => {
     for (const l of [
-      'Re-run after the owner Gate 2 rejection.', 'per the owner G3 decision', 'Following Gate 2 decision the scope changed', 'Since the gate 3 rejection',
-      'owner G2 rejection noted', 'the closure draft said 12 defects', 'the draft said so', 'this version corrects the count', 'this final pass corrects it', 'as reported earlier',
+      'Re-run after the owner Gate 2 rejection.', 'after the owner\u2019s Gate 2 rejection', "after the owner's Gate 2 rejection", 'per the owner G3 decision', 'Following Gate 2 decision the scope changed',
+      'Since the gate 3 rejection', 'owner G2 rejection noted', 'the closure draft said 12 defects', 'the draft said that nothing failed', 'this version corrects the counts', 'this final pass corrects the figures',
     ]) expect(ids(l)).toContain('gate-history');
-    for (const l of ['the gate to the building', 'the draft board', 'Gate 2 of the airport', 'a decision after gate entry', 'the owner decision log']) expect(ids(l)).not.toContain('gate-history');
+    for (const l of [
+      'the gate to the building', 'the draft board', 'Gate 2 of the airport', 'a decision after gate entry', 'the owner decision log',
+      'reported earlier than the timeout', 'this version corrects the typo in the label', 'the draft said nothing', 'as reported earlier',
+    ]) expect(ids(l)).not.toContain('gate-history');
   });
 });
 
@@ -203,5 +206,116 @@ describe('I2 and I3: the agent files', () => {
     expect(o).toMatch(/result records, cases\/\*-result\*\.json: the specialist that wrote the result/);
     expect(o).toMatch(/defect table inside rtm\.md is rendered by the CLI/);
     expect(o).toContain('the phase is already complete and no correction task can be added');
+  });
+});
+
+describe('round 2: names, long lines and small fixes', () => {
+  const noNameIn = (text: string, pii = PII) => {
+    const all = [...scanPii('closure.md', text, pii), ...scanWithRules('closure.md', text, rules(), [])];
+    expect(all.length).toBeGreaterThan(0);
+    for (const f of all) for (const part of ['Tan', 'Wei', 'Ming']) expect(f.context).not.toContain(part);
+    return all;
+  };
+
+  it.each([
+    '| Name | Tan Wei Ming | S1234567D |',
+    'Name: Tan Wei Ming, phone +65 9123 4567',
+    'Name: Tan Wei Ming, email tan@gmail.com',
+    'Full name: Tan Wei Ming this cycle',
+    'full name: Tan Wei Ming this cycle', // a line derived from a JSON key
+    '- **Name:** Tan Wei Ming (S1234567D)',
+  ])('no part of the name appears in any context of any finding: %s', (line) => { noNameIn(line); });
+
+  it('a surname alone is masked in a wording context, and an application noun reports nothing', () => {
+    const f = scanWithRules('closure.md', 'Surname: Tan this cycle', rules(), []);
+    expect(f.map((x) => x.rule)).toEqual(['qa-cycle']);
+    expect(f[0]!.context).not.toContain('Tan');
+    expect(scanPii('closure.md', 'Name: Volunteer Registration', PII)).toEqual([]);
+    expect(ids('Name: Volunteer Registration')).toEqual([]);
+  });
+
+  it('a path with a valid NRIC is shown masked in findings.file and skipped.file', async () => {
+    const t = makeAegisRoot();
+    try {
+      const runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+      const put = (rel: string, v: string) => { const f = path.join(runDir(t.root, runId), rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, v); };
+      put('defects/S1234567D.md', 'Found this cycle.\n');
+      put('defects/S1234567D.json', '{ not json');
+      const r = await lintRun(t.root, runId, 'G2', 'qa-orchestrator');
+      expect(r.findings.map((f) => f.file)).toEqual(['defects/S****567D.md']);
+      expect(r.skipped.map((f) => f.file)).toEqual(['defects/S****567D.json']);
+      expect(fs.readFileSync(path.join(runDir(t.root, runId), 'reports/lint/gate-G2.json'), 'utf8')).not.toContain('S1234567D');
+    } finally { t.cleanup(); }
+  });
+
+  describe('a very long line is read for personal data in chunks, never cut', () => {
+    const filler = (n: number) => 'lorem ipsum '.repeat(Math.ceil(n / 12)).slice(0, n);
+    const found = (text: string) => scanPii('closure.md', text, PII).map((f) => f.rule).sort();
+    it('a valid NRIC, an email and a phone after character 20,000 are each found once', () => {
+      expect(found(filler(25_000) + ' S1234567D')).toEqual(['pii-nric']);
+      expect(found(filler(30_000) + ' tan@gmail.com')).toEqual(['pii-email']);
+      expect(found(filler(30_000) + ' call +65 9123 4567')).toEqual(['pii-phone']);
+    });
+    it('a value straddling a chunk boundary is found exactly once, at each boundary position', () => {
+      for (const at of [19_590, 19_595, 19_600, 19_605, 39_195, 39_200]) {
+        const text = filler(at) + ' S1234567D ' + filler(25_000);
+        expect(found(text)).toEqual(['pii-nric']);
+      }
+      expect(found(filler(19_598) + ' tan@gmail.com ' + filler(25_000))).toEqual(['pii-email']);
+    });
+    it('the finding keeps the real line number and masks the value in its context', () => {
+      const [f] = scanPii('closure.md', 'first\n' + filler(30_000) + ' S1234567D', PII);
+      expect(f).toMatchObject({ rule: 'pii-nric', line: 2 });
+      expect(f!.context).not.toContain('S1234567D');
+    });
+    it('a 5 MB file of 250 lines of 20,000 characters, and of 25,000, finishes in under 3 s', () => {
+      for (const len of [20_000, 25_000]) {
+        const text = Array.from({ length: 250 }, () => filler(len)).join('\n');
+        const t0 = Date.now();
+        scanPii('closure.md', text, PII);
+        scanWithRules('closure.md', text, rules(), []);
+        expect(Date.now() - t0).toBeLessThan(3_000);
+      }
+    });
+    it('a file whose only note is the long line does not count as not scanned', async () => {
+      const t = makeAegisRoot();
+      try {
+        const runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+        const f = path.join(runDir(t.root, runId), 'reports/closure/closure.md');
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        fs.writeFileSync(f, filler(25_000) + ' S1234567D\n');
+        const r = await lintRun(t.root, runId, 'G3', 'qa-orchestrator');
+        expect(r.findings.map((x) => x.rule)).toEqual(['pii-nric']);
+        expect(r.skipped).toEqual([expect.objectContaining({ reason: expect.stringMatching(/^line over 20000/) })]);
+        expect(r.note).toBeUndefined();
+        expect(notScannedCount(r.skipped)).toBe(0);
+      } finally { t.cleanup(); }
+    });
+  });
+
+  it('the gate-open text names only possible actions', () => {
+    const open = lintBlockMessage('G3', [{ file: 'a.md', line: 1, rule: 'qa-cycle' }], 'gate-open');
+    expect(open).toContain('already complete');
+    expect(open).toContain('the orchestrator then opens the gate again');
+    expect(open).toContain('the owner rejects the open gate and reopens the phase');
+    expect(open).not.toContain('or a reopened phase');
+  });
+
+  it.each(['evidence/TC-ENG-014/stub-run-full-T-execution-31.json', 'a_T-execution-3', 'Re-verified (T-execution-3)', 'see T-GATE-G12', 'T-closure-final-2'])('an internal task id joined to a name is still flagged: %s', (line) => {
+    expect(ids(line)).toContain('internal-task-id');
+  });
+  it.each(['ST-1 is a station', 'Part-1 of the form', 'TC-AUTH-031 passed', 'T-' + 'a-'.repeat(40)])('is not a task id: %s', (line) => {
+    expect(ids(line)).not.toContain('internal-task-id');
+  });
+  it('the task id and curly-quote patterns stay fast on hostile input', () => {
+    const task = rules().find((r) => r.id === 'internal-task-id')!.re;
+    for (const text of ['T-'.repeat(50_000), 'T-a-'.repeat(30_000), '-T-'.repeat(50_000)]) {
+      const t0 = Date.now();
+      task.test(text);
+      expect(Date.now() - t0).toBeLessThan(200);
+    }
+    const t0 = Date.now();
+    for (let i = 0; i < 250; i++) maskedLines('“'.repeat(20_000));
+    expect(Date.now() - t0).toBeLessThan(750); // 3 ms a line
   });
 });

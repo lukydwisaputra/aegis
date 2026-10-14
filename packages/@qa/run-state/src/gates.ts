@@ -20,7 +20,7 @@ import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
-import { lintBlockMessage, lintFindings } from "./lint/run-lint.js";
+import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
@@ -51,7 +51,7 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
     if (gate === "G2" || gate === "G3") {
       const scan = lintFindings(root, runId);
       const lint = scan.findings.filter((f) => f.severity === "error");
-      if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open", scan.skipped.length)}`);
+      if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open", notScannedCount(scan.skipped))}`);
     }
     const ts = iso(now);
     const prev = state.gates[gate];

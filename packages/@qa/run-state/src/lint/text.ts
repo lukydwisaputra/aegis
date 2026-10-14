@@ -1,4 +1,4 @@
-import { maskPersonalData } from "./pii.js";
+import { clipLines, maskPersonalData } from "./mask.js";
 
 export interface Finding {
   rule: string;
@@ -17,17 +17,8 @@ function maskInline(raw: string): string {
   return raw
     .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, blank)
     .replace(/(?<=^|[\s(\[:,])"[^"\n]{0,200}"/g, blank)
-    .replace(/“[^”\n]{0,200}”/g, blank);
+    .replace(/(?<=^|[\s(\[:,])“[^”\n]{0,200}”/g, blank);
 }
-
-/** A line longer than this is scanned in its first MAX_LINE characters only (a minified blob is not prose, and a pattern must stay fast on it). */
-export const MAX_LINE = 20_000;
-/** The text with every line cut to MAX_LINE characters. */
-export function clipLines(text: string): string {
-  return text.split("\n").some((l) => l.length > MAX_LINE) ? text.split("\n").map((l) => l.slice(0, MAX_LINE)).join("\n") : text;
-}
-/** Whether any line of the text is over MAX_LINE. */
-export const hasLongLine = (text: string): boolean => text.split("\n").some((l) => l.length > MAX_LINE);
 
 /**
  * The lines of `text` with everything that is not the author's own prose blanked out with spaces (so columns and line numbers stay):
@@ -35,8 +26,8 @@ export const hasLongLine = (text: string): boolean => text.split("\n").some((l) 
  * requirement or an error message is quoted verbatim. A fence that is never closed is read as prose, so it cannot hide the rest:
  * one pass remembers where the open fence began, and at the end the lines from there on are masked once as plain text.
  */
-export function maskedLines(text: string): Array<{ line: number; text: string }> {
-  const rawLines = text.split("\n");
+export function maskedLines(text: string | readonly string[]): Array<{ line: number; text: string }> {
+  const rawLines = typeof text === "string" ? text.split("\n") : text;
   const out: string[] = [];
   let open: { char: string; len: number; at: number } | null = null;
   rawLines.forEach((raw, i) => {
@@ -80,11 +71,10 @@ export interface ResolvedRuleLike {
  * A blank `allow` entry is ignored: an empty phrase would overlap every match and silence the whole lint.
  */
 export function scanWithRules(file: string, text: string, rules: readonly ResolvedRuleLike[], allow: readonly string[]): Finding[] {
-  text = clipLines(text);
-  const originals = text.split("\n");
+  const originals = clipLines(text.split("\n"));
   const findings: Finding[] = [];
   const allowLower = allow.map((a) => a.trim().toLowerCase()).filter((a) => a !== "");
-  for (const { line, text: masked } of maskedLines(text)) {
+  for (const { line, text: masked } of maskedLines(originals)) {
     const orig = originals[line - 1] ?? "";
     let shownLine: ReturnType<typeof maskPersonalData> | null = null;
     const origLower = orig.toLowerCase();
