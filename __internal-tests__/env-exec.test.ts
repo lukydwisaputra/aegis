@@ -1,11 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { assertCallerAllowed, createRun, ENV_EXEC_MAP, envExecInfo, execWithEnv, redactSecrets } from '@qa/run-state';
+import { assertCallerAllowed, busPath, createRun, ENV_EXEC_MAP, envExecInfo, execWithEnv, isCliRecordedEventType, redactionForms, redactSecrets } from '@qa/run-state';
+import { readLines } from '@qa/event-bus';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
 // `aegis env exec`: QA Supabase credentials reach a test runner without an agent reading the secrets file.
 const SERVICE = 'service-role-secret-value-1234567890';
 const ANON = 'anon-key-value-1234567890';
+const AGENT = 'qa-ui-specialist';
+const events = (t_: TmpAegis, id: string) => readLines(busPath(t_.root, id)).map((l) => JSON.parse(l) as Record<string, any>);
 let t: TmpAegis;
 let runId: string;
 const secretsPath = (root: string, env: string) => path.join(root, 'secrets', ['.env', env].join('.'));
@@ -62,7 +65,7 @@ describe('env exec runs the command in the target root and redacts secrets', () 
   it('passes the variables to the child and keeps an explicit override', async () => {
     const out = path.join(t.root, 'child-env.json');
     const code = `require('fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify({u:process.env.NEXT_PUBLIC_SUPABASE_URL,k:process.env.SUPABASE_SERVICE_ROLE_KEY,cwd:process.cwd()}))`;
-    const r = await execWithEnv(t.root, runId, [process.execPath, '-e', code], { ...process.env, NEXT_PUBLIC_SUPABASE_URL: 'http://override.test' });
+    const r = await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code], { ...process.env, NEXT_PUBLIC_SUPABASE_URL: 'http://override.test' });
     expect(r.exitCode).toBe(0);
     const seen = JSON.parse(fs.readFileSync(out, 'utf8'));
     expect(seen.u).toBe('http://override.test');
@@ -71,12 +74,85 @@ describe('env exec runs the command in the target root and redacts secrets', () 
   });
 
   it('returns the child exit code and refuses an empty command', async () => {
-    expect((await execWithEnv(t.root, runId, [process.execPath, '-e', 'process.exit(3)'])).exitCode).toBe(3);
-    await expect(execWithEnv(t.root, runId, [])).rejects.toThrow('env exec needs a command after --');
+    expect((await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', 'process.exit(3)'])).exitCode).toBe(3);
+    await expect(execWithEnv(t.root, runId, AGENT, [])).rejects.toThrow('env exec needs a command after --');
   });
 
   it('redacts every secret value in text', () => {
     expect(redactSecrets(`key=${SERVICE} anon=${ANON}`, [SERVICE, ANON])).toBe('key=[redacted] anon=[redacted]');
+  });
+});
+
+describe('env exec: a secret is never replaced by the caller\'s environment', () => {
+  const seen = async (env: NodeJS.ProcessEnv) => {
+    const out = path.join(t.root, 'child-secret.json');
+    const code = `require('fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify({k:process.env.SUPABASE_SERVICE_ROLE_KEY,a:process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,u:process.env.NEXT_PUBLIC_SUPABASE_URL}))`;
+    await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code], { ...process.env, ...env });
+    return JSON.parse(fs.readFileSync(out, 'utf8'));
+  };
+
+  it('the injected service-role and anon keys win over the same names in the caller\'s environment, so the redactor knows them', async () => {
+    const r = await seen({ SUPABASE_SERVICE_ROLE_KEY: 'another-database-key-9999999999', NEXT_PUBLIC_SUPABASE_ANON_KEY: '' });
+    expect(r.k).toBe(SERVICE);
+    expect(r.a).toBe(ANON);
+  });
+
+  it('a non-secret name (the address) can still be overridden', async () => {
+    expect((await seen({ NEXT_PUBLIC_SUPABASE_URL: 'http://override.test' })).u).toBe('http://override.test');
+  });
+});
+
+describe('env exec redacts the usual ways a runner prints a credential', () => {
+  it('knows the value, its url-encoded, JSON, hex and base64 (all three alignments) and base64url forms, and skips a short secret', () => {
+    const secret = 'se/cret+value="x"-1234567890';
+    const forms = redactionForms([secret, 'short']);
+    expect(forms).toContain(secret);
+    expect(forms).toContain(encodeURIComponent(secret));
+    expect(forms).toContain(Buffer.from(secret).toString('hex'));
+    expect(forms.some((f) => f.includes('short'))).toBe(false);
+    for (const prefix of ['', 'a', 'ab', 'abc']) {
+      const b64 = Buffer.from(prefix + secret).toString('base64');
+      expect(redactSecrets(`header ${b64} trailer`, forms)).toContain('[redacted]');
+      const url = b64.replace(/\+/g, '-').replace(/\//g, '_');
+      expect(redactSecrets(`token=${url}`, forms)).toContain('[redacted]');
+    }
+  });
+
+  it('a long secret that straddles the flush point of an output with no newline is still redacted', async () => {
+    const LONG = 'L'.repeat(40) + 'x'.repeat(360); // a 400-character JWT-sized key
+    const file = secretsPath(t.root, 'development');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/SUPABASE_SERVICE_ROLE_KEY=.*/, `SUPABASE_SERVICE_ROLE_KEY=${LONG}`));
+    const chunks: string[] = [];
+    const spy = jest.spyOn(process.stdout, 'write').mockImplementation(((c: unknown) => { chunks.push(String(c)); return true; }) as never);
+    try {
+      // Separate writes (separate data events): no newline, a flush forced by the buffer limit while the secret is still arriving.
+      const code = `(async () => { const k = process.env.SUPABASE_SERVICE_ROLE_KEY; const w = (x) => new Promise((r) => process.stdout.write(x, r)); const nap = () => new Promise((r) => setTimeout(r, 60));
+        await w('a'.repeat(65_000)); await nap(); await w('a'.repeat(600) + k.slice(0, 300)); await nap(); await w(k.slice(300) + 'b'.repeat(50)); })()`;
+      await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
+    } finally {
+      spy.mockRestore();
+    }
+    const out = chunks.join('');
+    expect(out).toContain('[redacted]');
+    expect(out).not.toContain('L'.repeat(40));
+    expect(out).not.toContain('x'.repeat(100));
+  });
+});
+
+describe('env exec leaves an audit record', () => {
+  it('records env.executed with the caller, environment, redacted command, exit code and injected names, never a value', async () => {
+    await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', `/* ${SERVICE} */ process.exit(4)`]);
+    const raw = fs.readFileSync(busPath(t.root, runId), 'utf8');
+    const ev = events(t, runId).find((e) => e.type === 'env.executed')!;
+    expect(ev).toMatchObject({ agent: AGENT, environment: 'development', exitCode: 4 });
+    expect(ev['command']).toContain('[redacted]');
+    expect(ev['injected']).toEqual(expect.arrayContaining(['SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_URL']));
+    expect(raw).not.toContain(SERVICE);
+    expect(raw).not.toContain(ANON);
+  });
+
+  it('is a CLI-recorded type: an agent cannot append it itself', () => {
+    expect(isCliRecordedEventType('env.executed')).toBe(true);
   });
 });
 

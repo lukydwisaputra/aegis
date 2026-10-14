@@ -26,6 +26,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "rtm.unlink": ["rtm.link-removed"],
   "rtm.sync-defects": ["rtm.defect-map-synced"],
   "rtm.render": ["rtm.rendered"],
+  "env.exec": ["env.executed"],
 };
 
 export function commandRecords(cmd: string, event: string): boolean {

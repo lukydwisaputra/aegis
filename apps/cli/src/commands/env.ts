@@ -25,7 +25,7 @@ export function envCommand(): Command {
     .action(action(async (cmd: string[], o: { run?: string }) => {
       const ctx = context();
       assertCallerAllowed(ctx.caller, "env.exec");
-      const r = await execWithEnv(ctx.root, runIdFor(ctx, o.run), cmd);
+      const r = await execWithEnv(ctx.root, runIdFor(ctx, o.run), ctx.caller, cmd);
       process.exitCode = r.exitCode;
       return r;
     }));

@@ -510,6 +510,17 @@ export const RtmDefectMapSyncedEventSchema = EventBase.extend({
   rtmMdUpdated: z.boolean(),
 });
 
+// `aegis env exec` ran a command with the QA credentials injected: the one audit record of that. The command is redacted and cut; the
+// credential values never appear, only the names that were injected.
+export const EnvExecutedEventSchema = EventBase.extend({
+  type: z.literal("env.executed"),
+  agent: z.string(),
+  environment: z.string(),
+  command: z.string().max(600),
+  exitCode: z.number().int(),
+  injected: z.array(z.string()),
+});
+
 export const RtmRenderedEventSchema = EventBase.extend({
   type: z.literal("rtm.rendered"),
   agent: z.string(),
@@ -1870,6 +1881,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   RtmLinkRemovedEventSchema,
   RtmDefectMapSyncedEventSchema,
   RtmRenderedEventSchema,
+  EnvExecutedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,
