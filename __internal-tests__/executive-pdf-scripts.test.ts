@@ -510,7 +510,7 @@ describe('the technical report and the sign-off state the same figures from the 
     ...CASES,
     // closure says 5 checks; the case files hold 2 and there is no coverage.json: both scripts recompute from the case files.
     'reports/closure/closure.json': { cycleDate: '2026-10-04', metrics: { passed: 40, failed: 3, blocked: 2 }, defectMetrics: { totalLogged: 5, confirmedOpen: 3 } },
-    'reports/compliance/istqb.json': { sectionsCovered: ['ISTQB-FL-1.4'], gaps: ['ISTQB-FL-4.2'] },
+    'reports/compliance/vendor-audit.json': { sectionsCovered: ['X-1'], gaps: ['X-2'] },
   };
   const { root, runDir } = fixture(FILES);
   const tech = run(SCRIPT.technical, root);
@@ -528,8 +528,8 @@ describe('the technical report and the sign-off state the same figures from the 
   });
 
   it('both name a compliance report without a regulation by its file name, never report-N', () => {
-    expect(text('technical-report.pdf')).toContain('ISTQB');
-    expect(text('signoff.pdf')).toMatch(/ISTQB/);
+    expect(text('technical-report.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).toContain('vendor-audit');
     expect(text('signoff.pdf')).not.toMatch(/report-\d/);
   });
 });

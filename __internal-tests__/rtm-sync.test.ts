@@ -193,6 +193,15 @@ describe('rtm sync-defects never drops an entry for a record it could not read',
     expect(readJson('rtm.json').defectMap.map((e: any) => e.defectId)).toContain('DEF-7');
   });
 
+  it('counts a second entry of an unreadable record as a removed duplicate, like a readable one', async () => {
+    seed();
+    fs.writeFileSync(file('defects/DEF-002-ENG-EXP.json'), '{ not json');
+    writeJson('rtm.json', { ...readJson('rtm.json'), defectMap: [...readJson('rtm.json').defectMap, entry('DEF-002-ENG-EXP', 'REQ-ENG-07', { note: 'second copy' })] });
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'Gate 2 re-triage' }, DM);
+    expect(res.duplicatesRemoved).toBe(1);
+    expect(readJson('rtm.json').defectMap.filter((e: any) => e.defectId === 'DEF-002-ENG-EXP')).toHaveLength(1);
+  });
+
   it('a record that is truly gone is still removed, as before', async () => {
     seed();
     const res = await syncRtmDefectMap(t.root, runId, { reason: 'Gate 2 re-triage' }, DM);

@@ -433,7 +433,8 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
       if (!records.has(e["defectId"])) {
         if (unreadable.has(e["defectId"])) {
           // Its record file exists but cannot be read: keep the entry as it is.
-          if (!byId.has(e["defectId"])) byId.set(e["defectId"], e);
+          if (byId.has(e["defectId"])) duplicatesRemoved++;
+          else byId.set(e["defectId"], e);
         } else removed.push(e["defectId"]);
         continue;
       }

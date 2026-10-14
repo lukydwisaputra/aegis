@@ -138,7 +138,7 @@ let recomputed;
 try {
   ({ counts: rollupCounts, recomputed } = resolveCheckCounts(runDir, coverageDoc));
 } catch (e) {
-  // A malformed case-of-record declaration: the same refusal `aegis metrics coverage` gives, not a stack trace.
+  // A malformed case-of-record declaration: the collector's coverage command gives the same message; this script exits 10, not a stack trace.
   if (e instanceof CaseOfRecordError) {
     console.error(`ERROR: ${e.message}`);
     process.exit(10);
