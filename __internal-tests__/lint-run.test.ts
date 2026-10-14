@@ -74,6 +74,13 @@ describe('lintFindings on JSON: name-like and phone-like keys keep their key for
   };
   it('a string under a name key is a name line', () => {
     expect(rules({ fullName: 'Tan Ah Kow' })).toEqual(['pii-name']);
+    expect(rules({ volunteerName: 'Tan Ah Kow' })).toEqual(['pii-name']);
+  });
+  it('a bare name, and a name of a thing, is not hinted (calibration C3)', () => {
+    expect(rules({ name: 'Perform Peer Reviews' })).toEqual([]);
+    expect(rules({ name: 'Tan Ah Kow' })).toEqual([]);
+    expect(rules({ serviceName: 'Volunteer Registration' })).toEqual([]);
+    expect(rules({ practices: [{ name: 'Select Work Products for Verification' }] })).toEqual([]);
   });
   it('a string in an array under a phone key is a phone line', () => {
     expect(rules({ phones: ['91000001'] })).toEqual(['pii-phone']);
@@ -173,12 +180,29 @@ describe('lintFindings key words', () => {
     for (const k of ['filename', 'hostname', 'username', 'pathname']) expect(rules({ [k]: 'Tan Ah Kow' })).toEqual([]);
   });
   it('a key whose word is a phone word does emit the key line', () => {
-    for (const k of ['contactPhone', 'mobile_number', 'Tel', 'hand-phone']) expect([k, rules({ [k]: '91234567' }).map((f) => f.rule)]).toEqual([k, ['pii-phone']]);
+    for (const k of ['contactPhone', 'mobile_number', 'Tel', 'hand-phone', 'HPNumber']) expect([k, rules({ [k]: '91234567' }).map((f) => f.rule)]).toEqual([k, ['pii-phone']]);
   });
   it('the key text never leaks into the context of a finding on a plain key', () => {
     expect(rules({ hotel: 'call 91234567' }).every((f) => !f.context.includes('hotel'))).toBe(true);
   });
-  it('a name key is fullName, firstName, lastName, surname or a key with the word name', () => {
-    for (const k of ['fullName', 'firstName', 'lastName', 'surname', 'volunteerName']) expect([k, rules({ [k]: 'Tan Ah Kow' }).map((f) => f.rule)]).toEqual([k, ['pii-name']]);
+  it('a person name key is a name part or a role followed by name', () => {
+    for (const k of ['fullName', 'firstName', 'lastName', 'surname', 'givenName', 'familyName', 'middleName', 'volunteerName', 'staff_name', 'ownerName']) expect([k, rules({ [k]: 'Tan Ah Kow' }).map((f) => f.rule)]).toEqual([k, ['pii-name']]);
+  });
+});
+
+describe('calibration C5: a result record is a working note, not customer reading', () => {
+  const lint = () => lintFindings(t.root, runId);
+  it('the wording rules skip cases/*-result*.json, the personal-data rules do not', () => {
+    const notes = { notes: 'this cycle, T-execution-3', summary: 'Re-verified' };
+    for (const f of ['TC-A-001-result.json', 'TC-A-001-result-api.json', 'TC-A-001-configured-result.json']) put(`cases/${f}`, notes);
+    expect(lint().findings).toEqual([]);
+    expect(lint().filesScanned).toBe(3);
+    put('cases/TC-A-002-result.json', { notes: 'Volunteer S1234567D logged in' });
+    expect(lint().findings.map((f) => `${f.file}:${f.rule}`)).toEqual(['cases/TC-A-002-result.json:pii-nric']);
+  });
+  it('a case file and a defect are still checked for wording', () => {
+    put('cases/TC-A-001.md', 'this cycle\n');
+    put('defects/DEF-001-AUTH-UI.md', 'this cycle\n');
+    expect(lint().findings.map((f) => `${f.file}:${f.rule}`)).toEqual(['cases/TC-A-001.md:qa-cycle', 'defects/DEF-001-AUTH-UI.md:qa-cycle']);
   });
 });

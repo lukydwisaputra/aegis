@@ -111,7 +111,13 @@ export interface ReportRules {
   disable: string[];
   /** Phrases that are never reported (matched case-insensitively against the matched text and its 40-character neighbourhood). */
   allow: string[];
-  pii: { syntheticEmailDomains: string[]; syntheticNamePrefixes: string[]; syntheticPhonePatterns: string[] };
+  pii: {
+    syntheticEmailDomains: string[];
+    syntheticNamePrefixes: string[];
+    syntheticPhonePatterns: string[];
+    /** Exact fake values the project uses on purpose (compared case-insensitively, spaces and hyphens ignored): never reported by a pii rule. */
+    syntheticValues: string[];
+  };
 }
 
 export const DEFAULT_SYNTHETIC_NAME_PREFIXES = ["QA", "Test", "E2E", "Dummy", "Sample"];
@@ -171,6 +177,10 @@ function reportRules(value: unknown): ReportRules {
       throw new RunStateError("invalid-input", `aegis.config.json#reportRules.pii.syntheticPhonePatterns[${i}] is not a valid regular expression`);
     }
   });
+  const syntheticValues = stringList(p["syntheticValues"], "reportRules.pii.syntheticValues");
+  syntheticValues.forEach((v, i) => {
+    if (v.trim() === "") throw new RunStateError("invalid-input", `aegis.config.json#reportRules.pii.syntheticValues[${i}] must not be blank`);
+  });
   return {
     extend,
     disable: stringList(r["disable"], "reportRules.disable"),
@@ -179,6 +189,7 @@ function reportRules(value: unknown): ReportRules {
       syntheticEmailDomains: stringList(p["syntheticEmailDomains"], "reportRules.pii.syntheticEmailDomains"),
       syntheticNamePrefixes: p["syntheticNamePrefixes"] === undefined ? [...DEFAULT_SYNTHETIC_NAME_PREFIXES] : stringList(p["syntheticNamePrefixes"], "reportRules.pii.syntheticNamePrefixes"),
       syntheticPhonePatterns: phonePatterns,
+      syntheticValues,
     },
   };
 }

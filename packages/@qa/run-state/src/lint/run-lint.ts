@@ -24,6 +24,7 @@ export interface LintReport {
 }
 
 const CUSTOMER_FACING = [...new Set([...BRAND_CLEAN_RUN_GLOBS, ...TOOLING_CLEAN_RUN_GLOBS, "reports/compliance/**"])];
+const WORKING_RECORD = /(?:^|\/)cases\/[^/]*-result[^/]*\.json$/;
 const TEXT_FILE = /\.(?:md|json)$/;
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -55,16 +56,23 @@ const errorCode = (e: unknown): string => {
 };
 
 // The two classes of keys whose name the personal-data rules need: `Name: ...` and `Phone: ...` are how scanPii recognises a label and a cue.
-// A key is split into words (camelCase, snake_case, kebab-case, digits), so `contactPhone` is a phone key and `hotel`, `photo` and `filename` are not.
+// A key is split into words (camelCase, acronyms, snake_case, kebab-case, digits), so `contactPhone` and `HPNumber` are phone keys and `hotel`,
+// `photo` and `filename` are not. A bare `name` is not a person key: in JSON it is far more often the name of a thing.
 const PHONE_WORDS: ReadonlySet<string> = new Set(["phone", "phones", "mobile", "mobiles", "tel", "telephone", "hp", "handphone", "contact", "contacts"]);
-const NAME_WORDS: ReadonlySet<string> = new Set(["name", "surname"]);
-const keyWords = (key: string): string[] => key.replace(/([a-z\d])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z]+/).filter((w) => w !== "");
+const PERSON_NAME_KEYS: ReadonlySet<string> = new Set(["full name", "first name", "last name", "surname", "given name", "family name", "middle name"]);
+const PERSON_ROLES: ReadonlySet<string> = new Set([
+  "volunteer", "staff", "member", "admin", "applicant", "customer", "patient", "visitor", "client", "participant", "attendee", "requester", "reporter", "owner", "contact",
+]);
+const keyWords = (key: string): string[] =>
+  key.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/([a-z\d])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z]+/).filter((w) => w !== "");
+
 /** The label scanPii reads for a key, or null for a key that is neither: `fullName` is `full name`, `volunteerName` is `name`, `contactPhone` is `contact phone`. */
 function keyLabel(key: string): string | null {
   const words = keyWords(key);
-  const at = words.findIndex((w) => NAME_WORDS.has(w));
-  if (at >= 0) return words[at] === "surname" ? "surname" : at > 0 && ["full", "first", "last"].includes(words[at - 1]!) ? `${words[at - 1]} name` : "name";
-  return words.some((w) => PHONE_WORDS.has(w)) ? words.join(" ") : null;
+  const joined = words.join(" ");
+  if (PERSON_NAME_KEYS.has(joined)) return joined === "surname" ? "surname" : ["full name", "first name", "last name"].includes(joined) ? joined : "name";
+  if (words.length === 2 && words[1] === "name" && PERSON_ROLES.has(words[0]!)) return "name";
+  return words.some((w) => PHONE_WORDS.has(w)) ? joined : null;
 }
 
 /**
@@ -111,7 +119,9 @@ export function lintFindings(root: string, runId: string): { filesScanned: numbe
       }
     }
     filesScanned++;
-    findings.push(...scanWithRules(rel, text, rules, config.reportRules.allow), ...scanPii(rel, text, config.reportRules.pii));
+    // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
+    if (!WORKING_RECORD.test(rel)) findings.push(...scanWithRules(rel, text, rules, config.reportRules.allow));
+    findings.push(...scanPii(rel, text, config.reportRules.pii));
   }
   skipped.sort((a, b) => a.file.localeCompare(b.file));
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));

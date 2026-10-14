@@ -23,7 +23,7 @@ function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
       ].join("|"),
       `"cycle" for the QA run: ${QA_PROCESS} (use "test window" or "run")`,
     ),
-    rule("qa-round", String.raw`\b(?:this|that)\s+round\b|\bround\s+\d+\b(?![.,]\d)`, `"round" for a QA pass: ${QA_PROCESS}`),
+    rule("qa-round", String.raw`\b(?:this|that)\s+round\b(?!-\w)|\bround\s+\d+\b(?![.,]\d)(?!-\w)`, `"round" for a QA pass: ${QA_PROCESS}`),
     rule("re-verified", String.raw`\bre-?verified\b`, `write "re-tested": "re-verified" is not the customer-facing word`),
     rule("report-history", String.raw`\b(?:prior|previous|earlier|first)\s+drafts?\b|\bsince\s+the\s+previous\s+version\b|\b(?:previous|earlier|prior)\s+(?:version|figure|count)s?\s+of\s+(?:this|the)\s+report\b`, "a customer report states the final facts only: leave out what an earlier draft or version said"),
     rule("internal-task-id", String.raw`\bT-(?:\d+|[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*-\d+|GATE-G\d+)\b`, "an internal task id: name the test case or the defect instead"),

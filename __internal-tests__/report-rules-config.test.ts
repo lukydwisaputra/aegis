@@ -15,7 +15,7 @@ describe('reportRules', () => {
   it('defaults to empty rules and the default synthetic markers', () => {
     expect(readRunConfig(t.root).reportRules).toEqual({
       extend: [], disable: [], allow: [],
-      pii: { syntheticEmailDomains: [], syntheticNamePrefixes: ['QA', 'Test', 'E2E', 'Dummy', 'Sample'], syntheticPhonePatterns: [] },
+      pii: { syntheticEmailDomains: [], syntheticNamePrefixes: ['QA', 'Test', 'E2E', 'Dummy', 'Sample'], syntheticPhonePatterns: [], syntheticValues: [] },
     });
   });
 
@@ -39,5 +39,14 @@ describe('reportRules', () => {
     expect(() => readRunConfig(t.root)).toThrow(/reportRules.extend: id "a" is listed twice/);
     set({ reportRules: { allow: 'discharge cycle' } });
     expect(() => readRunConfig(t.root)).toThrow(/reportRules.allow must be a list of strings/);
+  });
+
+  it('reads pii.syntheticValues, and refuses a blank entry or a non-list', () => {
+    set({ reportRules: { pii: { syntheticValues: ['+6500000000', 'S1234567D'] } } });
+    expect(readRunConfig(t.root).reportRules.pii.syntheticValues).toEqual(['+6500000000', 'S1234567D']);
+    set({ reportRules: { pii: { syntheticValues: ['ok', '  '] } } });
+    expect(() => readRunConfig(t.root)).toThrow(/reportRules.pii.syntheticValues\[1\] must not be blank/);
+    set({ reportRules: { pii: { syntheticValues: '+6500000000' } } });
+    expect(() => readRunConfig(t.root)).toThrow(/reportRules.pii.syntheticValues must be a list of strings/);
   });
 });

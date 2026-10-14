@@ -1,7 +1,7 @@
 import { maskedLines, resolveRules, scanWithRules } from '@qa/run-state';
 
 const rules = (budget: number | null = 0, extra: Partial<Parameters<typeof resolveRules>[0]> = {}) =>
-  resolveRules({ extend: [], disable: [], allow: [], pii: { syntheticEmailDomains: [], syntheticNamePrefixes: [], syntheticPhonePatterns: [] }, ...extra }, budget);
+  resolveRules({ extend: [], disable: [], allow: [], pii: { syntheticEmailDomains: [], syntheticNamePrefixes: [], syntheticPhonePatterns: [], syntheticValues: [] }, ...extra }, budget);
 const ids = (text: string, r = rules(), allow: string[] = []) => scanWithRules('closure.md', text, r, allow).map((f) => f.rule);
 
 describe('qa-cycle: the QA process, not the application', () => {
@@ -158,5 +158,17 @@ describe('fix round 1: masking', () => {
 
   it('blanks a double-backtick code span as one span', () => {
     expect(ids('a ``x ` this cycle`` b')).toEqual([]);
+  });
+});
+
+describe('calibration C1: qa-round leaves a hyphenated compound alone', () => {
+  it('this round-trip and round-robin are not flagged', () => {
+    expect(ids("this round-trip did not resolve within the test's")).toEqual([]);
+    expect(ids('a round-robin scheduler')).toEqual([]);
+    expect(ids('round 2-trip')).toEqual([]);
+  });
+  it('this round and round N are still flagged', () => {
+    expect(ids('Re-confirmed this round per the owner')).toContain('qa-round');
+    expect(ids('Re-run round 28')).toContain('qa-round');
   });
 });

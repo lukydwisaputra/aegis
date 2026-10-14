@@ -1,6 +1,6 @@
 import { scanPii, validNric } from '@qa/run-state';
 
-const pii: { syntheticEmailDomains: string[]; syntheticNamePrefixes: string[]; syntheticPhonePatterns: string[] } = { syntheticEmailDomains: [], syntheticNamePrefixes: ['QA', 'Test', 'E2E', 'Dummy', 'Sample'], syntheticPhonePatterns: [] };
+const pii: { syntheticEmailDomains: string[]; syntheticNamePrefixes: string[]; syntheticPhonePatterns: string[]; syntheticValues: string[] } = { syntheticEmailDomains: [], syntheticNamePrefixes: ['QA', 'Test', 'E2E', 'Dummy', 'Sample'], syntheticPhonePatterns: [], syntheticValues: [] };
 const rules = (text: string, p = pii) => scanPii('closure.md', text, p).map((f) => f.rule);
 
 describe('validNric (checksum)', () => {
@@ -199,5 +199,36 @@ describe('large tables', () => {
     const fs = found(text);
     expect(Date.now() - started).toBeLessThan(500);
     expect(fs.length).toBe(5000);
+  });
+});
+
+describe('calibration C2: a package file name is not an email', () => {
+  it('a version-like domain is not an address', () => {
+    expect(rules('vendor-chunks/zod@3.25.76.js')).toEqual([]);
+    expect(rules('lodash@4.17.21.tgz')).toEqual([]);
+    expect(rules('pnpm@9.1.0')).toEqual([]);
+  });
+  it('a real-looking address is still flagged', () => {
+    expect(rules('a@b.com')).toEqual(['pii-email']);
+    expect(rules('lim@123.com')).toEqual(['pii-email']);
+    expect(rules('x@gmail.com')).toEqual(['pii-email']);
+  });
+});
+
+describe('calibration C4: the project declares the fake values it uses', () => {
+  const declared = { ...pii, syntheticValues: ['+6500000000', 'S1234567D', 'fake.person@gmail.com', 'Tan Ah Kow'] };
+  it('a declared value is never reported, whatever its spacing or case', () => {
+    expect(rules('call +65 0000 0000', declared)).toEqual([]);
+    expect(rules('call +6500000000', declared)).toEqual([]);
+    expect(rules('Volunteer S1234567D logged in', declared)).toEqual([]);
+    expect(rules('Volunteer s-1234567-d logged in', declared)).toEqual([]);
+    expect(rules('mail Fake.Person@Gmail.com', declared)).toEqual([]);
+    expect(rules('Name: Tan Ah Kow', declared)).toEqual([]);
+  });
+  it('another value of the same kind is still reported', () => {
+    expect(rules('call +6591234567', declared)).toEqual(['pii-phone']);
+    expect(rules('Volunteer S2345678H logged in', declared)).toEqual(['pii-nric']);
+    expect(rules('mail other@gmail.com', declared)).toEqual(['pii-email']);
+    expect(rules('Name: Lim Mei Ling', declared)).toEqual(['pii-name']);
   });
 });

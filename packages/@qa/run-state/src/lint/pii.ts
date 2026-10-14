@@ -41,6 +41,14 @@ const APPLICATION_NOUNS: ReadonlySet<string> = new Set([
 const NAME_PARTICLES: ReadonlySet<string> = new Set(["bin", "binte", "bte", "s/o", "d/o", "a/l", "a/p"]);
 const NAME_WORD = /^\p{Lu}[\p{L}'\u2019-]*$/u;
 
+/** A synthetic value is compared without case, spaces and hyphens: `+65 0000 0000` equals `+6500000000`. */
+const squash = (v: string): string => v.toLowerCase().replace(/[\s-]/g, "");
+/** A domain such as 3.25.76.js or 4.17.21.tgz is a package file name: at least two labels before the last one and all of them digits. */
+const isVersionLike = (domain: string): boolean => {
+  const labels = domain.split(".");
+  return labels.length >= 3 && labels.slice(0, -1).every((l) => /^\d+$/.test(l));
+};
+
 const mask = (v: string): string => (v.length <= 4 ? "****" : `${v[0]}${"*".repeat(Math.max(1, v.length - 4))}${v.slice(-3)}`);
 /** The PDPC display form of an NRIC: S1234567D shows as S****567D. */
 const maskNric = (v: string): string => `${v[0]}****${v.slice(-4)}`;
@@ -128,6 +136,7 @@ function looksLikeAPerson(value: string): boolean {
 export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Finding[] {
   const out: Finding[] = [];
   const phonePatterns = pii.syntheticPhonePatterns.map((p) => new RegExp(p));
+  const declared = new Set(pii.syntheticValues.map(squash));
   const lines = text.split("\n");
   const headers = tableHeaders(lines);
   lines.forEach((raw, index) => {
@@ -137,11 +146,11 @@ export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Fi
     const note = (rule: string, message: string, span: Span): void => { spans.push(span); flagged.push({ rule, message, span }); };
     for (const m of raw.matchAll(NRIC)) {
       const compact = `${m[1]}${m[2]}${m[3]}`;
-      if (validNric(compact)) note("pii-nric", "an NRIC or FIN with a valid check letter could be a real person: mask it as S****567D (or 567D)", { start: m.index, end: m.index + m[0].length, shown: maskNric(compact) });
+      if (validNric(compact) && !declared.has(squash(compact)) && !declared.has(squash(m[0]))) note("pii-nric", "an NRIC or FIN with a valid check letter could be a real person: mask it as S****567D (or 567D)", { start: m.index, end: m.index + m[0].length, shown: maskNric(compact) });
     }
     for (const m of raw.matchAll(EMAIL)) {
       const domain = m[1]!.toLowerCase();
-      if (!RESERVED_DOMAIN.test(domain) && !pii.syntheticEmailDomains.some((d) => domain === d.toLowerCase() || domain.endsWith(`.${d.toLowerCase()}`))) {
+      if (!RESERVED_DOMAIN.test(domain) && !isVersionLike(domain) && !declared.has(squash(m[0])) && !pii.syntheticEmailDomains.some((d) => domain === d.toLowerCase() || domain.endsWith(`.${d.toLowerCase()}`))) {
         note("pii-email", "an email on a domain that may be real: use a reserved domain (example.com, .test) for test data, or mask it", { start: m.index, end: m.index + m[0].length, shown: mask(m[0]) });
       }
     }
@@ -154,7 +163,7 @@ export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Fi
       const header = headers[index];
       const cell = header ? header[raw.slice(0, m.index).split("|").length - (raw.trimStart().startsWith("|") ? 2 : 1)] ?? "" : "";
       if (!PREFIXED_PHONE.test(value) && !cued && !PHONE_CUE.test(cell)) continue;
-      if (phonePatterns.some((p) => p.test(value))) continue;
+      if (phonePatterns.some((p) => p.test(value)) || declared.has(squash(value))) continue;
       flagged.push({ rule: "pii-phone", message: "a phone number that may be real: mask it, or declare the project's synthetic pattern in reportRules.pii.syntheticPhonePatterns", span });
     }
     if (flagged.length > 0) {
@@ -167,7 +176,7 @@ export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Fi
     const labelled = NAME_CELL.exec(raw) ?? NAME_LINE.exec(raw);
     if (labelled !== null) {
       const value = (labelled[1] ?? "").replace(/[\s*_,;]+$/, "").replace(/^[\s*_]*["'\u201c\u2018\x60]+|["'\u201d\u2019\x60]+$/g, "").trim();
-      if (looksLikeAPerson(value) && !isSynthetic(value, pii.syntheticNamePrefixes)) {
+      if (looksLikeAPerson(value) && !isSynthetic(value, pii.syntheticNamePrefixes) && !declared.has(squash(value))) {
         out.push({ rule: "pii-name", severity: "error", file, line, message: `a full name that could be a real person: use a name that starts with ${pii.syntheticNamePrefixes.filter((p) => p.trim() !== "").slice(0, 3).join(", ")} for test data`, context: "Name: ***" });
       }
     }
