@@ -284,11 +284,11 @@ describe('probeExplore', () => {
     expect(readJson('reports/explore/probe.json').changedPages).toEqual([{ role: 'volunteer', url: '/events' }]);
   });
 
-  it('a fetcher that never resolves: the call returns within the budget (use budgetMs: 200), unvisited pages are failed with the time-budget reason, the decision is partial or full and carried is removed', async () => {
+  it('a fetcher that never resolves: the call returns within the budget (use budgetMs: 800), unvisited pages are failed with the time-budget reason, the decision is partial or full and carried is removed', async () => {
     await carriedWithBaseline();
     const f = fake({ 'volunteer /events': 'hang' });
     const started = Date.now();
-    const r = await probeExplore(root(), runId, ORCH, f.factory, { budgetMs: 200 });
+    const r = await probeExplore(root(), runId, ORCH, f.factory, { budgetMs: 800 });
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(f.close).toHaveBeenCalledTimes(1);
     expect(f.visit).toHaveBeenCalledTimes(2); // /home, then /events hangs until the budget is spent
@@ -381,7 +381,7 @@ describe('probeExplore', () => {
 
   it('a baseline cut off by its time budget is never reused: the pages it did not reach count as failed', async () => {
     await setup();
-    const b = await takeBaseline(root(), runId, ORCH, fake({ 'volunteer /events': 'hang' }).factory, { budgetMs: 200 });
+    const b = await takeBaseline(root(), runId, ORCH, fake({ 'volunteer /events': 'hang' }).factory, { budgetMs: 800 });
     expect(b).toMatchObject({ pages: 1, unobserved: 3 });
     expect(readJson('reports/explore/baseline.json').unobserved).toEqual(PAGES.slice(1).map((p) => ({ ...p, error: 'not observed (time budget)' })));
     carry();
@@ -434,7 +434,7 @@ describe('probeExplore', () => {
     await carriedWithBaseline();
     const factory = jest.fn(() => new Promise<PageFetcher>(() => undefined));
     const started = Date.now();
-    const r = await probeExplore(root(), runId, ORCH, factory, { budgetMs: 200 });
+    const r = await probeExplore(root(), runId, ORCH, factory, { budgetMs: 800 });
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(r).toMatchObject({ decision: 'full', reason: expect.stringContaining('did not start within the time budget'), reopened: ['T-explore-1'] });
     expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
@@ -451,5 +451,59 @@ describe('probeExplore', () => {
     expect(r.decision).toBe('reuse');
     expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
     expect(probed().pop()).toMatchObject({ mode: 'verify', decision: 'reuse' });
+  });
+
+  it('no time budget at all (budgetMs: 0): no fetcher is built, every page is unobserved at the baseline, and the probe answers full', async () => {
+    await setup();
+    const f = fake();
+    expect(await takeBaseline(root(), runId, ORCH, f.factory, { budgetMs: 0 })).toMatchObject({ pages: 0, unobserved: 4, unavailable: null });
+    expect(readJson('reports/explore/baseline.json').unobserved).toEqual(PAGES.map((p) => ({ ...p, error: 'not observed (time budget)' })));
+    expect(f.factory).not.toHaveBeenCalled();
+    expect(f.visit).not.toHaveBeenCalled();
+
+    cleanup();
+    await carriedWithBaseline();
+    const g = fake();
+    const r = await probeExplore(root(), runId, ORCH, g.factory, { budgetMs: -5 }); // clamped: nothing left
+    expect(g.factory).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ decision: 'full', reason: '4 of 4 pages changed or could not be observed', diff: { same: 0, total: 4 } });
+    expect(r.diff.failed.map((x) => x.error)).toEqual(Array(4).fill('not observed (time budget)'));
+  });
+
+  it('a reason-driven full compares nothing: the diff and the event counts are all zero, unobserved pages included', async () => {
+    await setup();
+    await takeBaseline(root(), runId, ORCH, fake({ 'volunteer /events': 'throw' }).factory);
+    carry();
+    setConfig({ environments: { development: { url: 'http://localhost:5174', mutating: true } } });
+    const r = await probeExplore(root(), runId, ORCH, fake().factory);
+    expect(r).toMatchObject({ decision: 'full', reason: 'the environment address changed since the baseline', diff: { same: 0, changed: [], failed: [], total: 0 } });
+    expect(readJson('reports/explore/probe.json').changedPages).toEqual([]);
+    const e = probed().pop()!;
+    expect(e).toMatchObject({ mode: 'verify', decision: 'full', pages: 0, same: 0, changed: 0, failed: 0 });
+    expect(e.same + e.changed + e.failed).toBe(e.pages);
+  });
+
+  it('an unreadable source identity is reported as could not be read, never as another commit', async () => {
+    await setup();
+    await takeBaseline(root(), runId, ORCH, fake().factory);
+    put('reports/explore/baseline.json', { ...readJson('reports/explore/baseline.json'), identity: { head: null, dirtyHash: null } });
+    carry();
+    const r = await probeExplore(root(), runId, ORCH, fake().factory);
+    expect(r.decision).toBe('reuse');
+    expect(r.hints).toEqual(['head: could not be read at the baseline', 'dirtyHash: could not be read at the baseline']);
+  });
+
+  it('a malformed unobserved list makes the baseline incomplete: full with that reason, no page visited', async () => {
+    for (const unobserved of ['x', [{ role: 'volunteer', url: '/events' }], [{ role: 'volunteer', url: '/events', error: 5 }]]) {
+      cleanup();
+      await setup();
+      await takeBaseline(root(), runId, ORCH, fake().factory);
+      put('reports/explore/baseline.json', { ...readJson('reports/explore/baseline.json'), unobserved });
+      carry();
+      const f = fake();
+      const r = await probeExplore(root(), runId, ORCH, f.factory);
+      expect(r).toMatchObject({ decision: 'full', reason: 'the baseline file is incomplete', reopened: ['T-explore-1'] });
+      expect(f.factory).not.toHaveBeenCalled();
+    }
   });
 });

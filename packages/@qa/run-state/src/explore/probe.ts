@@ -217,6 +217,8 @@ const budgetLeft = (opts: ProbeOptions, startedAt: number): number => Math.max(0
  * whatever happens; a factory that throws, or does not answer within the budget, gives the redacted reason instead.
  */
 async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budgetMs: number, closeMs: number): Promise<{ observed: Observed[] } | { error: string }> {
+  // No budget left (the identity hashing spent it): no browser is started and no page is observed.
+  if (budgetMs <= 0) return { observed: pages.map((page) => ({ ...page, error: BUDGET_ERROR })) };
   const deadline = Date.now() + budgetMs;
   let fetcher: PageFetcher;
   const starting = Promise.resolve().then(factory);
@@ -362,7 +364,14 @@ function identityHints(before: SourceIdentity | undefined, now: SourceIdentity):
     head: "head: the target has another app commit than at the baseline",
     dirtyHash: "dirtyHash: the uncommitted changes in the target differ from the baseline",
   };
-  return identityDiffers(before, now).map((p) => `${text[p]}${before === undefined ? " (none was recorded)" : ""}`);
+  return identityDiffers(before, now).map((p) => {
+    if (before === undefined) return `${text[p]} (none was recorded)`;
+    // Null is unreadable (not a git checkout, or git did not answer): it says nothing about a change.
+    const k = p as keyof SourceIdentity;
+    if (before[k] === null) return `${p}: could not be read at the baseline`;
+    if (now[k] === null) return `${p}: could not be read now`;
+    return text[p]!;
+  });
 }
 
 /**
@@ -397,14 +406,18 @@ export async function probeExplore(root: string, runId: string, caller: string, 
       else observed = visited.observed;
     }
   }
-  const unobserved = baseline?.unobserved ?? [];
-  const compared: ProbeDiff = observed !== null ? compareSignatures(baseline!.pages, observed) : { same: 0, changed: [], failed: [], total: baseline?.pages.length ?? 0 };
-  // A page the baseline could not observe has no signature to compare with: it is never reused, it is explored again.
-  const diff: ProbeDiff = {
-    ...compared,
-    failed: [...compared.failed, ...unobserved.map((u) => ({ role: u.role, url: u.url, error: `not observed at baseline: ${u.error}` }))],
-    total: compared.total + unobserved.length,
-  };
+  // Compared only when the pages were visited; a reason-driven full compares nothing, so every count is zero.
+  let diff: ProbeDiff = { same: 0, changed: [], failed: [], total: 0 };
+  if (observed !== null) {
+    const compared = compareSignatures(baseline!.pages, observed);
+    // A page the baseline could not observe has no signature to compare with: it is never reused, it is explored again.
+    const unobserved = baseline!.unobserved ?? [];
+    diff = {
+      ...compared,
+      failed: [...compared.failed, ...unobserved.map((u) => ({ role: u.role, url: u.url, error: `not observed at baseline: ${u.error}` }))],
+      total: compared.total + unobserved.length,
+    };
+  }
   let decision: ProbeDecision = reason === null ? decideProbe(diff) : "full";
   if (decision === "full" && reason === null) reason = `${diff.changed.length + diff.failed.length} of ${diff.total} pages changed or could not be observed`;
   const hints = identityHints(baseline?.identity ?? before.phases["explore"]?.identity, identity);
