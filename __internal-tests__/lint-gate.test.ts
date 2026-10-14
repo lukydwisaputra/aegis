@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { addTask, busPath, completePhase, createRun, decideGate, lintFindings, nextStep, openGate, readRun, runDir, startPhase } from '@qa/run-state';
+import { addTask, busPath, completePhase, createRun, decideGate, lintBlockMessage, lintFindings, nextStep, openGate, readRun, runDir, startPhase } from '@qa/run-state';
 import { readLines } from '@qa/event-bus';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, workTask, writeRunFile } from './helpers/pipeline';
@@ -291,8 +291,9 @@ describe('the brand rule and the tooling tiers in the lint', () => {
       put('reports/executive/residual-risks.json', json([{ riskId: 'RISK-PDPA-001', plain: 'Partial identity numbers may be handled wrongly.' }]));
       expect(ours('G3')).toEqual([]);
       // The plain sentence is printed instead, so it is read (R06 RISK-CMP-PROCESS-ML1: "the open Blocker and Critical defects").
+      // Only the executive reporter writes reports/executive/ (after G3), so at G3 it is a warning; its executive stage holds it.
       put('reports/executive/residual-risks.json', json([{ riskId: 'RISK-PDPA-001', plain: 'No stakeholder acceptance of the open Blocker and Critical defects is recorded.' }]));
-      expect(ours('G3').map((f) => [f.file, f.rule, f.severity])).toEqual([['reports/executive/residual-risks.json', 'tooling-tier2', 'error']]);
+      expect(ours('G3').map((f) => [f.file, f.rule, f.severity])).toEqual([['reports/executive/residual-risks.json', 'tooling-tier2', 'warning']]);
     });
 
     it('block the closure-final barrier until the closure reporter rewrites them', async () => {
@@ -371,5 +372,80 @@ describe('the brand rule and the tooling tiers in the lint', () => {
       put('reports/closure/closure.json', json({ complianceCoverage: { iso25010: { source: 'reports/compliance/iso25010.json' } }, requirementsCoverageBases: { inScopeRows: { basis: 'rtm.json#summary' } } }));
       expect(phrases(ours()).sort()).toEqual(['reports/compliance/iso25010.json', 'rtm.json']);
     });
+  });
+});
+
+// Task 1a review fixes: the open-defect lines of the defect log, a long minified JSON, the gate-open remedy, whitespace in the dedupe.
+describe('the lint tiers: review fixes', () => {
+  type F = { rule: string; severity: string; file: string; line: number; message: string; context: string };
+  const ours = (gate?: 'G2' | 'G3'): F[] => lintFindings(t.root, runId, gate).findings.filter((f) => ['brand-name', 'tooling-tier1', 'tooling-tier2'].includes(f.rule));
+  const phrases = (fs: F[]): string[] => fs.map((f) => /: "([^"]+)"/.exec(f.message)?.[1] ?? /\("([^"]+)"\)/.exec(f.message)?.[1] ?? '?');
+  const json = (v: unknown) => JSON.stringify(v, null, 2);
+  // R06 RUN-20261006-001: its four open defects whose titles carry a tier-2 term; its closure lists no defectMetrics.openItems.
+  const R06_OPEN = [
+    { id: 'DEF-001-VOL-EXP', title: 'Admin-only page routes return 200+title-leak, never 403' },
+    { id: 'DEF-002-MIG-DATA', title: '9 registered tenant_config keys have zero DB row post-migration' },
+    { id: 'DEF-003-REG-SEC', title: 'No rate limiting on declaration-config mutation endpoint' },
+    { id: 'DEF-004-ATT-API', title: 'Headcount session_date uses UTC date, not tenant-local date' },
+  ];
+
+  it('G3: with no open item in the closure, the open rows of the defect log are read, as errors on closure.json (R06: 4 more tier-2 hits)', () => {
+    for (const d of R06_OPEN) put(`defects/${d.id}.json`, json(d));
+    put('defects/DEF-005-VOL-UI.json', json({ id: 'DEF-005-VOL-UI', title: 'Closed defect with a stub in its title', status: 'Closed' }));
+    put('reports/closure/closure.json', json({ defectMetrics: { openApplicationDefects: 4 } }));
+    const g3 = ours('G3').filter((f) => f.rule === 'tooling-tier2');
+    expect(phrases(g3).sort()).toEqual(['mutation', 'return 200', 'session_date', 'tenant_config']);
+    expect(g3.every((f) => f.severity === 'error' && f.file === 'reports/closure/closure.json')).toBe(true);
+    expect(g3[0]!.message).toMatch(/the open defect DEF-\S+ title \(defectMetrics\.openItems is empty, so the sign-off prints the defect log: list defectMetrics\.openItems with a plain title\)/);
+    // The closed defect is not printed, and G2 does not read the sign-off lines.
+    expect(g3.some((f) => f.message.includes('DEF-005-VOL-UI'))).toBe(false);
+    expect(ours('G2').filter((f) => f.rule === 'tooling-tier2')).toEqual([]);
+    // The closure reporter fixes it on the closure: listed open items with plain titles replace the log in the sign-off.
+    put('reports/closure/closure.json', json({ defectMetrics: { openItems: R06_OPEN.map((d) => ({ defectId: d.id, title: 'An administrator-only page is shown to other roles', severity: 'Sev2' })) } }));
+    expect(ours('G3').filter((f) => f.rule === 'tooling-tier2')).toEqual([]);
+  });
+
+  it('R06 replay: its sign-off-fed closure texts and its open defect log give 13 tier-2 errors at G3', () => {
+    for (const d of R06_OPEN) put(`defects/${d.id}.json`, json(d));
+    put('reports/closure/closure.json', json({
+      exitCriteria: [
+        { criterion: '100% of Priority-1 in-scope ACs have an executed test case meeting its oracle (per-role authz incl. API-vs-page-route, NRIC/SPD, attendance reconciliation).', met: true },
+        { criterion: 'record-scan.ts behavioural mutation score >= 60% (the floor).', met: true },
+        { criterion: '0 open Sev1 defects and 0 open Sev2 defects without an owner-accepted disposition at Gate 2.', met: false, evidence: '1 open Sev1 (DEF-002-ATT-API) and 3 open Sev2 (DEF-001-AUTH-UI, DEF-002-ENG-EXP, DEF-007-RPT-API) per defects/*.json. The Gate 2 decision (approved with conditions) records these counts and states it is not a ship decision; it does not record an acceptance of the Sev1.' },
+        { criterion: '0 unresolved NRIC/SPD plaintext-leak findings.', met: true },
+      ],
+      variancesFromPlan: [{ variance: 'TC-ATT-010 was widened with QA-authored behavioural unit tests, measured by mutation testing on a sandbox copy of the target.', reason: 'Owner decision.' }],
+      residualRiskSummary: [{ riskId: 'RISK-CMP-ERRPATH', title: 'Error paths of id-bearing routes not probed as a class (CWE-391 family)' }],
+    }));
+    const t2 = ours('G3').filter((f) => f.rule === 'tooling-tier2');
+    expect(phrases(t2).sort()).toEqual(['CWE-391', 'NRIC/SPD', 'NRIC/SPD', 'Sev1', 'Sev1', 'Sev2', 'mutation', 'mutation', 'mutation', 'oracle', 'return 200', 'session_date', 'tenant_config'].sort());
+    expect(t2.every((f) => f.severity === 'error')).toBe(true);
+  });
+
+  it('a minified JSON on one 30,000-character line keeps a brand hit at its end (keys and values are read, no line is cut)', () => {
+    const minified = JSON.stringify({ id: 'DEF-009-AUTH-UI', title: 'Export fails', notes: 'x'.repeat(30_000), reviewedBy: 'qa-ui-specialist' });
+    expect(minified.includes('\n')).toBe(false);
+    put('defects/DEF-009-AUTH-UI.json', minified);
+    expect(ours().map((f) => [f.rule, f.severity, phrases([f])[0]])).toEqual([['brand-name', 'error', 'qa-ui-specialist']]);
+    // A key is read too, as H1 reads it.
+    put('defects/DEF-009-AUTH-UI.json', JSON.stringify({ id: 'DEF-009-AUTH-UI', title: 'Export fails', 'qa-ui-specialist': 'x'.repeat(30_000) }));
+    expect(ours().map((f) => f.rule)).toEqual(['brand-name']);
+  });
+
+  it('a gate that will not open names reportRules.disable with the rule id for the brand rule and the tooling tiers', async () => {
+    await driveToOpenableGate('G3');
+    put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with `full oracles`.', reason: 'Owner decision.' }] }));
+    put('reports/closure/closure.md', '# Closure\n\nWritten with Aegis.\n');
+    const err = await openGate(t.root, runId, 'G3', ORCH).then(() => new Error('opened'), (e: Error) => e);
+    expect(err.message).toContain('reportRules.disable with the rule id: brand-name, tooling-tier2');
+    // A wording rule alone does not name it (its remedy is allow or a rewrite).
+    expect(lintBlockMessage('G3', [{ file: 'reports/closure/closure.md', line: 3, rule: 'qa-cycle' }], 'gate-open')).not.toContain('reportRules.disable');
+  });
+
+  it('a plain risk sentence with surrounding whitespace is reported once (the sign-off reads it trimmed, the file scan as written)', () => {
+    put('reports/closure/closure.json', json({ residualRiskSummary: [{ riskId: 'RISK-RPT-001', title: 'Report exports' }] }));
+    put('reports/executive/residual-risks.json', json([{ riskId: 'RISK-RPT-001', plain: '\n  The export reads rtm.json at night.  \n' }]));
+    const hits = ours('G3').filter((f) => f.rule === 'tooling-tier1');
+    expect(hits.map((f) => [f.file, f.severity, phrases([f])[0]])).toEqual([['reports/executive/residual-risks.json', 'warning', 'rtm.json']]);
   });
 });

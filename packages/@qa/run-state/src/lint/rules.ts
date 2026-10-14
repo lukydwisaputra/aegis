@@ -57,12 +57,6 @@ export const TOOLING_TIER1 = "tooling-tier1";
 /** Tier 2: plain business language (PLAIN_LANGUAGE_RULES), only over what the sign-off and the deck print. */
 export const TOOLING_TIER2 = "tooling-tier2";
 
-/**
- * Every built-in text rule id the lint reports, which reportRules.disable switches off and reportRules.allow narrows: the default wording
- * rules (manual-testing only in an automated-only run), the brand rule and the two tooling tiers. The data rules (lint/data.ts) are apart.
- */
-export const TEXT_RULE_IDS: readonly string[] = [...defaultRules(0).map((r) => r.id), BRAND_NAME, TOOLING_TIER1, TOOLING_TIER2];
-
 /** The default rules, minus `disable`, plus the project's `extend`. */
 export function resolveRules(rules: Omit<ReportRules, "localPorts">, manualBudgetPercent: number | null): ResolvedRule[] {
   const off = new Set(rules.disable);

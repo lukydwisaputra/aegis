@@ -41,3 +41,24 @@ describe('@qa/contracts — brand exposure', () => {
     });
   });
 });
+
+// Every qa-* agent file under .claude/agents (any depth), by its file name: a new agent without a brand pattern fails here. Names that are
+// not internal would go in an allowlist with a reason; there is none today.
+describe('every qa-* agent name is a brand pattern hit', () => {
+  const fs = require('fs') as typeof import('fs');
+  const path = require('path') as typeof import('path');
+  const agentNames = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? agentNames(path.join(dir, e.name)) : /^qa-.*\.md$/.test(e.name) ? [e.name.replace(/\.md$/, '')] : []);
+  const names = agentNames(path.join(__dirname, '..', '.claude', 'agents'));
+
+  it('finds the whole roster (phase agents, specialists, SPVs, compliance and cross-cutting agents)', () => {
+    expect(names.length).toBeGreaterThanOrEqual(56);
+    expect(names).toEqual(expect.arrayContaining(['qa-compliance-spv', 'qa-orchestrator-spv', 'qa-curator', 'qa-context-scanner', 'qa-metrics-collector', 'qa-compliance-pdpa']));
+  });
+
+  it('matches each name, and not the plain "QA team" wording', () => {
+    expect(names.filter((n) => checkBrandExposure(`Reviewed by ${n}.`) === null)).toEqual([]);
+    expect(checkBrandExposure('Reviewed by the qa-team and the QA team.')).toBeNull();
+  });
+});

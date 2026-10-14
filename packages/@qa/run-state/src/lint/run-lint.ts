@@ -8,7 +8,7 @@ import { RunStateError } from "../errors.js";
 import { busPath, runDir } from "../paths.js";
 import { readRun } from "../run.js";
 import { atomicWrite, iso } from "../util.js";
-import { signoffFedTexts, toolingStringsIn, type ToolingHit } from "@qa/contracts";
+import { buildClosureView, signoffFedTexts, toolingStringsIn, type ToolingHit } from "@qa/contracts";
 import { scanPii } from "./pii.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
 import { hasLongLine, MAX_LINE, MAX_TEXT_BYTES, maskPath } from "./mask.js";
@@ -181,9 +181,12 @@ export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "f
   }
   if (text.length > 0) {
     const head = `${text.length} lint error(s) in the customer-facing files (${listed(text)})`;
+    // The brand rule and the tooling tiers are whole rules a project can switch off: the gate-open text names them with their ids.
+    const tiers = [BRAND_NAME, TOOLING_TIER1, TOOLING_TIER2].filter((id) => text.some((f) => f.rule === id));
+    const disable = tiers.length === 0 ? "" : `, or reportRules.disable with the rule id: ${tiers.join(", ")}`;
     const tail =
       at === "gate-open"
-        ? `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json; the orchestrator then opens the gate again; if the files still need rewriting, the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`
+        ? `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues${disable}) in aegis.config.json; the orchestrator then opens the gate again; if the files still need rewriting, the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`
         : `Gate ${gate} cannot open with them: fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
     parts.push(`${head}. ${tail}`);
   }
@@ -218,13 +221,14 @@ export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "f
  * inputs only, never cases, the plan or the RTM (they cite the local server and run files on purpose). A defect record: its title takes
  * every rule as an error (the technical report and the sign-off print it); elsewhere a tooling word is an error (H1 refuses it), a path or
  * server is a warning (reproduction data), and the process rule ("attempt count", which an application can have) is left out. Compliance
- * reports: every hit is a warning (they cite proof and testing vocabulary). The closure, the triage summary and the executive inputs: every
- * kind, as an error.
+ * reports and the executive inputs: every hit is a warning. The closure and the triage summary: every kind, as an error.
  */
 function tier1Severity(rel: string): ((hit: ToolingHit, at: ScanText) => Severity | null) | null {
   if (DEFECT_RECORD.test(rel)) return (hit, at) => (at.location === TITLE ? "error" : hit.kind === "word" ? "error" : hit.kind === "path" ? "warning" : null);
-  if (matchGlob("reports/compliance/**", rel)) return () => "warning";
-  if (EXECUTIVE_INPUTS.has(rel) || TOOLING_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, rel))) return () => "error";
+  // Compliance reports cite proof and testing vocabulary; the executive inputs are written only by the executive reporter, after G3, and
+  // its own stage makes them errors: a G2 or G3 error there could not be fixed by the active phase.
+  if (matchGlob("reports/compliance/**", rel) || EXECUTIVE_INPUTS.has(rel)) return () => "warning";
+  if (TOOLING_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, rel))) return () => "error";
   return null;
 }
 
@@ -234,6 +238,16 @@ function jsonLineOf(raw: string): (at: ScanText) => number {
     const i = raw.indexOf(JSON.stringify(at.text).slice(1, -1));
     return i < 0 ? 1 : raw.slice(0, i).split("\n").length;
   };
+}
+
+/** The texts the brand rule reads in a parsed JSON file: every key and every string value, with its field path (H1 reads keys too). */
+function brandTexts(value: unknown, at = ""): ScanText[] {
+  if (typeof value === "string") return [{ location: at, text: value }];
+  if (Array.isArray(value)) return value.flatMap((v, i) => brandTexts(v, `${at}[${i}]`));
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => [{ location: `${at}.${k} (key)`, text: k }, ...brandTexts(v, `${at}.${k}`)]);
+  }
+  return [];
 }
 
 /** The texts tier 1 reads in a file: a JSON file by its string values (with their field paths), anything else by line; a defect record's title is marked. */
@@ -246,8 +260,11 @@ function tier1Texts(rel: string, raw: string, parsed: unknown): ScanText[] {
 
 /**
  * G3: the closure fields the sign-off prints (signoffFedTexts, with the executive reporter's plain risk sentences when residual-risks.json
- * exists) and the open-defect lines it prints from the closure (defectMetrics.openItems[].title and .awaits), with tier 1 and tier 2 as
- * errors and nothing blanked: the executive phase comes after G3, so the closure reporter fixes them here.
+ * exists) and the open-defect lines it prints (buildClosureView's openItems: the closure's defectMetrics.openItems, else the open rows of the
+ * defect log, whose titles come from the defect records), with tier 1 and tier 2 and nothing blanked. The closure's own fields are errors:
+ * the executive phase comes after G3, so the closure reporter fixes them here. A defect-log title is attributed to closure.json, because
+ * listing defectMetrics.openItems with a plain title replaces it in the sign-off. A plain risk sentence of residual-risks.json is a warning:
+ * only the executive reporter writes reports/executive/, and its own stage checks it.
  */
 function signoffFedFindings(dir: string, localPorts: readonly number[], allow: readonly string[], disabled: ReadonlySet<string>): Finding[] {
   const read = (rel: string): { raw: string; value: unknown } | null => {
@@ -271,25 +288,60 @@ function signoffFedFindings(dir: string, localPorts: readonly number[], allow: r
   const fed = signoffFedTexts(closure.value, plainRisk);
   const c = closure.value !== null && typeof closure.value === "object" ? (closure.value as Record<string, unknown>) : {};
   const dm = c["defectMetrics"] !== null && typeof c["defectMetrics"] === "object" ? (c["defectMetrics"] as Record<string, unknown>) : {};
-  (Array.isArray(dm["openItems"]) ? dm["openItems"] : []).forEach((o, i) => {
-    const r = o !== null && typeof o === "object" ? (o as Record<string, unknown>) : {};
-    if (typeof r["defectId"] !== "string") return;
-    for (const f of ["title", "awaits"]) if (typeof r[f] === "string" && (r[f] as string).trim() !== "") fed.push({ location: `closure.json.defectMetrics.openItems[${i}].${f}`, text: r[f] as string });
-  });
-  const opts = (raw: string) => ({
-    ...(disabled.has(TOOLING_TIER1) ? {} : { tier1: { localPorts, severity: (): Severity => "error" } }),
-    ...(disabled.has(TOOLING_TIER2) ? {} : { tier2: { severity: "error" as const } }),
+  const listed = (Array.isArray(dm["openItems"]) ? dm["openItems"] : []).filter((o) => o !== null && typeof o === "object" && typeof (o as Record<string, unknown>)["defectId"] === "string" && ((o as Record<string, unknown>)["defectId"] as string).trim() !== "");
+  const logTexts: ScanText[] = [];
+  if (listed.length > 0) {
+    (dm["openItems"] as unknown[]).forEach((o, i) => {
+      const r = o !== null && typeof o === "object" ? (o as Record<string, unknown>) : {};
+      if (!listed.includes(o)) return;
+      for (const f of ["title", "awaits"]) if (typeof r[f] === "string" && (r[f] as string).trim() !== "") fed.push({ location: `closure.json.defectMetrics.openItems[${i}].${f}`, text: r[f] as string });
+    });
+  } else {
+    // No open item listed: the sign-off prints the open rows of the defect log, from the defect records (defects/*.json, as its script reads them).
+    const view = buildClosureView({ closure: closure.value, defects: defectRecords(dir), rollupCounts: null, executionSummary: null });
+    for (const o of view.openItems) {
+      for (const [f, v] of [["title", o.title], ["awaits", o.awaits]] as const) {
+        if (v !== null && v.trim() !== "") logTexts.push({ location: `the open defect ${o.id} ${f} (defectMetrics.openItems is empty, so the sign-off prints the defect log: list defectMetrics.openItems with a plain ${f})`, text: v, line: 1 });
+      }
+    }
+  }
+  const opts = (raw: string, severity: Severity) => ({
+    ...(disabled.has(TOOLING_TIER1) ? {} : { tier1: { localPorts, severity: (): Severity => severity } }),
+    ...(disabled.has(TOOLING_TIER2) ? {} : { tier2: { severity } }),
     allow, lineOf: jsonLineOf(raw), note: "the sign-off prints this field",
   });
   const fromRisks = (l: string): boolean => l.startsWith("residual-risks.json");
   return [
-    ...scanTextsUnblanked(CLOSURE_JSON, fed.filter((f) => !fromRisks(f.location)), opts(closure.raw)),
-    ...(risks === null ? [] : scanTextsUnblanked(RESIDUAL_RISKS_JSON, fed.filter((f) => fromRisks(f.location)), opts(risks.raw))),
+    ...scanTextsUnblanked(CLOSURE_JSON, [...fed.filter((f) => !fromRisks(f.location)), ...logTexts], opts(closure.raw, "error")),
+    ...(risks === null ? [] : scanTextsUnblanked(RESIDUAL_RISKS_JSON, fed.filter((f) => fromRisks(f.location)), opts(risks.raw, "warning"))),
   ];
 }
 
-/** The key that makes a file-scan tier-1 finding the same as a sign-off-fed one (same file, line, rule and context). */
-const sameHit = (f: Finding): string => `${f.file}\u0000${f.line}\u0000${f.rule}\u0000${f.context}`;
+/** The defect records the report scripts read (every parseable defects/*.json), or null when there is no defects directory. */
+function defectRecords(dir: string): unknown[] | null {
+  const d = join(dir, "defects");
+  let names: string[];
+  try {
+    names = readdirSync(d).filter((f) => f.endsWith(".json")).sort();
+  } catch {
+    return null;
+  }
+  return names.flatMap((f) => {
+    try {
+      const abs = join(d, f);
+      if (lstatSync(abs).isSymbolicLink() || lstatSync(abs).size > MAX_TEXT_BYTES) return [];
+      return [JSON.parse(readFileSync(abs, "utf-8")) as unknown];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
+ * The key that makes a file-scan tier-1 finding the same as a sign-off-fed one (same file, line, rule and context, its whitespace
+ * normalised: a plain risk sentence is read trimmed, the file scan reads the value as written).
+ */
+const sameHit = (f: Finding): string => `${f.file}\u0000${f.line}\u0000${f.rule}\u0000${f.context.replace(/\s+/g, " ").trim()}`;
 
 /**
  * The findings over the run's customer-facing files and, with a `gate`, what that gate adds: G2 the data checks of lint/data.ts; G3 the
@@ -344,7 +396,11 @@ export function lintFindings(root: string, runId: string, gate?: "G2" | "G3"): {
     if (!working) findings.push(...scanWithRules(rel, text, rules, allow));
     findings.push(...scanPii(rel, text, config.reportRules.pii));
     // The brand rule reads the file as written, keys and quoted runs included, as H1 does; a framework name in a working record is a warning.
-    if (!disabled.has(BRAND_NAME) && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, rel))) findings.push(...scanBrand(rel, raw, working ? "warning" : "error", allow));
+    // A JSON file is read by its parsed keys and values, so a minified file on one long line keeps every hit (no line is cut).
+    if (!disabled.has(BRAND_NAME) && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, rel))) {
+      const severity: Severity = working ? "warning" : "error";
+      findings.push(...(rel.endsWith(".json") ? scanTextsUnblanked(rel, brandTexts(parsed), { brand: { severity }, allow, lineOf: jsonLineOf(raw) }) : scanBrand(rel, raw, severity, allow)));
+    }
     const severity = disabled.has(TOOLING_TIER1) ? null : tier1Severity(rel);
     if (severity !== null) {
       const tier1 = scanTextsUnblanked(rel, tier1Texts(rel, raw, parsed), { tier1: { localPorts, severity }, allow, lineOf: jsonLineOf(raw) });
