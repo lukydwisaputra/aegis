@@ -4,7 +4,7 @@ import * as path from 'path';
 import { AegisEventSchema, findPlainLanguage } from '@qa/contracts';
 import { appendChained, readLines } from '@qa/event-bus';
 import { staleBuild } from '@qa/alignment';
-import { busPath, createRun, executiveFindings, lintFindings, lintRun, runDir, sentenceCount, verifyRunIntegrity, type Finding } from '@qa/run-state';
+import { busPath, createRun, executiveFindings, lintFindings, lintRun, readRun, runDir, sentenceCount, verifyRunIntegrity, type Finding } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { ORCH } from './helpers/pipeline';
 
@@ -37,6 +37,13 @@ const allProduced = async () => {
   await produced('technical', `runs/${runId}/reports/executive/technical-report.pdf`);
   await produced('signoff', 'reports/executive/signoff.pdf');
   await produced('slides', `runs/${runId}/reports/executive/executive-deck.pdf`);
+};
+
+/** run.json as the orchestrator leaves it once the executive phase has started (the stage lint runs only then). */
+const markExecutiveStarted = () => {
+  const file = path.join(runDir(t.root, runId), 'run.json');
+  const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+  fs.writeFileSync(file, JSON.stringify({ ...state, status: 'running', currentPhase: 'executive', phases: { ...state.phases, executive: { status: 'in-progress', startedAt: '2026-10-15T01:00:00.000Z' } } }));
 };
 
 const DECK = 'reports/executive/executive-deck.json';
@@ -75,6 +82,21 @@ describe('the new tier-2 patterns (contracts)', () => {
     '403 of 450 checks passed.', 'Repeated attempts are limited.', 'Three checks failed; the gate closed on time.', 'The rate of failures fell.',
   ])('plain wording passes: %s', (text) => {
     expect(findPlainLanguage(text)).toEqual([]);
+  });
+});
+
+describe('the tier-2 status and endpoint rules after the review', () => {
+  it.each([
+    '312 not found in the register', '205 locked accounts', '400 conflict cases', 'blocked by 250 duplicate records', 'rejected by 300 volunteers',
+    'failed with 400 records unprocessed', 'the primary endpoint of the study', 'the endpoint of the trial', 'a secondary endpoint',
+  ])('"%s" is not a hit (a count in prose, a Title-Case HTTP name only, a study endpoint)', (text) => {
+    expect(findPlainLanguage(text)).toEqual([]);
+  });
+  it.each([
+    ['denied with 403', 'denied with 403'], ['denied with 403 for every staff role', 'denied with 403'], ['answers 423 or 429', 'answers 423'],
+    ['returns 404 Not Found', '404 Not Found'], ['the login endpoint', 'endpoint'], ['the API endpoint', 'endpoint'], ['other endpoints were not checked', 'endpoints'],
+  ])('"%s" is a hit (%s)', (text, hit) => {
+    expect(findPlainLanguage(text).map((h) => h.phrase)).toContain(hit);
   });
 });
 
@@ -181,6 +203,15 @@ describe('(b) and (c): residual-risks.json against the closure', () => {
     expect(sentenceCount('Read e.g. The guide and i.e. The rest; see No. 4 and J. Tan at 4.5 MB on v2.3.1.')).toBe(1);
     expect(sentenceCount('  ')).toBe(0);
   });
+
+  it('sentenceCount: a month or a title abbreviation, or a following digit, never splits; a real second sentence still does', () => {
+    expect(sentenceCount('The owner accepted the risk on 3 Oct. 2026 for the pilot.')).toBe(1);
+    expect(sentenceCount('The fix was released 1 Sept. 2026 and retested.')).toBe(1);
+    expect(sentenceCount('Staff (Sr. Mgr. and above) can still open the export.')).toBe(1);
+    expect(sentenceCount('Prof. Lim and Jr. staff were told on 2 Jan. 2026.')).toBe(1);
+    expect(sentenceCount('The total rose by 3.5. 12 checks were run.')).toBe(1);
+    expect(sentenceCount('The export stays open. The owner decides on 3 Oct. 2026.')).toBe(2);
+  });
 });
 
 describe('(d) a produced or fallback event per deliverable after the latest executive phase start', () => {
@@ -217,6 +248,8 @@ describe('(d) a produced or fallback event per deliverable after the latest exec
 });
 
 describe('lintRun at the executive stage and the lint.completed event', () => {
+  beforeEach(markExecutiveStarted);
+
   it('writes reports/lint/stage-executive.json and records lint.completed with the stage', async () => {
     put(CLOSURE, closureWith(['RISK-A-001']));
     put(RISKS, [{ riskId: 'RISK-A-001', plain: 'The export endpoint stays untested.' }]);
@@ -249,6 +282,25 @@ describe('lintRun at the executive stage and the lint.completed event', () => {
     await expect(lintRun(t.root, runId, { stage: 'executive' }, 'qa-executive-reporter')).rejects.toMatchObject({ code: 'caller-forbidden' });
     await expect(lintRun(t.root, runId, { stage: 'executive' }, 'owner')).resolves.toMatchObject({ stage: 'executive' });
     expect(events().filter((e) => e.type === 'lint.completed')).toHaveLength(1);
+  });
+
+  it('refuses the stage before the executive phase has started and in a smoke run, before writing the report or the event', async () => {
+    const report = path.join(runDir(t.root, runId), 'reports/lint/stage-executive.json');
+    const file = path.join(runDir(t.root, runId), 'run.json');
+    const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...state, currentPhase: null, phases: { ...state.phases, executive: { status: 'pending' } } }));
+    const before = events().length;
+    await expect(lintRun(t.root, runId, { stage: 'executive' }, ORCH)).rejects.toMatchObject({ code: 'out-of-order', message: expect.stringContaining('the executive phase has not started') });
+    expect(fs.existsSync(report)).toBe(false);
+    expect(events()).toHaveLength(before);
+    // A gate lint is not affected.
+    await expect(lintRun(t.root, runId, 'G3', ORCH)).resolves.toMatchObject({ gate: 'G3' });
+    const smoke = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'smoke' }, 'owner')).runId;
+    expect(readRun(t.root, smoke).cycleType).toBe('smoke');
+    const smokeLog = readLines(busPath(t.root, smoke)).length;
+    await expect(lintRun(t.root, smoke, { stage: 'executive' }, ORCH)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('no executive phase') });
+    expect(fs.existsSync(path.join(runDir(t.root, smoke), 'reports/lint/stage-executive.json'))).toBe(false);
+    expect(readLines(busPath(t.root, smoke))).toHaveLength(smokeLog);
   });
 
   it('reportRules.disable silences each rule by its id', async () => {
@@ -308,6 +360,8 @@ const cli = (...args: string[]) => {
 };
 
 describe('aegis lint run --gate | --stage', () => {
+  beforeEach(markExecutiveStarted);
+
   withCli('refuses neither and both; --stage executive writes the stage report and exits 3 on errors', () => {
     const neither = cli();
     expect(neither.status).toBe(2);

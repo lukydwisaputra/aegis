@@ -39,7 +39,16 @@ function resolveTarget(target: string | LintTarget): { gate: "G2" | "G3" } | { s
 export async function lintRun(root: string, runId: string, target: string | LintTarget, caller: string, now?: Date): Promise<LintReport> {
   assertCallerAllowed(caller, "lint.run");
   const at = resolveTarget(target);
-  readRun(root, runId);
+  const state = readRun(root, runId);
+  // The executive stage reads what the executive phase writes: refused, before any report or event, in a smoke run (it has no executive
+  // phase) and before the executive phase has started.
+  if ("stage" in at) {
+    if (state.cycleType === "smoke") throw new RunStateError("invalid-input", `run ${runId} is a smoke run: it has no executive phase, so the executive stage has nothing to lint`);
+    const executive = state.phases["executive"]?.status;
+    if (executive !== "in-progress" && executive !== "completed") {
+      throw new RunStateError("out-of-order", `the executive phase has not started (it is ${executive ?? "absent"}): the executive stage lints its files once the phase is in progress`);
+    }
+  }
   const { filesScanned, skipped, findings } = "gate" in at ? lintFindings(root, runId, at.gate) : executiveScan(root, runId);
   const errors = findings.filter((f) => f.severity === "error").length;
   const report: LintReport = {

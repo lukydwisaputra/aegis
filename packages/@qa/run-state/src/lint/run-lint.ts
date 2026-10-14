@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, type Dirent } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, type Dirent } from "node:fs";
+import { isAbsolute, join, relative } from "node:path";
 import { BRAND_CLEAN_RUN_GLOBS, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
 import { readLines } from "@qa/event-bus";
 import { readRunConfig } from "../config.js";
@@ -78,6 +78,21 @@ function walk(dir: string, base: string, out: string[], skipped: Skipped[]): voi
     else if (entry.isDirectory()) walk(abs, base, out, skipped);
     else if (entry.isFile()) out.push(rel);
     else skipped.push({ file: rel, reason: "not a regular file" });
+  }
+}
+
+/**
+ * Whether `rel` is a regular file of the run directory `dir` reached through no symbolic link: no component after the run directory is a
+ * link (its real path is the run's real path plus `rel`), so a link in the middle of a path (reports/closure/linkdir/x.md) never reads a
+ * file outside the run. An absolute path or one with `..` is never one.
+ */
+export function plainRunFile(dir: string, rel: string): boolean {
+  if (rel === "" || isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) return false;
+  try {
+    const abs = join(dir, rel);
+    return realpathSync(abs) === join(realpathSync(dir), rel) && lstatSync(abs).isFile();
+  } catch {
+    return false;
   }
 }
 
@@ -273,7 +288,7 @@ export function signoffFedFindings(
   const read = (rel: string): { raw: string; value: unknown } | null => {
     try {
       const abs = join(dir, rel);
-      if (!existsSync(abs) || lstatSync(abs).isSymbolicLink() || lstatSync(abs).size > MAX_TEXT_BYTES) return null;
+      if (!plainRunFile(dir, rel) || lstatSync(abs).size > MAX_TEXT_BYTES) return null;
       const raw = readFileSync(abs, "utf-8");
       return { raw, value: JSON.parse(raw) as unknown };
     } catch {
@@ -332,7 +347,7 @@ function defectRecords(dir: string): unknown[] | null {
   return names.flatMap((f) => {
     try {
       const abs = join(d, f);
-      if (lstatSync(abs).isSymbolicLink() || lstatSync(abs).size > MAX_TEXT_BYTES) return [];
+      if (!plainRunFile(dir, `defects/${f}`) || lstatSync(abs).size > MAX_TEXT_BYTES) return [];
       return [JSON.parse(readFileSync(abs, "utf-8")) as unknown];
     } catch {
       return [];
@@ -420,30 +435,38 @@ export function runFiles(dir: string): { files: string[]; skipped: LintReport["s
  * The run-level lint over the given run files only (run-relative paths): the same classification per file as lintFindings (lintOneFile), and
  * nothing the gates add (no sign-off-fed fields, no data checks, no case rendering: no case or scenario is rendered). A path that is not a
  * customer-facing Markdown or JSON file is not read, as in the run-level lint; a missing file or a symbolic link is listed as skipped. Reads only.
+ * `signoffFed` (the closure reporter's submit only) adds the G3 scan of the closure fields the sign-off prints when closure.json is listed.
  */
-export function lintFileFindings(root: string, runId: string, rels: readonly string[]): { filesScanned: number; skipped: LintReport["skipped"]; findings: Finding[] } {
+export function lintFileFindings(
+  root: string, runId: string, rels: readonly string[], opts: { signoffFed?: boolean } = {},
+): { filesScanned: number; skipped: LintReport["skipped"]; findings: Finding[] } {
   const dir = runDir(root, runId);
   const config = readRunConfig(root);
+  const disabled = new Set(config.reportRules.disable);
+  const { allow, localPorts } = config.reportRules;
+  // The closure reporter's submit: the closure fields the sign-off prints, as the G3 lint reads them (errors; the plain risk sentences are
+  // not the closure reporter's), reported once with the closure file scan (same file, line, rule and context).
+  const fed = opts.signoffFed === true && rels.includes(CLOSURE_JSON) && plainRunFile(dir, CLOSURE_JSON)
+    ? signoffFedFindings(dir, localPorts, allow, disabled, { closure: "error", risks: null })
+    : [];
   const ctx: FileLintContext = {
-    dir, rules: resolveRules(config.reportRules, config.manualBudgetPercent), disabled: new Set(config.reportRules.disable),
-    allow: config.reportRules.allow, localPorts: config.reportRules.localPorts, pii: config.reportRules.pii, fedKeys: new Set(),
+    dir, rules: resolveRules(config.reportRules, config.manualBudgetPercent), disabled, allow, localPorts, pii: config.reportRules.pii, fedKeys: new Set(fed.map(sameHit)),
   };
   const findings: Finding[] = [];
   const skipped: Skipped[] = [];
   let filesScanned = 0;
   for (const rel of [...new Set(rels)].filter(isLintedFile).sort()) {
-    let link: boolean;
     try {
-      const st = lstatSync(join(dir, rel));
-      if (!st.isSymbolicLink() && !st.isFile()) { skipped.push({ file: rel, reason: "not a regular file" }); continue; }
-      link = st.isSymbolicLink();
+      lstatSync(join(dir, rel));
     } catch (e) {
       skipped.push({ file: rel, reason: `cannot read: ${errorCode(e)}` });
       continue;
     }
-    if (link) { skipped.push({ file: rel, reason: "symbolic link, not followed" }); continue; }
+    // A link anywhere in the path (the file, or a directory on the way) or a path out of the run is never read.
+    if (!plainRunFile(dir, rel)) { skipped.push({ file: rel, reason: "a symbolic link, not a regular file, or outside the run: not followed" }); continue; }
     if (lintOneFile(ctx, rel, findings, skipped)) filesScanned++;
   }
+  findings.push(...fed);
   return {
     filesScanned,
     skipped: skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file)),

@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { AegisEventSchema } from '@qa/contracts';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, claimTask, completePhase, createRun, lintFileFindings, lintFindings, readRun, releaseTask, runDir, startPhase, submitLintFiles,
+  addTask, claimTask, completePhase, createRun, executiveScan, lintFileFindings, lintFindings, readRun, releaseTask, runDir, startPhase, submitLintFiles,
   submitReview, submitWorkReport, taskmasterDir, type Finding,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
@@ -267,5 +268,92 @@ describe('the executive barrier safety net', () => {
     fs.writeFileSync(cfg, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfg, 'utf8')), reportRules: { disable: ['env-probe', 'exec-report-event-missing'] } }));
     await workTask(t.root, runId, 'T-executive-1', EXEC, 'qa-executive-reporter-spv');
     await expect(completePhase(t.root, runId, 'executive', ORCH)).resolves.toMatchObject({ phases: { executive: { status: 'completed' } } });
+  });
+});
+
+describe('review fixes: links out of the run, the closure fields at submit, smoke runs', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot();
+    runId = await startedRun(t.root);
+  });
+  const outside = () => {
+    const dir = path.join(t.root, 'outside');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'secret.md'), '# Secret\n\nThe cycle took 36 hours.\n');
+    fs.writeFileSync(path.join(dir, 'executive-deck.json'), JSON.stringify({ keyFinding: 'Admin pages were denied with 403 for every staff role.' }));
+    fs.writeFileSync(path.join(dir, 'closure.json'), JSON.stringify({ exitCriteria: [{ criterion: 'Every flow meets its oracle.', met: true }] }));
+    return dir;
+  };
+
+  it('a symbolic link in the middle of a path, an absolute path outside the run and runs/<id>/../.. name nothing and are never read', async () => {
+    const dir = outside();
+    fs.mkdirSync(path.join(runDir(t.root, runId), 'reports/closure'), { recursive: true });
+    fs.symlinkSync(dir, path.join(runDir(t.root, runId), 'reports/closure/linkdir'));
+    put('reports/closure/closure.md', '# Closure\n\nThe test window took 36 hours.\n');
+    const role = ['reports/closure/closure.md'];
+    for (const entry of ['reports/closure/linkdir/secret.md', 'reports/closure/linkdir', 'reports/closure/linkdir/*.md', path.join(dir, 'secret.md'), `runs/${runId}/../../outside/secret.md`, `runs/${runId}/reports/closure/linkdir/`]) {
+      expect([entry, submitLintFiles(t.root, runId, CLOSURE_R, [entry])]).toEqual([entry, role]);
+    }
+    await claimed('T-closure-draft-1', CLOSURE_R);
+    const res = await submitWorkReport(t.root, runId, tmp('w.json', wr(CLOSURE_R, 'T-closure-draft-1', { artifactsProduced: ['reports/closure/linkdir/secret.md'] })), CLOSURE_R);
+    expect(res.lint).toEqual({ errors: [], warnings: [], filesScanned: 1 });
+    // The file-list lint itself refuses a path through the link.
+    const listed = lintFileFindings(t.root, runId, ['reports/closure/linkdir/secret.md']);
+    expect(listed.findings).toEqual([]);
+    expect(listed).toMatchObject({ filesScanned: 0, skipped: [{ file: 'reports/closure/linkdir/secret.md', reason: expect.stringContaining('symbolic link') }] });
+  });
+
+  it('a linked reports/executive or reports/closure directory is not read by the executive stage', () => {
+    const dir = outside();
+    fs.mkdirSync(path.join(runDir(t.root, runId), 'reports'), { recursive: true });
+    fs.symlinkSync(dir, path.join(runDir(t.root, runId), 'reports/executive'));
+    fs.symlinkSync(dir, path.join(runDir(t.root, runId), 'reports/closure'));
+    const scan = executiveScan(t.root, runId);
+    expect(scan.findings.filter((f) => f.rule !== 'exec-report-event-missing')).toEqual([]);
+    expect(scan.filesScanned).toBe(0);
+    expect(scan.skipped.map((x) => x.file).sort()).toEqual(['reports/closure/closure.json', 'reports/executive/executive-deck.json']);
+  });
+
+  it('the closure reporter sees at submit the closure fields the sign-off prints, as errors (what the G3 barrier refuses); the plain file-list lint does not add them', async () => {
+    // R06-style fields: "oracle", "NRIC/SPD", "mutation", a bare Sev1 in the criteria and variances the sign-off prints.
+    put('reports/closure/closure.json', {
+      exitCriteria: [
+        { criterion: 'Every in-scope flow has an executed test case meeting its oracle, NRIC/SPD included.', met: false, evidence: 'Not met: two flows lack it.' },
+        { criterion: '0 open Sev1 defects.', met: true },
+      ],
+      variancesFromPlan: [{ variance: 'Unit adequacy was measured by mutation testing on a sandbox copy.', reason: 'The owner asked for it.' }],
+    });
+    await claimed('T-closure-final-1', CLOSURE_R);
+    const res = await submitWorkReport(t.root, runId, tmp('w.json', wr(CLOSURE_R, 'T-closure-final-1', { artifactsProduced: ['reports/closure/closure.json'] })), CLOSURE_R);
+    const tier2 = res.lint!.errors.filter((f) => f.rule === 'tooling-tier2');
+    expect(tier2.map((f) => /"([^"]+)"/.exec(f.message)?.[1]).sort()).toEqual(['NRIC/SPD', 'Sev1', 'mutation', 'oracle']);
+    expect(tier2.every((f) => f.file === 'reports/closure/closure.json' && /the sign-off prints this field/.test(f.message))).toBe(true);
+    // One stamp per rule, file and line: oracle and NRIC/SPD share the first criterion's line.
+    expect((stored(res.path)['lintErrors'] as string[]).filter((x) => x.startsWith('tooling-tier2'))).toHaveLength(3);
+    // The same as the G3 lint reports, and nothing of it in the file-list lint without the option (the run-level equality holds).
+    expect(lintFindings(t.root, runId, 'G3').findings.filter((f) => f.rule === 'tooling-tier2')).toHaveLength(4);
+    expect(lintFileFindings(t.root, runId, ['reports/closure/closure.json']).findings.filter((f) => f.rule === 'tooling-tier2')).toEqual([]);
+    // Another report writer listing closure.json gets no sign-off scan.
+    await claimed('T-compliance-gdpr-1', 'qa-compliance-gdpr');
+    const other = await submitWorkReport(t.root, runId, tmp('g.json', wr('qa-compliance-gdpr', 'T-compliance-gdpr-1', { artifactsProduced: ['reports/closure/closure.json'] })), 'qa-compliance-gdpr');
+    expect(other.lint!.errors.filter((f) => f.rule === 'tooling-tier2')).toEqual([]);
+  });
+
+  it('a smoke run is not linted at submit: no lint in the result, no stamp', async () => {
+    t.cleanup();
+    t = makeAegisRoot();
+    runId = await startedRun(t.root, 'smoke');
+    put('reports/closure/closure.md', '# Closure\n\nThe cycle took 36 hours.\n');
+    await claimed('T-closure-draft-1', CLOSURE_R);
+    const res = await submitWorkReport(t.root, runId, tmp('w.json', wr(CLOSURE_R, 'T-closure-draft-1')), CLOSURE_R);
+    expect(res.lint).toBeUndefined();
+    expect('lintErrors' in stored(res.path)).toBe(false);
+  });
+
+  it('a deliverable event always names its deliverable (both schemas require it), so the stage reads the deliverable only', () => {
+    const base = { ts: TS, runId, path: 'reports/executive/signoff.pdf' };
+    expect(AegisEventSchema.safeParse({ type: 'report.produced', ...base }).success).toBe(false);
+    expect(AegisEventSchema.safeParse({ type: 'report.produced', ...base, deliverable: 'signoff' }).success).toBe(true);
+    expect(AegisEventSchema.safeParse({ type: 'report.fallback', ts: TS, reason: 'the renderer exited 9' }).success).toBe(false);
   });
 });

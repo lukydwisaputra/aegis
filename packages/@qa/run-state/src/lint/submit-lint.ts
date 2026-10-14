@@ -1,8 +1,8 @@
-import { lstatSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute } from "node:path";
 import { COMPLIANCE_REGULATIONS, complianceAgent } from "@qa/contracts";
 import { matchGlob, roleOf } from "@qa/path-guard";
 import { runDir } from "../paths.js";
+import { readRun } from "../run.js";
 import { executiveFindings } from "./executive.js";
 import { EXECUTIVE_INPUTS, lintFileFindings, runFiles } from "./run-lint.js";
 import type { Finding } from "./text.js";
@@ -13,6 +13,7 @@ export const SUBMIT_LINTED_AGENTS: ReadonlySet<string> = new Set([
 ]);
 
 const EXECUTIVE_REPORTER = "qa-executive-reporter";
+const CLOSURE_REPORTER = "qa-closure-reporter";
 const TEXT_FILE = /\.(?:md|json)$/;
 /** At most this many findings of each severity are listed in the submit result; the rest is counted. */
 const LISTED = 20;
@@ -43,7 +44,8 @@ export interface SubmitLint {
  * The run files a work report's artifactsProduced names, run-relative, Markdown and JSON only. An entry may be run-relative (reports/x) or
  * carry the run prefix (runs/<runId>/x, also inside a longer path); `{run}/x` is read like the role table. A directory names the files under
  * it and a glob (* and **) the files it matches, as the lint walks the run. An entry outside this run (another run, `..`, an absolute path
- * elsewhere) or naming no file is ignored. With no file named, the role table's run globs of the agent stand in.
+ * elsewhere) or naming no file is ignored, and so is a path through a symbolic link: only the files the run walk lists (it never follows a
+ * link) are named. With no file named, the role table's run globs of the agent stand in.
  */
 export function submitLintFiles(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): string[] {
   const dir = runDir(root, runId);
@@ -63,14 +65,11 @@ export function submitLintFiles(root: string, runId: string, agent: string, arti
       for (const f of files()) if (matchGlob(p, f)) out.add(f);
       continue;
     }
-    let st;
-    try {
-      st = lstatSync(join(dir, p));
-    } catch {
-      continue; // names no file of the run
-    }
-    if (st.isDirectory()) for (const f of files()) { if (f.startsWith(`${p}/`)) out.add(f); }
-    else out.add(p); // a file, or a link the lint lists as skipped
+    // Only what the run walk lists (it never follows a link): a file it lists, or the files under a directory it walked. A link anywhere in
+    // the path, or a path that names no file of the run, names nothing.
+    const listed = files();
+    if (listed.includes(p)) out.add(p);
+    else for (const f of listed) if (f.startsWith(`${p}/`)) out.add(f);
   }
   const named = [...out].filter((f) => TEXT_FILE.test(f));
   if (named.length > 0) return named.sort();
@@ -84,22 +83,30 @@ const note = (f: Finding): SubmitLintNote => ({
 
 /**
  * The findings of a report writer's files at submit: the run-level classification over exactly those files (lintFileFindings); for the
+ * closure reporter the closure fields the sign-off prints are added as the G3 lint reads them (errors); for the
  * executive reporter the executive stage replaces the wording, tier and brand findings of its two inputs (the stage reads them as errors and
  * also checks the residual-risk ids, one sentence per risk and the deliverable events), and keeps their personal-data findings. Reads only.
  */
 export function submitLintFindings(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): { filesScanned: number; findings: Finding[] } {
-  const scan = lintFileFindings(root, runId, submitLintFiles(root, runId, agent, artifactsProduced));
+  // The closure reporter also sees what the Closure-final barrier refuses at G3: the closure fields the sign-off prints (tier 1 and tier 2).
+  const scan = lintFileFindings(root, runId, submitLintFiles(root, runId, agent, artifactsProduced), { signoffFed: agent === CLOSURE_REPORTER });
   if (agent !== EXECUTIVE_REPORTER) return scan;
   const kept = scan.findings.filter((f) => !EXECUTIVE_INPUTS.has(f.file) || f.rule.startsWith("pii-"));
   return { filesScanned: scan.filesScanned, findings: [...kept, ...executiveFindings(root, runId)] };
 }
 
 /**
- * The lint of a submission by a report writer (SUBMIT_LINTED_AGENTS), or null for any other agent: the result to show and the error ids to
+ * The lint of a submission by a report writer (SUBMIT_LINTED_AGENTS) in a full run, or null for any other agent and in a smoke run: the result to show and the error ids to
  * stamp into the stored work report (`<rule> <file>:<line>`, de-duplicated). Never throws: a lint that cannot run is reported as unavailable.
  */
 export function submitLint(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): { lint: SubmitLint; lintErrors: string[] } | null {
   if (!SUBMIT_LINTED_AGENTS.has(agent)) return null;
+  // A smoke run has no gate the lint prepares for (no G3, no executive phase): nothing is linted or stamped.
+  try {
+    if (readRun(root, runId).cycleType === "smoke") return null;
+  } catch {
+    // an unreadable run.json: the lint below reports what it can
+  }
   let scan: { filesScanned: number; findings: Finding[] };
   try {
     scan = submitLintFindings(root, runId, agent, artifactsProduced);

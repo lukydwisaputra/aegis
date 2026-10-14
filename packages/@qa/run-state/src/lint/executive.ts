@@ -7,7 +7,7 @@ import { busPath, runDir } from "../paths.js";
 import { MAX_TEXT_BYTES, maskPath } from "./mask.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
 import { scanTextsUnblanked, type Finding, type ScanText } from "./text.js";
-import { brandTexts, CLOSURE_JSON, jsonLineOf, RESIDUAL_RISKS_JSON, signoffFedFindings, type LintReport } from "./run-lint.js";
+import { brandTexts, CLOSURE_JSON, jsonLineOf, plainRunFile, RESIDUAL_RISKS_JSON, signoffFedFindings, type LintReport } from "./run-lint.js";
 
 /** The stages the lint runs at besides the gates. */
 export const LINT_STAGES = ["executive"] as const;
@@ -28,11 +28,15 @@ const DELIVERABLES: ReadonlyArray<{ id: "technical" | "signoff" | "slides"; file
   { id: "slides", file: "reports/executive/executive-deck.pdf" },
 ];
 
-/** A file of the run as text and parsed JSON; null when it is missing, a symbolic link or too large, `invalid` when it is not JSON. */
+/**
+ * A file of the run as text and parsed JSON; null when it is missing; `invalid` when it is reached through a symbolic link (the file, or a
+ * directory on the way such as reports/executive itself: never followed out of the run), too large, or not JSON.
+ */
 function readJson(dir: string, rel: string): { raw: string; value: unknown } | { invalid: string } | null {
   const abs = join(dir, rel);
   try {
-    if (!existsSync(abs) || lstatSync(abs).isSymbolicLink()) return null;
+    if (!existsSync(abs) && !isLink(abs)) return null;
+    if (!plainRunFile(dir, rel)) return { invalid: "a symbolic link or not a regular file, not followed" };
     if (lstatSync(abs).size > MAX_TEXT_BYTES) return { invalid: "larger than 5 MB" };
     const raw = readFileSync(abs, "utf-8");
     try {
@@ -45,22 +49,31 @@ function readJson(dir: string, rel: string): { raw: string; value: unknown } | {
   }
 }
 
+const isLink = (abs: string): boolean => {
+  try {
+    return lstatSync(abs).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
 const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const nonBlank = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
 
-// A full stop after one of these (or after a single capital, an initial) does not end a sentence: "e.g. The", "No. 4", "J. Tan".
-const ABBREVIATION = /(?:^|[\s(])(?:e\.g|i\.e|etc|vs|approx|incl|nos?|mr|mrs|ms|dr|st|inc|ltd|co|fig|cf|al|[A-Z])\.$/i;
+// A full stop after one of these (or after a single capital, an initial) does not end a sentence: "e.g. The", "No. 4", "J. Tan", a month
+// ("3 Oct. 2026", "1 Sept. 2026") or a title ("Sr. Mgr.", "Prof. Lim").
+const ABBREVIATION = /(?:^|[\s(])(?:e\.g|i\.e|etc|vs|approx|incl|nos?|mr|mrs|ms|dr|st|sr|jr|mgr|prof|inc|ltd|co|fig|cf|al|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|[A-Z])\.$/i;
 
 /**
- * The number of sentences in a text: a run of . ! or ? (and any closing quote or bracket) followed by whitespace and a capital letter, a
- * digit or an opening quote starts the next one. Lenient on purpose (an abbreviation or an initial never splits), so a finding is never a
- * miscount: a decimal (4.5), a version or an id is not followed by whitespace.
+ * The number of sentences in a text: a run of . ! or ? (and any closing quote or bracket) followed by whitespace and a capital letter (or
+ * an opening quote or bracket before one) starts the next one. Lenient on purpose (an abbreviation, an initial or a following digit never
+ * splits: "released 1 Sept. 2026", "No. 4"), so a finding is never a miscount: a decimal (4.5), a version or an id is not followed by whitespace.
  */
 export function sentenceCount(text: string): number {
   const t = text.trim();
   if (t === "") return 0;
   let n = 1;
-  for (const m of t.matchAll(/[.!?]+["'’”)\]]*\s+(?=["'“‘(\[]?[A-Z0-9])/g)) {
+  for (const m of t.matchAll(/[.!?]+["'’”)\]]*\s+(?=["'“‘(\[]?[A-Z])/g)) {
     if (m[0][0] === "." && ABBREVIATION.test(t.slice(0, (m.index ?? 0) + 1))) continue;
     n++;
   }
@@ -127,11 +140,12 @@ function residualRiskFindings(risks: { raw: string; value: unknown } | null, clo
   return out;
 }
 
-/** The deliverable an event names: its `deliverable`, else the file name of its `path` (`runs/RUN-…/reports/executive/x.pdf` or `reports/executive/x.pdf`). */
+/**
+ * The deliverable an event names: its `deliverable`. Both event schemas require it (since the events were declared), and every append is
+ * validated, so an event without it is a hand-written line the integrity check refuses, not a deliverable.
+ */
 function deliverableOf(e: Record<string, unknown>): string | null {
-  if (DELIVERABLES.some((d) => d.id === e["deliverable"])) return e["deliverable"] as string;
-  const base = typeof e["path"] === "string" ? (e["path"].split(/[\\/]/).pop() ?? "") : "";
-  return DELIVERABLES.find((d) => d.file.endsWith(`/${base}`))?.id ?? null;
+  return DELIVERABLES.some((d) => d.id === e["deliverable"]) ? (e["deliverable"] as string) : null;
 }
 
 /**
