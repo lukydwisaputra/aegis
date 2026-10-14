@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Owner decisions: a failed lint **blocks** the gate; the word rules start from the words the owner already rejected, applied **in context** (never a bare word); the PII rules cover NRIC, full name, email and phone, and allow only data that cannot be real.
-- A value is allowed as "cannot be real" only when it is guaranteed so: an NRIC whose check letter is wrong (it cannot exist), an email on a domain reserved by RFC 2606 / RFC 6761 (`example.com`, `example.net`, `example.org`, any `.test`, `.example`, `.invalid`, `.localhost`), a masked value. A phone number is allowed only when it matches a pattern the project declares in `reportRules.pii.syntheticPhonePatterns` (no published Singapore range is reserved for tests; see the spec's open item).
+- A value is allowed as "cannot be real" only when it is guaranteed so: an NRIC whose check letter is wrong (it cannot exist), an email on a domain reserved by RFC 2606 / RFC 6761 (`example.com`, `example.net`, `example.org`, any `.test`, `.example`, `.invalid`, `.localhost`), a masked value. A phone number is never accepted as "cannot be real" (no published Singapore range is reserved for tests, and the application under test requires a leading 8 or 9): it must be masked as `+65 9100 ****`. `reportRules.pii.syntheticPhonePatterns` stays available as the owner's explicit risk acceptance for a range of the project's own; it defaults to empty.
 - The scan never prints a full real-looking value back: findings show the rule, the file, the line and a context window in which the matched value is masked.
 - No LLM in the loop: same input, same findings, same order (files sorted, lines ascending).
 - Gate: `pnpm build && pnpm typecheck && pnpm test && pnpm test:smoke && pnpm aegis align` stay green; the align ratchet (207) does not grow.
@@ -22,6 +22,7 @@
 
 - "Cycle" as a domain word (`discharge cycle`, `multi-cycle`, `billing cycle`) must pass; `this cycle`, `the cycle took 36.7 hours`, `**Cycle:** full` must fail.
 - A phrase inside an inline code span, a fenced block, a double-quoted requirement, or a JSON key (`cycleDate`) must pass.
+- A masked phone (`+65 9100 ****`, `9100 ****`) must pass; `+65 9100 0001`, `91000001` and `+6591234567` must fail; `+65 0000 0000` fails too unless the project declares a pattern for it.
 - A masked NRIC (`S****567D`) and a partial one (`567D`) must pass; `S1234567D` (valid checksum) must fail; `S1234567A` (wrong check letter) must pass.
 - `qa+1@example.com` passes; `tan.ah.kow@gmail.com` and an unreserved company domain fail unless declared.
 - A project that sets `testing.manualBudgetPercent` above 0 must not get the manual-testing finding.
@@ -387,6 +388,8 @@ describe('phone', () => {
     expect(rules('call +65 9123 4567')).toEqual(['pii-phone']);
     expect(rules('call 91234567')).toEqual(['pii-phone']);
     expect(rules('call 9123****')).toEqual([]);
+    expect(rules('call +65 9100 ****')).toEqual([]);
+    expect(rules('call +65 0000 0000')).toEqual(['pii-phone']); // not guaranteed fake by form: the owner declares a pattern or masks it
     expect(rules('call +65 0123 4567', { ...pii, syntheticPhonePatterns: ['^\\+65 ?0\\d{3} ?\\d{4}$'] })).toEqual([]);
   });
   it('does not mistake counts, dates, ids or versions for a phone', () => {
@@ -796,7 +799,7 @@ In `openGate`, after the `gateTaskPassed` check and before `const ts = iso(now);
 
 - [ ] **Step 4: Teach the orchestrator**
 
-In `qa-orchestrator.md`, in the step where it opens G2 and G3: "Before `gate open`, run `AEGIS_AGENT=qa-orchestrator pnpm aegis lint --gate G<N>`. For each finding, reissue the phase of the agent that wrote the file (defects: Triage; closure and compliance: Closure-draft; executive: Executive) with the finding list in the brief; run the lint again; open the gate only when it reports `ok`. A finding is fixed in the source data and the file rewritten; a project exception is not yours to grant (the owner adds it to `reportRules.allow`)." Add `lint.run` to its Contract `cli:` list. In the HANDBOOK walkthrough, one paragraph: what the lint checks and where `reportRules` lives. In the closure reporter and defect manager: one sentence that the lint will refuse the gate on the QA-process words, internal task ids and real-looking personal data, so they never write them.
+In `qa-orchestrator.md`, in the step where it opens G2 and G3: "Before `gate open`, run `AEGIS_AGENT=qa-orchestrator pnpm aegis lint --gate G<N>`. For each finding, reissue the phase of the agent that wrote the file (defects: Triage; closure and compliance: Closure-draft; executive: Executive) with the finding list in the brief; run the lint again; open the gate only when it reports `ok`. A finding is fixed in the source data and the file rewritten; a project exception is not yours to grant (the owner adds it to `reportRules.allow`)." Add `lint.run` to its Contract `cli:` list. In the HANDBOOK walkthrough, one paragraph: what the lint checks and where `reportRules` lives. In the closure reporter and defect manager: one sentence that the lint will refuse the gate on the QA-process words, internal task ids and real-looking personal data, so they never write them. A phone number is written masked (`+65 9100 ****`) in every file the customer reads, a case's test data included: the case names its factory, and the real-format numbers stay in the test code. In the test-designer contract and the environment engineer's, one sentence each: factories generate well-formed numbers (leading 8 or 9) because the application validates them; the reports mask them.
 
 - [ ] **Step 5: Run the whole gate**
 
