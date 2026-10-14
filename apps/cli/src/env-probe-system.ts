@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { CALL_TIMEOUT_MS, secretsFile, type ListenerInfo, type ProbeSystem } from "@qa/run-state";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { CALL_TIMEOUT_MS, DEFAULT_BUILD_ID_PATH, secretsFile, type ListenerInfo, type ProbeSystem } from "@qa/run-state";
 
 /**
  * The real machine behind `aegis env probe`: lsof for the listeners of a port, fetch for the HTTP checks, the target's .next/BUILD_ID
@@ -56,8 +56,17 @@ export async function lsofListeners(port: number, timeoutMs = CALL_TIMEOUT_MS, r
   return null;
 }
 
+export const URL_CREDENTIALS = "the url carries credentials, which the probe cannot send";
+
 /** The status of a GET with redirect "manual", or the error kind (never the address, a header or the body). */
 export async function httpStatus(url: string, timeoutMs: number): Promise<{ status: number | null; error?: string }> {
+  try {
+    const u = new URL(url);
+    // fetch refuses such a url with a TypeError that would name it: answered here, before fetch sees it.
+    if (u.username !== "" || u.password !== "") return { status: null, error: URL_CREDENTIALS };
+  } catch {
+    return { status: null, error: "not a valid address" };
+  }
   try {
     const r = await fetch(url, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(Math.max(1, timeoutMs)) });
     await r.body?.cancel().catch(() => undefined);
@@ -65,15 +74,19 @@ export async function httpStatus(url: string, timeoutMs: number): Promise<{ stat
   } catch (e) {
     const err = e as Error & { cause?: { code?: unknown } };
     if (err.name === "TimeoutError" || err.name === "AbortError") return { status: null, error: `no answer within ${timeoutMs} ms` };
+    if (err instanceof TypeError && /credentials/i.test(err.message)) return { status: null, error: URL_CREDENTIALS };
     const code = typeof err.cause?.code === "string" ? err.cause.code : null;
     return { status: null, error: code ?? "the request failed" };
   }
 }
 
-/** .next/BUILD_ID of the target, trimmed; null when it is absent or unreadable. */
-export function nextBuildId(targetDir: string): string | null {
+/** The Next build id file at `relPath` inside the target, trimmed; null when it is absent, unreadable or outside the target. */
+export function nextBuildId(targetDir: string, relPath: string = DEFAULT_BUILD_ID_PATH): string | null {
+  const file = resolve(targetDir, relPath);
+  const rel = relative(resolve(targetDir), file);
+  if (isAbsolute(relPath) || rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
   try {
-    const id = readFileSync(join(targetDir, ".next", "BUILD_ID"), "utf-8").trim();
+    const id = readFileSync(file, "utf-8").trim();
     return id === "" ? null : id;
   } catch {
     return null;
@@ -90,7 +103,7 @@ export function qaSecretNames(root: string, environment: string): string[] | nul
 export function makeProbeSystem(): ProbeSystem {
   return {
     http: httpStatus,
-    listeners: (port) => lsofListeners(port),
+    listeners: (port, timeoutMs) => lsofListeners(port, timeoutMs),
     buildId: nextBuildId,
     secretNames: qaSecretNames,
   };

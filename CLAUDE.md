@@ -81,7 +81,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `parallelism.maxSpecialists` — max concurrent Tier-2 specialists; `aegis task claim` enforces it and no agent states a number
 - `intake.sources` — target-relative globs of requirement documents copied into each run's `intake/`
 - `intake.references` — pinned repositories outside the target (`{name, root, sha?, sources}`), copied into `intake/references/{name}/` at run create (a reference with a `sha` must be clean: uncommitted or untracked files are refused, since the working tree is what is copied); a checkout not at `sha` is refused
-- `environments` — per-env URLs, allowed specialists, and `mutating` flag
+- `environments` — per-env URLs, allowed specialists, and `mutating` flag; optional `buildIdPath`, the target-relative path of the Next build id file that `aegis env probe` reads (default .next/BUILD_ID at the target root; for a monorepo, for example apps/web/.next/BUILD_ID; an absolute path or one that leaves the target is ignored and the build check is not-checked)
 - `ports` — dashboard (3030), dashboardApi (3031), k6 (5665); the messaging stub port is messaging.stubPort (4010)
 - `dashboard.projectName` — appears in all customer-facing report output
 - `reportRules` — what the pre-gate lint (`aegis lint run`, run before G2 and G3) checks in the customer-facing files; each key is optional:

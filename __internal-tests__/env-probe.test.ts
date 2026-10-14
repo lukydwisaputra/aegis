@@ -6,10 +6,10 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { readLines } from '@qa/event-bus';
 import {
-  assertCallerAllowed, busPath, createRun, distinctListeners, probeEnvironment, readRun, runDir, writeRun,
+  assertCallerAllowed, busPath, createRun, distinctListeners, probeEnvironment, readRun, runDir, withRunLock, writeRun,
   type EnvProbeReport, type ListenerInfo, type ProbeStage, type ProbeSystem,
 } from '@qa/run-state';
-import { lsofListeners, parseLsof, qaSecretNames, type ExecFileFn } from '../apps/cli/src/env-probe-system';
+import { httpStatus, lsofListeners, nextBuildId, parseLsof, qaSecretNames, URL_CREDENTIALS, type ExecFileFn } from '../apps/cli/src/env-probe-system';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH } from './helpers/pipeline';
 
@@ -59,36 +59,53 @@ type Answer = number | null | 'throw' | 'hang';
 interface FakeOpts {
   /** By path name; the default is 200. */
   http?: Record<string, Answer>;
-  listeners?: ListenerInfo[] | null | 'throw' | 'hang';
+  /** 'own-timeout': like the real lsof, it answers null once the timeout it was given has run out (and hangs without one). */
+  listeners?: ListenerInfo[] | null | 'throw' | 'hang' | 'own-timeout';
   buildId?: string | null;
   secretNames?: string[] | null;
 }
 interface Fake extends ProbeSystem {
   urls: string[];
   ports: number[];
+  /** The timeout each call was given, in call order: http as ['http', ms], listeners as ['listeners', ms]. */
+  timeouts: Array<[string, number]>;
+  buildPaths: string[];
 }
 function fake(o: FakeOpts = {}): Fake {
   const urls: string[] = [];
   const ports: number[] = [];
+  const timeouts: Array<[string, number]> = [];
+  const buildPaths: string[] = [];
   return {
     urls,
     ports,
-    async http(url: string) {
+    timeouts,
+    buildPaths,
+    async http(url: string, timeoutMs: number) {
       urls.push(url);
+      timeouts.push(['http', timeoutMs]);
       const at = new URL(url).pathname;
       const a = o.http !== undefined && at in o.http ? o.http[at]! : 200;
       if (a === 'throw') throw new Error('socket hang up at http://localhost:5173/health?token=THROWSECRET Authorization: Bearer abcdefgh12345');
       if (a === 'hang') return new Promise<never>(() => undefined);
       return a === null ? { status: null, error: 'ECONNREFUSED' } : { status: a };
     },
-    async listeners(port: number) {
+    async listeners(port: number, timeoutMs: number) {
       ports.push(port);
+      timeouts.push(['listeners', timeoutMs]);
       const l = o.listeners === undefined ? [{ pid: 10, ppid: 1 }] : o.listeners;
+      if (l === 'own-timeout') {
+        if (typeof timeoutMs !== 'number') return new Promise<never>(() => undefined);
+        return new Promise<null>((res) => setTimeout(() => res(null), timeoutMs));
+      }
       if (l === 'throw') throw new Error('lsof crashed');
       if (l === 'hang') return new Promise<never>(() => undefined);
       return l;
     },
-    buildId: () => (o.buildId === undefined ? null : o.buildId),
+    buildId: (_dir: string, rel: string) => {
+      buildPaths.push(rel);
+      return o.buildId === undefined ? null : o.buildId;
+    },
     secretNames: () => (o.secretNames === undefined ? ['SUPABASE_URL', 'SUPABASE_ANON_KEY'] : o.secretNames),
   };
 }
@@ -165,7 +182,8 @@ describe('probeEnvironment', () => {
     const head = git('rev-parse', 'HEAD');
     const rep = report('execution');
     expect(rep).toMatchObject({ runId, stage: 'execution', environment: 'development', ok: true, build: { kind: 'source' } });
-    expect(rep.build.id!.startsWith(head)).toBe(true);
+    expect(rep.build).toEqual({ kind: 'source', id: head, dirtyHash: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect(sys.buildPaths).toEqual(['.next/BUILD_ID']);
     expect(rep.checks.map((c) => [c.name, c.status])).toEqual([
       ['http', 'ok'], ['vault', 'ok'], ['listeners', 'ok'], ['env-names', 'ok'], ['build', 'ok'],
     ]);
@@ -258,7 +276,9 @@ describe('probeEnvironment', () => {
 
     const hint = await probe('g2', fake({ buildId: null })); // source identity of the real repo differs from the stored aaaa…
     expect(hint).toMatchObject({ ok: true, failed: [] });
-    expect(check('g2', 'build-unchanged')).toEqual({ name: 'build-unchanged', status: 'not-checked', detail: 'source identity changed (hint)' });
+    expect(check('g2', 'build-unchanged')).toEqual({
+      name: 'build-unchanged', status: 'not-checked', detail: `source identity changed (hint): the head aaaaaaaaaaaa became ${git('rev-parse', 'HEAD').slice(0, 12)}`,
+    });
 
     fs.rmSync(reportFile('execution'));
     const none = await probe('g2', fake({ buildId: 'BUILD-D' }));
@@ -386,7 +406,7 @@ describe('probeEnvironment', () => {
       const saved = fs.readFileSync(bus);
       fs.rmSync(bus);
       fs.mkdirSync(bus);
-      await expect(probe('execution', fake())).rejects.toBeDefined();
+      await expect(probe('execution', fake())).rejects.toMatchObject({ code: 'EISDIR' });
       expect(fs.existsSync(reportFile('execution'))).toBe(false);
       fs.rmSync(bus, { recursive: true });
       fs.writeFileSync(bus, saved);
@@ -396,6 +416,150 @@ describe('probeEnvironment', () => {
     } finally {
       delete process.env['QA_PROBE_PORT'];
     }
+  });
+
+  it('a source head change is the only source hint: uncommitted changes in the target are recorded, never compared', async () => {
+    await setup();
+    await probe('execution', fake());
+    const exec = report('execution').build;
+    setPhase('execution', 'completed');
+    fs.writeFileSync(path.join(target, 'qa-untracked.txt'), 'written by a QA run\n'); // the dirty hash moves, the head does not
+    const r = await probe('g2', fake());
+    expect(r).toMatchObject({ ok: true, failed: [] });
+    expect(report('g2').build.dirtyHash).not.toBe(exec.dirtyHash);
+    expect(report('g2').build.id).toBe(exec.id);
+    expect(check('g2', 'build-unchanged')).toMatchObject({ status: 'ok', detail: 'source head unchanged since Execution (uncommitted changes are not compared)' });
+    // The event's build field names the head the report compares.
+    expect(probed()[1]!.build).toBe(`source:${exec.id!.slice(0, 12)}`);
+    git('add', '.');
+    git('commit', '-q', '-m', 'app change');
+    await probe('g2', fake());
+    expect(check('g2', 'build-unchanged')!.detail).toMatch(/^source identity changed \(hint\): the head [0-9a-f]{12} became [0-9a-f]{12}$/);
+  });
+
+  it('buildIdPath: a nested target-relative path is read; an absolute path or one that leaves the target is invalid (not-checked) and never read', async () => {
+    await setup();
+    fs.mkdirSync(path.join(target, 'apps', 'web', '.next'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'apps', 'web', '.next', 'BUILD_ID'), 'NESTED-BUILD-1\n');
+    setDev({ buildIdPath: 'apps/web/.next/BUILD_ID' });
+    await probe('execution', { ...fake(), buildId: nextBuildId });
+    expect(report('execution').build).toEqual({ kind: 'next-build-id', id: 'NESTED-BUILD-1' });
+    expect(check('execution', 'build')).toMatchObject({ status: 'ok', detail: 'next build id NESTED-BUILD (apps/web/.next/BUILD_ID)' });
+    // The default is .next/BUILD_ID at the target root: nothing there, so the source head.
+    setDev({});
+    await probe('execution', { ...fake(), buildId: nextBuildId });
+    expect(report('execution').build.kind).toBe('source');
+    for (const bad of ['../outside/.next/BUILD_ID', 'apps/../../outside/BUILD_ID', '/etc/BUILD_ID', path.join(target, 'apps', 'web', '.next', 'BUILD_ID'), '']) {
+      setDev({ buildIdPath: bad });
+      const sys = fake({ buildId: 'NEVER-READ' });
+      const r = await probe('execution', sys);
+      expect(r.ok).toBe(true);
+      expect(sys.buildPaths).toEqual([]);
+      expect(check('execution', 'build')).toMatchObject({ status: 'not-checked', detail: expect.stringMatching(/^buildIdPath invalid: /) });
+      expect(report('execution').build).toEqual({ kind: 'unknown', id: null });
+    }
+    // The real reader refuses a path outside the target too, whatever the caller passes.
+    fs.mkdirSync(path.join(target, '..', path.basename(target) + '-sibling'), { recursive: true });
+    const sibling = path.join(target, '..', path.basename(target) + '-sibling');
+    try {
+      fs.writeFileSync(path.join(sibling, 'BUILD_ID'), 'OUTSIDE\n');
+      expect(nextBuildId(target, `../${path.basename(sibling)}/BUILD_ID`)).toBeNull();
+      expect(nextBuildId(target, path.join(sibling, 'BUILD_ID'))).toBeNull();
+    } finally {
+      fs.rmSync(sibling, { recursive: true, force: true });
+    }
+  });
+
+  it('every call gets a timeout below its cap: an lsof that ends on its own timeout is not-checked (null), one with no timeout of its own is cut at the cap (failed)', async () => {
+    await setup();
+    const sys = fake({ listeners: 'own-timeout' });
+    const started = Date.now();
+    const r = await probe('execution', sys, { callTimeoutMs: 1_600 });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(sys.timeouts).toEqual([['http', 1_100], ['listeners', 1_100]]);
+    expect(r).toMatchObject({ ok: true, failed: [] });
+    expect(check('execution', 'listeners')).toMatchObject({ status: 'not-checked', detail: expect.stringMatching(/could not be determined .*not answering in time/) });
+    // A cap below one second leaves the inner timeout at one second: the cap answers first and the check fails with the reason.
+    const short = await probe('execution', fake({ listeners: 'hang' }), { callTimeoutMs: 80 });
+    expect(short).toMatchObject({ ok: false, failed: ['listeners'] });
+    expect(check('execution', 'listeners')!.detail).toBe('the listeners on port 5173: no answer within 80 ms');
+  });
+
+  it('the git source identity is computed only for a local mutating environment', async () => {
+    await setup();
+    const probeModule = require('../packages/@qa/run-state/src/explore/probe');
+    const spy = jest.spyOn(probeModule, 'exploreIdentity');
+    try {
+      setDev({ url: 'https://staging.example.test' });
+      await probe('execution', fake());
+      setDev({ mutating: false });
+      await probe('execution', fake());
+      expect(spy).not.toHaveBeenCalled();
+      setDev({});
+      await probe('execution', fake());
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('a url with credentials is never sent and never printed', async () => {
+    await setup();
+    expect(await httpStatus('http://qauser:PWSECRET@127.0.0.1:9/x', 500)).toEqual({ status: null, error: URL_CREDENTIALS });
+    process.env['QA_PROBE_CRED'] = 'PWSECRET';
+    try {
+      setDev({ url: 'http://qauser:${QA_PROBE_CRED}@localhost:5173/' });
+      await probe('execution', { ...fake(), http: httpStatus });
+      expect(check('execution', 'http')).toEqual({ name: 'http', status: 'failed', detail: `GET /: ${URL_CREDENTIALS}` });
+      expect(fs.readFileSync(reportFile('execution'), 'utf8') + JSON.stringify(probed())).not.toMatch(/PWSECRET|qauser/);
+    } finally {
+      delete process.env['QA_PROBE_CRED'];
+    }
+  });
+
+  it('takenAt is the event ts, taken under run.lock: a probe that waits for the lock is stamped after it', async () => {
+    await setup();
+    let releasedAt = 0;
+    let holder: Promise<void> = Promise.resolve();
+    const sys: ProbeSystem = {
+      ...fake(),
+      http: async () => {
+        await new Promise<void>((acquired) => {
+          holder = withRunLock(root(), runId, async () => {
+            acquired();
+            await new Promise((r) => setTimeout(r, 400));
+            releasedAt = Date.now();
+          });
+        });
+        return { status: 200 };
+      },
+    };
+    await probe('execution', sys);
+    await holder;
+    expect(Date.parse(report('execution').takenAt)).toBeGreaterThanOrEqual(releasedAt);
+    expect(report('execution').takenAt).toBe(probed()[0]!.ts);
+  });
+
+  it('the window is checked again under run.lock: a phase that moved while the probe ran refuses it, with no event and no report', async () => {
+    await setup();
+    await probe('execution', fake());
+    const sys: ProbeSystem = { ...fake(), http: async () => { setPhase('execution', 'in-progress'); return { status: 200 }; } };
+    await expect(probe('execution', sys)).rejects.toMatchObject({ code: 'out-of-order' });
+    expect(probed()).toHaveLength(1);
+    expect(fs.existsSync(reportFile('execution'))).toBe(false); // the probe had started, so its stale report was already removed
+  });
+
+  it('a report write that fails after the event exists throws; the repeated call succeeds', async () => {
+    await setup();
+    const blocker = path.join(reportFile('execution'), 'occupied');
+    const sys: ProbeSystem = { ...fake(), http: async () => { fs.mkdirSync(blocker, { recursive: true }); return { status: 200 }; } };
+    await expect(probe('execution', sys)).rejects.toMatchObject({ code: expect.stringMatching(/^(EISDIR|ENOTEMPTY|EEXIST|EPERM)$/) });
+    expect(probed()).toHaveLength(1);
+    fs.rmSync(reportFile('execution'), { recursive: true });
+    const r = await probe('execution', fake());
+    expect(r.ok).toBe(true);
+    expect(probed()).toHaveLength(2);
+    expect(report('execution').takenAt).toBe(probed()[1]!.ts);
   });
 
   it('refuses a caller that is not the orchestrator or the owner (exit 2)', async () => {

@@ -30,10 +30,10 @@ export interface ListenerInfo {
 export interface ProbeSystem {
   /** GET with redirect "manual": the status only, or null with the reason. Never a body or a header. */
   http(url: string, timeoutMs: number): Promise<{ status: number | null; error?: string }>;
-  /** The processes listening on a TCP port: [] when nothing listens, null when it cannot be determined (no lsof, no permission). */
-  listeners(port: number): Promise<ListenerInfo[] | null>;
-  /** The content of .next/BUILD_ID in the target, or null. */
-  buildId(targetDir: string): string | null;
+  /** The processes listening on a TCP port: [] when nothing listens, null when it cannot be determined (no lsof, no permission, its own timeout). */
+  listeners(port: number, timeoutMs: number): Promise<ListenerInfo[] | null>;
+  /** The content of the Next build id file at `relPath` inside the target (default .next/BUILD_ID), or null. */
+  buildId(targetDir: string, relPath: string): string | null;
   /** The names with a non-empty value in secrets/.env.<environment>, never a value; null when the file does not exist. */
   secretNames(root: string, environment: string): string[] | null;
 }
@@ -52,7 +52,8 @@ export interface EnvProbeReport {
   environment: string;
   takenAt: string;
   ok: boolean;
-  build: { kind: BuildKind; id: string | null };
+  /** For kind source, `id` is the head (what build-unchanged compares) and `dirtyHash` the uncommitted changes (recorded, never compared). */
+  build: { kind: BuildKind; id: string | null; dirtyHash?: string | null };
   checks: ProbeCheck[];
 }
 
@@ -81,6 +82,8 @@ export const CALL_TIMEOUT_MS = 10_000;
 /** The report of a stage, run-relative. */
 export const envProbeReportRel = (stage: ProbeStage): string => `reports/env/probe-${stage}.json`;
 
+/** Where the Next build id is read unless aegis.config.json#environments.<env>.buildIdPath names another target-relative file. */
+export const DEFAULT_BUILD_ID_PATH = ".next/BUILD_ID";
 const VAULT = "vault";
 const VAULT_UNDECLARED = "declare a healthChecks path named vault that exercises it";
 /** The names of the checks the probe adds itself: a declared health check may not take one. */
@@ -172,10 +175,25 @@ const defaultPort = (u: URL): number => (u.port !== "" ? Number(u.port) : u.prot
 /** The path of a URL without its query or fragment: what a detail may show. */
 const pathOnly = (u: URL): string => u.pathname;
 
+/** The inner timeout of one call: slightly below the outer cap, so the system's own timeout (lsof killed, fetch aborted) answers first. */
+export const innerTimeoutMs = (capMs: number): number => Math.max(1_000, capMs - 500);
+
+/** The target-relative path of the Next build id file, or why the declared one is invalid (absolute, or leaving the target). */
+export function buildIdPathOf(env: Record<string, unknown> | null): { path: string } | { invalid: string } {
+  const value = env?.["buildIdPath"];
+  if (value === undefined) return { path: DEFAULT_BUILD_ID_PATH };
+  if (typeof value !== "string" || value.trim() === "") return { invalid: "not a path" };
+  const p = value.trim().replace(/\\/g, "/");
+  if (p.startsWith("/") || /^[A-Za-z]:/.test(p)) return { invalid: "an absolute path; a path relative to the target is expected" };
+  if (p.split("/").includes("..")) return { invalid: "a path that leaves the target" };
+  return { path: p };
+}
+
 /**
  * Probes the run's environment for `stage` and records the result: the env.probed event first (under run.lock, short), then the report,
- * written atomically. A failed append leaves no report (an earlier report of the stage is removed before the probe starts); a failed
- * report write throws after the event exists and the command is simply repeated. Failed checks never throw: they are in the result.
+ * written atomically. A failed append leaves no report (an earlier report of the stage is removed, under run.lock with the window check,
+ * before the probe starts); a failed report write throws after the event exists and the command is simply repeated. Failed checks never
+ * throw: they are in the result.
  */
 export async function probeEnvironment(
   root: string,
@@ -187,24 +205,26 @@ export async function probeEnvironment(
 ): Promise<EnvProbeResult> {
   assertCallerAllowed(caller, "env.probe");
   if (!(PROBE_STAGES as readonly string[]).includes(stage)) throw new RunStateError("invalid-input", `--stage must be one of ${PROBE_STAGES.join(", ")}`);
-  const before = readRun(root, runId);
-  assertStageWindow(before, stage);
   const reportRel = envProbeReportRel(stage);
   const reportFile = join(runDir(root, runId), reportRel);
-  // A new probe starts: an earlier report of this stage must never be read as this one's.
-  rmSync(reportFile, { force: true });
+  const before = await withRunLock(root, runId, async () => {
+    const state = readRun(root, runId);
+    assertStageWindow(state, stage);
+    // A new probe starts: an earlier report of this stage must never be read as this one's. A refused probe never gets here.
+    rmSync(reportFile, { force: true });
+    return state;
+  });
 
   const startedAt = Date.now();
-  const identity = exploreIdentity(root); // synchronous hashing first: it cannot be preempted, so it is charged to the budget
   const deadline = startedAt + (opts.budgetMs ?? ENV_PROBE_BUDGET_MS);
   const callCap = opts.callTimeoutMs ?? CALL_TIMEOUT_MS;
 
   /** One external call, bounded by its cap and the budget left; a throw or a timeout is the reason, never an exception. */
-  async function call<T>(work: () => Promise<T>): Promise<{ value: T } | { error: string }> {
+  async function call<T>(work: (innerMs: number) => Promise<T>): Promise<{ value: T } | { error: string }> {
     const left = deadline - Date.now();
     if (left <= 0) return { error: BUDGET_SPENT };
     const ms = Math.min(callCap, left);
-    const p = Promise.resolve().then(work);
+    const p = Promise.resolve().then(() => work(innerTimeoutMs(ms)));
     p.catch(() => undefined); // a call that rejects after its time ran out must not be an unhandled rejection
     try {
       const r = await settleWithin(p, ms);
@@ -226,11 +246,22 @@ export async function probeEnvironment(
   const envConfig = "config" in raw ? objectAt(objectAt(raw.config["environments"])?.[environment]) : null;
   const resolved = environmentUrl(root, environment);
   const url = "url" in resolved ? resolved.url : null;
-  const checks: ProbeCheck[] = [];
 
+  // The machine checks: a local url of a mutating environment only.
+  const readOnly = envConfig !== null && isReadOnlyEnvironment(envConfig as EnvironmentSpecialistConfig);
+  const local = url !== null && LOCAL_HOSTS.has(url.hostname);
+  let machine: "yes" | "not-applicable" | "unknown";
+  if (readOnly) machine = "not-applicable";
+  else if (url === null) machine = "unknown";
+  else machine = local ? "yes" : "not-applicable";
+  const why = readOnly ? `the ${environment} environment is read-only` : "the environment url is not local";
+  // Synchronous hashing first, only when the build check needs it: it cannot be preempted, so it is charged to the budget.
+  const identity = machine === "yes" ? exploreIdentity(root) : null;
+
+  const checks: ProbeCheck[] = [];
   // http: the environment url, then each declared health path.
   const httpCheck = async (name: string, target: URL, accept: (status: number) => boolean, expected: string): Promise<void> => {
-    const r = await call(() => system.http(target.href, Math.min(callCap, Math.max(0, deadline - Date.now()))));
+    const r = await call((innerMs) => system.http(target.href, innerMs));
     const at = `GET ${pathOnly(target)}`;
     if ("error" in r) checks.push({ name, status: "failed", detail: `${at}: ${r.error}` });
     else if (r.value.status === null) checks.push({ name, status: "failed", detail: `${at}: ${safe(r.value.error ?? "no response")}` });
@@ -251,26 +282,18 @@ export async function probeEnvironment(
   }
   if (!vaultDeclared) checks.push({ name: VAULT, status: "not-checked", detail: VAULT_UNDECLARED });
 
-  // The machine checks: a local url of a mutating environment only.
-  const readOnly = envConfig !== null && isReadOnlyEnvironment(envConfig as EnvironmentSpecialistConfig);
-  const local = url !== null && LOCAL_HOSTS.has(url.hostname);
   let build: EnvProbeReport["build"] = { kind: "unknown", id: null };
-  let machine: "yes" | "not-applicable" | "unknown";
-  if (readOnly) machine = "not-applicable";
-  else if (url === null) machine = "unknown";
-  else machine = local ? "yes" : "not-applicable";
-  const why = readOnly ? `the ${environment} environment is read-only` : "the environment url is not local";
-
   if (machine !== "yes") {
     const status: ProbeCheckStatus = machine === "unknown" ? "not-checked" : "not-applicable";
     const detail = machine === "unknown" ? "the environment url is not resolved" : why;
     for (const name of ["listeners", "env-names", "build"]) checks.push({ name, status, detail });
   } else {
     const port = defaultPort(url!);
-    const l = await call(() => system.listeners(port));
+    const l = await call((innerMs) => system.listeners(port, innerMs));
     if ("error" in l) checks.push({ name: "listeners", status: "failed", detail: `the listeners on port ${port}: ${l.error}` });
-    else if (l.value === null) checks.push({ name: "listeners", status: "not-checked", detail: `the listeners on port ${port} could not be determined (lsof unavailable or not permitted)` });
-    else {
+    else if (l.value === null) {
+      checks.push({ name: "listeners", status: "not-checked", detail: `the listeners on port ${port} could not be determined (lsof unavailable, not permitted or not answering in time)` });
+    } else {
       const n = distinctListeners(l.value);
       if (n === 1) checks.push({ name: "listeners", status: "ok", detail: `one process listens on port ${port}` });
       else if (n === 0) checks.push({ name: "listeners", status: "failed", detail: `nothing listens on port ${port}` });
@@ -300,14 +323,17 @@ export async function probeEnvironment(
       }
     }
 
-    const id = sync(() => system.buildId(targetDirOf(root)));
-    if ("error" in id) checks.push({ name: "build", status: "failed", detail: `the build id could not be read: ${id.error}` });
-    else if (typeof id.value === "string" && id.value.trim() !== "") {
+    const idPath = buildIdPathOf(envConfig);
+    const id = "invalid" in idPath ? null : sync(() => system.buildId(targetDirOf(root), idPath.path));
+    if ("invalid" in idPath) checks.push({ name: "build", status: "not-checked", detail: `buildIdPath invalid: ${idPath.invalid}` });
+    else if (id !== null && "error" in id) checks.push({ name: "build", status: "failed", detail: `the build id could not be read: ${id.error}` });
+    else if (id !== null && typeof id.value === "string" && id.value.trim() !== "") {
       build = { kind: "next-build-id", id: id.value.trim() };
-      checks.push({ name: "build", status: "ok", detail: `next build id ${build.id!.slice(0, 12)}` });
-    } else if (identity.head !== null) {
-      build = { kind: "source", id: identity.dirtyHash === null ? identity.head : `${identity.head}:${identity.dirtyHash}` };
-      checks.push({ name: "build", status: "ok", detail: `no next build id; source identity ${identity.head.slice(0, 12)}` });
+      checks.push({ name: "build", status: "ok", detail: `next build id ${build.id!.slice(0, 12)} (${idPath.path})` });
+    } else if (identity!.head !== null) {
+      // The head is what is compared; the uncommitted changes are recorded only (QA writes untracked files into the target every run).
+      build = { kind: "source", id: identity!.head, dirtyHash: identity!.dirtyHash };
+      checks.push({ name: "build", status: "ok", detail: `no next build id; source head ${identity!.head.slice(0, 12)}` });
     } else checks.push({ name: "build", status: "not-checked", detail: "no next build id and the target is not a readable git checkout" });
   }
 
@@ -316,23 +342,24 @@ export async function probeEnvironment(
   const ok = !checks.some((c) => c.status === "failed");
   const failed = checks.filter((c) => c.status === "failed").map((c) => c.name);
 
-  const ts = iso(opts.now);
-  const report: EnvProbeReport = { runId, stage, environment, takenAt: ts, ok, build, checks };
-  await withRunLock(root, runId, async () => {
+  const ts = await withRunLock(root, runId, async () => {
     // The window is checked again: the phase may have moved while the probe ran.
     assertStageWindow(readRun(root, runId), stage);
+    const at = iso(opts.now);
     await appendChained(
-      { type: "env.probed", ts, agent: caller, stage, environment, ok, failed, build: build.id === null ? build.kind : `${build.kind}:${build.id.slice(0, 12)}` },
+      { type: "env.probed", ts: at, agent: caller, stage, environment, ok, failed, build: build.id === null ? build.kind : `${build.kind}:${build.id.slice(0, 12)}` },
       busPath(root, runId),
       { emittedBy: caller, runId }
     );
+    return at;
   });
+  const report: EnvProbeReport = { runId, stage, environment, takenAt: ts, ok, build, checks };
   mkdirSync(dirname(reportFile), { recursive: true });
   atomicWrite(reportFile, JSON.stringify(report, null, 2) + "\n");
   return { runId, stage, ok, failed, report: reportRel };
 }
 
-/** The g2 build against the execution probe's: only a Next build id that changed, appeared or vanished fails. */
+/** The g2 build against the execution probe's: only a Next build id that changed, appeared or vanished fails; a source head change is a hint. */
 function buildUnchanged(root: string, runId: string, now: EnvProbeReport["build"]): ProbeCheck {
   const name = "build-unchanged";
   let before: EnvProbeReport["build"] | null = null;
@@ -355,7 +382,9 @@ function buildUnchanged(root: string, runId: string, now: EnvProbeReport["build"
   if (now.kind === "next-build-id") return { name, status: "failed", detail: "a production build appeared during Execution (a next build id exists now and did not at the execution probe)" };
   if (before.kind === "next-build-id") return { name, status: "failed", detail: "the build under test vanished (the next build id of the execution probe is gone)" };
   if (before.kind === "source" && now.kind === "source") {
-    return before.id === now.id ? { name, status: "ok", detail: "source identity unchanged since Execution" } : { name, status: "not-checked", detail: "source identity changed (hint)" };
+    return before.id === now.id
+      ? { name, status: "ok", detail: "source head unchanged since Execution (uncommitted changes are not compared)" }
+      : { name, status: "not-checked", detail: `source identity changed (hint): the head ${p(before.id)} became ${p(now.id)}` };
   }
-  return { name, status: "not-checked", detail: "the build could not be compared (no build id or source identity at one of the probes)" };
+  return { name, status: "not-checked", detail: "the build could not be compared (no build id or source head at one of the probes)" };
 }
