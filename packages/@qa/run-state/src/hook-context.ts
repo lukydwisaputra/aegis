@@ -50,7 +50,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "rtm.sync-defects": "rtm sync-defects --reason <text> [--prune-rows] [--run <id>]",
   "rtm.render": "rtm render [--run <id>]",
   "defect.amend": "defect amend --defect <id> (--set <field>=<value> (repeat) | --json '{\"<field>\":<value>}') --reason <text> [--run <id>]",
-  "rtm.unlink": "rtm unlink --defect <id> --requirement <REQ-id> --reason <text> [--run <id>]",
+  "rtm.unlink": "rtm unlink --defect <id> --requirement <REQ-id> --reason <text> [--drop-map-entry] [--run <id>]",
   "env.exec": "env exec [--run <id>] -- <command...>",
   "env.check": "env check [--run <id>]",
   "lint.run": "lint run --gate G2|G3 [--run <id>]",

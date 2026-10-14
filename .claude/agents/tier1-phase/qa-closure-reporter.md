@@ -92,6 +92,74 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 `closure.json` always carries `exitCriteria`, which the sign-off document prints as its Met/Not met checklist: one `{ "criterion": string, "met": boolean, "evidence": string }` per exit criterion of the test plan (`plan.json`), in the plan's order. `criterion` is the plan's wording, `met` your evaluation against the results of this run, and `evidence` the figure or run-relative file that decides it (a criterion whose figure is not available is not met, and its evidence says so). When the test plan defines no exit criteria, write `"exitCriteria": []` — the sign-off then prints "Exit criteria: not defined in the test plan" — and name the gap in the comprehensiveness assessment.
 
+### closure.json: field contract read by the executive renderers
+
+The technical report, the sign-off and the deck read these exact key names (`CLOSURE_FIELDS_READ` in `@qa/contracts`; a test holds a real-shape closure to the list). A renamed key is not read, and a headline figure the renderers cannot read is refused (exit 11) rather than printed as "not available", so write them exactly:
+
+- Case counts: `resultsSummary.counts` (`designed`, `attempted`, `passed`, `failed`, `blocked`, `partial`, `skipped`, `notAttempted`, `outOfScope`, all numbers) and `metrics` (the same numbers plus `passRate`); `resultsSummary.caseOfRecord` with `basis` (one sentence).
+- Compliance: `complianceFindings[]`, one per standard: `regulation`, `coverageGaps` (a number) and `highRatedGaps` (an ARRAY of the names of the gaps rated high; the renderers count its length). `complianceTotals` is optional: `{ "reports", "gaps", "highSeverityGaps" }` as numbers, used only when it agrees with the findings. Also `complianceNote` and `complianceStatus` (sentences, no verdict).
+- Exit criteria: `exitCriteria[]` of `{ "criterion", "met" (true or false), "evidence" }`, optionally `qualification`. A criterion that is met only on a stated reading says so in `qualification`, or begins its `evidence` with "Met, with a qualification"; both documents print it beside the criterion. The documents compute "N of M exit criteria are met" from the `met` flags, so no count is typed.
+- False passes: `falsePasses.note` (one plain sentence saying the passes of the first report are our own mistakes), `falsePasses.mechanism` (the cause), `falsePasses.confirmed[]` of `{ "case", "finding", "latestResult" }` and, for a wrong test step, `falsePasses.<key>` of `{ "requirement", "wrongStep", "whatConforms", "whatThePassMeans" }`; the technical report and the sign-off print the note and the mechanism in your words.
+- Own mistakes: `ownMistakesCorrected` of `{ "note", "items": [ { "case", "earlier", "now", "what" } ] }`, plain words, printed by the technical report and the sign-off.
+- Defects: `defectMetrics.openApplicationDefects`, `defectMetrics.partiallyFixedOpen.count`, `defectMetrics.baseline24.FIXED.count`, `defectMetrics.recordsByVerdict` (the counts under `REFRAMED` and `REPORT WITHDRAWN`) and `defectMetrics.openItems[]` of `{ "defectId", "severity" ("Sev4 (Minor)"), "state", "title", "awaits" }`.
+
+```
+# key paths ([] = every entry of the array)
+metrics
+metrics.passRateBasisNote
+unavailableMetrics
+resultsSummary.counts
+resultsSummary.caseOfRecord.basis
+resultsSummary.outOfScope[].caseId
+resultsSummary.outOfScope[].reason
+reconciliations[].point
+reconciliations[].statement
+defectMetrics.openApplicationDefects
+defectMetrics.partiallyFixedOpen.count
+defectMetrics.baseline24.FIXED.count
+defectMetrics.recordsByVerdict.REFRAMED
+defectMetrics.recordsByVerdict.REPORT WITHDRAWN
+defectMetrics.openItems[].defectId
+defectMetrics.openItems[].severity
+defectMetrics.openItems[].state
+defectMetrics.openItems[].title
+defectMetrics.openItems[].awaits
+falsePasses.note
+falsePasses.mechanism
+falsePasses.confirmed[].case
+falsePasses.confirmed[].finding
+falsePasses.confirmed[].latestResult
+falsePasses.authThree.requirement
+falsePasses.authThree.wrongStep
+falsePasses.authThree.whatConforms
+falsePasses.authThree.whatThePassMeans
+ownMistakesCorrected.note
+ownMistakesCorrected.items[].case
+ownMistakesCorrected.items[].earlier
+ownMistakesCorrected.items[].now
+ownMistakesCorrected.items[].what
+variancesFromPlan[].variance
+variancesFromPlan[].reason
+exitCriteria[].criterion
+exitCriteria[].met
+exitCriteria[].evidence
+openQuestions[].id
+openQuestions[].priority
+openQuestions[].audience
+openQuestions[].question
+openQuestions[].status
+residualRiskSummary[].riskId
+residualRiskSummary[].title
+residualRiskSummary[].rating
+residualRiskSummary[].mitigationStatus
+residualRiskSummary[].residualExposure
+complianceFindings[].regulation
+complianceFindings[].coverageGaps
+complianceFindings[].highRatedGaps
+complianceNote
+complianceStatus
+```
+
 ### closure.json: uncovered test cases and residual risk
 
 `closure.json` carries `uncoveredTestCases`, one `{ "id", "module", "status", "origin" }` per check that gave no verdict (blocked, skipped, undeterminable, or designed with no result file), `origin` being one plain sentence on why; the cases listed in `coverage.json#descoped` are not among them, they are stated apart as out of scope. The closure states no split of them by cause: no `cause` on a row and no total by cause. The split is computed from the result files into `uncovered` of `coverage.json` and is stated only by the executive reports, from that file.
@@ -130,6 +198,10 @@ The pre-gate lint refuses Gate 3 while a customer-facing file carries QA-process
 ## Customer-facing wording (shared rule)
 
 Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
+
+Refer to artefacts by their plain document name (the coverage summary, the traceability matrix, the defect records, the triage summary, the case result files), never by a file path or file name (no `reports/...`, `defects/...`, `cases/...`, `coverage.json`, `rtm.json`, `triage-summary.md`, `*-result.json`). Never name a port, a host or a local server address (write "the local test server"). Never print a bare severity code without its word ("Sev1 (Blocker)"), and never use "blocker" for something that stopped a check: say what stopped it.
+
+The closure fields that feed the sign-off are written in plain business language, not engineering vocabulary: `exitCriteria[].criterion` and the `evidence` of an unmet criterion, `variancesFromPlan[].variance` and `.reason`, `resultsSummary.caseOfRecord.basis`, `resultsSummary.outOfScope[].reason`, the `reconciliations` entry about the case figures (else `metrics.passRateBasisNote`) and `residualRiskSummary[].title`, `defectMetrics.openItems[].title` and `.awaits` (the sign-off lists each open defect with them), and the `requirement`, `wrongStep`, `whatConforms` and `whatThePassMeans` of a `falsePasses` entry that carries a wrong test step. In them never write: oracle, stub, mutant or mutation, a setting name in CAPITAL_SNAKE_CASE, an HTTP status as a number ("answers 200", "HTTP 403", "x 403"), CWE- or WSTG- ids, API route paths (`/api/...`), snake_case code strings, "exit code", "build cache", "bypass module", "HTTP route", "no PR", "NRIC/SPD", a bare severity code or the noun "blocker"; write the plain replacement ("the expected result", "a locally built stand-in", "a test of the tests", "a refusal status"). Technical detail stays in the case results and the defect records; the sign-off script and the executive deck refuse the phrases above.
 
 ## Quality Standards (SPV rejects if violated)
 

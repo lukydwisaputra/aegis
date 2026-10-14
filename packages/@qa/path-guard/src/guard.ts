@@ -1,5 +1,5 @@
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { PHASE_IDS, checkBrandExposure, checkToolingWords } from "@qa/contracts";
+import { PHASE_IDS, checkBrandExposure, findToolingWords, findToolingWordsIn } from "@qa/contracts";
 import { XARGS_VALUE_FLAGS, bashWriteTargets, expandBraces, findParts, unwrap, writtenBy, xargsCommand, type LocatedCommand, type ShellWord, type WriteTarget } from "./bash.js";
 import type { GuardContext } from "./context.js";
 import { envVerdict, isCliOnlyRunPath, matchGlob, roleOf, roleWritable } from "./roles.js";
@@ -322,6 +322,21 @@ function trackedRunsFileOp(caller: Caller, abs: string, via: string, ctx: GuardC
 }
 
 /**
+ * The first tooling phrase of customer-facing content. A JSON file is read by its string values (a value that is only a path, such as an
+ * evidence list, is data and exempt from the path rules); anything else, markdown included, is read whole.
+ */
+function toolingHit(inRun: string, content: string): ReturnType<typeof findToolingWords>[number] | null {
+  if (inRun.endsWith(".json")) {
+    try {
+      return findToolingWordsIn(JSON.parse(content), "")[0] ?? null;
+    } catch {
+      // not parseable (a partial edit): read it as text
+    }
+  }
+  return findToolingWords(content)[0] ?? null;
+}
+
+/**
  * One write target. `abs` is absolute and normalized (decide() refuses anything else); `via` is the tool name, ">" for a
  * redirect, or the Bash command that writes or removes the path. Rule order: brand, runs/ removal, legacy allowance,
  * CLI-only (rule c, on its own), then the caller rules (a), (e), (d), the run state, environment and role table (b).
@@ -336,8 +351,8 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
     if (hit !== null) return { deny: `${abs} is customer-facing and the text matches ${String(hit)}; write "QA team" or the project name instead (CLAUDE.md brand exposure rule)` };
   }
   if (content !== null && inRun !== null && TOOLING_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
-    const hit = checkToolingWords(content);
-    if (hit !== null) return { deny: `${abs} is customer-facing and the text has tooling wording (${String(hit)}); say what the application does, and keep tooling facts (commands, event numbers, review or attempt counts, refusals) for the events and the work report (customer-facing wording rule)` };
+    const hit = toolingHit(inRun, content);
+    if (hit !== null) return { deny: `${abs} is customer-facing and the text has tooling wording ("${hit.phrase}", ${String(hit.pattern)}${hit.location === "" ? "" : ` at ${hit.location}`}); write ${hit.instead} instead, and keep tooling facts (commands, file names, ports, event numbers, review or attempt counts, refusals) for the events and the work report (customer-facing wording rule)` };
   }
   // Removing runs/ or a run directory deletes every CLI-only file in it; no caller does it, legacy skill or not.
   if (REMOVE_OPS.has(via) && holdsRuns(ctx, abs)) {

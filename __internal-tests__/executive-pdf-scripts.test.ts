@@ -624,14 +624,14 @@ describe('B3: exit criteria from closure.json#exitCriteria', () => {
       'reports/closure/closure.json': {
         metrics: {},
         exitCriteria: [
-          { criterion: 'No open Sev1 defects', met: true, evidence: 'defectMetrics.confirmedOpen by severity' },
-          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'coverage.json' },
+          { criterion: 'No open critical defects', met: true, evidence: 'defectMetrics.confirmedOpen by severity' },
+          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'the coverage summary' },
         ],
       },
     });
     expect(run(SCRIPT.signoff, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
-    expect(text).toContain('No open Sev1 defects');
+    expect(text).toContain('No open critical defects');
     expect(text).toContain('Requirements coverage at least 90%');
   });
 
@@ -643,14 +643,14 @@ describe('B3: exit criteria from closure.json#exitCriteria', () => {
       'reports/closure/closure.json': {
         metrics: {},
         exitCriteria: [
-          { criterion: 'No open Sev1 defects', met: true, evidence: 'defectMetrics' },
-          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'coverage.json' },
+          { criterion: 'No open critical defects', met: true, evidence: 'defectMetrics' },
+          { criterion: 'Requirements coverage at least 90%', met: false, evidence: 'the coverage summary' },
         ],
       },
     });
     expect(run(SCRIPT.signoff, root).status).toBe(0);
     const text = pdfText(path.join(runDir, 'reports', 'executive', 'signoff.pdf'));
-    expect(text).toMatch(/(^|\n)Met\nNo open Sev1 defects/);
+    expect(text).toMatch(/(^|\n)Met\nNo open critical defects/);
     expect(text).toMatch(/(^|\n)Not met\nRequirements coverage at least 90%/);
     const src = read('packages/@qa/pdf-renderer/src/index.ts');
     expect(src).not.toMatch(/[✓✗▸]/);

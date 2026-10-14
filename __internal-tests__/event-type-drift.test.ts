@@ -49,6 +49,10 @@ const NON_EVENT_PREFIXES = [
   // NEW-07: the messaging config keys, named one by one so the messaging.* events stay checked
   'messaging.stubPort', 'messaging.dispatchTimeoutSeconds', 'messaging.fakeRecipients',
   // JSON field paths inside artefacts
+  'favicon.ico', // an application file name the executive SPV rubric names as accepted vocabulary
+  'metrics.passRateBasisNote', // closure.json field named by the closure reporter rule
+  'falsePasses.note', // closure.json fields named by the closure reporter field contract
+  'falsePasses.mechanism',
   'status.code', 'status.transitionedAt', 'retestVerdict.', 'g2Triage.', // defect record fields aegis defect amend changes
   'defectMetrics.', 'resultsSummary.', 'rootCause.', 'work-report.',
   'SignoffSpec.', 'response.usage.',

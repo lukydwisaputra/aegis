@@ -106,10 +106,22 @@ async function load(url, what) {
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
 const { resolveCheckCounts, completeCounts, CaseOfRecordError } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, checkToolingWords, buildClosureView } = await load(
+const { checkBrandExposure, findToolingWordsIn, describeToolingHits, buildClosureView, describeUnreadable, openDefectLine, rewriteSectionReferencesDeep } = await load(
   CONTRACTS,
   "the brand check",
 );
+
+// Customer-facing wording guard, BEFORE anything renders: the same list as the H1 hook (TOOLING_WORD_RULES in @qa/contracts). It reads
+// every string of closure.json (a value that is only a path, such as a list of metric file names, is data and exempt) and the printed
+// fields of the defect records, and exits with the first 5 offending phrases, each with its field, so the orchestrator can report them.
+const toolingHits = [
+  ...findToolingWordsIn(closure, "closure.json"),
+  ...(defects ?? []).flatMap((d) => findToolingWordsIn({ id: d?.id, title: d?.title }, `defects/${typeof d?.id === "string" ? d.id : "record"}.json`)),
+];
+if (toolingHits.length > 0) {
+  console.error(`ERROR: ${describeToolingHits(toolingHits)}\nThe closure report must be corrected before this document is rendered.`);
+  process.exit(7);
+}
 
 // ─── spec assembly ────────────────────────────────────────────────────────────
 // An absent input is null, which the renderer prints as "not available" — never a silent 0.
@@ -187,6 +199,12 @@ const view = buildClosureView({
   complianceReports: COMPLIANCE_FALLBACK,
   descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
 });
+// A headline figure the closure carries but the view cannot read (compliance totals, the exit-criteria count, the case counts, the open
+// defects) is never printed as "not available": the report is refused (exit 11), naming the closure.json field.
+if (view.unreadable.length > 0) {
+  console.error(`ERROR: ${describeUnreadable(view.unreadable)}\nThe closure report must carry these fields before this document is rendered.`);
+  process.exit(11);
+}
 const openDefects = view.defects.open;
 
 // Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
@@ -202,7 +220,7 @@ for (const row of view.compliance?.rows ?? []) compliance[row.regulation] = { co
 
 const cor = onCaseOfRecord();
 const c = view.cases;
-const spec = {
+const specRaw = {
   runId,
   projectName,
   generatedAt: new Date().toISOString(),
@@ -224,17 +242,25 @@ const spec = {
   },
   defectHeadline: view.defects,
   caseNote: view.cases.note,
-  reconciliation: view.cases.reconciliation,
+  // One paragraph: the case note already carries the closure's reconciliation when there is a case of record.
+  reconciliation: view.cases.note ? null : view.cases.reconciliation,
+  openDefectLines: view.openItems.map(openDefectLine),
   outOfScopeCases: view.outOfScope,
   defects: view.defectLog.map((d) => ({ id: d.id, title: d.title, severity: d.severity, status: d.state })),
   compliance,
-  ...(view.compliance === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps, note: view.compliance.note } }),
+  ...(view.compliance === null || view.compliance.totalGaps === null ? {} : { complianceTotals: { reports: view.compliance.reports, totalGaps: view.compliance.totalGaps, totalHighGaps: view.compliance.totalHighGaps } }),
   variances: view.variances,
   exitCriteria: view.exitCriteria,
+  exitCriteriaSummary: view.exitCriteriaSummary,
+  ownMistakes: view.ownMistakes,
   openQuestions: view.openQuestions,
   falsePasses: view.falsePasses,
+  falsePassStatement: view.falsePassStatement,
+  wrongStepNotes: view.wrongStepNotes,
   residualRisks: view.residualRisks,
 };
+// A closure sentence that points to one of ITS numbered sections would dangle here (this report has none): it is rewritten to "the closure report".
+const spec = rewriteSectionReferencesDeep(specRaw);
 
 // ─── brand-clean assertion ────────────────────────────────────────────────────
 // Class B contract: no framework name or agent name in the rendered output.
@@ -244,9 +270,9 @@ if (leak) {
   process.exit(4);
 }
 // Customer-facing wording: the report carries no tooling words (CLI, defect map, event numbers, review or attempt counts, record owner).
-const tooling = checkToolingWords(JSON.stringify(spec));
-if (tooling) {
-  console.error(`ERROR: tooling wording in the report data — it matches ${tooling}; the closure report must be corrected first`);
+const finalHits = findToolingWordsIn(spec, "document");
+if (finalHits.length > 0) {
+  console.error(`ERROR: ${describeToolingHits(finalHits)}\nThe closure report must be corrected before this document is rendered.`);
   process.exit(7);
 }
 

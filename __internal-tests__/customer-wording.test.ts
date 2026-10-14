@@ -13,6 +13,8 @@ const BLOCK = [
   'Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner".',
   'Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files.',
   'Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.',
+  'Refer to artefacts by their plain document name (the coverage summary, the traceability matrix, the defect records, the triage summary, the case result files), never by a file path or file name',
+  'Never name a port, a host or a local server address (write "the local test server"). Never print a bare severity code without its word ("Sev1 (Blocker)"), and never use "blocker" for something that stopped a check: say what stopped it.',
 ];
 const WORKERS = ['tier1-phase/qa-defect-manager.md', 'tier1-phase/qa-closure-reporter.md', ...['iso25010', 'iso5055', 'istqb', 'cmmi', 'gdpr', 'pdpa'].map((c) => `compliance/qa-compliance-${c}.md`)];
 
@@ -27,6 +29,14 @@ describe('shared wording rule block', () => {
     expect(agent('spv/qa-defect-manager-spv.md')).toMatch(/\*\*Customer-facing wording\.\*\* `defects\/\*\.\{md,json\}` and `defects\/triage-summary\.md` contain none of the tooling words.*= requested-changes/);
     expect(agent('spv/qa-closure-reporter-spv.md')).toMatch(/\*\*Customer-facing wording\.\*\* The closure .* contains none of the tooling words.*asks a decision of a named audience.*= requested-changes/);
     expect(agent('spv/qa-compliance-spv.md')).toMatch(/\*\*Customer-facing wording\.\*\* The report contains none of the tooling words.*Review counts, refusal figures and attempt counts of the QA process belong in events and the work report/);
+  });
+
+  it('the SPVs say the same list is enforced by H1 and the report scripts, and that a bare severity code or a misused blocker is a finding', () => {
+    for (const rel of ['spv/qa-defect-manager-spv.md', 'spv/qa-closure-reporter-spv.md', 'spv/qa-compliance-spv.md']) {
+      const t = agent(rel);
+      expect(t).toMatch(/The same list is enforced by H1 and by the executive report scripts: a file path or name/);
+      expect(t).toMatch(/A bare severity code in prose \("Sev1" without its word\) or "blocker" used for something that stopped a check = requested-changes/);
+    }
   });
 
   it('the GDPR agent keeps a gap under its own article and lists every assessed article, Art35 included; its SPV checks it', () => {

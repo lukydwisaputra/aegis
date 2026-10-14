@@ -86,7 +86,7 @@ describe('rtm unlink: a pair that exists only in defectMap', () => {
   it('succeeds, removes the entry, records the count, and refuses a pair present nowhere', async () => {
     seed();
     const res = await unlinkRtmDefect(t.root, runId, { requirementId: 'REQ-REG-04', defectId: 'DEF-009-GONE-UI', reason: 'Defect withdrawn at Gate 2' }, DM);
-    expect(res).toMatchObject({ rowLinkRemoved: false, defectMapEntriesRemoved: 1, rtmMdUpdated: true });
+    expect(res).toMatchObject({ rowLinkRemoved: false, defectMapEntriesRemoved: 1, defectMapEntryKept: false, rtmMdUpdated: true });
     expect(readJson('rtm.json').defectMap.map((e: any) => e.defectId)).toEqual(['DEF-002-REG-SEC', 'DEF-003-REG-SEC', 'DEF-002-ENG-EXP']);
     expect(readJson('rtm.json').rows[0].defectIds).toEqual(['DEF-002-REG-SEC', 'DEF-003-REG-SEC']);
     expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ defectId: 'DEF-009-GONE-UI', defectMapEntriesRemoved: 1 });
@@ -94,11 +94,48 @@ describe('rtm unlink: a pair that exists only in defectMap', () => {
     await expect(unlinkRtmDefect(t.root, runId, { requirementId: 'REQ-REG-09', defectId: 'DEF-009-GONE-UI', reason: 'again' }, DM)).rejects.toMatchObject({ message: expect.stringMatching(/no row for REQ-REG-09 and its defectMap has no DEF-009-GONE-UI entry/) });
   });
 
-  it('a pair in the row only (no map entry) and a pair in both still work, and rtm.md follows the map', async () => {
+  it('a pair in the row and the map: only the row link goes, the map entry and its plan-time columns stay, and the event says so', async () => {
     seed();
     const res = await unlinkRtmDefect(t.root, runId, { requirementId: 'REQ-REG-04', defectId: 'DEF-003-REG-SEC', reason: 'Linked to the wrong requirement' }, DM);
-    expect(res).toMatchObject({ rowLinkRemoved: true, defectMapEntriesRemoved: 1, remaining: ['DEF-002-REG-SEC'] });
+    expect(res).toMatchObject({ rowLinkRemoved: true, defectMapEntriesRemoved: 0, defectMapEntryKept: true, remaining: ['DEF-002-REG-SEC'], rtmMdUpdated: false });
+    const after = readJson('rtm.json');
+    expect(after.rows[0].defectIds).toEqual(['DEF-002-REG-SEC']);
+    expect(after.defectMap.find((e: any) => e.defectId === 'DEF-003-REG-SEC')).toMatchObject({ acIds: ['AC-REG-004-R1'], wave: 1, fixPr: 'see plan Scope A', note: 'oracle note' });
+    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ defectMapEntryKept: true });
+    expect(events().find((e) => e.type === 'rtm.link-removed')).not.toHaveProperty('defectMapEntriesRemoved');
+  });
+
+  it('--drop-map-entry also removes the map entry (and rtm.md follows)', async () => {
+    seed();
+    const res = await unlinkRtmDefect(t.root, runId, { requirementId: 'REQ-REG-04', defectId: 'DEF-003-REG-SEC', reason: 'Defect leaves the matrix', dropMapEntry: true }, DM);
+    expect(res).toMatchObject({ rowLinkRemoved: true, defectMapEntriesRemoved: 1, defectMapEntryKept: false, rtmMdUpdated: true });
+    expect(readJson('rtm.json').defectMap.map((e: any) => e.defectId)).not.toContain('DEF-003-REG-SEC');
     expect(fs.readFileSync(file('rtm.md'), 'utf8')).not.toContain('DEF-003-REG-SEC');
+    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ defectMapEntriesRemoved: 1, defectMapEntryKept: false });
+  });
+
+  // Regression: an unlink used to delete the map entry, and the next sync re-created it with default columns (plan-time columns lost).
+  it('regression: unlink a row link, then sync: the plan-time fields survive', async () => {
+    seed();
+    // The defect was reframed, so its record no longer asks for a row link; the owner unlinks it.
+    writeJson('defects/DEF-002-REG-SEC.json', record('DEF-002-REG-SEC', { requirementId: 'REQ-REG-04', userStory: 'STORY-REG-004', severity: { code: 'Sev3', name: 'Major' }, retestVerdict: { verdict: 'REFRAMED' } }));
+    const before = readJson('rtm.json').defectMap.find((e: any) => e.defectId === 'DEF-002-REG-SEC');
+    await unlinkRtmDefect(t.root, runId, { requirementId: 'REQ-REG-04', defectId: 'DEF-002-REG-SEC', reason: 'Reframed at Gate 2' }, DM);
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'sync after the correction' }, DM);
+    expect(res.recreatedWithDefaults).toEqual([]);
+    const after = readJson('rtm.json').defectMap.find((e: any) => e.defectId === 'DEF-002-REG-SEC');
+    for (const k of ['retestCaseId', 'caseOrigin', 'acIds', 'wave', 'fixPr', 'verdictOracle', 'note']) expect([k, after[k]]).toEqual([k, before[k]]);
+    expect(readJson('rtm.json').rows[0].defectIds).not.toContain('DEF-002-REG-SEC');
+  });
+
+  it('after --drop-map-entry a sync re-creates the entry with defaults and says so (recreatedWithDefaults); a genuinely new defect is not listed', async () => {
+    seed();
+    await unlinkRtmDefect(t.root, runId, { requirementId: 'REQ-REG-04', defectId: 'DEF-002-REG-SEC', reason: 'dropped', dropMapEntry: true }, DM);
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'sync' }, DM);
+    expect(res.added).toEqual(expect.arrayContaining(['DEF-002-REG-SEC', 'DEF-005-NEW-EXP']));
+    expect(res.recreatedWithDefaults).toEqual(['DEF-002-REG-SEC']);
+    expect(readJson('rtm.json').defectMap.find((e: any) => e.defectId === 'DEF-002-REG-SEC')).toMatchObject({ acIds: [], wave: null, fixPr: null });
+    expect(events().find((e) => e.type === 'rtm.defect-map-synced')).toMatchObject({ recreatedWithDefaults: ['DEF-002-REG-SEC'] });
   });
 });
 

@@ -102,6 +102,8 @@ The pre-gate lint refuses Gate 3 while a customer-facing file carries QA-process
 
 Customer-facing files (the closure, the compliance reports, the defect records, the triage summary, the cases, the plan and the RTM) never contain tooling words: CLI, aegis, defectMap, event sequence numbers, framework (as in "framework defect"), refusal counts, review counts, attempt counts, "record owner". Tooling facts (what a command refused, how many reviews or attempts a task took, which event recorded what) go to events and the work report, never into those files. Every open question asks a decision of a named audience (the PM, the owner or the developers) and says what changes with each answer; a limit or a finding with no decision to take is a finding, not an open question.
 
+Refer to artefacts by their plain document name (the coverage summary, the traceability matrix, the defect records, the triage summary, the case result files), never by a file path or file name (no `reports/...`, `defects/...`, `cases/...`, `coverage.json`, `rtm.json`, `triage-summary.md`, `*-result.json`). Never name a port, a host or a local server address (write "the local test server"). Never print a bare severity code without its word ("Sev1 (Blocker)"), and never use "blocker" for something that stopped a check: say what stopped it.
+
 ## Quality Standards
 
 - Every gap cites the run artefacts that show it: TC, DEF or REQ ids, or the run-relative path of the file that shows the missing coverage (for a coverage gap, the file that shows the absence counts)
