@@ -88,6 +88,20 @@ function jsonStrings(value: unknown, out: string[], key?: string): void {
   else if (value !== null && typeof value === "object") for (const [k, v] of Object.entries(value)) jsonStrings(v, out, k);
 }
 
+/**
+ * The one text of a refusal by the lint, shared by the phase barrier and the gate opening so the two cannot drift:
+ * the count and the first 10 findings as file:line rule, and what to do about them.
+ */
+export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "file" | "line" | "rule">[], at: "phase-complete" | "gate-open"): string {
+  const shown = errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ");
+  const head = `${errors.length} lint error(s) in the customer-facing files (${shown}${errors.length > 10 ? "; ..." : ""})`;
+  const tail =
+    at === "phase-complete"
+      ? `fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`
+      : `run aegis lint run --gate ${gate} for the detail, fix each in the agent that wrote the file, then open the gate again`;
+  return `${head}. ${at === "phase-complete" ? `Gate ${gate} cannot open with them: ` : ""}${tail}`;
+}
+
 /** The findings over the run's customer-facing files; reads only. */
 export function lintFindings(root: string, runId: string): { filesScanned: number; skipped: LintReport["skipped"]; findings: Finding[] } {
   const dir = runDir(root, runId);

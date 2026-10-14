@@ -20,7 +20,7 @@ import { appendChained } from "@qa/event-bus";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { verifyRunIntegrity } from "./integrity.js";
-import { lintFindings } from "./lint/run-lint.js";
+import { lintBlockMessage, lintFindings } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir } from "./paths.js";
 import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
@@ -50,10 +50,7 @@ export async function openGate(root: string, runId: string, gateArg: string, cal
     }
     if (gate === "G2" || gate === "G3") {
       const lint = lintFindings(root, runId).findings.filter((f) => f.severity === "error");
-      if (lint.length > 0) {
-        const shown = lint.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ");
-        throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lint.length} lint error(s) in the customer-facing files (${shown}${lint.length > 10 ? "; ..." : ""}). Run aegis lint run --gate ${gate} for the detail, fix each in the agent that wrote the file, then open the gate again`);
-      }
+      if (lint.length > 0) throw new RunStateError("lint-failed", `gate ${gate} does not open: ${lintBlockMessage(gate, lint, "gate-open")}`);
     }
     const ts = iso(now);
     const prev = state.gates[gate];

@@ -25,6 +25,7 @@ import { readEscalationDecision } from "./escalation.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
+import { lintBlockMessage, lintFindings } from "./lint/run-lint.js";
 import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from "./phase-map.js";
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, workDir } from "./submit.js";
@@ -246,6 +247,12 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
         problems.push(`gate task ${id} is missing; the orchestrator adds it (aegis task add --id ${id} --agent ${ORCHESTRATOR}) and it needs a passing ${pairedSpv(ORCHESTRATOR)} review`);
       } else if (gateTask.status !== "done" || gateTask.claimedBy !== ORCHESTRATOR || !gateTaskPassed(root, runId, state, gate)) {
         problems.push(`gate task ${id} needs a passing ${pairedSpv(ORCHESTRATOR)} review of its latest attempt`);
+      }
+      // The lint is a barrier while the phase is still active: once it completes, nothing can reopen it to fix a file.
+      // openGate checks again (a file may change between the two), as the safety net.
+      if (gate === "G2" || gate === "G3") {
+        const lint = lintFindings(root, runId).findings.filter((f) => f.severity === "error");
+        if (lint.length > 0) problems.push(lintBlockMessage(gate, lint, "phase-complete"));
       }
     }
   }
