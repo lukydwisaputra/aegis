@@ -2,7 +2,8 @@
 name: qa-test-designer-spv
 description: Reviews qa-test-designer work reports. Validates technique selection evidence, automation policy compliance (13 do-not-automate criteria), RTM forward/backward link completeness, locator hierarchy, and POM usage. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-design-techniques.md

@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 // file: nothing depends on @qa/pdf-renderer, so the bare specifier does not resolve (AUD-060).
 const RENDERER = new URL("../../../packages/@qa/pdf-renderer/dist/index.js", import.meta.url);
 const CONTRACTS = new URL("../../../packages/@qa/contracts/dist/index.js", import.meta.url);
+const METRICS = new URL("../../../packages/@qa/metrics/dist/index.js", import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, "..", "..", "..");
@@ -57,12 +58,17 @@ function readJson(path) {
 }
 
 /** Every JSON document of a directory, or null when the directory is absent. */
-function readJsonGlob(dir) {
+function readJsonEntries(dir) {
   if (!existsSync(dir)) return null;
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
-    .map((f) => readJson(join(dir, f)))
-    .filter((v) => v !== null);
+    .map((f) => ({ name: f.replace(/\.json$/, ""), doc: readJson(join(dir, f)) }))
+    .filter((e) => e.doc !== null);
+}
+
+function readJsonGlob(dir) {
+  const entries = readJsonEntries(dir);
+  return entries === null ? null : entries.map((e) => e.doc);
 }
 
 const gate3 = readJson(join(runDir, "gates", "gate-3-decision.json"));
@@ -78,7 +84,8 @@ const riskRegister = readJson(join(runDir, "risk-register.json")) ?? {};
 const plan = readJson(join(runDir, "plan.json")) ?? {};
 // null when the run has no defects/ directory: the open-defect figure is then not available, never 0.
 const defects = readJsonGlob(join(runDir, "defects"));
-const complianceReports = readJsonGlob(join(runDir, "reports", "compliance")) ?? [];
+const complianceEntries = readJsonEntries(join(runDir, "reports", "compliance")) ?? [];
+const complianceReports = complianceEntries.map((e) => e.doc);
 
 const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
@@ -95,6 +102,7 @@ async function load(url, what) {
 }
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
+const { resolveCheckCounts, CaseOfRecordError } = await load(METRICS, "the coverage computation");
 const { checkBrandExposure, checkToolingWords, buildClosureView, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
@@ -135,9 +143,17 @@ const exitCriteriaNote = Array.isArray(closure.exitCriteria)
 // The same closure view as the technical report (buildClosureView), so the two documents state the same figures. The closure is the
 // source of truth: a case-of-record block or reconciliation it carries wins over the metric files, which only fill what it lacks.
 const coverageDoc = readJson(join(runDir, "reports", "metrics", "coverage.json"));
-const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
-const rollupCounts =
-  coverageDoc && coverageDoc.noData !== true && coverageDoc.counts && COUNT_KEYS.every((k) => typeof coverageDoc.counts[k] === "number") ? coverageDoc.counts : null;
+let rollupCounts;
+try {
+  ({ counts: rollupCounts } = resolveCheckCounts(runDir, coverageDoc));
+} catch (e) {
+  // A malformed case-of-record declaration: the collector's coverage command gives the same message; this script exits 10, not a stack trace.
+  if (e instanceof CaseOfRecordError) {
+    console.error(`ERROR: ${e.message}`);
+    process.exit(10);
+  }
+  throw e;
+}
 const plainRisk = new Map();
 try {
   const plainDoc = readJson(join(runDir, "reports", "executive", "residual-risks.json"));
@@ -153,7 +169,7 @@ const view = buildClosureView({
   rollupCounts,
   executionSummary: readJson(join(runDir, "execution-summary.json")),
   plainRisk,
-  complianceReports: complianceReports.filter((d) => d && typeof d === "object" && !Array.isArray(d)).map((d, i) => ({ name: `report-${i + 1}`, regulation: d.regulation, gaps: Array.isArray(d.gaps) ? d.gaps.length : null, highGaps: typeof d.highSeverityGapCount === "number" ? d.highSeverityGapCount : null })),
+  complianceReports: complianceEntries.filter(({ doc }) => typeof doc === "object" && !Array.isArray(doc)).map(({ name, doc }) => ({ name, regulation: doc.regulation, gaps: Array.isArray(doc.gaps) ? doc.gaps.length : typeof doc.gaps === "number" && Number.isFinite(doc.gaps) ? doc.gaps : null, highGaps: typeof doc.highSeverityGapCount === "number" && Number.isFinite(doc.highSeverityGapCount) ? doc.highSeverityGapCount : null })),
   descopedFallback: Array.isArray(coverageDoc?.descoped) ? coverageDoc.descoped : [],
 });
 

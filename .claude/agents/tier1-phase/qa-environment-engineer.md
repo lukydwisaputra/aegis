@@ -2,7 +2,8 @@
 name: qa-environment-engineer
 description: Prepares the test environment in two dispatches. With scope=auth (Env-auth, before Explore) it configures Playwright, wires per-role auth fixtures, installs the Playwright Agent CLI and smoke-pings the target; with scope=data (Env-data, after Design) it creates test data factories and seed data for the approved cases. Dispatched by qa-orchestrator.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/fixtures-and-pom.md

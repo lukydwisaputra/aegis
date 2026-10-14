@@ -478,6 +478,62 @@ describe('A3: coverage.json noData', () => {
   });
 });
 
+describe('a malformed case-of-record declaration is a refusal, not a stack trace (both scripts)', () => {
+  const TWO = {
+    'reports/closure/closure.json': { metrics: { passed: 1, failed: 0, blocked: 0 } },
+    'gates/gate-3-decision.json': FULL_RUN['gates/gate-3-decision.json'],
+    'rtm.json': { rows: [{ requirementId: 'REQ-COMMS-01', description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' }, testCaseIds: ['TC-COMMS-007'], defectIds: [], testStatus: 'Covered' }] },
+    'cases/TC-COMMS-007.json': { id: 'TC-COMMS-007' },
+    'cases/TC-COMMS-007-result.json': { status: 'partial', caseOfRecord: true, caseOfRecordReason: 'a' },
+    'cases/TC-COMMS-007-result-messaging.json': { status: 'pass', caseOfRecord: true, caseOfRecordReason: 'b' },
+  };
+  it.each([['technical', SCRIPT.technical], ['signoff', SCRIPT.signoff]])('the %s script exits 10 and names the case and both files', (_name, script) => {
+    const { root, runDir } = fixture(TWO);
+    const res = run(script, root);
+    expect(res.status).toBe(10);
+    expect(res.stderr).toMatch(/^ERROR: TC-COMMS-007: result files .* both declare "caseOfRecord": true/);
+    expect(res.stderr).not.toMatch(/\n\s+at /);
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive'))).toBe(false);
+  });
+});
+
+describe('the technical report and the sign-off state the same figures from the same inputs', () => {
+  const CASES = {
+    'rtm.json': { rows: [{ requirementId: 'REQ-COMMS-01', description: 'd', source: 's', priority: { code: 'P1', name: 'Next release' }, testCaseIds: ['TC-AUTH-001', 'TC-AUTH-002'], defectIds: [], testStatus: 'Covered' }] },
+    'cases/TC-AUTH-001.json': { id: 'TC-AUTH-001' },
+    'cases/TC-AUTH-002.json': { id: 'TC-AUTH-002' },
+    'cases/TC-AUTH-001-result.json': { status: 'pass' },
+    'cases/TC-AUTH-002-result.json': { status: 'fail' },
+  };
+  const FILES = {
+    ...FULL_RUN,
+    ...CASES,
+    // closure says 5 checks; the case files hold 2 and there is no coverage.json: both scripts recompute from the case files.
+    'reports/closure/closure.json': { cycleDate: '2026-10-04', metrics: { passed: 40, failed: 3, blocked: 2 }, defectMetrics: { totalLogged: 5, confirmedOpen: 3 } },
+    'reports/compliance/vendor-audit.json': { sectionsCovered: ['X-1'], gaps: ['X-2'] },
+  };
+  const { root, runDir } = fixture(FILES);
+  const tech = run(SCRIPT.technical, root);
+  const sign = run(SCRIPT.signoff, root);
+  const text = (f: string) => flat(pdfText(path.join(runDir, 'reports', 'executive', f)));
+
+  it('both exit 0', () => {
+    expect(tech.status).toBe(0);
+    expect(sign.status).toBe(0);
+  });
+
+  it('both count the cases from the case files when coverage.json is missing, not from the closure copy', () => {
+    expect(text('technical-report.pdf')).toContain('Total Tests 2');
+    expect(text('signoff.pdf')).toMatch(/2 checks were executed to a result: 1 passed, 1 failed/);
+  });
+
+  it('both name a compliance report without a regulation by its file name, never report-N', () => {
+    expect(text('technical-report.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).toContain('vendor-audit');
+    expect(text('signoff.pdf')).not.toMatch(/report-\d/);
+  });
+});
+
 describe('A4: a compliance report without regulation', () => {
   it('is listed under its file name', () => {
     const { root, runDir } = fixture({

@@ -92,16 +92,16 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 
 ### Agent tiers
 
-| Tier | Count | Model | Role |
+| Tier | Count | Model (effort per tier in `.claude/model-policy.yaml#efforts`) | Role |
 |------|-------|-------|------|
-| 0 — Orchestrator | 1 | Opus | Reads Taskmaster tree, dispatches phases, enforces gates |
-| 1 — Phase managers | 9 | Sonnet/Opus | One per STLC phase (requirements → closure), plus the developer-test reviewer |
-| 2 — Specialists | 13 | Sonnet | Domain work (UI, API, unit, security, perf, etc.) |
-| 3 — SPVs | 24 | Opus | One per reviewed worker; `qa-compliance-spv` reviews the six compliance agents |
-| Compliance | 6 | Opus | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
-| Cross-cutting | 3 | Haiku / Opus | context-scanner, metrics-collector (Haiku); curator (Opus) |
+| 0 — Orchestrator | 1 | Sonnet 5.5 | Reads Taskmaster tree, dispatches phases, enforces gates |
+| 1 — Phase managers | 9 | Sonnet 5.5 | One per STLC phase (requirements → closure), plus the developer-test reviewer |
+| 2 — Specialists | 13 | Sonnet 5.5 | Domain work (UI, API, unit, security, perf, etc.) |
+| 3 — SPVs | 24 | Sonnet 5.5 | One per reviewed worker; `qa-compliance-spv` reviews the six compliance agents |
+| Compliance | 6 | Sonnet 5.5 | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
+| Cross-cutting | 3 | Sonnet 5.5 | context-scanner, metrics-collector, curator |
 
-Model assignments are centralized in `.claude/model-policy.yaml` — **never hardcode a model in an agent definition**. Use the `_qa-build-agents` skill to stamp model policy changes into all agent frontmatter.
+Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) are centralized in `.claude/model-policy.yaml` — **never hardcode a model or effort in an agent definition**. Use the `_qa-build-agents` skill to stamp model policy changes into all agent frontmatter.
 
 ### Execution flow
 

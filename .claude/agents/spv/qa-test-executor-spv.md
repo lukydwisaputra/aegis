@@ -2,7 +2,8 @@
 name: qa-test-executor-spv
 description: Reviews qa-test-executor work reports. Validates COTE evidence validation, HAR sanitisation, correct specialist routing, enriched dispatch briefs, manual TC handling, and execution summary completeness. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

@@ -2,7 +2,8 @@
 name: qa-unit-specialist-spv
 description: Reviews qa-unit-specialist work reports. Validates behaviour-not-implementation testing, mock discipline (only external boundaries), read-only discipline on developer units (net-new QA tests land only under tests/qa/unit/), and no snapshot-only tests. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md
