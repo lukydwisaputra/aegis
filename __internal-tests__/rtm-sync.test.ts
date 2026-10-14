@@ -172,6 +172,44 @@ describe('aegis rtm sync-defects', () => {
   });
 });
 
+describe('rtm sync-defects never drops an entry for a record it could not read', () => {
+  it('keeps the map entry of a record file that is not valid JSON, and lists the file', async () => {
+    seed();
+    fs.writeFileSync(file('defects/DEF-002-ENG-EXP.json'), '{ "id": "DEF-002-ENG-EXP", "title": "trailing comma",}');
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'Gate 2 re-triage' }, DM);
+    expect(res.unreadable).toEqual(['DEF-002-ENG-EXP']);
+    expect(res.removed).toEqual(['DEF-009-GONE-UI']);
+    const map: any[] = readJson('rtm.json').defectMap;
+    expect(map.find((e) => e.defectId === 'DEF-002-ENG-EXP')).toMatchObject(entry('DEF-002-ENG-EXP', 'REQ-ENG-07', { storyId: 'STORY-ENG-007' }));
+  });
+
+  it('keeps the map entry of a record whose id the schema refuses', async () => {
+    seed();
+    writeJson('defects/DEF-7.json', { id: 'DEF-7', title: 'legacy id' });
+    writeJson('rtm.json', { ...readJson('rtm.json'), defectMap: [...readJson('rtm.json').defectMap, entry('DEF-7', 'REQ-REG-04')] });
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'Gate 2 re-triage' }, DM);
+    expect(res.unreadable).toEqual(['DEF-7']);
+    expect(res.removed).toEqual(['DEF-009-GONE-UI']);
+    expect(readJson('rtm.json').defectMap.map((e: any) => e.defectId)).toContain('DEF-7');
+  });
+
+  it('a record that is truly gone is still removed, as before', async () => {
+    seed();
+    const res = await syncRtmDefectMap(t.root, runId, { reason: 'Gate 2 re-triage' }, DM);
+    expect(res.unreadable).toEqual([]);
+    expect(res.removed).toEqual(['DEF-009-GONE-UI']);
+  });
+
+  it('refuses, and changes nothing, when defects/ holds no record file but the map has entries', async () => {
+    seed();
+    fs.rmSync(file('defects'), { recursive: true, force: true });
+    const before = fs.readFileSync(file('rtm.json'), 'utf8');
+    await expect(syncRtmDefectMap(t.root, runId, { reason: 'Gate 2 re-triage' }, DM)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/no defect record under defects\/ but rtm\.json#defectMap has 4 entries; refusing to drop them all/) });
+    expect(fs.readFileSync(file('rtm.json'), 'utf8')).toBe(before);
+    expect(events().find((e) => e.type === 'rtm.defect-map-synced')).toBeUndefined();
+  });
+});
+
 describe('rtm sync-defects adds row links only for open application defects (gap 5 of round 4)', () => {
   const seedVerdicts = () => {
     seed();
