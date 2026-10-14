@@ -285,3 +285,15 @@ describe('agent text and skill docs', () => {
     expect(read('.claude/skills/_qa-report-signoff-pdf/SKILL.md')).toMatch(/blocks from the closure view.*refused with exit 9/s);
   });
 });
+
+describe('the rollup pass rate leaves ruled checks out, as the technical report does', () => {
+  it('2 passed of 6 attempted with 3 ruled checks is 66.7%, never 33.3%', () => {
+    const v = buildClosureView({ closure: {}, defects: null, rollupCounts: { passed: 2, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, attempted: 6, ruledOutOfScope: 1, deferred: 1, notVerified: 1 }, executionSummary: null });
+    expect(v.cases).toMatchObject({ source: 'rollup', total: 6, passed: 2, passRate: 66.7 });
+  });
+
+  it('without ruled counts the rate is passed over attempted, unchanged', () => {
+    const v = buildClosureView({ closure: {}, defects: null, rollupCounts: { passed: 2, failed: 1, partial: 0, blocked: 0, skipped: 0, unknown: 0, attempted: 6 }, executionSummary: null });
+    expect(v.cases.passRate).toBe(33.3);
+  });
+});

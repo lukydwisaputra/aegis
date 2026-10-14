@@ -121,7 +121,7 @@ export interface ClosureViewInput {
   /** The defect records (defects/DEF-*.json), or null when the run has none. */
   defects: readonly unknown[] | null;
   /** The check counts of the coverage rollup (reports/metrics/coverage.json#counts, or the script's own recomputation), or null. */
-  rollupCounts: { passed: number; failed: number; partial: number; blocked: number; skipped: number; unknown: number; attempted: number } | null;
+  rollupCounts: { passed: number; failed: number; partial: number; blocked: number; skipped: number; unknown: number; attempted: number; ruledOutOfScope?: number; deferred?: number; notVerified?: number } | null;
   /** The executor's execution-summary.json, or null. */
   executionSummary: unknown;
   /** The customer-readable sentence of a risk by riskId (reports/executive/residual-risks.json), when the run has one. */
@@ -132,6 +132,7 @@ export interface ClosureViewInput {
   descopedFallback?: ReadonlyArray<{ caseId: string; reason: string }>;
 }
 
+/** Pass rate over the checks that ran to a verdict; the caller leaves out ruled checks (out of scope, deferred, not verified), which have a result but no verdict. */
 function rate(passed: number | null, total: number | null): number | null {
   return passed === null || total === null || total <= 0 ? null : round1((100 * passed) / total);
 }
@@ -145,7 +146,7 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
       ? { passed: metrics["passedCaseOfRecord"], failed: metrics["failedCaseOfRecord"] ?? metrics["failed"], blocked: metrics["blockedCaseOfRecord"], partial: metrics["partialCaseOfRecord"], passRate: metrics["passRateCaseOfRecord"], basis: null }
       : null;
   const cor = block ?? fromMetrics;
-  const rollupFig: CaseCounts | null = rollup === null ? null : { passed: rollup.passed, failed: rollup.failed, partial: rollup.partial, blocked: rollup.blocked, skipped: rollup.skipped, unknown: rollup.unknown, total: rollup.attempted, passRate: rate(rollup.passed, rollup.attempted) };
+  const rollupFig: CaseCounts | null = rollup === null ? null : { passed: rollup.passed, failed: rollup.failed, partial: rollup.partial, blocked: rollup.blocked, skipped: rollup.skipped, unknown: rollup.unknown, total: rollup.attempted, passRate: rate(rollup.passed, rollup.attempted - (rollup.ruledOutOfScope ?? 0) - (rollup.deferred ?? 0) - (rollup.notVerified ?? 0)) };
   const reconciliations = Array.isArray(closure["reconciliations"]) ? closure["reconciliations"] : [];
   const rec = reconciliations.find((r) => isPlain(r) && typeof r["point"] === "string" && /case figures|case counts|pass rate/i.test(r["point"]) && str(r["statement"]) !== null);
   const reconciliation = isPlain(rec) ? str(rec["statement"]) : str(metrics["passRateBasisNote"]);

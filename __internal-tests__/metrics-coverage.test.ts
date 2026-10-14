@@ -434,6 +434,13 @@ describe('ruling statuses (out_of_scope, deferred, not_verified) are counted apa
     expect(computeCoverage(dir()).testExecutionCoverage).toBe(50); // 3 of 6 ran to a verdict
   });
 
+  it('a ruling is not an uncovered row: the rows add up to the checks that gave no verdict and no ruling', () => {
+    const { uncovered, counts } = computeCoverage(dir());
+    expect(uncovered.rows).toEqual([]);
+    expect(uncovered.rows.length).toBe(counts.blocked + counts.skipped + counts.unknown + counts.notAttempted);
+    expect(uncovered.byCause.other).toBe(0);
+  });
+
   it('a run with no ruling status has no ruling counts', () => {
     const { counts } = computeCoverage(runWith({ 'rtm.json': rows(1, 0), ...designed('TC-AUTH-001'), ...Object.fromEntries([result('TC-AUTH-001', { status: 'passed' })]) }));
     expect(counts).not.toHaveProperty('deferred');
