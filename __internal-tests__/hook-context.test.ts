@@ -11,6 +11,9 @@ import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
 
 let t: TmpAegis;
+/** The longest rules-core brand line and the largest qa-* agent's H4 text (25-character project name, 38-character root), after Task 0. */
+const BRAND_MAX = 744;
+const H4_LARGEST = 6036;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 
@@ -195,30 +198,53 @@ describe('H4 rules core (CLAUDE.md may not be loaded into a subagent)', () => {
       '\\bevent\\s+sequence\\b': 'event sequence numbers',
       '\\bframework[- ]defect\\b|\\bframework\\.defect': '"framework defect"',
       '\\bcli\\.refused\\b|\\b\\d+\\s+(?:CLI\\s+)?refusals?\\b': 'refusal',
-      '\\b(?:review|attempt|rejection)\\s+counts?\\b': 'review, attempt or rejection counts',
+      '\\b(?:review|rejection)\\s+counts?\\b': 'review, attempt or rejection counts',
+      '\\battempt\\s+counts?\\b': 'review, attempt or rejection counts',
       '\\bSPV\\b': 'SPV',
       '\\brequested[- ]changes\\b': '"requested changes"',
       '\\bwork[- ]reports?\\b': 'work report',
       '\\brecord owner\\b': '"record owner"',
       // Path rules: run-file paths and names, globs and local servers (a listed port is a per-project rule, not in this list).
-      [TOOLING_WORD_RULES[11]!.pattern.source]: 'reports/...',
-      [TOOLING_WORD_RULES[12]!.pattern.source]: 'globs',
-      [TOOLING_WORD_RULES[13]!.pattern.source]: 'rtm.json',
-      [TOOLING_WORD_RULES[14]!.pattern.source]: '*-result.json',
+      [TOOLING_WORD_RULES[12]!.pattern.source]: 'reports/...',
+      [TOOLING_WORD_RULES[13]!.pattern.source]: 'globs',
+      [TOOLING_WORD_RULES[14]!.pattern.source]: 'rtm.json',
+      [TOOLING_WORD_RULES[15]!.pattern.source]: '*-result.json',
       '\\blocalhost\\b': 'localhost',
       '\\b127\\.0\\.0\\.1\\b': '127.0.0.1',
-      [TOOLING_WORD_RULES[17]!.pattern.source]: '[::1], 0.0.0.0',
+      [TOOLING_WORD_RULES[18]!.pattern.source]: '[::1], 0.0.0.0',
       '\\bports?\\s+\\d{4,5}\\b': 'port N',
     };
     const brand = subagentRulesLines()[2]!;
-    expect(TOOLING_WORD_PATTERNS.length).toBe(19);
-    expect(brand).toContain("except in a defect record's reproduction data (never its title)");
-    // Task 0 of the pre-checks plan added the path and port rules to this line: 523 -> 736 characters (+213 for every qa-* agent).
-    expect(brand.length).toBeLessThanOrEqual(736);
+    expect(TOOLING_WORD_PATTERNS.length).toBe(20);
+    expect(brand).toContain('a defect record may cite paths and servers in every field but the title');
+    // Task 0 of the pre-checks plan added the path and port rules to this line: 523 -> 744 characters (+221 for every qa-* agent).
+    expect(brand.length).toBeLessThanOrEqual(BRAND_MAX);
     for (const pattern of TOOLING_WORD_PATTERNS) {
       const expected = phrase[pattern.source];
       expect(`${pattern.source} -> ${expected}`).not.toContain('undefined');
       expect(brand).toContain(expected!);
+    }
+  });
+
+  it('the largest qa-* agent stays under 7000 with a 25-character project name and a realistic 38-character aegis root (pins the headroom)', async () => {
+    // A real checkout root such as /Users/<name>/Desktop/QA/aegis is about 38 characters; the temp root of the other tests is longer.
+    const base = fs.mkdtempSync('/tmp/aegis-h4-');
+    const root = path.join(base, 'x'.repeat(38 - base.length - 1));
+    fs.mkdirSync(root);
+    fs.copyFileSync(path.join(t.root, 'aegis.config.json'), path.join(root, 'aegis.config.json'));
+    const config = JSON.parse(fs.readFileSync(path.join(root, 'aegis.config.json'), 'utf8'));
+    fs.writeFileSync(path.join(root, 'aegis.config.json'), JSON.stringify({ ...config, dashboard: { projectName: 'Northwind Volunteer Portal'.slice(0, 25) } }));
+    try {
+      expect(root).toHaveLength(38);
+      const { runId } = await createRun(root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner');
+      await startPhase(root, runId, 'intake', 'qa-orchestrator');
+      const sizes = qaAgentNames().map((agent) => [agent, runContextFor(root, agent)!.length] as const).sort((x, y) => y[1] - x[1]);
+      expect(sizes.length).toBeGreaterThan(40);
+      expect(sizes[0]![1]).toBeLessThan(7000);
+      // Measured after Task 0: the largest agent and its size. A task that adds H4 text raises this pin and states its increase.
+      expect(sizes[0]![1]).toBeLessThanOrEqual(H4_LARGEST);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
     }
   });
 

@@ -22,7 +22,7 @@ describe('the rules: built-in hosts always, colon-prefixed ports only when the p
     expect(findToolingWords('The app served http://localhost:3000/login.').map((h) => h.phrase)).toEqual(['localhost']);
     expect(findToolingWords('The app served http://[::1]:3000/login.').map((h) => h.phrase)).toEqual(['[::1]:3000']);
     expect(findToolingWords('It bound 0.0.0.0:8080 at start.').map((h) => h.phrase)).toEqual(['0.0.0.0:8080']);
-    for (const clean of ['The listener on :3002 restarted.', 'Subnet 10.0.0.0 is private.', 'Version 0.0.0.0.1 shipped.', '3002 volunteers signed up at 12:30.']) {
+    for (const clean of ['The listener on :3002 restarted.', 'Subnet 10.0.0.0 is private.', 'Ingress from 0.0.0.0/0 is open.', 'Version 0.0.0.0.1 shipped.', '3002 volunteers signed up at 12:30.']) {
       expect([clean, findToolingWords(clean)]).toEqual([clean, []]);
     }
     expect(toolingRules()).toBe(TOOLING_WORD_RULES);
@@ -136,6 +136,52 @@ describe('H1 reads localPorts through loadGuardContext and exempts defect reprod
     expect(!summary.allow && summary.reason).toMatch(/"127\.0\.0\.1"/);
   });
 
+  const edit = (rel: string, newString: string): HookToolInput => ({ tool_name: 'Edit', tool_input: { file_path: path.join(t.root, 'runs', runId, rel), old_string: 'x', new_string: newString }, cwd: t.root, agent_type: 'qa-defect-manager', agent_id: 'a1' });
+
+  it('an Edit fragment of a defect record: a title member or a lone string value takes every rule, any other member only the word rules', () => {
+    const triage = ctxAt('triage');
+    const json = `defects/${RECORD.id}.json`;
+    for (const fragment of ['"title": "Export fails reading rtm.json"', '"title":"Export fails at http://127.0.0.1:3002/x",\n  "severity": "Sev3"', '"Export fails reading rtm.json"']) {
+      const r = decide(edit(json, fragment), triage, deps);
+      expect([fragment, r.allow]).toEqual([fragment, false]);
+      expect(!r.allow && r.reason).toMatch(/tooling wording .* at \.title\)/);
+    }
+    for (const fragment of ['"action": "Open http://127.0.0.1:3002/x and compare with rtm.json"', '"build": "Next.js dev server, port 3000",', '"why": "Why does the attempt count decrement in this case?"']) {
+      expect([fragment, decide(edit(json, fragment), triage, deps).allow]).toEqual([fragment, true]);
+    }
+    const multi: HookToolInput = { tool_name: 'MultiEdit', tool_input: { file_path: path.join(t.root, 'runs', runId, json), edits: [{ old_string: 'a', new_string: '"action": "open localhost:3000"' }, { old_string: 'b', new_string: '"title": "Crash in coverage.json export"' }] }, cwd: t.root, agent_type: 'qa-defect-manager', agent_id: 'a1' };
+    expect(decide(multi, triage, deps).allow).toBe(false);
+  });
+
+  it('the markdown twin: its first # heading takes every rule, the body only the word rules', () => {
+    const triage = ctxAt('triage');
+    const md = `defects/${RECORD.id}.md`;
+    const body = `\n\n1. ${RECORD.reproductionSteps[0]!.action}\n`;
+    const bad = decide(write(md, `# ${RECORD.id}: Export fails reading rtm.json${body}`, 'qa-defect-manager'), triage, deps);
+    expect(!bad.allow && bad.reason).toMatch(/"rtm\.json".* at \.title\)/);
+    expect(decide(write(md, `# ${RECORD.id}: ${RECORD.title}${body}`, 'qa-defect-manager'), triage, deps).allow).toBe(true);
+    expect(decide(edit(md, `2. Open http://127.0.0.1:3002/x again; see rtm.json.`), triage, deps).allow).toBe(true);
+  });
+
+  it("S05's application attempt count is allowed in a defect record and refused in the closure and the triage summary", () => {
+    const text = 'Why does the attempt count decrement in this case?';
+    expect(decide(write(`defects/${RECORD.id}.json`, JSON.stringify({ ...RECORD, rootCause: { fiveWhys: [{ why: text }] } }), 'qa-defect-manager'), ctxAt('triage'), deps).allow).toBe(true);
+    const c = closure(text);
+    expect(!c.allow && c.reason).toMatch(/"attempt count"/);
+    const summary = decide(write('defects/triage-summary.md', text, 'qa-defect-manager'), ctxAt('triage'), deps);
+    expect(!summary.allow && summary.reason).toMatch(/"attempt count"/);
+    expect(findToolingWords('The review count was 3.', { kinds: ['word'] }).map((h) => h.phrase)).toEqual(['review count']);
+  });
+
+  it('a CIDR range is not a host: 0.0.0.0/0 is allowed in a compliance report, 0.0.0.0 and 0.0.0.0:8080 are not', () => {
+    const cmmi = (text: string) => decide(write('reports/compliance/cmmi.md', text, 'qa-compliance-cmmi'), ctxAt('compliance'), deps);
+    expect(cmmi('The security group allows 0.0.0.0/0 ingress on the public load balancer.')).toMatchObject({ allow: true });
+    for (const text of ['The service bound 0.0.0.0:8080.', 'The service bound 0.0.0.0 at start.']) {
+      const r = cmmi(text);
+      expect(!r.allow && r.reason).toMatch(/tooling wording \("0\.0\.0\.0/);
+    }
+  });
+
   it('the same reproduction text in reports/closure/** is still denied', () => {
     setConfig(t.root, { reportRules: { localPorts: [3002] } });
     const r = decide(write('reports/closure/closure.json', JSON.stringify({ evaluation: RECORD.originConfirmation.ruledOut, steps: RECORD.reproductionSteps }), 'qa-closure-reporter'), ctxAt('closure-draft'), deps);
@@ -163,6 +209,17 @@ describe('the report scripts read localPorts from the project config', () => {
       expect(r.status).toBe(code);
       expect(r.stderr).toContain('closure.json.variancesFromPlan[0].variance: ":4010" -> write the local test server (no port)');
     }
+  });
+
+  it('an unreadable aegis.config.json stops every script with exit 2 and says so, instead of rendering without the ports', () => {
+    const { root, runDir } = fixture({ 'reports/closure/closure.json': closureWith('The stand-in feed ran on :4010 only.'), 'gates/gate-3-decision.json': GATE3, 'reports/executive/executive-deck.json': { keyFinding: 'k', supportingInsights: [], recommendations: [], residualRisks: [] } });
+    fs.writeFileSync(path.join(root, 'aegis.config.json'), '{"reportRules": {"localPorts": [4010]');
+    for (const s of [SCRIPT.technical, SCRIPT.signoff, SCRIPT.slides]) {
+      const r = run(s, root);
+      expect([s, r.status]).toEqual([s, 2]);
+      expect(r.stderr).toMatch(/aegis\.config\.json cannot be read \(.*\); the owner repairs it/);
+    }
+    expect(fs.existsSync(path.join(runDir, 'reports', 'executive', 'technical-report.pdf'))).toBe(false);
   });
 
   it('the deck (10) refuses a listed :N, and every script exits 2 on a malformed localPorts', () => {

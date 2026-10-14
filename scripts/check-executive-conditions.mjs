@@ -6,7 +6,7 @@
 // Extracts the text of each PDF with pdftotext, reads reports/closure/closure.json and the defect records of the run, and prints, for each
 // of the three documents, a pass/fail table of checks (a) to (m) with the closure value and what was found. Every expectation is derived
 // from closure.json (no run figure is written here). Exit 0 only when every check passes for every document; exit 1 when a check fails
-// (the failing checks are listed); exit 2 for a usage error, a missing input or a malformed reportRules.localPorts; exit 3 when pdftotext is missing; exit 6 when the built
+// (the failing checks are listed); exit 2 for a usage error, a missing input, an unreadable aegis.config.json or a malformed reportRules.localPorts; exit 3 when pdftotext is missing; exit 6 when the built
 // packages are missing. It writes nothing. qa-executive-reporter, its reviewer, the orchestrator and the owner may run it.
 
 import { spawnSync } from "node:child_process";
@@ -74,7 +74,14 @@ function readJson(path) {
 // The project's local server ports (aegis.config.json#reportRules.localPorts), flagged colon-prefixed by the tooling rules, as in H1.
 let localPorts;
 try {
-  localPorts = localPortsOf(readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {});
+  const configFile = join(AEGIS_ROOT, "aegis.config.json");
+  let config = {};
+  try {
+    config = existsSync(configFile) ? JSON.parse(readFileSync(configFile, "utf-8")) : {};
+  } catch (err) {
+    throw new Error(`aegis.config.json cannot be read (${err.message}); the owner repairs it, then run this again. Nothing was checked.`);
+  }
+  localPorts = localPortsOf(config);
 } catch (err) {
   console.error(`ERROR: ${err.message}`);
   process.exit(2);

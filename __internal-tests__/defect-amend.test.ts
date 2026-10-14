@@ -190,7 +190,7 @@ describe('aegis defect amend: customer-facing wording', () => {
     fs.writeFileSync(cfg, JSON.stringify({ ...c, reportRules: { ...c.reportRules, localPorts: [3002] } }));
     const res = await amend([
       { path: 'retestVerdict.reason', value: 'Reproduced: log in as an admin and open http://127.0.0.1:3002/communications/not-a-uuid on the restarted :3002 server.' },
-      { path: 'retestVerdict.triageVerification', value: 'Build: Next.js dev server, port 3000; the rtm.json row and execution-summary.json agree.' },
+      { path: 'retestVerdict.triageVerification', value: 'Build: Next.js dev server, port 3000; the rtm.json row and execution-summary.json agree. Why does the attempt count decrement here?' },
     ]);
     expect(res.changes.map((ch) => ch.path)).toEqual(['retestVerdict.reason', 'retestVerdict.triageVerification']);
     expect(read(`defects/${ID}.json`).retestVerdict.reason).toContain('http://127.0.0.1:3002/communications/not-a-uuid');

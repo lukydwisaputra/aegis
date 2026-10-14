@@ -60,9 +60,10 @@ export function checkBrandExposure(text: string): RegExp | null {
  * Tooling wording: how the QA work was done, or where its files live, rather than what the application does. It is kept out of the
  * customer-facing defects, closure and compliance reports (`runs/*\/defects/**`, `reports/closure/**`, `reports/compliance/**`; H1 checks
  * writes to them) and out of everything the executive documents print (the report scripts refuse a closure that carries it).
- * Tooling facts belong in events and work reports. The list is narrow on purpose. Two kinds of rule:
- *  - word rules: the CLI, the RTM defect map, event sequence numbers, a "framework defect", refusal, review and attempt counts, the SPV,
+ * Tooling facts belong in events and work reports. The list is narrow on purpose. Three kinds of rule:
+ *  - word rules: the CLI, the RTM defect map, event sequence numbers, a "framework defect", refusal, review and rejection counts, the SPV,
  *    "requested changes", work reports and the "record owner";
+ *  - the process rule: "attempt count", which an application can also have (OTP or login attempts), so a defect record skips it;
  *  - path rules: the framework's own bookkeeping, by name or path: `coverage.json`, `rtm.json`, `rtm.md`, `closure.json`, `closure.md`,
  *    `run.json`, `events.jsonl`, `execution-summary.md|json`, `triage-summary.md`, `risk-register.*`, the metric file names, anything under
  *    `reports/metrics|work|review|closure|compliance|mutation|executive` (with or without a `runs/<run-id>/` prefix), a glob over run files (`defects/*.json`, `cases/*-result.json`), a result file that is
@@ -79,7 +80,12 @@ export function checkBrandExposure(text: string): RegExp | null {
  * False positives it risks: a target with its own command-line tool ("CLI"), a "work report" feature or "defect map" screen, a database
  * column named seq, or a target document literally named like a framework file. The denial names the phrase and what to write instead.
  */
-export type ToolingKind = "word" | "path";
+/**
+ * The kinds of tooling rule. "word": tooling vocabulary (the CLI, the SPV, work reports ...). "process": the QA process's own counts that
+ * are also ordinary application vocabulary ("attempt count" of an OTP or login lock), so a defect record, which describes the application,
+ * skips it. "path": file paths and names, globs, local hosts and ports.
+ */
+export type ToolingKind = "word" | "process" | "path";
 
 export interface ToolingRule {
   pattern: RegExp;
@@ -117,7 +123,9 @@ export const TOOLING_WORD_RULES: ToolingRule[] = [
   { kind: "word", pattern: /\bevent\s+sequence\b/i, instead: () => "nothing: event numbers are for the events, not the report" },
   { kind: "word", pattern: /\bframework[- ]defect\b|\bframework\.defect/i, instead: () => "nothing: a QA tooling fact belongs in the events and the work report" },
   { kind: "word", pattern: /\bcli\.refused\b|\b\d+\s+(?:CLI\s+)?refusals?\b/i, instead: () => "nothing: refusal counts belong in the events" },
-  { kind: "word", pattern: /\b(?:review|attempt|rejection)\s+counts?\b/i, instead: () => "nothing: review and attempt counts belong in the work report" },
+  { kind: "word", pattern: /\b(?:review|rejection)\s+counts?\b/i, instead: () => "nothing: review and attempt counts belong in the work report" },
+  // An application can have an attempt count of its own (OTP or login attempts): a defect record that describes it is not refused.
+  { kind: "process", pattern: /\battempt\s+counts?\b/i, instead: () => "nothing: review and attempt counts belong in the work report" },
   { kind: "word", pattern: /\bSPV\b/, instead: () => "\"the review\"" },
   { kind: "word", pattern: /\brequested[- ]changes\b/i, instead: () => "\"the review asked for changes\" only if the reader needs it, else nothing" },
   { kind: "word", pattern: /\bwork[- ]reports?\b/i, instead: () => "nothing: work reports are internal" },
@@ -132,7 +140,7 @@ export const TOOLING_WORD_RULES: ToolingRule[] = [
   { kind: "path", pattern: /\blocalhost\b/i, instead: () => "the local test server" },
   { kind: "path", pattern: /\b127\.0\.0\.1\b/, instead: () => "the local test server" },
   // The other loopback and any-address hosts, with or without a port. A port on its own is flagged only when the project lists it (toolingRules).
-  { kind: "path", pattern: /\[::1\](?::\d{1,5}\b)?|(?<![\w.])0\.0\.0\.0(?!\.?\d)(?::\d{1,5}\b)?/, instead: () => "the local test server" },
+  { kind: "path", pattern: /\[::1\](?::\d{1,5}\b)?|(?<![\w.])0\.0\.0\.0(?!\.?\d|\/\d)(?::\d{1,5}\b)?/, instead: () => "the local test server" },
   { kind: "path", pattern: /\bports?\s+\d{4,5}\b/i, instead: () => "the local test server (no port)" },
 ];
 
@@ -140,7 +148,7 @@ export const TOOLING_WORD_RULES: ToolingRule[] = [
 export const TOOLING_WORD_PATTERNS: RegExp[] = TOOLING_WORD_RULES.map((r) => r.pattern);
 
 /**
- * Options of the tooling checks. `kinds`: the rule kinds that apply (default both; a defect record's reproduction data takes ["word"]).
+ * Options of the tooling checks. `kinds`: the rule kinds that apply (default all; a defect record, but its title, takes ["word"]).
  * `localPorts`: the project's local server ports (aegis.config.json#reportRules.localPorts), flagged only colon-prefixed (`:3002`).
  */
 export interface ToolingOptions {

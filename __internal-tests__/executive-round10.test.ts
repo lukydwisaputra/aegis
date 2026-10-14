@@ -148,6 +148,10 @@ describe('2: the conditions checker', () => {
     const r = checker(listed.root, [`--dir=${dir}`]);
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/sign-off: \(k\) wording classes: .*tier 1[^\n]*":4010"/);
+    fs.writeFileSync(path.join(listed.root, 'aegis.config.json'), '{"reportRules": ');
+    const corrupt = checker(listed.root, [`--dir=${dir}`]);
+    expect(corrupt.status).toBe(2);
+    expect(corrupt.stderr).toMatch(/aegis\.config\.json cannot be read \(.*\); the owner repairs it/);
     fs.writeFileSync(path.join(listed.root, 'aegis.config.json'), JSON.stringify({ reportRules: { localPorts: 4010 } }));
     const bad = checker(listed.root, [`--dir=${dir}`]);
     expect(bad.status).toBe(2);

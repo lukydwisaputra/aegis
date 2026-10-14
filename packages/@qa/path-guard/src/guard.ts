@@ -323,29 +323,65 @@ function trackedRunsFileOp(caller: Caller, abs: string, via: string, ctx: GuardC
 
 /** A defect record (defects/DEF-*.json or .md): its reproduction data legitimately names URLs, local servers and file names. */
 const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
+/** A `"title": "..."` member in JSON text that does not parse as a whole (an Edit or MultiEdit fragment). */
+const TITLE_MEMBER = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+
+/** The decoded value of a JSON string body, or the body itself when it does not decode. */
+function jsonString(body: string): string {
+  try {
+    const v: unknown = JSON.parse(`"${body}"`);
+    return typeof v === "string" ? v : body;
+  } catch {
+    return body;
+  }
+}
+
+/**
+ * The texts of a defect record that are its title and take every rule. A parsed record: its `title`. A parsed lone JSON string (an Edit
+ * that replaces one value): itself, since the hook cannot tell which field it replaces, so it fails closed. A JSON fragment that does not
+ * parse: every `"title": "..."` member in it. Markdown: the first `# ` heading line.
+ */
+function defectTitles(inRun: string, content: string, parsed: unknown): string[] {
+  if (inRun.endsWith(".md")) {
+    const heading = /^# (.*)$/m.exec(content);
+    return heading === null ? [] : [heading[1]!];
+  }
+  if (typeof parsed === "string") return [parsed];
+  if (parsed !== null && typeof parsed === "object") {
+    const title = (parsed as Record<string, unknown>)["title"];
+    return typeof title === "string" ? [title] : [];
+  }
+  return [...content.matchAll(TITLE_MEMBER)].map((m) => jsonString(m[1]!));
+}
 
 /**
  * The first tooling phrase of customer-facing content. A JSON file is read by its string values (a value that is only a path, such as an
  * evidence list, is data and exempt from the path rules); anything else, markdown included, is read whole. A defect record takes the word
- * rules only (its steps, ruled-out notes and build line cite URLs, ports and files to reproduce the defect), except its title, which the
- * technical report and the sign-off print: the path rules still apply to it. The project's local ports come from the context.
+ * rules only in every field but the title (its steps, ruled-out notes and build line cite URLs, ports and files to reproduce the defect,
+ * and an application can have an attempt count): its title, which the technical report and the sign-off print, takes every rule, also
+ * in a fragment that does not parse. The project's local ports come from the context.
  */
 function toolingHit(inRun: string, content: string, ctx: GuardContext): ReturnType<typeof findToolingWords>[number] | null {
   const localPorts = ctx.localPorts ?? [];
   const record = DEFECT_RECORD.test(inRun);
   const opts = record ? { kinds: ["word"] as const, localPorts } : { localPorts };
+  let parsed: unknown;
+  let isJson = false;
   if (inRun.endsWith(".json")) {
     try {
-      const parsed: unknown = JSON.parse(content);
-      const first = findToolingWordsIn(parsed, "", opts)[0];
-      if (first !== undefined || !record) return first ?? null;
-      const title = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>)["title"] : undefined;
-      return typeof title === "string" ? (findToolingWords(title, { localPorts, location: ".title" })[0] ?? null) : null;
+      parsed = JSON.parse(content);
+      isJson = true;
     } catch {
       // not parseable (a partial edit): read it as text
     }
   }
-  return findToolingWords(content, opts)[0] ?? null;
+  const hit = isJson ? findToolingWordsIn(parsed, "", opts)[0] : findToolingWords(content, opts)[0];
+  if (hit !== undefined || !record) return hit ?? null;
+  for (const title of defectTitles(inRun, content, parsed)) {
+    const t = findToolingWords(title, { localPorts, location: ".title" })[0];
+    if (t !== undefined) return t;
+  }
+  return null;
 }
 
 /**

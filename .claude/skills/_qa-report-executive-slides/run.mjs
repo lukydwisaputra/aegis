@@ -73,7 +73,14 @@ if (!deckSource || typeof deckSource !== "object") {
   process.exit(3);
 }
 
-const aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
+// The project config: an unreadable aegis.config.json stops here (exit 2) instead of rendering without its local ports or project name.
+let aegisConfig;
+try {
+  aegisConfig = readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {};
+} catch (err) {
+  console.error(`ERROR: aegis.config.json cannot be read (${err.message}); the owner repairs it, then run this again. Nothing was rendered.`);
+  process.exit(2);
+}
 const projectName = aegisConfig?.dashboard?.projectName ?? "Project";
 
 const requiredFields = ["keyFinding", "supportingInsights", "recommendations", "residualRisks"];

@@ -112,7 +112,7 @@ describe('H1 refuses paths, file names and ports in customer-facing files', () =
     ['reports/compliance/cmmi.md', 'qa-compliance-cmmi', 'The app ran on localhost:3002.', /write the local test server/],
     ['defects/triage-summary.md', 'qa-defect-manager', 'See defects/*.json for each record.', /write the defect records instead/],
     // A defect record's reproduction data may cite a port (word rules only there); its title, which the reports print, may not.
-    ['defects/DEF-001-AUTH-UI.json', 'qa-defect-manager', JSON.stringify({ id: 'DEF-001-AUTH-UI', title: 'Served on port 3011 and answered 500', actualResult: 'Served on port 3011 and answered 500.' }), /write the local test server \(no port\) instead/],
+    ['defects/DEF-001-AUTH-UI.json', 'qa-defect-manager', JSON.stringify({ id: 'DEF-001-AUTH-UI', title: 'Served on port 3011 and answered 500', actualResult: 'Served on port 3011 and answered 500.' }), /at \.title\); write the local test server \(no port\) instead/],
   ])('refuses %s with a path, name or port, and says what to write', (file, who, content, hint) => {
     const r = decide(write(file, content, who), ctx, deps);
     expect(r.allow).toBe(false);
