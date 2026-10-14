@@ -299,3 +299,11 @@ export type ClosureMetrics = z.infer<typeof ClosureMetricsSchema>;
 export const UNCOVERED_CAUSES = ["environment", "testing-side", "requirement-gap", "not-attempted"] as const;
 export const UncoveredCauseSchema = z.enum(UNCOVERED_CAUSES);
 export type UncoveredCause = z.infer<typeof UncoveredCauseSchema>;
+
+/**
+ * Why a check is Blocked, as its result records it in `blockedCause`. The only legitimate causes: a real product dependency that
+ * exists now (named exactly in `blockedDependency`), or a requirement gap (the requirement does not say what to assert). Anything
+ * else (spec error, auth, test data, budget, environment fault) is a QA-side fault that is fixed, not recorded as Blocked.
+ */
+export const BLOCKED_CAUSES = ["product-dependency", "requirement-gap"] as const;
+export type BlockedCause = (typeof BLOCKED_CAUSES)[number];

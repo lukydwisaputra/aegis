@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { type UncoveredCause } from "@qa/contracts";
-import { NOT_EXECUTED, RULED, descopedCases, readJson, scanChecks, type CheckState } from "./outcomes.js";
+import { NOT_EXECUTED, RULED, descopedCases, readJson, scanChecks, type BlockedInfo, type CheckState } from "./outcomes.js";
 
 /** A cause a keyword rule can assign. not-attempted is never keyword-assigned: it follows from a check having no result file. */
 export type KeywordCause = Exclude<UncoveredCause, "not-attempted">;
@@ -48,7 +48,7 @@ export const CAUSE_RULES: readonly CauseRule[] = [
 export interface UncoveredRow {
   id: string;
   cause: RowCause;
-  /** How the cause was decided: "no result file", "keyword: <label>" (with " (closure origin)" when the text came from the closure's row), "viewport result missing", "no rule matched". */
+  /** How the cause was decided: "no result file", "blockedCause" (the result's structured cause), "keyword: <label>" (with " (closure origin)" when the text came from the closure's row), "viewport result missing", "no rule matched". */
   via: string;
 }
 
@@ -77,6 +77,22 @@ function keywordRule(text: string): CauseRule | undefined {
   return CAUSE_RULES.find((r) => r.pattern.test(text));
 }
 
+/** What a structured Blocked cause means for the uncovered rollup. */
+const STRUCTURED_CAUSE = { "product-dependency": "environment", "requirement-gap": "requirement-gap" } as const satisfies Record<string, KeywordCause>;
+
+/**
+ * The cause the result files record in `blockedCause`, when one is valid. Entries whose cause is missing or invalid are passed
+ * over; a product dependency on any entry outranks a requirement gap (an outside constraint first, as in CAUSE_RULES), so the
+ * verdict does not depend on file order. Undefined when no entry has a valid cause.
+ */
+function structuredCause(blocked: readonly BlockedInfo[] | undefined): KeywordCause | undefined {
+  if (blocked === undefined) return undefined;
+  for (const cause of ["product-dependency", "requirement-gap"] as const) {
+    if (blocked.some((b) => b.cause === cause)) return STRUCTURED_CAUSE[cause];
+  }
+  return undefined;
+}
+
 /** The closure's origin text per uncovered id: a paraphrase of the result files, used only when their own text matches no rule. */
 function closureOrigins(runDir: string): Map<string, string> {
   const doc = readJson(join(runDir, "reports", "closure", "closure.json"));
@@ -94,7 +110,9 @@ function closureOrigins(runDir: string): Map<string, string> {
 /**
  * Pure: the checks that gave no verdict (worst outcome blocked, skipped or undeterminable, or designed with no result file). A check
  * whose result records a ruling (out of scope, deferred, not verified) is not listed: it is counted apart in `counts`, so the rows add
- * up to blocked + skipped + unknown + notAttempted. Each row has one cause. A check with no result file is not-attempted, and only that is. Any other row takes the first CAUSE_RULES match
+ * up to blocked + skipped + unknown + notAttempted. Each row has one cause. A check with no result file is not-attempted, and only that is. A row
+ * whose counted result files record a valid `blockedCause` takes it (product-dependency is environment, requirement-gap is
+ * requirement-gap, a product dependency first). Any other row (cause missing or invalid) takes the first CAUSE_RULES match
  * on the text of its result files (the specialists' own words), else on the closure row's origin text, else testing-side when a
  * scoped viewport has no result, else "other". `checks` and `descoped` may be passed when the caller has already scanned the run and read run.json. A case the owner descoped is never listed. Writes nothing.
  */
@@ -112,10 +130,12 @@ export function classifyUncovered(
     if (state.outcome === undefined) {
       row = { id, cause: "not-attempted", via: "no result file" };
     } else if (NOT_EXECUTED.has(state.outcome) && !RULED.has(state.outcome)) {
+      const structured = structuredCause(state.blocked);
       const fromResult = state.texts.length === 0 ? undefined : keywordRule(state.texts.join("\n"));
       const origin = origins.get(id);
       const fromOrigin = fromResult !== undefined || origin === undefined ? undefined : keywordRule(origin);
-      if (fromResult !== undefined) row = { id, cause: fromResult.cause, via: `keyword: ${fromResult.label}` };
+      if (structured !== undefined) row = { id, cause: structured, via: "blockedCause" };
+      else if (fromResult !== undefined) row = { id, cause: fromResult.cause, via: `keyword: ${fromResult.label}` };
       else if (fromOrigin !== undefined) row = { id, cause: fromOrigin.cause, via: `keyword: ${fromOrigin.label} (closure origin)` };
       else if (state.missingViewport) row = { id, cause: "testing-side", via: "viewport result missing" };
       else row = { id, cause: "other", via: "no rule matched" };
