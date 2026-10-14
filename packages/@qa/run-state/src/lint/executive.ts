@@ -7,7 +7,7 @@ import { busPath, runDir } from "../paths.js";
 import { MAX_TEXT_BYTES, maskPath } from "./mask.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
 import { scanTextsUnblanked, type Finding, type ScanText } from "./text.js";
-import { brandTexts, CLOSURE_JSON, jsonLineOf, plainRunFile, RESIDUAL_RISKS_JSON, signoffFedFindings, type LintReport } from "./run-lint.js";
+import { brandTexts, CLOSURE_JSON, DECK_JSON, jsonLineOf, plainRunFile, RESIDUAL_RISKS_JSON, SCRIPT_ENFORCED, signoffFedFindings, type LintReport } from "./run-lint.js";
 
 /** The stages the lint runs at besides the gates. */
 export const LINT_STAGES = ["executive"] as const;
@@ -20,7 +20,6 @@ export const EXEC_RISK_ONE_SENTENCE = "exec-risk-one-sentence";
 /** A deliverable has no report.produced or report.fallback event after the latest start of the executive phase. */
 export const EXEC_REPORT_EVENT_MISSING = "exec-report-event-missing";
 
-const DECK_JSON = "reports/executive/executive-deck.json";
 /** The three deliverables, by the `deliverable` of their events, with the file each one renders. */
 const DELIVERABLES: ReadonlyArray<{ id: "technical" | "signoff" | "slides"; file: string }> = [
   { id: "technical", file: "reports/executive/technical-report.pdf" },
@@ -60,14 +59,16 @@ const isLink = (abs: string): boolean => {
 const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const nonBlank = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
 
-// A full stop after one of these (or after a single capital, an initial) does not end a sentence: "e.g. The", "No. 4", "J. Tan", a month
-// ("3 Oct. 2026", "1 Sept. 2026") or a title ("Sr. Mgr.", "Prof. Lim").
-const ABBREVIATION = /(?:^|[\s(])(?:e\.g|i\.e|etc|vs|approx|incl|nos?|mr|mrs|ms|dr|st|sr|jr|mgr|prof|inc|ltd|co|fig|cf|al|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|[A-Z])\.$/i;
+// A full stop after one of these does not end a sentence: "No. 4", a month ("3 Oct. 2026", "1 Sept. 2026"), a title ("Sr. Mgr.", "Prof.
+// Lim"), a company or agency ("Acme Pte. Ltd.", "Govt. Technology Agency"), a single letter (the initial "J. Tan") or a run of dotted
+// letters ("e.g.", "i.e.", "a.m.", "p.m.", "U.S.", "U.K.").
+const ABBREVIATION = /(?:^|[\s(])(?:etc|vs|approx|incl|nos?|mr|mrs|ms|dr|st|sr|jr|mgr|prof|inc|ltd|pte|co|corp|govt|dept|fig|cf|al|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|(?:[a-z]\.)*[a-z])\.$/i;
 
 /**
  * The number of sentences in a text: a run of . ! or ? (and any closing quote or bracket) followed by whitespace and a capital letter (or
  * an opening quote or bracket before one) starts the next one. Lenient on purpose (an abbreviation, an initial or a following digit never
- * splits: "released 1 Sept. 2026", "No. 4"), so a finding is never a miscount: a decimal (4.5), a version or an id is not followed by whitespace.
+ * splits: "released 1 Sept. 2026", "No. 4", "Acme Pte. Ltd. Payments", "2 a.m. Monday", "the U.S. Region"), so a miscount errs towards one
+ * sentence: a decimal (4.5), a version or an id is not followed by whitespace. An abbreviation outside the list can still split.
  */
 export function sentenceCount(text: string): number {
   const t = text.trim();
@@ -191,7 +192,9 @@ export function executiveScan(root: string, runId: string): { filesScanned: numb
   const dir = runDir(root, runId);
   const config = readRunConfig(root);
   const disabled = new Set(config.reportRules.disable);
-  const rules = resolveRules(config.reportRules, config.manualBudgetPercent);
+  // The general wording rules (qa-cycle, internal task ids ...) are warnings here: no render script enforces them on the deck or the
+  // plain risk sentences (Ruling R5, fix round 2). Tier 1, tier 2 and the brand rule stay errors: the scripts refuse them.
+  const rules = resolveRules(config.reportRules, config.manualBudgetPercent).map((r) => ({ ...r, severity: "warning" as const }));
   const { allow, localPorts } = config.reportRules;
   const skipped: LintReport["skipped"] = [];
   const findings: Finding[] = [];
@@ -237,6 +240,12 @@ export function executiveFindings(root: string, runId: string): Finding[] {
  */
 export function executiveBlockMessage(errors: readonly Pick<Finding, "file" | "line" | "rule">[]): string {
   const listed = `${errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ")}${errors.length > 10 ? "; ..." : ""}`;
-  const ids = [...new Set(errors.map((f) => f.rule))].sort().join(", ");
-  return `${errors.length} executive stage lint error(s) (${listed}). The executive phase cannot complete with them: add a correction task for the executive reporter to this phase; it fixes its source files (executive-deck.json, residual-risks.json) and renders again, and for a missing deliverable event it renders that deliverable and appends report.produced, or report.fallback with the reason. Run aegis lint run --stage executive for the detail; the owner's recorded exception is reportRules.disable with the rule id (${ids})`;
+  const ids = [...new Set(errors.map((f) => f.rule))].sort();
+  const enforced = ids.filter((id) => SCRIPT_ENFORCED.has(id));
+  const exempt = ids.filter((id) => !SCRIPT_ENFORCED.has(id));
+  const ways = [
+    ...(exempt.length > 0 ? [`the owner's recorded exception is reportRules.disable with the rule id (${exempt.join(", ")})`] : []),
+    ...(enforced.length > 0 ? [`${enforced.join(", ")} ${enforced.length === 1 ? "is" : "are"} also enforced by the deck and sign-off scripts, so no project exception lifts ${enforced.length === 1 ? "it" : "them"}: only fixing the wording does`] : []),
+  ];
+  return `${errors.length} executive stage lint error(s) (${listed}). The executive phase cannot complete with them: add a correction task for the executive reporter to this phase; it fixes its source files (executive-deck.json, residual-risks.json) and renders again, and for a missing deliverable event it renders that deliverable and appends report.produced, or report.fallback with the reason. Run aegis lint run --stage executive for the detail; ${ways.join("; ")}`;
 }

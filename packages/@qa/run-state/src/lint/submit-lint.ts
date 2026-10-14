@@ -4,7 +4,7 @@ import { matchGlob, roleOf } from "@qa/path-guard";
 import { runDir } from "../paths.js";
 import { readRun } from "../run.js";
 import { executiveFindings } from "./executive.js";
-import { EXECUTIVE_INPUTS, lintFileFindings, runFiles } from "./run-lint.js";
+import { CLOSURE_JSON, EXECUTIVE_INPUTS, lintFileFindings, plainRunFile, runFiles, TEXT_FILE } from "./run-lint.js";
 import type { Finding } from "./text.js";
 
 /** The report writers whose submit is linted: the files they produce are customer-facing. */
@@ -14,7 +14,6 @@ export const SUBMIT_LINTED_AGENTS: ReadonlySet<string> = new Set([
 
 const EXECUTIVE_REPORTER = "qa-executive-reporter";
 const CLOSURE_REPORTER = "qa-closure-reporter";
-const TEXT_FILE = /\.(?:md|json)$/;
 /** At most this many findings of each severity are listed in the submit result; the rest is counted. */
 const LISTED = 20;
 /** At most this many error ids are stamped into the stored work report. */
@@ -89,7 +88,10 @@ const note = (f: Finding): SubmitLintNote => ({
  */
 export function submitLintFindings(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): { filesScanned: number; findings: Finding[] } {
   // The closure reporter also sees what the Closure-final barrier refuses at G3: the closure fields the sign-off prints (tier 1 and tier 2).
-  const scan = lintFileFindings(root, runId, submitLintFiles(root, runId, agent, artifactsProduced), { signoffFed: agent === CLOSURE_REPORTER });
+  // closure.json is read whenever it exists, whatever artifactsProduced names: the barrier reads it at G3 either way.
+  const files = submitLintFiles(root, runId, agent, artifactsProduced);
+  const closure = agent === CLOSURE_REPORTER && !files.includes(CLOSURE_JSON) && plainRunFile(runDir(root, runId), CLOSURE_JSON) ? [CLOSURE_JSON] : [];
+  const scan = lintFileFindings(root, runId, [...files, ...closure], { signoffFed: agent === CLOSURE_REPORTER });
   if (agent !== EXECUTIVE_REPORTER) return scan;
   const kept = scan.findings.filter((f) => !EXECUTIVE_INPUTS.has(f.file) || f.rule.startsWith("pii-"));
   return { filesScanned: scan.filesScanned, findings: [...kept, ...executiveFindings(root, runId)] };

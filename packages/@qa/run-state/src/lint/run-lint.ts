@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, type Dirent } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
-import { BRAND_CLEAN_RUN_GLOBS, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
+import { BRAND_CLEAN_RUN_GLOBS, DEFECT_RECORD, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
 import { readLines } from "@qa/event-bus";
 import { readRunConfig } from "../config.js";
 import { busPath, runDir } from "../paths.js";
@@ -30,18 +30,20 @@ export interface LintReport {
 
 const CUSTOMER_FACING = [...new Set([...BRAND_CLEAN_RUN_GLOBS, ...TOOLING_CLEAN_RUN_GLOBS])];
 /** What the executive scripts print besides the closure and the defect titles: tier 1 holds there too (the deck script refuses it). */
-export const EXECUTIVE_INPUTS: ReadonlySet<string> = new Set(["reports/executive/executive-deck.json", "reports/executive/residual-risks.json"]);
-export const CLOSURE_JSON = "reports/closure/closure.json";
+export const DECK_JSON = "reports/executive/executive-deck.json";
 export const RESIDUAL_RISKS_JSON = "reports/executive/residual-risks.json";
-/** A defect record: every field but the title may cite the URL, local server or file a developer needs (H1 takes only the tooling words there). */
-const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
+export const EXECUTIVE_INPUTS: ReadonlySet<string> = new Set([DECK_JSON, RESIDUAL_RISKS_JSON]);
+export const CLOSURE_JSON = "reports/closure/closure.json";
 const TITLE = ".title";
 const WORKING_RECORD = /(?:^|\/)cases\/[^/]*-result[^/]*\.json$/;
-const TEXT_FILE = /\.(?:md|json)$/;
+/** The run files the lint reads: Markdown and JSON. */
+export const TEXT_FILE = /\.(?:md|json)$/;
 /** The two rules about the rendered case Markdown; their remedy is the render command, never a rewrite of the file or a project exception. */
 export const CASE_RENDERING_STALE = "case-rendering-stale";
 export const CASE_JSON_INVALID = "case-json-invalid";
 const RENDER_RULES: ReadonlySet<string> = new Set([CASE_RENDERING_STALE, CASE_JSON_INVALID]);
+/** The rules H1 and the report scripts enforce as well (they read no reportRules exception): only fixing the wording lifts them. */
+export const SCRIPT_ENFORCED: ReadonlySet<string> = new Set([BRAND_NAME, TOOLING_TIER1, TOOLING_TIER2]);
 
 /** A case's rendered Markdown: `cases/{TC-id}.md`, directly under cases/. */
 const CASE_MD = /^cases\/TC-[^/]+\.md$/;
@@ -195,12 +197,18 @@ export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "f
   }
   if (text.length > 0) {
     const head = `${text.length} lint error(s) in the customer-facing files (${listed(text)})`;
-    // The brand rule and the tooling tiers are whole rules a project can switch off: the gate-open text names them with their ids.
-    const tiers = [BRAND_NAME, TOOLING_TIER1, TOOLING_TIER2].filter((id) => text.some((f) => f.rule === id));
-    const disable = tiers.length === 0 ? "" : `, or reportRules.disable with the rule id: ${tiers.join(", ")}`;
+    // The brand rule and the tooling tiers are also enforced on write (H1) and by the report scripts that render after G3, which read no
+    // reportRules exception: a disable or allow there would only move the refusal to the render. So the gate-open text never offers one
+    // for them; the way out is the wording, fixed by the phase that wrote the file.
+    const enforced = [BRAND_NAME, TOOLING_TIER1, TOOLING_TIER2].filter((id) => text.some((f) => f.rule === id));
+    const other = text.some((f) => !SCRIPT_ENFORCED.has(f.rule));
+    const sentences = ["The phase is already complete, so nothing can be corrected inside the run"];
+    if (other) sentences.push("The owner records a project exception for the wording and personal-data rules (reportRules.allow, or reportRules.pii.syntheticValues) in aegis.config.json and the orchestrator opens the gate again");
+    if (enforced.length > 0) sentences.push(`${enforced.join(", ")} ${enforced.length === 1 ? "is" : "are"} also enforced on write and by the report scripts that render after G3, so no project exception lifts ${enforced.length === 1 ? "it" : "them"}: the owner rejects the open gate and reopens the phase that wrote the file, whose agent fixes the wording`);
+    else sentences.push("If the files still need rewriting, the owner rejects the open gate and reopens the phase");
     const tail =
       at === "gate-open"
-        ? `The phase is already complete, so nothing can be corrected inside the run. The owner records a project exception (reportRules.allow, or reportRules.pii.syntheticValues${disable}) in aegis.config.json; the orchestrator then opens the gate again; if the files still need rewriting, the owner rejects the open gate and reopens the phase. Run aegis lint run --gate ${gate} for the detail`
+        ? `${sentences.join(". ")}. Run aegis lint run --gate ${gate} for the detail`
         : `Gate ${gate} cannot open with them: fix each with a correction task for the agent that wrote the file, in the phase that is still active (it fixes the source data and rewrites the file), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
     parts.push(`${head}. ${tail}`);
   }

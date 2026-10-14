@@ -261,24 +261,34 @@ export function describeToolingHits(hits: readonly ToolingHit[], max = 5): strin
  * vocabulary is refused (sign-off exit 9, deck exit 10), with the plain replacement for each phrase. The technical report is an
  * engineering document: it uses tier 1 (TOOLING_WORD_RULES) only, so HTTP status numbers, route paths, CWE ids, oracle, stub and
  * mutation score stay acceptable there and in the case results and defect records. Rules: oracle, stub, mutant or mutation, an env flag
- * in CAPITAL_SNAKE_CASE, an HTTP status written as a number beside status/HTTP/answers/returns/code, beside the verb that met it ("denied
- * with 403"; a count such as "blocked by 250 duplicate records" is not one) or beside its HTTP name in Title Case ("429 Too Many Requests"),
+ * in CAPITAL_SNAKE_CASE, an HTTP status of the known set (HTTP_STATUS; any other number is a count) beside a status cue
+ * (HTTP/status/returns/answers/gets, or error/response/code after it), beside the verb that met it when it ends the phrase ("denied with
+ * 403"; "blocked by 403 duplicate rows" is a count) or beside its HTTP name in Title Case ("429 Too Many Requests"),
  * "endpoint" (not a study or trial endpoint), "rate limiting", "fail closed", CWE- and WSTG- ids, API route paths,
  * snake_case code strings, "exit code", "build cache", "bypass module", "HTTP route", "no PR", "NRIC/SPD", a bare severity code
  * ("Sev1" without its word) and the noun "blocker" (the severity name "(Blocker)" and a count such as "1 Blocker" are allowed).
  */
+/** The HTTP statuses a stakeholder text may carry as a number: only these read as a status; any other number is a count. */
+export const HTTP_STATUS = "(?:200|201|204|301|302|304|400|401|403|404|405|409|410|422|423|429|500|502|503|504)";
+/** The reason phrases of HTTP_STATUS as HTTP writes them (Title Case, matched case-sensitively). */
+const HTTP_NAME = "(?:OK|Created|No\\s+Content|Moved\\s+Permanently|Found|Not\\s+Modified|Bad\\s+Request|Unauthori[sz]ed|Forbidden|Not\\s+Found|Method\\s+Not\\s+Allowed|Conflict|Gone|Unprocessable(?:\\s+(?:Entity|Content))?|Locked|Too\\s+Many\\s+Requests|Internal\\s+Server\\s+Error|Bad\\s+Gateway|Service\\s+Unavailable|Gateway\\s+Timeout)";
+/** What ends a status phrase after a verb: the end of the text, punctuation or a quote, a status word, or a second status ("423 or 429"). */
+const STATUS_ENDS = `\\s*(?:[.,;:!?)\\]"'\u2019\u201d\`]|$)|\\s+(?:errors?|responses?|codes?|status)\\b|\\s+(?:or|and)\\s+${HTTP_STATUS}\\b`;
+
 export const PLAIN_LANGUAGE_RULES: Array<{ pattern: RegExp; instead: string }> = [
   { pattern: /\boracles?\b/i, instead: "the expected result" },
   { pattern: /\bstubs?\b/i, instead: "a locally built stand-in" },
   { pattern: /\bmutants?\b|\bmutation\b/i, instead: "a test of the tests" },
   { pattern: /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/, instead: "the setting, described in words (for example \"the switch that hides new features\")" },
-  { pattern: /\b(?:HTTP|status(?:\s+code)?|answers?|returns?|returned|responds?|responded|code)\s*:?\s*[2-5]\d\d\b|\b[2-5]\d\d\s+(?:status|response|error|expected|observed)\b|\bx\s*[2-5]\d\d\b/i, instead: "the outcome in words: a refusal status, a success status, a server error" },
-  // A status written beside the verb that met it ("denied with 403", "refused by a 429"). A number the verb half meets that a word other
-  // than a small connecting word follows is a count, not a status: "blocked by 250 duplicate records", "rejected by 300 volunteers".
-  { pattern: /\b(?:denied|refused|rejected|blocked|forbidden|answered|failed|fails?)\s+(?:with|by|as)\s+(?:an?\s+)?(?:HTTP\s+|status\s+)?[2-5]\d\d\b(?!\s+(?!(?:for|on|in|at|to|from|when|while|after|before|because|if|and|or|but|so|by|with|as|of|the|a|an|every|each|all|any|this|that|status|response|error|code)\b)[a-z])/i, instead: "the outcome in words: a refusal status, a success status, a server error" },
-  // A status beside its HTTP name, written as HTTP writes it (Title Case: "403 Forbidden", "404 Not Found"); "312 not found" or "205 locked
-  // accounts" are counts in prose.
-  { pattern: /\b[2-5]\d\d\s+(?:Forbidden|Unauthori[sz]ed|Not\s+Found|Too\s+Many\s+Requests|Locked|Bad\s+Request|Conflict|Unprocessable(?:\s+Entity)?|Internal\s+Server\s+Error|Service\s+Unavailable|Gateway\s+Timeout)\b/, instead: "the outcome in words: a refusal status, a success status, a server error" },
+  // An HTTP status: a number of the known set (HTTP_STATUS) with a status cue before it (HTTP, status, returns, answers, gets ...) or a
+  // status word after it (error, response, code, status); any other number is a count, never a status ("Volunteers returned 250 forms").
+  { pattern: new RegExp(`\\b(?:HTTP|status(?:\\s+code)?|code|returns?|returned|responds?(?:\\s+with)?|responded(?:\\s+with)?|answers?|answered|gets?|got)\\s*:?\\s*(?:an?\\s+)?${HTTP_STATUS}\\b|\\b${HTTP_STATUS}\\s+(?:errors?|responses?|status|codes?)\\b|\\bx\\s*${HTTP_STATUS}\\b`, "i"), instead: "the outcome in words: a refusal status, a success status, a server error" },
+  // A status beside the verb that met it ("denied with 403", "refused by a 429", "failed with HTTP 500"): a known status that ends the
+  // phrase (end, punctuation, "or 429") or carries a status word; "blocked by 250 duplicate records" and "failed with 400 records" are counts.
+  { pattern: new RegExp(`\\b(?:denied|refused|rejected|blocked|forbidden|answered|failed|fails?)\\s+(?:with|by|as)\\s+(?:an?\\s+)?(?:(?:HTTP|status)\\s+${HTTP_STATUS}\\b|${HTTP_STATUS}\\b(?=${STATUS_ENDS}))`, "i"), instead: "the outcome in words: a refusal status, a success status, a server error" },
+  // A status beside its HTTP name, written as HTTP writes it (Title Case: "403 Forbidden", "404 Not Found"); "312 not found" or "400 conflict
+  // cases" are counts in prose.
+  { pattern: new RegExp(`\\b${HTTP_STATUS}\\s+${HTTP_NAME}\\b`), instead: "the outcome in words: a refusal status, a success status, a server error" },
   // "endpoint" in its technical sense; a study or trial endpoint ("the primary endpoint of the study") is plain English and is not a hit.
   { pattern: /(?<!\b(?:primary|secondary|tertiary|exploratory|clinical|composite|surrogate|study|trial)\s)\bend-?points?\b(?!\s+of\s+(?:the\s+|this\s+|a\s+)?(?:study|trial|analysis|programme|program|project|period|evaluation)\b)/i, instead: "the feature in words (for example \"the export feature\")" },
   { pattern: /\brate[- ]limit(?:s|ing|ed|ers?)?\b/i, instead: "the limit on repeated requests, in words (for example \"too many attempts in a short time are refused\")" },

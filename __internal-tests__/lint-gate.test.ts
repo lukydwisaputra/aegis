@@ -432,14 +432,18 @@ describe('the lint tiers: review fixes', () => {
     expect(ours().map((f) => f.rule)).toEqual(['brand-name']);
   });
 
-  it('a gate that will not open names reportRules.disable with the rule id for the brand rule and the tooling tiers', async () => {
+  it('a gate that will not open never offers an exception for the brand rule and the tooling tiers: the report scripts enforce them too', async () => {
     await driveToOpenableGate('G3');
     put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with `full oracles`.', reason: 'Owner decision.' }] }));
     put('reports/closure/closure.md', '# Closure\n\nWritten with Aegis.\n');
     const err = await openGate(t.root, runId, 'G3', ORCH).then(() => new Error('opened'), (e: Error) => e);
-    expect(err.message).toContain('reportRules.disable with the rule id: brand-name, tooling-tier2');
-    // A wording rule alone does not name it (its remedy is allow or a rewrite).
-    expect(lintBlockMessage('G3', [{ file: 'reports/closure/closure.md', line: 3, rule: 'qa-cycle' }], 'gate-open')).not.toContain('reportRules.disable');
+    expect(err.message).toContain('brand-name, tooling-tier2 are also enforced on write and by the report scripts that render after G3, so no project exception lifts them: the owner rejects the open gate and reopens the phase that wrote the file');
+    expect(err.message).not.toContain('reportRules.disable');
+    expect(err.message).not.toContain('reportRules.allow');
+    // A wording rule alone keeps its project exception (no script enforces it).
+    const wording = lintBlockMessage('G3', [{ file: 'reports/closure/closure.md', line: 3, rule: 'qa-cycle' }], 'gate-open');
+    expect(wording).toContain('reportRules.allow');
+    expect(wording).not.toContain('enforced');
   });
 
   it('a plain risk sentence with surrounding whitespace is reported once (the sign-off reads it trimmed, the file scan as written)', () => {

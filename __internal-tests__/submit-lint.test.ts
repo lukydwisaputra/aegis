@@ -3,10 +3,11 @@ import * as path from 'path';
 import { AegisEventSchema } from '@qa/contracts';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, claimTask, completePhase, createRun, executiveScan, lintFileFindings, lintFindings, readRun, releaseTask, runDir, startPhase, submitLintFiles,
+  addTask, claimTask, completePhase, createRun, executiveBlockMessage, executiveScan, lintBlockMessage, lintFileFindings, lintFindings, readRun, releaseTask, runDir, startPhase, submitLintFiles,
   submitReview, submitWorkReport, taskmasterDir, type Finding,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
+import { fixture, GATE3, RUN, run as runScript, SCRIPT, temps } from './helpers/exec-pdf';
 import { fastForward, ORCH, produceDeliverables, review, TS, workTask, writeRunFile } from './helpers/pipeline';
 
 // The submit-time lint is a spy-able call into the case rendering: the file-list variant must never render a case.
@@ -229,12 +230,12 @@ describe('the executive barrier safety net', () => {
 
   it('refuses phase complete on an executive-stage error, naming the rule and the file, and completes once it is fixed', async () => {
     await produceDeliverables(t.root, runId);
-    put(DECK, { keyFinding: 'Admin pages were denied with 403 for every staff role.' });
+    put(DECK, { keyFinding: 'Admin pages were denied with 403.' });
     await workTask(t.root, runId, 'T-executive-1', EXEC, 'qa-executive-reporter-spv');
     const { integrityCheckpoint: _c, ...before } = readRun(t.root, runId);
     await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({
       code: 'barrier',
-      message: expect.stringMatching(/1 executive stage lint error\(s\) \(reports\/executive\/executive-deck\.json:\d+ tooling-tier2\).*reportRules\.disable with the rule id \(tooling-tier2\)/),
+      message: expect.stringMatching(/1 executive stage lint error\(s\) \(reports\/executive\/executive-deck\.json:\d+ tooling-tier2\).*tooling-tier2 is also enforced by the deck and sign-off scripts, so no project exception lifts it/),
     });
     const { integrityCheckpoint: _a, ...after } = readRun(t.root, runId);
     expect(after).toEqual(before);
@@ -251,7 +252,7 @@ describe('the executive barrier safety net', () => {
   });
 
   it('refuses a missing deliverable event; the reporter sees the same stage errors in its submit result, stamped', async () => {
-    put(DECK, { keyFinding: 'Admin pages were denied with 403 for every staff role.' });
+    put(DECK, { keyFinding: 'Admin pages were denied with 403.' });
     await claimed('T-executive-1', EXEC);
     const res = await submitWorkReport(t.root, runId, tmp('w.json', wr(EXEC, 'T-executive-1', { artifactsProduced: [`runs/${runId}/reports/executive/executive-deck.pdf`, DECK] })), EXEC);
     expect(rules(res.lint!.errors)).toEqual(['exec-report-event-missing', 'exec-report-event-missing', 'exec-report-event-missing', 'tooling-tier2']);
@@ -280,7 +281,7 @@ describe('review fixes: links out of the run, the closure fields at submit, smok
     const dir = path.join(t.root, 'outside');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'secret.md'), '# Secret\n\nThe cycle took 36 hours.\n');
-    fs.writeFileSync(path.join(dir, 'executive-deck.json'), JSON.stringify({ keyFinding: 'Admin pages were denied with 403 for every staff role.' }));
+    fs.writeFileSync(path.join(dir, 'executive-deck.json'), JSON.stringify({ keyFinding: 'Admin pages were denied with 403.' }));
     fs.writeFileSync(path.join(dir, 'closure.json'), JSON.stringify({ exitCriteria: [{ criterion: 'Every flow meets its oracle.', met: true }] }));
     return dir;
   };
@@ -355,5 +356,78 @@ describe('review fixes: links out of the run, the closure fields at submit, smok
     expect(AegisEventSchema.safeParse({ type: 'report.produced', ...base }).success).toBe(false);
     expect(AegisEventSchema.safeParse({ type: 'report.produced', ...base, deliverable: 'signoff' }).success).toBe(true);
     expect(AegisEventSchema.safeParse({ type: 'report.fallback', ts: TS, reason: 'the renderer exited 9' }).success).toBe(false);
+  });
+});
+
+describe('final review M1: the rules the report scripts enforce get the same verdict in the lint and in each script, and no exception is offered for them', () => {
+  afterAll(() => { for (const d of temps.splice(0)) fs.rmSync(d, { recursive: true, force: true }); });
+  // closure.json with a sign-off-fed field carrying tier 1 (coverage.json) and tier 2 (answers 403, endpoint).
+  const closure = (evidence: string) => ({ metrics: { passed: 5, failed: 1, blocked: 0 }, exitCriteria: [{ criterion: 'Every journey was checked.', met: false, evidence }] });
+  const BAD = 'The endpoint answers 403 and coverage.json shows 90 percent.';
+  const GOOD = 'The sign-in page refused staff, and the coverage summary shows 90 percent.';
+  const tiers = (root: string) => lintFindings(root, RUN, 'G3').findings.filter((f) => f.severity === 'error' && ['tooling-tier1', 'tooling-tier2', 'brand-name'].includes(f.rule));
+  const disable = (root: string, ids: string[]) => fs.writeFileSync(path.join(root, 'aegis.config.json'), JSON.stringify({ dashboard: { projectName: 'Northwind Portal' }, reportRules: { disable: ids } }));
+
+  it('a closure the lint refuses is refused by the technical (7) and sign-off (9) scripts; a clean one by neither', () => {
+    const bad = fixture({ 'reports/closure/closure.json': closure(BAD), 'gates/gate-3-decision.json': GATE3 });
+    expect(tiers(bad.root).map((f) => f.rule).sort()).toEqual(['tooling-tier1', 'tooling-tier2', 'tooling-tier2']);
+    expect(runScript(SCRIPT.technical, bad.root).status).toBe(7);
+    expect(runScript(SCRIPT.signoff, bad.root).status).toBe(9);
+    const good = fixture({ 'reports/closure/closure.json': closure(GOOD), 'gates/gate-3-decision.json': GATE3 });
+    expect(tiers(good.root)).toEqual([]);
+    for (const s of [SCRIPT.technical, SCRIPT.signoff]) expect(runScript(s, good.root).stderr).not.toMatch(/tooling phrase|plain business language/);
+  });
+
+  it('a disabled tier silences the lint but not the scripts, so the refusal never offers it', () => {
+    const bad = fixture({ 'reports/closure/closure.json': closure(BAD), 'gates/gate-3-decision.json': GATE3 });
+    disable(bad.root, ['tooling-tier1', 'tooling-tier2']);
+    expect(tiers(bad.root)).toEqual([]);
+    expect(runScript(SCRIPT.technical, bad.root).status).toBe(7);
+    expect(runScript(SCRIPT.signoff, bad.root).status).toBe(9);
+    const msg = lintBlockMessage('G3', [{ file: 'reports/closure/closure.json', line: 4, rule: 'tooling-tier2' }, { file: 'reports/closure/closure.json', line: 4, rule: 'tooling-tier1' }], 'gate-open');
+    expect(msg).not.toMatch(/reportRules\.(?:disable|allow)/);
+    expect(msg).toContain('tooling-tier1, tooling-tier2 are also enforced on write and by the report scripts that render after G3, so no project exception lifts them');
+  });
+
+  it('the deck: the executive stage error and the slides script (10) agree, and the barrier text offers no exception for the tier', () => {
+    const deck = (keyFinding: string) => ({
+      keyFinding,
+      supportingInsights: [
+        { what: 'Core journeys were checked', soWhat: 'Core flows work', nowWhat: 'Fix the login issue' },
+        { what: 'Three issues are open', soWhat: 'Some users retry login', nowWhat: 'Fix before launch' },
+      ],
+      recommendations: [{ action: 'Fix the login issue', owner: 'Engineering', deadline: '2026-10-11', impact: 'HIGH' }],
+      residualRisks: [{ plain: 'Login may fail for some users.' }],
+    });
+    const bad = fixture({ 'reports/closure/closure.json': { metrics: {} }, 'reports/executive/executive-deck.json': deck('Admin pages were denied with 403.'), 'gates/gate-3-decision.json': GATE3 });
+    expect(executiveScan(bad.root, RUN).findings.filter((f) => f.severity === 'error' && f.rule === 'tooling-tier2')).toHaveLength(1);
+    expect(runScript(SCRIPT.slides, bad.root).status).toBe(10);
+    const good = fixture({ 'reports/closure/closure.json': { metrics: {} }, 'reports/executive/executive-deck.json': deck('Staff could not open the admin pages, as intended.'), 'gates/gate-3-decision.json': GATE3 });
+    expect(executiveScan(good.root, RUN).findings.filter((f) => f.severity === 'error' && f.rule.startsWith('tooling'))).toEqual([]);
+    expect(runScript(SCRIPT.slides, good.root).stderr).not.toMatch(/tooling phrase|plain business language|engineering/);
+    const msg = executiveBlockMessage([{ file: 'reports/executive/executive-deck.json', line: 2, rule: 'tooling-tier2' }, { file: 'reports/executive/signoff.pdf', line: 1, rule: 'exec-report-event-missing' }]);
+    expect(msg).toContain("the owner's recorded exception is reportRules.disable with the rule id (exec-report-event-missing)");
+    expect(msg).toContain('tooling-tier2 is also enforced by the deck and sign-off scripts, so no project exception lifts it');
+  });
+});
+
+describe('final review m6: the closure reporter always has closure.json and the fields the sign-off prints linted', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot();
+    runId = await startedRun(t.root);
+  });
+
+  it('artifactsProduced naming only closure.md still lints closure.json and its sign-off-fed fields', async () => {
+    put('reports/closure/closure.md', '# Closure\n\nThe test window took 36 hours.\n');
+    put('reports/closure/closure.json', { exitCriteria: [{ criterion: 'Every flow meets its oracle.', met: true }], summary: 'Figures from rtm.json.' });
+    await claimed('T-closure-final-1', CLOSURE_R);
+    const res = await submitWorkReport(t.root, runId, tmp('w.json', wr(CLOSURE_R, 'T-closure-final-1', { artifactsProduced: ['reports/closure/closure.md'] })), CLOSURE_R);
+    expect(res.lint!.errors.map((f) => `${f.rule} ${f.file}`).sort()).toEqual(['tooling-tier1 reports/closure/closure.json', 'tooling-tier2 reports/closure/closure.json']);
+    expect(res.lint!.filesScanned).toBe(2);
+    // Another report writer naming only its own file gets no closure.json.
+    put('reports/compliance/gdpr.md', '# GDPR\n');
+    await claimed('T-compliance-gdpr-1', 'qa-compliance-gdpr');
+    const other = await submitWorkReport(t.root, runId, tmp('g.json', wr('qa-compliance-gdpr', 'T-compliance-gdpr-1', { artifactsProduced: ['reports/compliance/gdpr.md'] })), 'qa-compliance-gdpr');
+    expect(other.lint).toEqual({ errors: [], warnings: [], filesScanned: 1 });
   });
 });

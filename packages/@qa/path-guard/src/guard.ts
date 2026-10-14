@@ -321,8 +321,8 @@ function trackedRunsFileOp(caller: Caller, abs: string, via: string, ctx: GuardC
   return caller.kind === "main" && TRACKED_RUNS_OPS.has(via) && TRACKED_RUNS_FILES.some((f) => abs === join(ctx.aegisRoot, "runs", f));
 }
 
-/** A defect record (defects/DEF-*.json or .md): its reproduction data legitimately names URLs, local servers and file names. */
-const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
+/** A defect record (defects/DEF-*.json or .md), run-relative: its reproduction data legitimately names URLs, local servers and file names. */
+export const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
 /** A `"title": "..."` member in JSON text that does not parse as a whole (an Edit or MultiEdit fragment). */
 const TITLE_MEMBER = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
 
