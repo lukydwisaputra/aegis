@@ -138,6 +138,29 @@ describe('A16: oversized and failing contexts in the hook processes', () => {
   });
 });
 
+describe('H4 with a stale dist (no subagentRulesLines export)', () => {
+  htest('a throwing runContextFor still prints the failure line as valid output', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-staledist-'));
+    try {
+      const script = path.join(dir, 'scripts', 'hooks', 'inject-run-context.mjs');
+      fs.mkdirSync(path.dirname(script), { recursive: true });
+      fs.copyFileSync(path.join(REPO, 'scripts', 'hooks', 'inject-run-context.mjs'), script);
+      const dist = path.join(dir, 'packages', '@qa', 'run-state', 'dist');
+      fs.mkdirSync(dist, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}');
+      fs.writeFileSync(path.join(dist, 'index.js'), 'export function runContextFor() { throw new Error("stale-boom"); }\n');
+      const r = runHook('inject-run-context', { agent_type: 'qa-test-planner', agent_id: 'p3' }, t.root, { script });
+      expect(r.status).toBe(0);
+      const text = context(r.stdout);
+      expect(text).toContain('run context unavailable (stale-boom)');
+      expect(text).toContain('/qa-health');
+      expect(text).not.toContain('Rules core');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('A17: every hook names the build fix (pnpm build, or pnpm install without --ignore-scripts)', () => {
   const FIX = /pnpm build \(or pnpm install without --ignore-scripts/;
   it('H1 guard-writes', () => {
