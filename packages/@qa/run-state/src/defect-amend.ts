@@ -158,7 +158,9 @@ export async function amendDefect(root: string, runId: string, defectId: string,
     let tooling = false;
     eachString(t.value, (s) => {
       if (checkBrandExposure(s) !== null) branded = true;
-      if (checkToolingWords(s) !== null) tooling = true;
+      // Word rules only, as H1 applies them to defects/DEF-*: the amendable fields are reproduction and triage data, which may cite a
+      // URL, a local server or a file (the title, which the path rules still cover, is not amendable).
+      if (checkToolingWords(s, { kinds: ["word"] }) !== null) tooling = true;
     });
     if (branded) throw new RunStateError("invalid-input", `the new value of ${t.path} is quoted in the reports and must not name the framework or an agent: it matches a forbidden term`);
     // defects/** is customer-facing (the H1 hook checks the same patterns on a write); the CLI writes the file itself, outside the hook.

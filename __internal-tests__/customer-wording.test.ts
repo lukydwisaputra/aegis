@@ -39,6 +39,11 @@ describe('shared wording rule block', () => {
     }
   });
 
+  it('the defect manager and its SPV state the reproduction-data exception: steps, ruled-out notes and build line, never the title', () => {
+    expect(agent('tier1-phase/qa-defect-manager.md')).toContain("a record's reproduction data (steps, ruled-out notes, build line) may give the URL, local server or file a developer needs to reproduce the defect; its title and the triage summary may not.");
+    expect(agent('spv/qa-defect-manager-spv.md')).toMatch(/is a hit in the triage summary and in a record's title; a record's reproduction data \(steps, ruled-out notes, build line, history\) may cite a URL, local server or file, and only a tooling word there is a hit/);
+  });
+
   it('the GDPR agent keeps a gap under its own article and lists every assessed article, Art35 included; its SPV checks it', () => {
     expect(agent('compliance/qa-compliance-gdpr.md')).toMatch(/Keep a gap under the article it belongs to: erasure stays `GDPR-Art17` and portability `GDPR-Art20`.*`articlesCovered` lists every article you assessed, Art35 included/);
     expect(agent('spv/qa-compliance-spv.md')).toMatch(/a gap folded into another article \(erasure or portability under Art5 or Art25\) or an assessed article missing from `articlesCovered` \(Art35 included\) = requested-changes/);

@@ -5,7 +5,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { ADAPTERS } from '@qa/messaging';
 import { BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, readLedger, TOOLING_CLEAN_RUN_GLOBS } from '@qa/path-guard';
-import { TOOLING_WORD_PATTERNS } from '@qa/contracts';
+import { TOOLING_WORD_PATTERNS, TOOLING_WORD_RULES } from '@qa/contracts';
 import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase, subagentRulesLines } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
@@ -200,9 +200,21 @@ describe('H4 rules core (CLAUDE.md may not be loaded into a subagent)', () => {
       '\\brequested[- ]changes\\b': '"requested changes"',
       '\\bwork[- ]reports?\\b': 'work report',
       '\\brecord owner\\b': '"record owner"',
+      // Path rules: run-file paths and names, globs and local servers (a listed port is a per-project rule, not in this list).
+      [TOOLING_WORD_RULES[11]!.pattern.source]: 'reports/...',
+      [TOOLING_WORD_RULES[12]!.pattern.source]: 'globs',
+      [TOOLING_WORD_RULES[13]!.pattern.source]: 'rtm.json',
+      [TOOLING_WORD_RULES[14]!.pattern.source]: '*-result.json',
+      '\\blocalhost\\b': 'localhost',
+      '\\b127\\.0\\.0\\.1\\b': '127.0.0.1',
+      [TOOLING_WORD_RULES[17]!.pattern.source]: '[::1], 0.0.0.0',
+      '\\bports?\\s+\\d{4,5}\\b': 'port N',
     };
     const brand = subagentRulesLines()[2]!;
-    expect(TOOLING_WORD_PATTERNS.length).toBeGreaterThan(0);
+    expect(TOOLING_WORD_PATTERNS.length).toBe(19);
+    expect(brand).toContain("except in a defect record's reproduction data (never its title)");
+    // Task 0 of the pre-checks plan added the path and port rules to this line: 523 -> 736 characters (+213 for every qa-* agent).
+    expect(brand.length).toBeLessThanOrEqual(736);
     for (const pattern of TOOLING_WORD_PATTERNS) {
       const expected = phrase[pattern.source];
       expect(`${pattern.source} -> ${expected}`).not.toContain('undefined');

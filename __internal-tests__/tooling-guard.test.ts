@@ -18,9 +18,12 @@ const POSITIVE: Array<[string, string]> = [
   ['coverage.json', 'the coverage summary'], ['rtm.json', 'the traceability matrix'], ['rtm.md', 'the traceability matrix'], ['closure.json', 'the closure report'], ['closure.md', 'the closure report'],
   ['events.jsonl', 'the run record'], ['run.json', 'the run record'], ['triage-summary.md', 'the triage summary'], ['execution-summary.md', 'the plain name of the document'],
   ['risk-register.json', 'the plain name of the document'], ['execution-summary.json', 'the plain name of the document'],
-  ['localhost', 'the local test server'], ['http://127.0.0.1/login', 'the local test server'], [':3002', 'the local test server (no port)'], [':54422', 'the local test server (no port)'],
-  ['port 3011', 'the local test server (no port)'], ['ports 3998', 'the local test server (no port)'], ['listener on :3998', 'the local test server (no port)'],
+  ['localhost', 'the local test server'], ['http://127.0.0.1/login', 'the local test server'], ['localhost:3000', 'the local test server'], ['[::1]:3000', 'the local test server'],
+  ['http://[::1]/login', 'the local test server'], ['0.0.0.0:8080', 'the local test server'],
+  ['port 3011', 'the local test server (no port)'], ['ports 3998', 'the local test server (no port)'],
 ];
+// A colon-prefixed port is tooling only when the project lists it (aegis.config.json#reportRules.localPorts): the defaults never flag it.
+const LISTED_PORTS: Array<[string, number[]]> = [[':3002', [3002]], [':54422', [54421, 54422]], ['listener on :3998', [3998]], ['on :4010 only', [4010]]];
 // Citing proof is how a defect record or a compliance report works: these are NOT tooling wording.
 const ALLOWED_CITATIONS = [
   'evidence/TC-REG-013/shot.png', 'runs/RUN-20261012-002/evidence/DEF-003-REG-SEC/TC-REG-013_step5_20261012T104840Z.json', 'cases/TC-AUTH-001-result.json',
@@ -52,6 +55,15 @@ describe('TOOLING_WORD_RULES: paths, file names and local servers', () => {
   it.each(NEGATIVE)('plain wording is clean: %s', (text) => {
     expect(findToolingWords(text)).toEqual([]);
     expect(checkToolingWords(text)).toBeNull();
+  });
+
+  it.each(LISTED_PORTS)('"%s" is a hit only with its port listed in localPorts, never by default and never as a bare number', (text, ports) => {
+    expect(findToolingWords(`Source: ${text} for this.`)).toEqual([]);
+    const hits = findToolingWords(`Source: ${text} for this.`, { localPorts: ports });
+    expect(hits.map((h) => h.instead)).toEqual(['the local test server (no port)']);
+    expect(checkToolingWords(`See ${text} here`, { localPorts: ports })).toBeInstanceOf(RegExp);
+    const bare = text.replace(':', '');
+    expect(findToolingWords(`Source: ${bare} for this.`, { localPorts: ports })).toEqual([]);
   });
 
   it('the old word rules still hit, and testing vocabulary stays allowed', () => {
@@ -99,7 +111,8 @@ describe('H1 refuses paths, file names and ports in customer-facing files', () =
     ['reports/closure/closure.json', 'qa-closure-reporter', JSON.stringify({ openQuestions: [{ question: 'Is rtm.json right?' }] }), /write the traceability matrix instead/],
     ['reports/compliance/cmmi.md', 'qa-compliance-cmmi', 'The app ran on localhost:3002.', /write the local test server/],
     ['defects/triage-summary.md', 'qa-defect-manager', 'See defects/*.json for each record.', /write the defect records instead/],
-    ['defects/DEF-001-AUTH-UI.json', 'qa-defect-manager', JSON.stringify({ id: 'DEF-001-AUTH-UI', actualResult: 'Served on port 3011 and answered 500.' }), /write the local test server \(no port\) instead/],
+    // A defect record's reproduction data may cite a port (word rules only there); its title, which the reports print, may not.
+    ['defects/DEF-001-AUTH-UI.json', 'qa-defect-manager', JSON.stringify({ id: 'DEF-001-AUTH-UI', title: 'Served on port 3011 and answered 500', actualResult: 'Served on port 3011 and answered 500.' }), /write the local test server \(no port\) instead/],
   ])('refuses %s with a path, name or port, and says what to write', (file, who, content, hint) => {
     const r = decide(write(file, content, who), ctx, deps);
     expect(r.allow).toBe(false);

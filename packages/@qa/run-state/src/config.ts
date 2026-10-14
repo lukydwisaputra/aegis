@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { COMPLIANCE_REGULATIONS, isReadOnlyEnvironment, type EnvironmentSpecialistConfig } from "@qa/contracts";
+import { COMPLIANCE_REGULATIONS, isReadOnlyEnvironment, localPortsOf, type EnvironmentSpecialistConfig } from "@qa/contracts";
 import { RunStateError } from "./errors.js";
 import { assertMessagingConfig, type MessagingConfig } from "./messaging.js";
 
@@ -111,6 +111,8 @@ export interface ReportRules {
   disable: string[];
   /** Phrases the wording rules never report: a phrase silences a match only when its span overlaps the match (case-insensitive), never a different finding beside it. */
   allow: string[];
+  /** The project's local server ports: a colon-prefixed `:N` is tooling wording (never a bare number); [] when absent. */
+  localPorts: number[];
   pii: {
     syntheticEmailDomains: string[];
     syntheticNamePrefixes: string[];
@@ -186,6 +188,7 @@ function reportRules(value: unknown): ReportRules {
     extend,
     disable: stringList(r["disable"], "reportRules.disable"),
     allow: stringList(r["allow"], "reportRules.allow"),
+    localPorts: localPorts(r),
     pii: {
       syntheticEmailDomains: stringList(p["syntheticEmailDomains"], "reportRules.pii.syntheticEmailDomains"),
       syntheticNamePrefixes: p["syntheticNamePrefixes"] === undefined ? [...DEFAULT_SYNTHETIC_NAME_PREFIXES] : stringList(p["syntheticNamePrefixes"], "reportRules.pii.syntheticNamePrefixes"),
@@ -193,6 +196,15 @@ function reportRules(value: unknown): ReportRules {
       syntheticValues,
     },
   };
+}
+
+/** reportRules.localPorts through the one reader every tooling check uses (localPortsOf), as invalid-input. */
+function localPorts(reportRules: Record<string, unknown>): number[] {
+  try {
+    return localPortsOf({ reportRules });
+  } catch (e) {
+    throw new RunStateError("invalid-input", (e as Error).message);
+  }
 }
 
 /** testing.manualBudgetPercent: absent is null (the manual-testing rule stays off), present must be a number. */

@@ -133,6 +133,27 @@ describe('2: the conditions checker', () => {
     expect(r.stdout).not.toMatch(/deck: \(.\)[^\n]*FAIL/);
   });
 
+  it('reads the project\'s local ports for the tier 1 check: a listed :N is a hit, an unlisted one is not', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exec-ports-'));
+    temps.push(dir);
+    fs.copyFileSync(path.join(good.dir, 'technical-report.pdf'), path.join(dir, 'technical-report.pdf'));
+    fs.copyFileSync(path.join(good.dir, 'executive-deck.pdf'), path.join(dir, 'executive-deck.pdf'));
+    const spec = { projectName: 'Northwind Portal', version: 'v1', signoffDate: '2026-10-04', documentId: 'SIGNOFF-X', scope: 'Full cycle', decision: 'approved', exitCriteria: [], openDefectsSummary: 'Open defects were retested against the stand-in feed on :4010 only.', residualRisk: 'none', signatoryRoles: ['QA Lead'] };
+    const code = `import { renderSignoffDocument } from ${JSON.stringify(path.join(ROOT, 'packages/@qa/pdf-renderer/dist/index.js'))}; import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(path.join(dir, 'signoff.pdf'))}, await renderSignoffDocument(${JSON.stringify(spec)}));`;
+    expect(spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf-8' }).status).toBe(0);
+    const plain = fixture(files(CLOSURE));
+    expect(checker(plain.root, [`--dir=${dir}`]).stdout).not.toContain('":4010"');
+    const listed = fixture(files(CLOSURE));
+    fs.writeFileSync(path.join(listed.root, 'aegis.config.json'), JSON.stringify({ dashboard: { projectName: 'Northwind Portal' }, reportRules: { localPorts: [4010] } }));
+    const r = checker(listed.root, [`--dir=${dir}`]);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/sign-off: \(k\) wording classes: .*tier 1[^\n]*":4010"/);
+    fs.writeFileSync(path.join(listed.root, 'aegis.config.json'), JSON.stringify({ reportRules: { localPorts: 4010 } }));
+    const bad = checker(listed.root, [`--dir=${dir}`]);
+    expect(bad.status).toBe(2);
+    expect(bad.stderr).toMatch(/reportRules\.localPorts must be a list of port numbers/);
+  });
+
   it('fails a deck that states other compliance figures and no verdict, and a placeholder figure', () => {
     const deck = JSON.parse(JSON.stringify(DECK));
     deck.supportingInsights[2].what = '45 open questions wait. Exit criteria: 7 of 9 are met, criterion 5 with a qualification; criteria 8 and 9 are not met. The assessments list 90 coverage gaps, 9 of them rated High. Open defects: not available.';

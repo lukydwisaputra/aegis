@@ -66,8 +66,9 @@ export function checkBrandExposure(text: string): RegExp | null {
  *  - path rules: the framework's own bookkeeping, by name or path: `coverage.json`, `rtm.json`, `rtm.md`, `closure.json`, `closure.md`,
  *    `run.json`, `events.jsonl`, `execution-summary.md|json`, `triage-summary.md`, `risk-register.*`, the metric file names, anything under
  *    `reports/metrics|work|review|closure|compliance|mutation|executive` (with or without a `runs/<run-id>/` prefix), a glob over run files (`defects/*.json`, `cases/*-result.json`), a result file that is
- *    not a case result (`*-result.json`), and local-server references (`localhost`, `127.0.0.1`, `:3002`, "port 3002", the config
- *    ports 54421 and 54422). NEVER flagged, because citing proof is how a defect record or a compliance report works: `evidence/...` and
+ *    not a case result (`*-result.json`), and local-server references (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0`, "port 3002", and
+ *    a colon-prefixed port the project lists in `reportRules.localPorts`, `:3002`; a bare number is never flagged; LOCAL PORTS ARE
+ *    PROJECT CONFIG, not this list). NEVER flagged, because citing proof is how a defect record or a compliance report works: `evidence/...` and
  *    `runs/<run-id>/evidence/...` paths, `cases/<TC-id>...` and `defects/<DEF-id>...` references (record or evidence citations, a case
  *    result `TC-AUTH-001-result.json` included, with or without its folder), and markdown links to them. Plain English ("reports",
  *    "cases") never matches. In a JSON file, a value that is only a path (no whitespace) under one of the data keys (DATA_PATH_KEYS:
@@ -78,9 +79,11 @@ export function checkBrandExposure(text: string): RegExp | null {
  * False positives it risks: a target with its own command-line tool ("CLI"), a "work report" feature or "defect map" screen, a database
  * column named seq, or a target document literally named like a framework file. The denial names the phrase and what to write instead.
  */
+export type ToolingKind = "word" | "path";
+
 export interface ToolingRule {
   pattern: RegExp;
-  kind: "word" | "path";
+  kind: ToolingKind;
   /** What to write instead of a phrase this rule matched. */
   instead: (phrase: string) => string;
 }
@@ -128,11 +131,51 @@ export const TOOLING_WORD_RULES: ToolingRule[] = [
   // Local-server references.
   { kind: "path", pattern: /\blocalhost\b/i, instead: () => "the local test server" },
   { kind: "path", pattern: /\b127\.0\.0\.1\b/, instead: () => "the local test server" },
-  { kind: "path", pattern: /:(?:3002|3011|3998|54421|54422)\b/, instead: () => "the local test server (no port)" },
+  // The other loopback and any-address hosts, with or without a port. A port on its own is flagged only when the project lists it (toolingRules).
+  { kind: "path", pattern: /\[::1\](?::\d{1,5}\b)?|(?<![\w.])0\.0\.0\.0(?!\.?\d)(?::\d{1,5}\b)?/, instead: () => "the local test server" },
   { kind: "path", pattern: /\bports?\s+\d{4,5}\b/i, instead: () => "the local test server (no port)" },
 ];
 
+/** The built-in patterns. A project's local ports (reportRules.localPorts) add one rule per call, see toolingRules. */
 export const TOOLING_WORD_PATTERNS: RegExp[] = TOOLING_WORD_RULES.map((r) => r.pattern);
+
+/**
+ * Options of the tooling checks. `kinds`: the rule kinds that apply (default both; a defect record's reproduction data takes ["word"]).
+ * `localPorts`: the project's local server ports (aegis.config.json#reportRules.localPorts), flagged only colon-prefixed (`:3002`).
+ */
+export interface ToolingOptions {
+  kinds?: readonly ToolingKind[];
+  localPorts?: readonly number[];
+}
+
+/**
+ * aegis.config.json#reportRules.localPorts, from the parsed config (any shape): a list of port numbers, [] when absent. Throws on a
+ * value that is not a list of whole numbers from 1 to 65535, so every caller reads the same ports or refuses the same bad config.
+ */
+export function localPortsOf(config: unknown): number[] {
+  const rules = config !== null && typeof config === "object" ? (config as Record<string, unknown>)["reportRules"] : undefined;
+  const v = rules !== null && typeof rules === "object" ? (rules as Record<string, unknown>)["localPorts"] : undefined;
+  if (v === undefined) return [];
+  if (!Array.isArray(v) || !v.every((n) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 65535)) {
+    throw new Error("aegis.config.json#reportRules.localPorts must be a list of port numbers (whole numbers from 1 to 65535)");
+  }
+  return [...new Set(v as number[])];
+}
+
+const portRules = new Map<string, ToolingRule[]>();
+
+/** The rules for a project: the built-in list plus, when it names local ports, one colon-prefixed rule for them. */
+export function toolingRules(localPorts: readonly number[] = []): ToolingRule[] {
+  const ports = [...new Set(localPorts.filter((n) => Number.isInteger(n) && n >= 1 && n <= 65535))].sort((a, b) => a - b);
+  if (ports.length === 0) return TOOLING_WORD_RULES;
+  const key = ports.join("|");
+  let rules = portRules.get(key);
+  if (rules === undefined) {
+    rules = [...TOOLING_WORD_RULES, { kind: "path", pattern: new RegExp(`:(?:${key})\\b`), instead: () => "the local test server (no port)" }];
+    portRules.set(key, rules);
+  }
+  return rules;
+}
 
 export interface ToolingHit {
   /** The offending phrase as written. */
@@ -150,10 +193,11 @@ export const DATA_PATH_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /** Every tooling phrase in a text. `exemptBarePaths`: a text with no whitespace is a data path, not prose, and path rules skip it. */
-export function findToolingWords(text: string, opts: { exemptBarePaths?: boolean; location?: string } = {}): ToolingHit[] {
+export function findToolingWords(text: string, opts: ToolingOptions & { exemptBarePaths?: boolean; location?: string } = {}): ToolingHit[] {
   const hits: ToolingHit[] = [];
   const bare = opts.exemptBarePaths === true && !/\s/.test(text);
-  for (const rule of TOOLING_WORD_RULES) {
+  for (const rule of toolingRules(opts.localPorts)) {
+    if (opts.kinds !== undefined && !opts.kinds.includes(rule.kind)) continue;
     if (bare && rule.kind === "path") continue;
     const re = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`);
     for (const m of text.matchAll(re)) hits.push({ phrase: m[0], pattern: rule.pattern, instead: rule.instead(m[0]), location: opts.location ?? "" });
@@ -165,16 +209,20 @@ export function findToolingWords(text: string, opts: { exemptBarePaths?: boolean
  * Every tooling phrase in the string values of a JSON-like value (keys are not read), each with its field path under `base`. A
  * whitespace-free value under a DATA_PATH_KEYS key (or inside an array under one) is a data path and skips the path rules.
  */
-export function findToolingWordsIn(value: unknown, base: string, dataKey = false): ToolingHit[] {
-  if (typeof value === "string") return findToolingWords(value, { exemptBarePaths: dataKey, location: base });
-  if (Array.isArray(value)) return value.flatMap((v, i) => findToolingWordsIn(v, `${base}[${i}]`, dataKey));
-  if (value !== null && typeof value === "object") return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => findToolingWordsIn(v, `${base}.${k}`, DATA_PATH_KEYS.has(k)));
+export function findToolingWordsIn(value: unknown, base: string, opts: ToolingOptions = {}): ToolingHit[] {
+  return toolingIn(value, base, opts, false);
+}
+
+function toolingIn(value: unknown, base: string, opts: ToolingOptions, dataKey: boolean): ToolingHit[] {
+  if (typeof value === "string") return findToolingWords(value, { ...opts, exemptBarePaths: dataKey, location: base });
+  if (Array.isArray(value)) return value.flatMap((v, i) => toolingIn(v, `${base}[${i}]`, opts, dataKey));
+  if (value !== null && typeof value === "object") return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => toolingIn(v, `${base}.${k}`, opts, DATA_PATH_KEYS.has(k)));
   return [];
 }
 
 /** The first tooling-word pattern the text matches, or null when clean. */
-export function checkToolingWords(text: string): RegExp | null {
-  return findToolingWords(text)[0]?.pattern ?? null;
+export function checkToolingWords(text: string, opts: ToolingOptions = {}): RegExp | null {
+  return findToolingWords(text, opts)[0]?.pattern ?? null;
 }
 
 /**

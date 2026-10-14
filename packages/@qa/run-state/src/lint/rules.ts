@@ -51,7 +51,7 @@ function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
 }
 
 /** The default rules, minus `disable`, plus the project's `extend`. */
-export function resolveRules(rules: ReportRules, manualBudgetPercent: number | null): ResolvedRule[] {
+export function resolveRules(rules: Omit<ReportRules, "localPorts">, manualBudgetPercent: number | null): ResolvedRule[] {
   const off = new Set(rules.disable);
   const base = defaultRules(manualBudgetPercent).filter((r) => !off.has(r.id));
   const extra = rules.extend.map((e): ResolvedRule => ({ id: e.id, re: new RegExp(e.pattern, e.flags ?? "i"), message: e.message, severity: e.severity ?? "error" }));

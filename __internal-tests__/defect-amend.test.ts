@@ -184,6 +184,20 @@ describe('aegis defect amend: customer-facing wording', () => {
     expect(events().find((e) => e.type === 'defect.amended')).toBeUndefined();
   });
 
+  it('accepts reproduction data with a URL, a listed local port and a file name (word rules only, as H1 applies to defect records)', async () => {
+    const cfg = path.join(t.root, 'aegis.config.json');
+    const c = JSON.parse(fs.readFileSync(cfg, 'utf8'));
+    fs.writeFileSync(cfg, JSON.stringify({ ...c, reportRules: { ...c.reportRules, localPorts: [3002] } }));
+    const res = await amend([
+      { path: 'retestVerdict.reason', value: 'Reproduced: log in as an admin and open http://127.0.0.1:3002/communications/not-a-uuid on the restarted :3002 server.' },
+      { path: 'retestVerdict.triageVerification', value: 'Build: Next.js dev server, port 3000; the rtm.json row and execution-summary.json agree.' },
+    ]);
+    expect(res.changes.map((ch) => ch.path)).toEqual(['retestVerdict.reason', 'retestVerdict.triageVerification']);
+    expect(read(`defects/${ID}.json`).retestVerdict.reason).toContain('http://127.0.0.1:3002/communications/not-a-uuid');
+    const err = await amend([{ path: 'retestVerdict.reason', value: 'Reproduced on http://127.0.0.1:3002; see the work report.' }]).catch((e) => e);
+    expect(err).toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/it matches a tooling word/) });
+  });
+
   it('still accepts plain application wording', async () => {
     const res = await amend([{ path: 'retestVerdict.reason', value: 'The burst returned 25 x 403 and no 429; authorisation holds.' }]);
     expect(res.changes).toHaveLength(1);

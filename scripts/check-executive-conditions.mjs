@@ -6,7 +6,7 @@
 // Extracts the text of each PDF with pdftotext, reads reports/closure/closure.json and the defect records of the run, and prints, for each
 // of the three documents, a pass/fail table of checks (a) to (m) with the closure value and what was found. Every expectation is derived
 // from closure.json (no run figure is written here). Exit 0 only when every check passes for every document; exit 1 when a check fails
-// (the failing checks are listed); exit 2 for a usage error or a missing input; exit 3 when pdftotext is missing; exit 6 when the built
+// (the failing checks are listed); exit 2 for a usage error, a missing input or a malformed reportRules.localPorts; exit 3 when pdftotext is missing; exit 6 when the built
 // packages are missing. It writes nothing. qa-executive-reporter, its reviewer, the orchestrator and the owner may run it.
 
 import { spawnSync } from "node:child_process";
@@ -60,7 +60,7 @@ try {
   console.error(`ERROR: cannot load the built contracts package (${err.message}) - run pnpm build`);
   process.exit(6);
 }
-const { buildClosureView, findToolingWords, findPlainLanguage, checkBrandExposure, rewriteSectionReferences, rewriteNationalIdTerms } = C;
+const { buildClosureView, findToolingWords, localPortsOf, findPlainLanguage, checkBrandExposure, rewriteSectionReferences, rewriteNationalIdTerms } = C;
 
 // ─── inputs ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +70,14 @@ function readJson(path) {
   } catch {
     return null;
   }
+}
+// The project's local server ports (aegis.config.json#reportRules.localPorts), flagged colon-prefixed by the tooling rules, as in H1.
+let localPorts;
+try {
+  localPorts = localPortsOf(readJson(join(AEGIS_ROOT, "aegis.config.json")) ?? {});
+} catch (err) {
+  console.error(`ERROR: ${err.message}`);
+  process.exit(2);
 }
 const closure = readJson(join(runDir, "reports", "closure", "closure.json"));
 if (closure === null || typeof closure !== "object") {
@@ -287,10 +295,10 @@ const CHECKS = [
       const lines = raw.split("\n");
       const hits = [];
       lines.forEach((line, i) => {
-        for (const h of findToolingWords(line)) hits.push(`tier 1, line ${i + 1}: "${h.phrase}"`);
+        for (const h of findToolingWords(line, { localPorts })) hits.push(`tier 1, line ${i + 1}: "${h.phrase}"`);
         if (key !== "technical") for (const h of findPlainLanguage(line, "")) hits.push(`tier 2, line ${i + 1}: "${h.phrase}"`);
       });
-      for (const h of findToolingWords(flat)) if (!hits.some((x) => x.endsWith(`"${h.phrase}"`))) hits.push(`tier 1, across lines: "${h.phrase}"`);
+      for (const h of findToolingWords(flat, { localPorts })) if (!hits.some((x) => x.endsWith(`"${h.phrase}"`))) hits.push(`tier 1, across lines: "${h.phrase}"`);
       const leak = checkBrandExposure(raw);
       if (leak) hits.push(`framework or agent name (${leak})`);
       for (const [re, what] of [[/Closed Defects/i, "\"Closed Defects\""], [/totalOpened/, "\"totalOpened\""], [/\bno[- ]ship\b|ship\s*\/\s*no[- ]ship/i, "a ship / no-ship word"], [/\b[STFGM]\d{7}[A-Z]\b/, "a national ID number"]]) {

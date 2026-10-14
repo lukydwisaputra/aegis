@@ -321,19 +321,31 @@ function trackedRunsFileOp(caller: Caller, abs: string, via: string, ctx: GuardC
   return caller.kind === "main" && TRACKED_RUNS_OPS.has(via) && TRACKED_RUNS_FILES.some((f) => abs === join(ctx.aegisRoot, "runs", f));
 }
 
+/** A defect record (defects/DEF-*.json or .md): its reproduction data legitimately names URLs, local servers and file names. */
+const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
+
 /**
  * The first tooling phrase of customer-facing content. A JSON file is read by its string values (a value that is only a path, such as an
- * evidence list, is data and exempt from the path rules); anything else, markdown included, is read whole.
+ * evidence list, is data and exempt from the path rules); anything else, markdown included, is read whole. A defect record takes the word
+ * rules only (its steps, ruled-out notes and build line cite URLs, ports and files to reproduce the defect), except its title, which the
+ * technical report and the sign-off print: the path rules still apply to it. The project's local ports come from the context.
  */
-function toolingHit(inRun: string, content: string): ReturnType<typeof findToolingWords>[number] | null {
+function toolingHit(inRun: string, content: string, ctx: GuardContext): ReturnType<typeof findToolingWords>[number] | null {
+  const localPorts = ctx.localPorts ?? [];
+  const record = DEFECT_RECORD.test(inRun);
+  const opts = record ? { kinds: ["word"] as const, localPorts } : { localPorts };
   if (inRun.endsWith(".json")) {
     try {
-      return findToolingWordsIn(JSON.parse(content), "")[0] ?? null;
+      const parsed: unknown = JSON.parse(content);
+      const first = findToolingWordsIn(parsed, "", opts)[0];
+      if (first !== undefined || !record) return first ?? null;
+      const title = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>)["title"] : undefined;
+      return typeof title === "string" ? (findToolingWords(title, { localPorts, location: ".title" })[0] ?? null) : null;
     } catch {
       // not parseable (a partial edit): read it as text
     }
   }
-  return findToolingWords(content)[0] ?? null;
+  return findToolingWords(content, opts)[0] ?? null;
 }
 
 /**
@@ -351,7 +363,7 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
     if (hit !== null) return { deny: `${abs} is customer-facing and the text matches ${String(hit)}; write "QA team" or the project name instead (CLAUDE.md brand exposure rule)` };
   }
   if (content !== null && inRun !== null && TOOLING_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
-    const hit = toolingHit(inRun, content);
+    const hit = toolingHit(inRun, content, ctx);
     if (hit !== null) return { deny: `${abs} is customer-facing and the text has tooling wording ("${hit.phrase}", ${String(hit.pattern)}${hit.location === "" ? "" : ` at ${hit.location}`}); write ${hit.instead} instead, and keep tooling facts (commands, file names, ports, event numbers, review or attempt counts, refusals) for the events and the work report (customer-facing wording rule)` };
   }
   // Removing runs/ or a run directory deletes every CLI-only file in it; no caller does it, legacy skill or not.

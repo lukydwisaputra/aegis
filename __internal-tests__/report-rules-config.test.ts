@@ -14,7 +14,7 @@ const set = (extra: object) => {
 describe('reportRules', () => {
   it('defaults to empty rules and the default synthetic markers', () => {
     expect(readRunConfig(t.root).reportRules).toEqual({
-      extend: [], disable: [], allow: [],
+      extend: [], disable: [], allow: [], localPorts: [],
       pii: { syntheticEmailDomains: [], syntheticNamePrefixes: ['QA', 'Test', 'E2E', 'Dummy', 'Sample'], syntheticPhonePatterns: [], syntheticValues: [] },
     });
   });

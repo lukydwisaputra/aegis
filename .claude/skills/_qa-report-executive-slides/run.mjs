@@ -127,7 +127,7 @@ async function load(url, what) {
 }
 
 const { renderSlideDeck, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits, rewriteNationalIdTerms, closureReadProblems, describeUnreadable } = await load(CONTRACTS, "the brand check");
+const { checkBrandExposure, findToolingWordsIn, localPortsOf, describeToolingHits, findPlainLanguageIn, describePlainLanguageHits, rewriteNationalIdTerms, closureReadProblems, describeUnreadable } = await load(CONTRACTS, "the brand check");
 
 // The deck states what the closure carries. A headline figure the closure holds but this build cannot read (compliance totals, the
 // exit-criteria count) is never printed or summarised as a placeholder: the deck is refused (exit 11), naming the closure.json field.
@@ -155,7 +155,15 @@ const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLa
 // paths, snake_case codes, bare Sev codes ...) is refused too, with its plain replacement.
 // Customer-facing wording guard on the deck content, before the tone-check and before rendering: the same list as the H1 hook and the
 // two report scripts. Exits with the first 5 offending phrases and their fields.
-const toolingHits = findToolingWordsIn(deckSource, "executive-deck.json");
+// The project's local server ports (aegis.config.json#reportRules.localPorts), flagged colon-prefixed by the tooling rules, as in H1.
+let localPorts;
+try {
+  localPorts = localPortsOf(aegisConfig);
+} catch (err) {
+  console.error(`ERROR: ${err.message}`);
+  process.exit(2);
+}
+const toolingHits = findToolingWordsIn(deckSource, "executive-deck.json", { localPorts });
 if (toolingHits.length > 0) {
   console.error(`ERROR: ${describeToolingHits(toolingHits)}\nThe deck content must be corrected before it is rendered.`);
   process.exit(10);

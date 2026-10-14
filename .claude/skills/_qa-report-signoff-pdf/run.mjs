@@ -103,17 +103,25 @@ async function load(url, what) {
 
 const { renderSignoffDocument, applyJargonRewrites, detectJargon } = await load(RENDERER, "the PDF renderer");
 const { resolveCheckCounts, CaseOfRecordError } = await load(METRICS, "the coverage computation");
-const { checkBrandExposure, findToolingWordsIn, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, describeUnreadable, openDefectLine, rewriteNationalIdTermsDeep, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
+const { checkBrandExposure, findToolingWordsIn, localPortsOf, describeToolingHits, findPlainLanguage, describePlainLanguageHits, signoffFedTexts, buildClosureView, describeUnreadable, openDefectLine, rewriteNationalIdTermsDeep, rewriteSectionReferencesDeep, resolveDefectFigures, openDefectsSummary: summariseOpenDefects } = await load(
   CONTRACTS,
   "the brand check",
 );
+// The project's local server ports (aegis.config.json#reportRules.localPorts), flagged colon-prefixed by the tooling rules, as in H1.
+let localPorts;
+try {
+  localPorts = localPortsOf(aegisConfig);
+} catch (err) {
+  console.error(`ERROR: ${err.message}`);
+  process.exit(2);
+}
 
 // Customer-facing wording guard, BEFORE anything renders: the same list as the H1 hook (TOOLING_WORD_RULES in @qa/contracts). It reads
 // every string of closure.json (a value that is only a path, such as a list of metric file names, is data and exempt) and the printed
 // fields of the defect records, and exits with the first 5 offending phrases, each with its field, so the orchestrator can report them.
 const toolingHits = [
-  ...findToolingWordsIn(closure, "closure.json"),
-  ...(defects ?? []).flatMap((d) => findToolingWordsIn({ id: d?.id, title: d?.title }, `defects/${typeof d?.id === "string" ? d.id : "record"}.json`)),
+  ...findToolingWordsIn(closure, "closure.json", { localPorts }),
+  ...(defects ?? []).flatMap((d) => findToolingWordsIn({ id: d?.id, title: d?.title }, `defects/${typeof d?.id === "string" ? d.id : "record"}.json`, { localPorts })),
 ];
 if (toolingHits.length > 0) {
   console.error(`ERROR: ${describeToolingHits(toolingHits)}\nThe closure report must be corrected before this document is rendered.`);
@@ -436,7 +444,7 @@ if (leak) {
   process.exit(5);
 }
 // Customer-facing wording: no tooling words (CLI, defect map, event numbers, review or attempt counts, record owner).
-const finalHits = findToolingWordsIn(spec, "document");
+const finalHits = findToolingWordsIn(spec, "document", { localPorts });
 if (finalHits.length > 0) {
   console.error(`ERROR: ${describeToolingHits(finalHits)}\nThe closure report must be corrected before this document is rendered.`);
   process.exit(9);

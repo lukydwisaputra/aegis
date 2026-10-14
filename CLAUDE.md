@@ -88,6 +88,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
   - `extend` — extra wording rules (`{id, pattern, message, severity?}`)
   - `disable` — ids of built-in rules the project turns off, or a data rule group (`blocked-qa-side`, `defect-origin`, `defect-counts`, `env-probe`) checked at Execution, Triage and G2
   - `allow` — phrases the project uses on purpose, so the wording rules skip them
+  - `localPorts` — the project's local server port numbers: a colon-prefixed `:N` in a customer-facing file is tooling wording (never a bare number) for H1, the report scripts and the executive checker; `localhost`, `127.0.0.1`, `[::1]` and `0.0.0.0` are always flagged
   - `pii.syntheticValues` — exact personal-data values declared as test data that cannot be real
   - `pii.syntheticEmailDomains` — email domains that are always synthetic
   - `pii.syntheticNamePrefixes` — name prefixes that mark a synthetic person (for example `QA Test`)
@@ -246,7 +247,7 @@ Never write the word "Aegis", internal agent names (e.g. `qa-director`,
 - `runs/*/plan.*`
 - `runs/*/rtm.*`
 
-Customer-facing reports must read as if produced by the project's own QA team. `defects/`, `reports/closure/` and `reports/compliance/` also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", review or attempt counts, "record owner", file paths or names such as `reports/...` or `coverage.json`, local ports and hosts): HANDBOOK/13 lists them and H1 refuses them.
+Customer-facing reports must read as if produced by the project's own QA team. `defects/`, `reports/closure/` and `reports/compliance/` also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", review or attempt counts, "record owner", file paths or names such as `reports/...` or `coverage.json`, local hosts and the ports in `reportRules.localPorts`): HANDBOOK/13 lists them and H1 refuses them. A defect record's reproduction data (steps, ruled-out notes, build line, history) may cite URLs, local servers and files: in `defects/DEF-*` H1 and `defect amend` refuse only the tooling words, and the path and port rules still cover the record's title.
 Use neutral language: "QA team", "automated pipeline", or the project name from
 `aegis.config.json#dashboard.projectName`.
 
