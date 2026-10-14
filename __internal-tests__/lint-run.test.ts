@@ -85,3 +85,100 @@ describe('lintFindings on JSON: name-like and phone-like keys keep their key for
     expect(rules({ cycleDate: '2026-10-12' })).toEqual([]);
   });
 });
+
+describe('lintRun never follows a link and always completes', () => {
+  const rd = () => runDir(t.root, runId);
+  const SECRET = 'Volunteer S1234567D logged in.\n'; // a valid NRIC: scanning it would be a finding
+  const lintG3 = () => lintRun(t.root, runId, 'G3', 'qa-orchestrator');
+
+  it('skips a dangling symlink and names it', async () => {
+    put('defects/DEF-001-AUTH-UI.md', 'ok\n');
+    fs.symlinkSync(path.join(rd(), 'nowhere.md'), path.join(rd(), 'defects/dangling.md'));
+    const r = await lintG3();
+    expect(r).toMatchObject({ ok: true, filesScanned: 1 });
+    expect(r.skipped).toEqual([{ file: 'defects/dangling.md', reason: 'symbolic link, not followed' }]);
+    expect(events().some((e) => e.type === 'lint.completed')).toBe(true);
+  });
+
+  it('skips a symlink loop', async () => {
+    put('defects/DEF-001-AUTH-UI.md', 'ok\n');
+    fs.symlinkSync(rd(), path.join(rd(), 'defects/loop'));
+    const r = await lintG3();
+    expect(r.filesScanned).toBe(1);
+    expect(r.skipped).toEqual([{ file: 'defects/loop', reason: 'symbolic link, not followed' }]);
+  });
+
+  it('never reads a directory outside the run through a symlink', async () => {
+    const outside = fs.mkdtempSync(path.join(t.root, 'outside-'));
+    fs.writeFileSync(path.join(outside, 'secret.md'), SECRET);
+    put('defects/DEF-001-AUTH-UI.md', 'ok\n');
+    fs.symlinkSync(outside, path.join(rd(), 'defects/linkdir'));
+    const r = await lintG3();
+    expect(r).toMatchObject({ ok: true, errors: 0, filesScanned: 1 });
+    expect(r.findings).toEqual([]);
+    expect(r.skipped).toEqual([{ file: 'defects/linkdir', reason: 'symbolic link, not followed' }]);
+  });
+
+  it('skips a symlinked file', async () => {
+    const outside = fs.mkdtempSync(path.join(t.root, 'outside-'));
+    fs.writeFileSync(path.join(outside, 'secret.md'), SECRET);
+    put('defects/DEF-001-AUTH-UI.md', 'ok\n');
+    fs.symlinkSync(path.join(outside, 'secret.md'), path.join(rd(), 'defects/linked.md'));
+    const r = await lintG3();
+    expect(r).toMatchObject({ ok: true, filesScanned: 1 });
+    expect(r.skipped).toEqual([{ file: 'defects/linked.md', reason: 'symbolic link, not followed' }]);
+  });
+
+  const asRoot = process.getuid?.() === 0;
+  (asRoot ? it.skip : it)('skips a file it cannot read and names the error', async () => {
+    put('defects/DEF-001-AUTH-UI.md', 'ok\n');
+    put('defects/noread.md', SECRET);
+    const f = path.join(rd(), 'defects/noread.md');
+    fs.chmodSync(f, 0o000);
+    try {
+      const r = await lintG3();
+      expect(r).toMatchObject({ ok: true, filesScanned: 1 });
+      expect(r.skipped).toEqual([{ file: 'defects/noread.md', reason: 'cannot read: EACCES' }]);
+      expect(events().some((e) => e.type === 'lint.completed')).toBe(true);
+    } finally {
+      fs.chmodSync(f, 0o644);
+    }
+  });
+
+  it('skips a file over 5 MB', async () => {
+    put('defects/DEF-001-AUTH-UI.md', 'ok\n');
+    put('defects/big.md', 'x'.repeat(5 * 1024 * 1024 + 1));
+    const r = await lintG3();
+    expect(r.filesScanned).toBe(1);
+    expect(r.skipped).toEqual([{ file: 'defects/big.md', reason: 'larger than 5 MB' }]);
+  });
+
+  it('a refused call writes no report and records no event', async () => {
+    put('reports/closure/closure.md', 'this cycle');
+    await expect(lintRun(t.root, runId, 'G1', 'qa-orchestrator')).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(lintRun(t.root, runId, 'G3', 'qa-ui-specialist')).rejects.toMatchObject({ code: 'caller-forbidden' });
+    expect(fs.existsSync(path.join(rd(), 'reports/lint'))).toBe(false);
+    expect(events().some((e) => e.type === 'lint.completed')).toBe(false);
+  });
+});
+
+describe('lintFindings key words', () => {
+  const rules = (value: object) => {
+    put('reports/closure/closure.json', value);
+    return lintFindings(t.root, runId).findings;
+  };
+  it('a key that only contains a key word inside another word emits no key line', () => {
+    expect(rules({ hotel: 'Grand Plaza Hotel' })).toEqual([]);
+    expect(rules({ photo: 'x.png' })).toEqual([]);
+    for (const k of ['filename', 'hostname', 'username', 'pathname']) expect(rules({ [k]: 'Tan Ah Kow' })).toEqual([]);
+  });
+  it('a key whose word is a phone word does emit the key line', () => {
+    for (const k of ['contactPhone', 'mobile_number', 'Tel', 'hand-phone']) expect([k, rules({ [k]: '91234567' }).map((f) => f.rule)]).toEqual([k, ['pii-phone']]);
+  });
+  it('the key text never leaks into the context of a finding on a plain key', () => {
+    expect(rules({ hotel: 'call 91234567' }).every((f) => !f.context.includes('hotel'))).toBe(true);
+  });
+  it('a name key is fullName, firstName, lastName, surname or a key with the word name', () => {
+    for (const k of ['fullName', 'firstName', 'lastName', 'surname', 'volunteerName']) expect([k, rules({ [k]: 'Tan Ah Kow' }).map((f) => f.rule)]).toEqual([k, ['pii-name']]);
+  });
+});
