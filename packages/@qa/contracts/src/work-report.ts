@@ -28,6 +28,9 @@ export const WorkReportSchema = z.object({
   // Event IDs or file paths used as evidence.
   evidence: z.array(z.string()).default([]),
   artifactsProduced: z.array(z.string()).default([]),
+  // Stamped by the CLI at submit, never by the agent (one it writes is dropped): the lint error ids (`<rule> <file>:<line>`) found in the
+  // files of artifactsProduced of a report writer. Absent when the lint found no error or the agent is not linted at submit.
+  lintErrors: z.array(z.string()).optional(),
 });
 
 export type WorkReport = z.infer<typeof WorkReportSchema>;

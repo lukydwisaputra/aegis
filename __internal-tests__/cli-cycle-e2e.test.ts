@@ -117,6 +117,12 @@ class Sim {
   /** A phase with one worker task and its outputs. */
   phase(phase: string, agent: string, outputs: Record<string, unknown> = {}, task = `T-${phase}-1`): void {
     this.ok(O, 'phase', 'start', '--phase', phase);
+    // The executive reporter renders the three deliverables and records each one (the executive barrier checks the events).
+    if (phase === 'executive') {
+      for (const [deliverable, file] of [['technical', 'technical-report.pdf'], ['signoff', 'signoff.pdf'], ['slides', 'executive-deck.pdf']]) {
+        this.ok(agent, 'event', 'append', '--type', 'report.produced', '--json', JSON.stringify({ deliverable, path: `reports/executive/${file}` }));
+      }
+    }
     this.work(O, task, agent);
     for (const [rel, value] of Object.entries(outputs)) this.put(rel, value);
     this.ok(O, 'phase', 'complete', '--phase', phase);

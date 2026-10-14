@@ -8,7 +8,7 @@ import {
   readActiveRun, readRun, reissueRun, releaseTask, runDir, startPhase, submitReview, submitWorkReport, taskmasterDir, verifyRunIntegrity,
 } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { fastForward, ORCH, review, TS, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { fastForward, ORCH, produceDeliverables, review, TS, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
 const APPROVED = { status: 'approved', decisions: 1 };
 const G2_DECIDED = { status: 'approved-with-conditions', decisions: 2 };
@@ -62,6 +62,7 @@ async function completedRun(): Promise<void> {
   decisionFile('G2', 2);
   decisionFile('G3', 1);
   await startPhase(t.root, runId, 'executive', ORCH);
+  await produceDeliverables(t.root, runId);
   await workTask(t.root, runId, 'T-executive-1', EXEC, 'qa-executive-reporter-spv');
   await completePhase(t.root, runId, 'executive', ORCH);
   await startPhase(t.root, runId, 'curator', ORCH);
@@ -117,6 +118,7 @@ describe('reissueRun after the last gate', () => {
     await completedRun();
     await reissueRun(t.root, runId, { phase: 'executive', reason: 'Wording fix' }, 'owner');
     await startPhase(t.root, runId, 'executive', ORCH);
+    await produceDeliverables(t.root, runId);
     // Attempt 1 and its passing review are superseded: they do not satisfy the barrier.
     await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/task T-executive-1 is pending/) });
     await claimTask(t.root, runId, 'T-executive-1', EXEC);
@@ -290,6 +292,7 @@ describe('reissueRun before the last gate', () => {
     await decideGate(t.root, runId, { gate: 'G3', decision: 'approved', note: 'Closure accepted again' }, 'owner');
     expect(step()).toEqual({ kind: 'start-phase', phase: 'executive' });
     await startPhase(t.root, runId, 'executive', ORCH);
+    await produceDeliverables(t.root, runId);
     await redo('T-executive-1', EXEC, 'qa-executive-reporter-spv', 2);
     await completePhase(t.root, runId, 'executive', ORCH);
     await startPhase(t.root, runId, 'curator', ORCH);

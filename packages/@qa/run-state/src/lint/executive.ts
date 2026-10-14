@@ -216,3 +216,13 @@ export function executiveScan(root: string, runId: string): { filesScanned: numb
 export function executiveFindings(root: string, runId: string): Finding[] {
   return executiveScan(root, runId).findings;
 }
+
+/**
+ * Why the executive phase cannot complete: the executive stage errors (never its warnings), by file:line rule, with the fix while the phase
+ * is still active. The executive barrier's safety net; the reporter already sees the same findings in its submit result.
+ */
+export function executiveBlockMessage(errors: readonly Pick<Finding, "file" | "line" | "rule">[]): string {
+  const listed = `${errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ")}${errors.length > 10 ? "; ..." : ""}`;
+  const ids = [...new Set(errors.map((f) => f.rule))].sort().join(", ");
+  return `${errors.length} executive stage lint error(s) (${listed}). The executive phase cannot complete with them: add a correction task for the executive reporter to this phase; it fixes its source files (executive-deck.json, residual-risks.json) and renders again, and for a missing deliverable event it renders that deliverable and appends report.produced, or report.fallback with the reason. Run aegis lint run --stage executive for the detail; the owner's recorded exception is reportRules.disable with the rule id (${ids})`;
+}

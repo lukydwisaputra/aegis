@@ -37,6 +37,7 @@ export * from "./lint/run-lint.js";
 export * from "./lint/data.js";
 export * from "./lint/executive.js";
 export * from "./lint/command.js";
+export * from "./lint/submit-lint.js";
 export * from "./explore/identity.js";
 // The explore probe; its config helpers (rawConfig, objectAt, environmentUrl) are internal to this package.
 export {

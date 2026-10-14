@@ -30,6 +30,8 @@ You review defect reports and the triage of defect candidates produced by `qa-de
 
 ## Review Checklist
 
+**Lint stamp first.** Review the latest attempt of the work report (the highest attempt number: a fix and resubmit within one claim adds an attempt, and your review attaches to the highest). When it carries `lintErrors`, the verdict is requested-changes without a deep review: one finding that quotes the stamped ids, and one corrective instruction to fix those files and submit again. A report without `lintErrors` gets the full checklist below; the stamp lists lint errors only, so the checks below still apply.
+
 1. **Defect ID format.** Every defect ID matches `DEF-{NNN}-{MODULE}-{TYPE}` where NNN is a 3-digit global sequence per MODULE, MODULE is a 2–8 char functional area name (not a run ID, scope code, or TC ID), and TYPE is one of `UI|API|A11Y|SEC|PERF|DATA|UNIT|EXP`. Wrong format or invalid TYPE = requested-changes.
 2. **65-char title rule.** Every defect title is ≤65 characters AND contains (a) location/component, (b) action/trigger, (c) observed symptom. Generic titles like "Login broken" or titles >65 chars = requested-changes.
 3. **Dual-format severity+priority.** Every defect has `severity: { code, name }` and `priority: { code, name }`. Single-field severity (code only) = requested-changes. Severity set equal to priority as a shortcut (e.g., both Sev2/P1 without independent reasoning) = passed-with-notes.

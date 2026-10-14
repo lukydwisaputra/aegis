@@ -36,6 +36,8 @@ You review the 3 PDF artefacts produced by `qa-executive-reporter`: the technica
 
 ## Review Checklist
 
+**Lint stamp first.** Review the latest attempt of the work report (the highest attempt number: a fix and resubmit within one claim adds an attempt, and your review attaches to the highest). When it carries `lintErrors`, the verdict is requested-changes without a deep review: one finding that quotes the stamped ids, and one corrective instruction to fix those files and submit again. A report without `lintErrors` gets the full checklist below; the stamp lists lint errors only, so the checks below still apply.
+
 ### Executive Slides
 
 1. **Slide count.** 5-7 slides total. Fewer than 5 = insufficient evidence for stakeholders. More than 7 = scope creep. Outside range = requested-changes.

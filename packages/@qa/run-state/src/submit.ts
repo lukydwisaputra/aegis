@@ -11,6 +11,7 @@ import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
 import { atomicWrite, formatLimitIssues, iso, loadJson, trimOverlong, type TrimmedField } from "./util.js";
+import { submitLint, type SubmitLint } from "./lint/submit-lint.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -21,6 +22,11 @@ export interface SubmitResult {
   trimmed?: TrimmedField[];
   /** Fields the CLI filled in or corrected (the id, which follows from the task and the reviewer). */
   adjusted?: string[];
+}
+
+/** A work report's submit result: for a report writer, the lint of the files it produced (a stamp in the stored report, never a refusal). */
+export interface WorkReportSubmitResult extends SubmitResult {
+  lint?: SubmitLint;
 }
 
 export interface LessonOutcome {
@@ -100,10 +106,24 @@ function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true
   throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, second.error.issues as never)}`);
 }
 
-export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<SubmitResult> {
+/** `lintErrors` is the CLI's stamp: one the agent wrote is dropped before parsing, and the result says so. */
+function withoutLintStamp(raw: unknown): { value: unknown; dropped: boolean } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw) || !Object.prototype.hasOwnProperty.call(raw, "lintErrors")) return { value: raw, dropped: false };
+  const { lintErrors: _dropped, ...rest } = raw as Record<string, unknown>;
+  return { value: rest, dropped: true };
+}
+
+/**
+ * Record a work report as the next attempt of the caller's claimed task. For a report writer (lint/submit-lint.ts) the files of its
+ * artifactsProduced are linted before the write: the findings come back in `lint` and the error ids are stamped into the stored report as
+ * `lintErrors`, so its SPV returns it without a deep review. The lint never refuses (a refused submit would leave the task unreleasable).
+ * A fix and a new submit within the same claim is the next attempt; the review attaches to the highest attempt.
+ */
+export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<WorkReportSubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
-  const raw = loadJson(file);
+  const { value: raw, dropped } = withoutLintStamp(loadJson(file));
   const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
+  if (dropped) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
@@ -114,6 +134,9 @@ export async function submitWorkReport(root: string, runId: string, file: string
     if (task === null || task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${report.taskId} is not in progress under ${caller}`);
     }
+    // Reads run files only; never refuses.
+    const linted = submitLint(root, runId, caller, report.artifactsProduced);
+    const stored = linted !== null && linted.lintErrors.length > 0 ? { ...report, lintErrors: linted.lintErrors } : report;
 
     const dir = workDir(root, runId);
     fs.mkdirSync(dir, { recursive: true });
@@ -124,7 +147,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
       attempt = Math.max(0, ...attemptsIn(dir, caller, report.taskId)) + 1;
       out = join(dir, `${caller}.${report.taskId}.${attempt}.json`);
       try {
-        publishJson(out, report);
+        publishJson(out, stored);
         break;
       } catch (e) {
         if (!isExists(e)) throw e;
@@ -142,7 +165,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
       fs.rmSync(out, { force: true });
       throw e;
     }
-    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}) };
+    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}), ...(linted !== null ? { lint: linted.lint } : {}) };
   });
 }
 

@@ -346,6 +346,111 @@ function defectRecords(dir: string): unknown[] | null {
  */
 const sameHit = (f: Finding): string => `${f.file}\u0000${f.line}\u0000${f.rule}\u0000${f.context.replace(/\s+/g, " ").trim()}`;
 
+/** A run file the lint reads: a Markdown or JSON file under a customer-facing glob (the brand and tooling-clean globs). */
+const isLintedFile = (rel: string): boolean => TEXT_FILE.test(rel) && CUSTOMER_FACING.some((g) => matchGlob(g, rel));
+
+/** What the per-file scan needs, read once per lint. `fedKeys`: the tier-1 hits the G3 sign-off-fed scan reports, so the file scan leaves them out. */
+interface FileLintContext {
+  dir: string;
+  rules: ReturnType<typeof resolveRules>;
+  disabled: ReadonlySet<string>;
+  allow: readonly string[];
+  localPorts: readonly number[];
+  pii: ReturnType<typeof readRunConfig>["reportRules"]["pii"];
+  fedKeys: ReadonlySet<string>;
+}
+
+/**
+ * The rules over one customer-facing run file, by its class: the wording rules (never on a case result, a working record), the personal-data
+ * rules, the brand rule (a warning on a working record), and tier 1 by tier1Severity. The one classification of the run-level lint and the
+ * file-list lint (lintFileFindings). Returns whether the file was scanned; an unreadable or invalid file is listed in `skipped`.
+ */
+function lintOneFile(ctx: FileLintContext, rel: string, findings: Finding[], skipped: Skipped[]): boolean {
+  const { rules, disabled, allow, localPorts } = ctx;
+  const abs = join(ctx.dir, rel);
+  let text: string;
+  try {
+    if (lstatSync(abs).size > MAX_TEXT_BYTES) { skipped.push({ file: rel, reason: "larger than 5 MB" }); return false; }
+    text = readFileSync(abs, "utf-8");
+  } catch (e) {
+    skipped.push({ file: rel, reason: `cannot read: ${errorCode(e)}` });
+    return false;
+  }
+  const raw = text;
+  let parsed: unknown;
+  if (rel.endsWith(".json")) {
+    try {
+      parsed = JSON.parse(text);
+      const strings: string[] = [];
+      jsonStrings(parsed, strings);
+      text = strings.join("\n");
+    } catch {
+      skipped.push({ file: rel, reason: "not valid JSON" }); // never the parser text: it echoes the input, personal data included
+      return false;
+    }
+  }
+  if (hasLongLine(text)) skipped.push({ file: rel, reason: `${PARTLY} ${MAX_LINE} characters: scanned in part` });
+  const working = WORKING_RECORD.test(rel);
+  // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
+  if (!working) findings.push(...scanWithRules(rel, text, rules, allow));
+  findings.push(...scanPii(rel, text, ctx.pii));
+  // The brand rule reads the file as written, keys and quoted runs included, as H1 does; a framework name in a working record is a warning.
+  // A JSON file is read by its parsed keys and values, so a minified file on one long line keeps every hit (no line is cut).
+  if (!disabled.has(BRAND_NAME) && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, rel))) {
+    const severity: Severity = working ? "warning" : "error";
+    findings.push(...(rel.endsWith(".json") ? scanTextsUnblanked(rel, brandTexts(parsed), { brand: { severity }, allow, lineOf: jsonLineOf(raw) }) : scanBrand(rel, raw, severity, allow)));
+  }
+  const severity = disabled.has(TOOLING_TIER1) ? null : tier1Severity(rel);
+  if (severity !== null) {
+    const tier1 = scanTextsUnblanked(rel, tier1Texts(rel, raw, parsed), { tier1: { localPorts, severity }, allow, lineOf: jsonLineOf(raw) });
+    findings.push(...tier1.filter((f) => !ctx.fedKeys.has(sameHit(f))));
+  }
+  return true;
+}
+
+/** The regular files of a run directory, relative to it, as the lint walks them (no work reports, reviews, lint reports, evidence; no link followed). */
+export function runFiles(dir: string): { files: string[]; skipped: LintReport["skipped"] } {
+  const files: string[] = [];
+  const skipped: LintReport["skipped"] = [];
+  if (existsSync(dir)) walk(dir, dir, files, skipped);
+  return { files, skipped };
+}
+
+/**
+ * The run-level lint over the given run files only (run-relative paths): the same classification per file as lintFindings (lintOneFile), and
+ * nothing the gates add (no sign-off-fed fields, no data checks, no case rendering: no case or scenario is rendered). A path that is not a
+ * customer-facing Markdown or JSON file is not read, as in the run-level lint; a missing file or a symbolic link is listed as skipped. Reads only.
+ */
+export function lintFileFindings(root: string, runId: string, rels: readonly string[]): { filesScanned: number; skipped: LintReport["skipped"]; findings: Finding[] } {
+  const dir = runDir(root, runId);
+  const config = readRunConfig(root);
+  const ctx: FileLintContext = {
+    dir, rules: resolveRules(config.reportRules, config.manualBudgetPercent), disabled: new Set(config.reportRules.disable),
+    allow: config.reportRules.allow, localPorts: config.reportRules.localPorts, pii: config.reportRules.pii, fedKeys: new Set(),
+  };
+  const findings: Finding[] = [];
+  const skipped: Skipped[] = [];
+  let filesScanned = 0;
+  for (const rel of [...new Set(rels)].filter(isLintedFile).sort()) {
+    let link: boolean;
+    try {
+      const st = lstatSync(join(dir, rel));
+      if (!st.isSymbolicLink() && !st.isFile()) { skipped.push({ file: rel, reason: "not a regular file" }); continue; }
+      link = st.isSymbolicLink();
+    } catch (e) {
+      skipped.push({ file: rel, reason: `cannot read: ${errorCode(e)}` });
+      continue;
+    }
+    if (link) { skipped.push({ file: rel, reason: "symbolic link, not followed" }); continue; }
+    if (lintOneFile(ctx, rel, findings, skipped)) filesScanned++;
+  }
+  return {
+    filesScanned,
+    skipped: skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file)),
+    findings: findings.map((f) => ({ ...f, file: maskPath(f.file) })).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule)),
+  };
+}
+
 /**
  * The findings over the run's customer-facing files and, with a `gate`, what that gate adds: G2 the data checks of lint/data.ts; G3 the
  * closure fields the sign-off prints, with tier 1 and tier 2 and nothing blanked (signoffFedFindings). Reads only.
@@ -368,47 +473,10 @@ export function lintFindings(root: string, runId: string, gate?: "G2" | "G3"): {
   // is, and scanning both doubles every finding); any other case .md (hand-written, stale) is scanned as before.
   const rendering = existsSync(dir) ? renderingSnapshot(root, runId) : { rendered: new Map<string, string>(), stale: [] as string[], invalid: [] as Array<{ file: string; reason: string }> };
   const stale = new Set(rendering.stale);
-  for (const rel of files.filter((f) => TEXT_FILE.test(f) && CUSTOMER_FACING.some((g) => matchGlob(g, f)))) {
+  const ctx: FileLintContext = { dir, rules, disabled, allow, localPorts, pii: config.reportRules.pii, fedKeys };
+  for (const rel of files.filter(isLintedFile)) {
     if (CASE_MD.test(rel) && rendering.rendered.has(rel) && !stale.has(rel)) continue;
-    const abs = join(dir, rel);
-    let text: string;
-    try {
-      if (lstatSync(abs).size > MAX_TEXT_BYTES) { skipped.push({ file: rel, reason: "larger than 5 MB" }); continue; }
-      text = readFileSync(abs, "utf-8");
-    } catch (e) {
-      skipped.push({ file: rel, reason: `cannot read: ${errorCode(e)}` });
-      continue;
-    }
-    const raw = text;
-    let parsed: unknown;
-    if (rel.endsWith(".json")) {
-      try {
-        parsed = JSON.parse(text);
-        const strings: string[] = [];
-        jsonStrings(parsed, strings);
-        text = strings.join("\n");
-      } catch {
-        skipped.push({ file: rel, reason: "not valid JSON" }); // never the parser text: it echoes the input, personal data included
-        continue;
-      }
-    }
-    filesScanned++;
-    if (hasLongLine(text)) skipped.push({ file: rel, reason: `${PARTLY} ${MAX_LINE} characters: scanned in part` });
-    const working = WORKING_RECORD.test(rel);
-    // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
-    if (!working) findings.push(...scanWithRules(rel, text, rules, allow));
-    findings.push(...scanPii(rel, text, config.reportRules.pii));
-    // The brand rule reads the file as written, keys and quoted runs included, as H1 does; a framework name in a working record is a warning.
-    // A JSON file is read by its parsed keys and values, so a minified file on one long line keeps every hit (no line is cut).
-    if (!disabled.has(BRAND_NAME) && BRAND_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, rel))) {
-      const severity: Severity = working ? "warning" : "error";
-      findings.push(...(rel.endsWith(".json") ? scanTextsUnblanked(rel, brandTexts(parsed), { brand: { severity }, allow, lineOf: jsonLineOf(raw) }) : scanBrand(rel, raw, severity, allow)));
-    }
-    const severity = disabled.has(TOOLING_TIER1) ? null : tier1Severity(rel);
-    if (severity !== null) {
-      const tier1 = scanTextsUnblanked(rel, tier1Texts(rel, raw, parsed), { tier1: { localPorts, severity }, allow, lineOf: jsonLineOf(raw) });
-      findings.push(...tier1.filter((f) => !fedKeys.has(sameHit(f))));
-    }
+    if (lintOneFile(ctx, rel, findings, skipped)) filesScanned++;
   }
   findings.push(...fed);
   // Once the CLI renders the case Markdown, a case .md that is missing, edited by hand or left without its JSON is stale, and a case JSON
