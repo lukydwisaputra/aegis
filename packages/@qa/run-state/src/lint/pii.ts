@@ -20,9 +20,9 @@ const RESERVED_DOMAIN = /(?:^|\.)(?:example\.(?:com|net|org)|[^.]+\.(?:test|exam
 const NRIC = /(?<![A-Za-z0-9])([STFGM])[ \t-]?(\d{7})[ \t-]?([A-Z])(?![A-Za-z0-9])/gi;
 // A plain or a quoted local part, then a domain whose last label is letters only (so pnpm@9.1.0 and react@18.3.1 are versions, not addresses).
 const EMAIL = /(?:(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+|"[^"\n]{1,64}")@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})(?![A-Za-z0-9-])/g;
-// +65 9123 4567, 6591234567, 91234567, +44 20 7946 0958: a plus-prefixed international number, a 65-prefixed one, or 8 digits that start a Singapore number.
-const PHONE = /(?<![\w.\-/])(?:\+\d{1,3}[\s-]?\d[\d\s-]{6,12}\d|65[\s-]?[3689]\d{3}[\s-]?\d{4}|[3689]\d{3}[\s-]?\d{4})(?![\w\-/])(?!\.\d)/g;
-const PREFIXED_PHONE = /^(?:\+|65[\s-]?[3689]\d{3}[\s-]?\d{4}$)/;
+// +65 9123 4567, 6591234567, 91234567, +44 20 7946 0958: a plus-prefixed international number, a 65-prefixed one (also (65) and (+65)), or 8 digits that start a Singapore number.
+const PHONE = /(?<![\w.\-/])(?:\+\d{1,3}[\s-]?\d[\d\s-]{6,12}\d|\(?\+?65\)?[\s-]?[3689]\d{3}[\s-]?\d{4}|[3689]\d{3}[\s-]?\d{4})(?![\w\-/])(?!\.\d)/g;
+const PREFIXED_PHONE = /^(?:\+|\(?\+?65\)?[\s-]?[3689]\d{3}[\s-]?\d{4}$)/;
 const DATE_AFTER_PLUS = /^\+\d{4}-\d{2}-\d{2}/;
 /** A bare 8-digit number is a phone only next to one of these words: it is far more often an id or a count. */
 const PHONE_CUE = /(?<![A-Za-z])(?:phones?|mobiles?|tel|telephone|contacts?|contacted|contacting|call|calls|called|calling|sms|whatsapp|hp|handphones?|hand phones?|numbers?|no\.|dial|dials|dialed|dialled|dialing|dialling)(?![A-Za-z])/i;
@@ -85,13 +85,25 @@ function cells(row: string): string[] {
   return parts.map((c) => c.trim());
 }
 
-/** The text of the header cell above column `col` of the table row at `index`, or "". */
-function headerCell(lines: readonly string[], index: number, col: number): string {
-  let top = index;
-  while (top > 0 && lines[top - 1]!.trim().startsWith("|")) top--;
-  const separator = lines[top + 1];
-  if (top === index || separator === undefined || !/^\s*\|?[\s:|-]*-[\s:|-]*$/.test(separator)) return "";
-  return cells(lines[top]!)[col] ?? "";
+const TABLE_SEPARATOR = /^\s*\|?[\s:|-]*-[\s:|-]*$/;
+
+/** For every line inside a Markdown table body, the cells of that table's header row (computed once per table), else null. */
+function tableHeaders(lines: readonly string[]): Array<string[] | null> {
+  const out: Array<string[] | null> = [];
+  let header: string[] | null = null;
+  let top = -1;
+  lines.forEach((l, i) => {
+    if (!l.trim().startsWith("|")) { top = -1; header = null; out.push(null); return; }
+    if (top === -1) {
+      top = i;
+      const next = lines[i + 1];
+      header = next !== undefined && TABLE_SEPARATOR.test(next) ? cells(l) : null;
+      out.push(null);
+      return;
+    }
+    out.push(header);
+  });
+  return out;
 }
 
 function isSynthetic(value: string, prefixes: readonly string[]): boolean {
@@ -117,6 +129,7 @@ export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Fi
   const out: Finding[] = [];
   const phonePatterns = pii.syntheticPhonePatterns.map((p) => new RegExp(p));
   const lines = text.split("\n");
+  const headers = tableHeaders(lines);
   lines.forEach((raw, index) => {
     const line = index + 1;
     const flagged: Array<{ rule: string; message: string; span: Span }> = [];
@@ -138,7 +151,8 @@ export function scanPii(file: string, text: string, pii: ReportRules["pii"]): Fi
       if (DATE_AFTER_PLUS.test(value)) continue;
       const span = { start: m.index, end: m.index + m[0].length, shown: mask(m[0]) };
       spans.push(span);
-      const cell = raw.trim().startsWith("|") ? headerCell(lines, index, raw.slice(0, m.index).split("|").length - (raw.trimStart().startsWith("|") ? 2 : 1)) : "";
+      const header = headers[index];
+      const cell = header ? header[raw.slice(0, m.index).split("|").length - (raw.trimStart().startsWith("|") ? 2 : 1)] ?? "" : "";
       if (!PREFIXED_PHONE.test(value) && !cued && !PHONE_CUE.test(cell)) continue;
       if (phonePatterns.some((p) => p.test(value))) continue;
       flagged.push({ rule: "pii-phone", message: "a phone number that may be real: mask it, or declare the project's synthetic pattern in reportRules.pii.syntheticPhonePatterns", span });

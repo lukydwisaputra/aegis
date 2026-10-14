@@ -181,3 +181,23 @@ describe('order', () => {
     expect(rules('Name: Tan Ah Kow\nS1234567D tan@gmail.com call 91234567')).toEqual(['pii-name', 'pii-email', 'pii-nric', 'pii-phone']);
   });
 });
+
+// ---- fix round 2 ----
+describe('parenthesised country code', () => {
+  it.each(['(65) 9123 4567', '(+65) 9123 4567', '(65) 91234567', 'call (65) 9123 4567'])('%s is a phone with no cue needed', (t) => expect(rules(t)).toEqual(['pii-phone']));
+  it('masks the number in the context', () => {
+    expect(found('(+65) 9123 4567')[0]!.context).not.toContain('9123 4567');
+  });
+  it.each(['(65)', '65 apples', '(650) 123', '(65) 9123 456'])('%s is not', (t) => expect(rules(t)).toEqual([]));
+});
+
+describe('large tables', () => {
+  it('a 5,000-row table with a Phone column is scanned in under 500 ms', () => {
+    const rows = Array.from({ length: 5000 }, (_, i) => `| QA ${i} | ${String(91230000 + i)} |`);
+    const text = ['| Name | Phone |', '| --- | --- |', ...rows].join('\n');
+    const started = Date.now();
+    const fs = found(text);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(fs.length).toBe(5000);
+  });
+});
