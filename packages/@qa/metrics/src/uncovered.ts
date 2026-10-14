@@ -22,6 +22,8 @@ export interface CauseRule {
 export const CAUSE_RULES: readonly CauseRule[] = [
   // Environment: the system under test or its surroundings were not available.
   { cause: "environment", pattern: /schedule[ -]app/i, label: "Schedule App" },
+  // A production run cannot seed or change data: the cases that need it are skipped with this note (also "needs seeded data").
+  { cause: "environment", pattern: /production is read-only/i, label: "read-only environment" },
   { cause: "environment", pattern: /(?<![\w./-])503(?![\w/-])/, label: "503" },
   { cause: "environment", pattern: /\b(?:app|service|integration|feed|api|server|provider|webhook|gateway)\b[^.;]{0,30}\bdisconnected|\bdisconnected\b[^.;]{0,20}\b(?:app|service|integration|feed|api|server|provider|webhook|gateway)\b/i, label: "service disconnected" },
   { cause: "environment", pattern: /seed data/i, label: "seed data" },

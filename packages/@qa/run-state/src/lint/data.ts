@@ -30,6 +30,7 @@ export const DATA_RULES: Readonly<Record<string, DataRuleGroup>> = {
   "blocked-cause-suspect": "blocked-qa-side",
   "blocked-requirement-gap": "blocked-qa-side",
   "blocked-unreadable": "blocked-qa-side",
+  "skipped-reason-unrecognised": "blocked-qa-side",
   "defect-origin-missing": "defect-origin",
   "defect-origin-not-clean": "defect-origin",
   "defect-unreadable": "defect-origin",
@@ -63,6 +64,11 @@ const SUSPECT = "the note of this product-dependency Blocked result reads like a
 const UNREADABLE_CASE =
   "the result files of this case disagree on which is the case of record (two declare caseOfRecord, or one gives no caseOfRecordReason); the other Blocked checks of the run did not run and run once it is fixed";
 
+const SKIPPED_REASON =
+  "a skipped result names a QA-side limit no fix inside the run removes (a note beginning dev-covered:, or production is read-only); a fixable cause (seed data, auth, budget, fixtures) is fixed and the case run";
+/** The skip reasons the specialists are told to write. */
+const isRecognisedSkip = (text: string): boolean => /^\s*dev-covered:/i.test(text) || /production is read-only/i.test(text);
+
 /** Words that name no dependency at all. */
 const GENERIC_DEPENDENCY: ReadonlySet<string> = new Set(["api", "service", "server", "data", "env", "tbd", "none", "unknown", "n/a"]);
 
@@ -91,10 +97,10 @@ function blockedFindings(dir: string, scope: ReadonlySet<string> | null): Findin
     checks = scanChecks(dir);
   } catch (e) {
     if (!(e instanceof CaseOfRecordError)) throw e;
+    // Always an error, whatever the reissue scope: it stops every other Blocked check of the run, carried cases included.
     const caseId = /^(TC-[A-Z]{2,8}-\d{3,})/.exec(e.message)?.[1] ?? "unknown case";
     const file = /\b(TC-[A-Z]{2,8}-\d{3,}[A-Za-z0-9-]*\.json)\b/.exec(e.message)?.[1];
-    const carried = outsideScope(scope, caseId);
-    return [finding("blocked-unreadable", carried ? "warning" : "error", file === undefined ? "cases" : `cases/${file}`, UNREADABLE_CASE, carried ? caseId + CARRIED : caseId)];
+    return [finding("blocked-unreadable", "error", file === undefined ? "cases" : `cases/${file}`, UNREADABLE_CASE, caseId)];
   }
   const out: Finding[] = [];
   const seen = new Set<string>();
@@ -107,7 +113,12 @@ function blockedFindings(dir: string, scope: ReadonlySet<string> | null): Findin
     out.push(finding(rule, carried ? "warning" : severity, `cases/${b.file}`, message, carried ? context + CARRIED : context));
   };
   for (const id of [...checks.keys()].sort()) {
-    for (const b of checks.get(id)!.blocked ?? []) {
+    const state = checks.get(id)!;
+    // A skipped result names a QA-side limit no fix inside the run removes; anything else may be a fault moved out of Blocked.
+    if (state.outcome === "skipped" && !state.texts.some(isRecognisedSkip)) {
+      out.push(finding("skipped-reason-unrecognised", "warning", "cases", SKIPPED_REASON, id));
+    }
+    for (const b of state.blocked ?? []) {
       if (b.cause === "missing" || b.cause === "invalid") {
         add(b, "blocked-no-cause", "error", NO_CAUSE, `${b.caseId}: blockedCause ${b.cause}`);
       } else if (b.cause === "requirement-gap") {

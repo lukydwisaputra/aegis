@@ -14,9 +14,10 @@
 # =============================================================================
 
 # ─── CYCLE: smoke (/qa-smoke) — auto-decided gate G2, no human gate ───────────
-# Read by `aegis gate auto-decide` (P0 spec §3.2). Pass rate is passed / (passed + failed + blocked).
+# Read by `aegis gate auto-decide` (P0 spec §3.2). Pass rate is passed / (passed + failed + blocked + skipped),
+# from execution-summary.json totals: a skipped case counts against the rate, so moving a case to skipped never raises it.
 smoke:
-  passRateMin: 100   # percent of executed smoke test cases that must pass
+  passRateMin: 100   # percent of the smoke test cases (passed, failed, blocked and skipped) that must pass
   openSev1Max: 0     # open Sev1 defects tolerated
   openSev2Max: 0     # open Sev2 defects tolerated
 

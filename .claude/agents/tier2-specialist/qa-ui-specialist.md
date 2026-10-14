@@ -111,7 +111,7 @@ tests/qa/
    - Name evidence: `{TC-ID}_{step}_{ISO8601-Z}.{ext}`
    - **Inspection screenshots** (taken mid-task via MCP or CLI to resolve an ambiguous selector) must be deleted immediately after the selector decision is made — they are never written to `runs/{runId}/evidence/`
 
-8. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked`, evidence paths, duration.
+8. **Write result.** After each TC: write `{TC-ID}-result.json` with `status: pass | fail | blocked | skipped`, evidence paths, duration.
 
 9. **Production is read-only smoke.** On production (a read-only (`readOnly: true` or `mutating: false`) environment) run only read-only smoke TCs: no factory `create()`, no form submit that changes state, no write to the target. Run-side results and evidence are still written. Write `skipped` for every other TC, with the note `production is read-only` (a QA-side limit, never Blocked; no `test.blocked` event).
 

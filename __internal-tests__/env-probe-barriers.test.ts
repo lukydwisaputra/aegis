@@ -483,14 +483,17 @@ describe('a case QA cannot run for a limit of its own is skipped, never Blocked'
   it('the suspect hint reads the testing-side rules of the uncovered-cause table plus seed data and service-role', async () => {
     await newRun();
     const testingSide = CAUSE_RULES.filter((r) => r.cause === 'testing-side');
-    const notes: Record<string, string> = { 'TC-AUTH-020': 'mutation score below threshold', 'TC-AUTH-021': 'needs a service-role key', 'TC-AUTH-022': 'the harness timed out' };
+    // Labels only the derivation from CAUSE_RULES yields (a hand-kept copy named these sandbox-only and session budget).
+    const notes: Record<string, string> = { 'TC-AUTH-020': 'sandbox-only run for this flow', 'TC-AUTH-021': 'needs a service-role key', 'TC-AUTH-022': 'the session budget ran out' };
     for (const [id, note] of Object.entries(notes)) {
       writeRunFile(root(), runId, `cases/${id}.json`, { id });
       writeRunFile(root(), runId, `cases/${id}-result.json`, { status: 'blocked', blockedCause: 'product-dependency', blockedDependency: 'Stripe', notes: note });
     }
     const hints = dataFindings(root(), runId, 'execution', new Set()).filter((f) => f.rule === 'blocked-cause-suspect').map((f) => f.context);
-    expect(hints).toEqual(['TC-AUTH-020: note names mutation score', 'TC-AUTH-021: note names service-role', 'TC-AUTH-022: note names harness']);
-    expect(testingSide.map((r) => r.label)).toEqual(expect.arrayContaining(['mutation score', 'harness', 'dev-covered']));
+    expect(hints).toEqual(['TC-AUTH-020: note names sandbox-only Playwright policy', 'TC-AUTH-021: note names service-role', 'TC-AUTH-022: note names live-session budget']);
+    expect(testingSide.map((r) => r.label)).toEqual(expect.arrayContaining(['sandbox-only Playwright policy', 'live-session budget', 'dev-covered']));
+    // The new environment rule does not leak into the testing-side hints.
+    expect(testingSide.map((r) => r.label)).not.toContain('read-only environment');
   });
 });
 
@@ -522,5 +525,75 @@ describe('agent prose for the Blocked rule and its corrections', () => {
     expect(agent('spv/qa-ui-specialist-spv.md')).toMatch(/the TC is `skipped` with the note `production is read-only, needs seeded data` \(never Blocked\)/);
     expect(agent('tier1-phase/qa-test-executor.md')).toMatch(/a case that cannot run is Blocked only under the Blocked rule \(Blocked result, below\); otherwise it is `skipped` with the reason/);
     expect(agent('spv/qa-test-executor-spv.md')).toMatch(/is not run and is `skipped` with a note beginning `dev-covered:`, never Blocked/);
+  });
+});
+
+describe('review round 2', () => {
+  it('blocked-unreadable stays an error outside the reissue scope: it stops every other Blocked check, so the barrier refuses on it', async () => {
+    await newRun();
+    writeRunFile(root(), runId, 'cases/TC-AUTH-001.json', { id: 'TC-AUTH-001' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-001-result.json', { status: 'blocked', notes: 'login fixture not ready' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-002.json', { id: 'TC-AUTH-002' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-002-result-api.json', { status: 'blocked', caseOfRecord: true, caseOfRecordReason: 'G2 decision' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-002-result-stub.json', { status: 'pass', caseOfRecord: true, caseOfRecordReason: 'G2 decision' });
+    completeRunState();
+    await reissueRun(root(), runId, { phase: 'execution', reason: 'Re-run the login case', cases: ['TC-AUTH-001'] }, 'owner');
+    expect(dataFindings(root(), runId, 'execution', new Set()).map((f) => `${f.rule}|${f.severity}|${f.context}`)).toEqual(['blocked-unreadable|error|TC-AUTH-002']);
+    writeEnvProbe(root(), runId, 'execution', { takenAt: new Date(Date.now() + 1000).toISOString() });
+    await startPhase(root(), runId, 'execution', ORCH);
+    await workTask(root(), runId, 'T-execution-1', 'qa-test-executor', 'qa-test-executor-spv');
+    writeRunFile(root(), runId, 'execution-summary.json', { totals: { passed: 0, failed: 0, blocked: 2 } });
+    await expect(completePhase(root(), runId, 'execution', ORCH)).rejects.toMatchObject({
+      code: 'barrier', message: expect.stringMatching(/blocked-unreadable.*the other Blocked checks run once it is fixed/),
+    });
+  });
+
+  it('a skipped result whose note names no recognised QA-side limit is a skipped-reason-unrecognised warning (case id only), at Execution and G2; it never blocks', async () => {
+    await newRun();
+    const notes: Record<string, string | undefined> = {
+      'TC-AUTH-030': 'dev-covered: the test config builds .next in place',
+      'TC-AUTH-031': 'production is read-only, needs seeded data',
+      'TC-AUTH-032': 'seed data for the roster is missing',
+      'TC-AUTH-033': undefined,
+    };
+    for (const [id, note] of Object.entries(notes)) {
+      writeRunFile(root(), runId, `cases/${id}.json`, { id });
+      writeRunFile(root(), runId, `cases/${id}-result.json`, { status: 'skipped', ...(note === undefined ? {} : { notes: note }) });
+    }
+    for (const stage of ['execution', 'G2'] as const) {
+      const found = dataFindings(root(), runId, stage, new Set(['env-probe', 'defect-origin', 'defect-counts'])).filter((f) => f.rule === 'skipped-reason-unrecognised');
+      expect(found.map((f) => `${f.severity}|${f.file}|${f.context}`)).toEqual(['warning|cases|TC-AUTH-032', 'warning|cases|TC-AUTH-033']);
+    }
+    expect(JSON.stringify(dataFindings(root(), runId, 'execution', new Set()))).not.toContain('roster');
+    expect(dataFindings(root(), runId, 'execution', new Set(['skipped-reason-unrecognised']))).toEqual([]);
+    // A warning never holds the Execution barrier.
+    fastForward(root(), runId, 'execution', { G1: APPROVED });
+    writeEnvProbe(root(), runId, 'execution');
+    await startPhase(root(), runId, 'execution', ORCH);
+    await workTask(root(), runId, 'T-execution-1', 'qa-test-executor', 'qa-test-executor-spv');
+    writeRunFile(root(), runId, 'execution-summary.json', { totals: { passed: 0, failed: 0, blocked: 0, skipped: 4 } });
+    await expect(completePhase(root(), runId, 'execution', ORCH)).resolves.toBeDefined();
+  });
+
+  it('a production read-only skip is an environment row of the uncovered rollup, not other', async () => {
+    await newRun();
+    writeRunFile(root(), runId, 'rtm.json', { rows: [{ requirementId: 'REQ-AUTH-01', testStatus: 'Covered' }] });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-040.json', { id: 'TC-AUTH-040' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-040-result.json', { status: 'skipped', notes: 'production is read-only, needs seeded data' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-041.json', { id: 'TC-AUTH-041' });
+    writeRunFile(root(), runId, 'cases/TC-AUTH-041-result.json', { status: 'skipped', notes: 'production is read-only' });
+    expect(classifyUncovered(runDir(root(), runId)).rows).toEqual([
+      { id: 'TC-AUTH-040', cause: 'environment', via: 'keyword: read-only environment' },
+      { id: 'TC-AUTH-041', cause: 'environment', via: 'keyword: read-only environment' },
+    ]);
+  });
+
+  it('prose: the executor rewrites the summary totals after a Blocked correction; the ui result status list has skipped; the SPVs check the skipped reason', () => {
+    const agent = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', rel), 'utf8');
+    expect(agent('orchestrator/qa-orchestrator.md')).toMatch(/add a correction task for `qa-test-executor` to the same active phase to rewrite those totals from the corrected result files \(its aggregation step, case of record included/);
+    expect(agent('tier2-specialist/qa-ui-specialist.md')).toContain('`status: pass | fail | blocked | skipped`');
+    for (const f of ['qa-ui-specialist-spv', 'qa-api-specialist-spv', 'qa-unit-specialist-spv', 'qa-test-executor-spv']) {
+      expect(agent(`spv/${f}.md`)).toMatch(/^\d+\. \*\*Skipped reason\.\*\* A `skipped` result names a QA-side limit no fix inside the run removes/m);
+    }
   });
 });
