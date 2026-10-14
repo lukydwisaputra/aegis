@@ -86,7 +86,7 @@ Every event includes `ts: string` (ISO-8601 UTC).
 | `env.specialist-blocked` | env, specialist |
 | `env.executed` | agent, environment, command (redacted), exitCode, injected (names only) |
 | `lint.completed` | agent, gate (G2 or G3), errors, warnings, report (reports/lint/gate-{G}.json) |
-| `explore.probed` | agent, mode (baseline or verify), decision (reuse, partial, full; none for a baseline), pages, same, changed, failed, hints (reports/explore/baseline.json or probe.json) |
+| `explore.probed` | agent, mode (baseline or verify), decision (reuse, partial, full; none for a baseline), pages, same, changed, failed, hints. A verify compares pages and writes reports/explore/probe.json (decision, reason, diff, hints, reopened, changedPages). A baseline counts the pages observed in pages and the pages it could not observe in failed, and writes reports/explore/baseline.json (pages, unobserved with role, url and error, skipped, roles, discoveryConfigHash, identity, unavailable) |
 | `aegis.territory.violated` | agent, attemptedPath |
 
 ### Discovery & auth

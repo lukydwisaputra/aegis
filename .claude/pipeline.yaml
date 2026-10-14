@@ -90,6 +90,7 @@ sources:
     - "{run}/integrity/**"
     - "{run}/hooks/**"
     - "{run}/messaging/**"
+    - "{run}/reports/explore/**"
     - "{tests}/qa/support/test-helpers.ts"
     - "{tests}/qa/support/supabase.ts"
     - "{tests}/qa/support/messaging.ts"

@@ -92,6 +92,14 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
 
    **Explore exception.** `qa-exploratory-specialist` is the one Tier-2 specialist you dispatch yourself: in Explore, after `qa-web-explorer` returns, add one task per story or story cluster (`aegis task add --id T-explore-<n> --title "<charter>" --agent qa-exploratory-specialist`, with n counting up from 2: `T-explore-1` is the web explorer's task) and dispatch it with the stories in its brief, then dispatch its SPV like any worker's. Its claim counts against `aegis.config.json#parallelism.maxSpecialists` and is refused where the environment does not allow `exploratory` (`aegis.config.json#environments.{env}.allowedSpecialists`): on such an environment add no exploratory task — the web explorer alone covers Explore. An exploratory specialist refused with `cap-reached` returns without work: re-dispatch it for the same task id after another specialist's task is released — never cancel the task or add a new id for it.
 
+   **Carried discovery.** After a gate rejection that reopened an earlier phase, `aegis run status` can show the Explore phase record with carried set to true: the web explorer's task stayed done and its discovery is reused only after a probe of the running app. When `next` starts such an Explore, start the phase (step 4.1); when it continues an Explore that still shows carried (an interrupted probe), skip the start. Then run `aegis explore probe` with a Bash timeout of 600000 ms (the default two minutes is too short for 60 or more pages; the probe returns within its own eight-minute budget). It compares the app with the baseline taken when the explorer's work was accepted, writes `runs/{runId}/reports/explore/probe.json` and answers one decision:
+   - `reuse`: dispatch no web explorer; its earlier discovery stands and so does its baseline. The exploratory-session tasks the rejection reopened are pending: dispatch them again as usual (a task that was claimed once cannot be cancelled).
+   - `partial`: the CLI has reopened the web explorer's task. Put the `changedPages` list of `probe.json` in its brief and tell it to work in diff mode over exactly those pages.
+   - `full`: the CLI has reopened the web explorer's task, and it explores in full (no changed-page list in its brief). The `reason` in `probe.json` says why (no baseline, the app unreachable, Playwright missing in the target, too many pages changed).
+   The phase cannot complete while its discovery is carried and unverified. A refused probe changes nothing: read the refusal, fix its cause and run it again.
+
+   **Explore baseline.** Every time the web explorer's work passed its SPV (the first explore, and again after a partial or full rerun), run `aegis explore probe --baseline` with the same 600000 ms timeout before you complete Explore. A baseline that reports a reason under `unavailable` or unobserved pages is not an error and blocks nothing: the next probe of a carried Explore then answers `full`, or explores those pages again.
+
    Dispatch compliance agents during Compliance: `qa-compliance-{iso25010,iso5055,istqb,cmmi,gdpr,pdpa}`, only those listed in `aegis.config.json#compliance`, in parallel, one task each, named `T-compliance-<n>` with `<n>` the regulation's number in the order listed above (iso25010 1, iso5055 2, istqb 3, cmmi 4, gdpr 5, pdpa 6) and the regulation stated in the task title (`--title "GDPR review"`); never `T-compliance-gdpr`. Skip `qa-compliance-gdpr` and `qa-compliance-pdpa` only when `aegis run status` shows `phases.scan.personalData: false`, the snapshot Scan recorded when it passed: it is false only when `target-profile.json#hasPersonalData` and `target-profile.json#hasAuth` were both false and `target-profile.json#personalDataSignals` was empty. Decide from that snapshot, never from `target-profile.json` itself, which may have changed since Scan; the barrier and not-applicable use the snapshot too, and an absent snapshot counts as personal data present. The Compliance barrier names any relevant regulation that has no task. They are phase agents, not Tier-2 specialists, so the specialist cap does not apply to them.
 
    Dispatch `qa-curator` during Curator.
@@ -232,6 +240,7 @@ reads:
   - "{run}/taskmaster/tasks/*.json"
   - "{run}/stories/*.json"
   - "{run}/gates/gate-{N}-decision.json"
+  - "{run}/reports/explore/probe.json"
   - "agent-memory/qa-orchestrator/lessons.md"
   - "agent-memory/{worker}/lessons.md"
 writes: []
@@ -273,6 +282,7 @@ cli:
   - task.release
   - work-report.submit
   - event.append
+  - explore.probe
 runs: []
 dispatches:
   - qa-metrics-collector
