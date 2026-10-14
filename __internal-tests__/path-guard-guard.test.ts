@@ -71,6 +71,7 @@ describe('decide: H1 rules (spec §4.2)', () => {
     ['sandbox package.json is scratch', write(`${ROOT}/sandbox/2026-10-02-x/package.json`, '{}', 'qa-ui-specialist'), true],
     // (e) non-qa subagents
     ['non-qa subagent writes inside aegis', write(`${ROOT}/HANDBOOK/x.md`, 'x', 'general-purpose'), false, /territory rule/],
+    ['non-qa subagent deny names the native worktree, not one outside the directory', write(`${ROOT}/HANDBOOK/x.md`, 'x', 'general-purpose'), false, /or in a native worktree at \.claude\/worktrees\/<name>$/],
     ['non-qa subagent writes QA tests', write('/repo/tests/qa/x.spec.ts', 'x', 'general-purpose'), false, /QA artefacts/],
     ['non-qa subagent writes elsewhere', write('/other/repo/file.ts', 'x', 'general-purpose'), true],
     // brand rule (AUD-020)

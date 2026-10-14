@@ -5,6 +5,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { ADAPTERS } from '@qa/messaging';
 import { BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, readLedger, TOOLING_CLEAN_RUN_GLOBS } from '@qa/path-guard';
+import { TOOLING_WORD_PATTERNS } from '@qa/contracts';
 import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase, subagentRulesLines } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
@@ -176,6 +177,45 @@ describe('H4 rules core (CLAUDE.md may not be loaded into a subagent)', () => {
     expect(lines[1]).toContain('write only the globs your role row lists (the "You may write" line');
     expect(lines[1]).not.toContain('listed below');
     for (const w of ['SPV', 'work report', 'requested changes', 'refusal', 'rejection']) expect(lines[2]).toContain(w);
+  });
+
+  it('the id line names only the kinds the CLI mints, and the final-reply line is present', () => {
+    const lines = subagentRulesLines();
+    expect(lines[3]).toContain('Mint TC, DEF, STORY, REQ, RISK and AC ids with the CLI id command (never hand-number those)');
+    expect(lines[3]).toContain('{KIND}-{MODULE}-{NNN}');
+    expect(lines[3]).not.toContain('every id');
+    expect(lines).toContain('- Your final reply to your dispatcher is terse: task id, result, where the work report is; no recap.');
+  });
+
+  it('the core names a recognisable phrase for every tooling-word pattern H1 refuses (a new pattern needs a core update)', () => {
+    const phrase: Record<string, string> = {
+      '\\bCLI\\b': 'CLI',
+      '\\bdefectMap\\b|\\bdefect[- ]map\\b': 'defectMap',
+      '\\bseq\\s*(?:no\\.?|number|#)?\\s*\\d+': 'event sequence numbers',
+      '\\bevent\\s+sequence\\b': 'event sequence numbers',
+      '\\bframework[- ]defect\\b|\\bframework\\.defect': '"framework defect"',
+      '\\bcli\\.refused\\b|\\b\\d+\\s+(?:CLI\\s+)?refusals?\\b': 'refusal',
+      '\\b(?:review|attempt|rejection)\\s+counts?\\b': 'review, attempt or rejection counts',
+      '\\bSPV\\b': 'SPV',
+      '\\brequested[- ]changes\\b': '"requested changes"',
+      '\\bwork[- ]reports?\\b': 'work report',
+      '\\brecord owner\\b': '"record owner"',
+    };
+    const brand = subagentRulesLines()[2]!;
+    expect(TOOLING_WORD_PATTERNS.length).toBeGreaterThan(0);
+    for (const pattern of TOOLING_WORD_PATTERNS) {
+      const expected = phrase[pattern.source];
+      expect(`${pattern.source} -> ${expected}`).not.toContain('undefined');
+      expect(brand).toContain(expected!);
+    }
+  });
+
+  it('a long hostile project name leaves every qa-* agent under the budget', async () => {
+    await create();
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, dashboard: { projectName: 'N'.repeat(5000) } }));
+    for (const agent of qaAgentNames()) expect(runContextFor(t.root, agent)!.length).toBeLessThan(7000);
   });
 
   it('a non-qa agent gets null', () => {

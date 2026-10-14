@@ -161,6 +161,58 @@ describe('H4 with a stale dist (no subagentRulesLines export)', () => {
   });
 });
 
+describe('H4 with a fake dist', () => {
+  const fakeDist = (body: string, work: (script: string) => void) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-fakedist-'));
+    try {
+      const script = path.join(dir, 'scripts', 'hooks', 'inject-run-context.mjs');
+      fs.mkdirSync(path.dirname(script), { recursive: true });
+      fs.copyFileSync(path.join(REPO, 'scripts', 'hooks', 'inject-run-context.mjs'), script);
+      const dist = path.join(dir, 'packages', '@qa', 'run-state', 'dist');
+      fs.mkdirSync(dist, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'package.json'), '{"type":"module"}');
+      fs.writeFileSync(path.join(dist, 'index.js'), body);
+      work(script);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  htest('a stale dist whose runContextFor succeeds gets the read-CLAUDE.md notice', () => {
+    fakeDist('export function runContextFor() { return "## Aegis run context (SubagentStart hook)\\n- ok"; }\n', (script) => {
+      const r = runHook('inject-run-context', { agent_type: 'qa-test-planner', agent_id: 'p4' }, t.root, { script });
+      expect(r.status).toBe(0);
+      const text = context(r.stdout);
+      expect(text).toContain('- ok');
+      expect(text).toContain('The build is older than the source (no rules core): before your first write read CLAUDE.md');
+      expect(text).toContain('the owner must run pnpm build');
+    });
+  });
+
+  htest('a current build gets no such notice', async () => {
+    await create();
+    const text = context(runHook('inject-run-context', { agent_type: 'qa-test-planner', agent_id: 'p5' }, t.root).stdout);
+    expect(text).toContain('Rules core');
+    expect(text).not.toContain('build is older than the source');
+  });
+
+  htest('the failure path names the project from the config, and falls back neutrally on a stale dist without the helper', async () => {
+    const runId = await create();
+    fs.writeFileSync(path.join(t.root, 'runs', runId, 'hooks'), 'x');
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, dashboard: { projectName: 'Acme Portal' } }));
+    const real = context(runHook('inject-run-context', { agent_type: 'qa-test-planner', agent_id: 'p6' }, t.root).stdout);
+    expect(real).toContain('run context unavailable');
+    expect(real).toContain('write as the Acme Portal QA team');
+    fakeDist('export function runContextFor() { throw new Error("boom"); }\nexport function subagentRulesLines(n) { return ["core " + String(n)]; }\n', (script) => {
+      const text = context(runHook('inject-run-context', { agent_type: 'qa-test-planner', agent_id: 'p7' }, t.root, { script }).stdout);
+      expect(text).toContain('core undefined');
+      expect(text).toContain('run context unavailable (boom)');
+    });
+  });
+});
+
 describe('A17: every hook names the build fix (pnpm build, or pnpm install without --ignore-scripts)', () => {
   const FIX = /pnpm build \(or pnpm install without --ignore-scripts/;
   it('H1 guard-writes', () => {

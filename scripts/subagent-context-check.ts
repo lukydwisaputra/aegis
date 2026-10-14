@@ -46,8 +46,10 @@ export function summariseTranscript(lines: string[], meta: TranscriptMeta): Tran
         for (const f of att.files) {
           if (!isObject(f)) continue;
           const path = typeof f.path === 'string' ? f.path : '';
-          if (f.type === 'Project' || path.endsWith('/CLAUDE.md') || path === 'CLAUDE.md') claudeMdLoaded = true;
-          if (f.type === 'AutoMem' || path.endsWith('/MEMORY.md') || path === 'MEMORY.md') memoryLoaded = true;
+          // The path is only a fallback for a file that carries no type; a typed file is judged by its type alone.
+          const untyped = f.type === undefined || f.type === null;
+          if (f.type === 'Project' || (untyped && (path.endsWith('/CLAUDE.md') || path === 'CLAUDE.md'))) claudeMdLoaded = true;
+          if (f.type === 'AutoMem' || (untyped && (path.endsWith('/MEMORY.md') || path === 'MEMORY.md'))) memoryLoaded = true;
         }
       }
       if (att.hookEvent === 'SubagentStart') {
@@ -141,7 +143,7 @@ const yn = (b: boolean): string => (b ? 'yes' : 'no');
 
 export function renderSummary(s: TranscriptSummary): string {
   return [
-    s.agentType,
+    /^qa-[a-z0-9-]+$/.test(s.agentType) ? s.agentType : '(non-qa)',
     `spawnDepth: ${s.spawnDepth ?? 'unknown'}`,
     `claudeMdLoaded: ${yn(s.claudeMdLoaded)}`,
     `memoryLoaded: ${yn(s.memoryLoaded)}`,

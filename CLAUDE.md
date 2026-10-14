@@ -198,7 +198,7 @@ The binding, enforced standard for every cycle — single-target + pre-cycle hea
 3. Create lessons stub: `echo '{"version":"1.0","lessons":[]}' > agent-memory/qa-{name}/lessons.json`
 4. Register both in `.claude/model-policy.yaml` under the correct tier.
 5. Add a row for each to the role table `packages/@qa/path-guard/src/roles.ts` (writable globs, SPV, `mutatesEnvIn`); the PreToolUse hook denies every write of an agent without a row.
-6. Run `_qa-build-agents` skill to stamp model names into frontmatter. Frontmatter carries `omitClaudeMd: true` (stamped from model-policy.yaml).
+6. Run `_qa-build-agents` skill to stamp model names into frontmatter. Frontmatter carries `omitClaudeMd: true`: add it by hand (the agent-frontmatter test pins it); the build skill scans only yaml/json.
 7. Append the `## Contract (machine-checked)` block to both files and update `.claude/pipeline.yaml`; see HANDBOOK 14.11.
 
 ---

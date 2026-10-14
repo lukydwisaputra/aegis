@@ -83,14 +83,15 @@ export function subagentRulesLines(projectName?: string): string[] {
     "## Rules core (SubagentStart hook): CLAUDE.md may not be loaded into qa-* agents; these rules bind you",
     "- The target's source is READ-ONLY: write only the globs your role row lists (the \"You may write\" line; QA tests under the tests directory; the environment engineer's playwright.config.ts entry is the one named exception). A fix needed in target source is a defect in your report.",
     `- Brand rule: inside the run directory, never write the word "Aegis", an internal agent name (qa-*) or a framework identifier in ${BRAND_CLEAN_RUN_GLOBS.join(", ")}; write as the ${projectName ?? "project's"} QA team. Files under ${TOOLING_CLEAN_RUN_GLOBS.join(", ")} also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", refusal, review, attempt or rejection counts, SPV, "requested changes", work report, "record owner"); HANDBOOK/13 lists them.`,
-    "- Mint every id with the CLI id command (never hand-number); the id formats are {KIND}-{MODULE}-{NNN} (for example TC-AUTH-031) and DEF-{NNN}-{MODULE}-{TYPE}; module codes are in module-codes.md.",
+    "- Mint TC, DEF, STORY, REQ, RISK and AC ids with the CLI id command (never hand-number those); the formats are {KIND}-{MODULE}-{NNN} (for example TC-AUTH-031) and DEF-{NNN}-{MODULE}-{TYPE}; module codes are in module-codes.md.",
     "- HANDBOOK/17-operating-ruleset.md is binding for every cycle.",
+    "- Your final reply to your dispatcher is terse: task id, result, where the work report is; no recap.",
     "- Never stage or commit secrets/.env.* (except .example), test-data/credentials/*.env.local, books/raw/* or sandbox/* (except README.md and .gitignore).",
   ];
 }
 
-/** aegis.config.json#dashboard.projectName; undefined when the file, the key or its type is missing or unreadable (the core then reads neutrally). */
-function projectNameOf(root: string): string | undefined {
+/** aegis.config.json#dashboard.projectName, flattened to one short plain line; undefined when the file, the key or its type is missing or unreadable (the core then reads neutrally). */
+export function projectNameOf(root: string): string | undefined {
   try {
     const name = (JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as { dashboard?: { projectName?: unknown } }).dashboard?.projectName;
     if (typeof name !== "string") return undefined;
