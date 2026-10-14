@@ -275,7 +275,7 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
       if (GATE_TASK_ID.test(taskId)) throw new RunStateError("invalid-input", `${taskId} is a gate task; it cannot be cancelled`);
       const claimed = before.assignee !== undefined && attemptsIn(workDir(root, runId), before.assignee, taskId).length > 0;
       if (before.status !== "pending" || before.claimedBy !== undefined || claimed) {
-        throw new RunStateError("invalid-input", `task ${taskId} is ${before.status}${claimed ? " and was claimed before" : ""}; only a never-claimed pending task can be cancelled`);
+        throw new RunStateError("invalid-input", `task ${taskId} is ${before.status}${claimed ? " and was claimed before" : ""}; only a never-claimed pending task can be cancelled. A task that was claimed is finished through its worker (the worker releases it), or by the owner with task abandon; to redo the work add a new task`);
       }
       try {
         await c.cancel(taskId, why);

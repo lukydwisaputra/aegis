@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import { join, relative } from "node:path";
-import { ReviewSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
+import { ReviewIdSchema, ReviewSchema, WorkReportIdSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
@@ -10,13 +10,17 @@ import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
-import { atomicWrite, formatLimitIssues, iso, loadJson } from "./util.js";
+import { atomicWrite, formatLimitIssues, iso, loadJson, trimOverlong, type TrimmedField } from "./util.js";
 
 export const MAX_ATTEMPTS = 3;
 
 export interface SubmitResult {
   path: string;
   attempt: number;
+  /** Over-long free-text fields that were cut to their limit so the submission could be recorded (name, length before, limit). */
+  trimmed?: TrimmedField[];
+  /** Fields the CLI filled in or corrected (the id, which follows from the task and the reviewer). */
+  adjusted?: string[];
 }
 
 export interface LessonOutcome {
@@ -62,12 +66,34 @@ function publishJson(file: string, value: unknown): void {
   atomicWrite(file, JSON.stringify(value, null, 2) + "\n", { exclusive: true });
 }
 
+/** An id that follows from the submission: WR-{taskId}, RV-{reviewer}-{taskId}. Missing or malformed, it is filled in; a good one stays. */
+function canonicalizeId(raw: unknown, kind: "work-report" | "review"): { value: unknown; adjusted: string[] } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { value: raw, adjusted: [] };
+  const doc = { ...(raw as Record<string, unknown>) };
+  const taskId = kind === "work-report" ? doc["taskId"] : (doc["target"] as { taskId?: unknown } | undefined)?.taskId;
+  const want = kind === "work-report" ? (typeof taskId === "string" ? `WR-${taskId}` : null) : typeof taskId === "string" && typeof doc["reviewer"] === "string" ? `RV-${doc["reviewer"]}-${taskId}` : null;
+  const ok = (kind === "work-report" ? WorkReportIdSchema : ReviewIdSchema).safeParse(want).success;
+  if (want === null || !ok || doc["id"] === want) return { value: doc, adjusted: [] };
+  const had = doc["id"];
+  doc["id"] = want;
+  return { value: doc, adjusted: [`id: ${typeof had === "string" ? `"${had.slice(0, 60)}"` : "missing"} -> ${want}`] };
+}
+
+/** Parse a submission; over-long narrative fields are cut to their limits (except a stored lesson rule), anything else invalid is refused. */
+function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: { issues: Array<{ path: Array<string | number>; message: string }> } } }, raw: unknown, kind: "work-report" | "review"): { data: T; trimmed: TrimmedField[]; adjusted: string[] } {
+  const { value, adjusted } = canonicalizeId(raw, kind);
+  const first = schema.safeParse(value);
+  if (first.success) return { data: first.data, trimmed: [], adjusted };
+  const { value: cut, trimmed } = trimOverlong(value, first.error.issues as never, (path) => path.includes("correctiveInstructions"));
+  const second = trimmed.length === 0 ? first : schema.safeParse(cut);
+  if (second.success) return { data: second.data, trimmed, adjusted };
+  throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, second.error.issues as never)}`);
+}
+
 export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<SubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
   const raw = loadJson(file);
-  const parsed = WorkReportSchema.safeParse(raw);
-  if (!parsed.success) throw new RunStateError("invalid-input", `work report invalid: ${formatLimitIssues(raw, parsed.error.issues)}`);
-  const report = parsed.data;
+  const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
@@ -106,7 +132,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
       fs.rmSync(out, { force: true });
       throw e;
     }
-    return { path: rel, attempt };
+    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}) };
   });
 }
 
@@ -189,9 +215,7 @@ export async function submitReview(root: string, runId: string, file: string, ca
     throw new RunStateError("caller-forbidden", `only SPV agents submit reviews; "${caller}" is not an SPV`);
   }
   const raw = loadJson(file);
-  const parsed = ReviewSchema.safeParse(raw);
-  if (!parsed.success) throw new RunStateError("invalid-input", `review invalid: ${formatLimitIssues(raw, parsed.error.issues)}`);
-  const review = parsed.data;
+  const { data: review, trimmed, adjusted } = parseSubmission(ReviewSchema, raw, "review");
   if (review.reviewer !== caller) {
     throw new RunStateError("invalid-input", `review reviewer "${review.reviewer}" does not match caller "${caller}"`);
   }
@@ -334,6 +358,6 @@ export async function submitReview(root: string, runId: string, file: string, ca
       }
     }
 
-    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons, ...(warnings.length > 0 ? { warnings } : {}) };
+    return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons, ...(warnings.length > 0 ? { warnings } : {}), ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}) };
   });
 }
