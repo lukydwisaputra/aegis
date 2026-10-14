@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, type Dirent } from "node:fs";
 import { join, relative } from "node:path";
 import { BRAND_CLEAN_RUN_GLOBS, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
-import { appendChained } from "@qa/event-bus";
+import { appendChained, readLines } from "@qa/event-bus";
 import { assertCallerAllowed } from "../caller.js";
 import { readRunConfig } from "../config.js";
 import { RunStateError } from "../errors.js";
@@ -10,9 +10,10 @@ import { readRun } from "../run.js";
 import { atomicWrite, iso } from "../util.js";
 import { scanPii } from "./pii.js";
 import { resolveRules } from "./rules.js";
-import { hasLongLine, MAX_LINE, maskPath } from "./mask.js";
+import { hasLongLine, MAX_LINE, MAX_TEXT_BYTES, maskPath } from "./mask.js";
 import { scanWithRules, type Finding } from "./text.js";
 import { dataFindings, dataRuleGroup, type DataStage } from "./data.js";
+import { renderingSnapshot } from "../render/artefacts.js";
 
 export interface LintReport {
   runId: string;
@@ -30,9 +31,28 @@ export interface LintReport {
 const CUSTOMER_FACING = [...new Set([...BRAND_CLEAN_RUN_GLOBS, ...TOOLING_CLEAN_RUN_GLOBS, "reports/compliance/**"])];
 const WORKING_RECORD = /(?:^|\/)cases\/[^/]*-result[^/]*\.json$/;
 const TEXT_FILE = /\.(?:md|json)$/;
-const MAX_BYTES = 5 * 1024 * 1024;
+/** The two rules about the rendered case Markdown; their remedy is the render command, never a rewrite of the file or a project exception. */
+export const CASE_RENDERING_STALE = "case-rendering-stale";
+export const CASE_JSON_INVALID = "case-json-invalid";
+const RENDER_RULES: ReadonlySet<string> = new Set([CASE_RENDERING_STALE, CASE_JSON_INVALID]);
+
+/** A case's rendered Markdown: `cases/{TC-id}.md`, directly under cases/. */
+const CASE_MD = /^cases\/TC-[^/]+\.md$/;
+
 
 type Skipped = LintReport["skipped"][number];
+
+/** Whether `aegis cases render` ever changed a file of the run: from then on the case Markdown is the CLI's, and a stale one is an error. */
+function hasRendered(root: string, runId: string): boolean {
+  return readLines(busPath(root, runId)).some((l) => {
+    if (!l.includes("cases.rendered")) return false;
+    try {
+      return (JSON.parse(l) as { type?: unknown }).type === "cases.rendered";
+    } catch {
+      return false;
+    }
+  });
+}
 
 /** The regular files under `dir`, relative to `base`. A symbolic link (a file or a directory, working or dangling) is never followed: it is listed as skipped. */
 function walk(dir: string, base: string, out: string[], skipped: Skipped[]): void {
@@ -132,12 +152,25 @@ function dataRemedies(rules: ReadonlySet<string>): string[] {
  * personal data in the customer-facing files; data checks over the run's records) the count and the first 10 findings as file:line rule,
  * and what can be done about them. While the phase is active a correction task fixes them; once it is complete nothing can be corrected
  * inside the run, so the gate-open variant names the owner's recovery. The Execution barrier (stage `execution`) refuses on data errors
- * only and says nothing about a gate or customer-facing files. The not-scanned note, when there is one, is always last.
+ * only and says nothing about a gate or customer-facing files. The case rendering rules (stale Markdown, invalid case JSON) come first with
+ * their own remedy at both stages: fix the JSON, then run the render command (the run is still running); never a hand rewrite or a
+ * project exception. The not-scanned note, when there is one, is always last.
  */
 export function lintBlockMessage(gate: string, errors: readonly Pick<Finding, "file" | "line" | "rule" | "kind">[], at: LintBlockStage, notScanned = 0): string {
-  const text = errors.filter((f) => f.kind !== "data");
+  const rendering = errors.filter((f) => f.kind !== "data" && RENDER_RULES.has(f.rule));
+  const text = errors.filter((f) => f.kind !== "data" && !RENDER_RULES.has(f.rule));
   const data = errors.filter((f) => f.kind === "data");
   const parts: string[] = [];
+  if (rendering.length > 0) {
+    const head = `${rendering.length} case rendering error(s) (${listed(rendering)})`;
+    const invalidJson = rendering.some((f) => f.rule === CASE_JSON_INVALID);
+    const fixJson = invalidJson ? "fix each invalid case JSON first (a correction task for the test designer, who rewrites the JSON, never the Markdown), then " : "";
+    const tail =
+      at === "gate-open"
+        ? `The case Markdown is written only by the render command, and the run is still running: ${fixJson}run aegis cases render and open the gate again (a project exception in reportRules does not lift these rules). Run aegis lint run --gate ${gate} for the detail`
+        : `Gate ${gate} cannot open with them: ${fixJson}run aegis cases render (the Markdown is never rewritten by hand), run aegis lint run --gate ${gate} until it is ok, then complete the phase again`;
+    parts.push(`${head}. ${tail}`);
+  }
   if (text.length > 0) {
     const head = `${text.length} lint error(s) in the customer-facing files (${listed(text)})`;
     const tail =
@@ -185,11 +218,16 @@ export function lintFindings(root: string, runId: string, stage?: DataStage): { 
   if (existsSync(dir)) walk(dir, dir, files, skipped);
   const findings: Finding[] = [];
   let filesScanned = 0;
+  // Each case and scenario is rendered once per call. A case .md that is exactly the rendering of its valid JSON is not scanned (the JSON
+  // is, and scanning both doubles every finding); any other case .md (hand-written, stale) is scanned as before.
+  const rendering = existsSync(dir) ? renderingSnapshot(root, runId) : { rendered: new Map<string, string>(), stale: [] as string[], invalid: [] as Array<{ file: string; reason: string }> };
+  const stale = new Set(rendering.stale);
   for (const rel of files.filter((f) => TEXT_FILE.test(f) && CUSTOMER_FACING.some((g) => matchGlob(g, f)))) {
+    if (CASE_MD.test(rel) && rendering.rendered.has(rel) && !stale.has(rel)) continue;
     const abs = join(dir, rel);
     let text: string;
     try {
-      if (lstatSync(abs).size > MAX_BYTES) { skipped.push({ file: rel, reason: "larger than 5 MB" }); continue; }
+      if (lstatSync(abs).size > MAX_TEXT_BYTES) { skipped.push({ file: rel, reason: "larger than 5 MB" }); continue; }
       text = readFileSync(abs, "utf-8");
     } catch (e) {
       skipped.push({ file: rel, reason: `cannot read: ${errorCode(e)}` });
@@ -210,6 +248,19 @@ export function lintFindings(root: string, runId: string, stage?: DataStage): { 
     // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
     if (!WORKING_RECORD.test(rel)) findings.push(...scanWithRules(rel, text, rules, config.reportRules.allow));
     findings.push(...scanPii(rel, text, config.reportRules.pii));
+  }
+  // Once the CLI renders the case Markdown, a case .md that is missing, edited by hand or left without its JSON is stale, and a case JSON
+  // the render skips (its .md is then left as it was) is invalid: both are errors, so neither can pass a gate.
+  if (existsSync(dir) && hasRendered(root, runId)) {
+    for (const rel of rendering.stale.filter((s) => CASE_MD.test(s))) {
+      findings.push({
+        rule: CASE_RENDERING_STALE, severity: "error", file: rel, line: 1, context: "",
+        message: "the Markdown of this case is not the rendering of its JSON (missing, edited by hand, or its JSON is gone or invalid): run aegis cases render",
+      });
+    }
+    for (const i of rendering.invalid.filter((x) => x.file === "cases" || x.file.startsWith("cases/"))) {
+      findings.push({ rule: CASE_JSON_INVALID, severity: "error", file: i.file, line: 1, context: "", message: `${i.reason}: fix the JSON, then run aegis cases render` });
+    }
   }
   // A path is the handle for the fix and stays, but a personal-data value in it (S1234567D.md) is masked like any other.
   const shownSkipped = skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file));

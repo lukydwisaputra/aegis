@@ -5,8 +5,9 @@ import { CLI_RECORDS } from '@qa/alignment';
 // Exact mirror of @qa/run-state: the event types each command's entry function appends, following
 // calls into other run-state functions (blockRun, escalateOnce, resumeLocked, …).
 const SRC = path.join(__dirname, '..', '..', 'packages', '@qa', 'run-state', 'src');
-// src/ and its lint/ and explore/ folders (run-lint.ts holds lintRun, probe.ts holds takeBaseline and probeExplore).
-const source = [SRC, path.join(SRC, 'lint'), path.join(SRC, 'explore')].flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))).join('\n');
+// src/ and its lint/, explore/ and render/ folders (run-lint.ts holds lintRun, probe.ts holds takeBaseline and probeExplore,
+// artefacts.ts holds renderArtefacts).
+const source = [SRC, path.join(SRC, 'lint'), path.join(SRC, 'explore'), path.join(SRC, 'render')].flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))).join('\n');
 const DEFINED = new Set([...source.matchAll(/\bfunction ([A-Za-z0-9_]+)\(/g)].map((m) => m[1]!));
 
 /** Body of a top-level function: from `function NAME(` to the first line that is exactly `}`. */
@@ -58,6 +59,7 @@ const ENTRY: Record<string, string> = {
   'lint.run': 'lintRun',
   'explore.probe': 'exploreProbe',
   'env.probe': 'probeEnvironment',
+  'cases.render': 'renderArtefacts',
 };
 
 describe('CLI_RECORDS mirrors @qa/run-state exactly (AH-14)', () => {

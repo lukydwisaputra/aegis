@@ -76,7 +76,8 @@ export const ROLES: readonly Role[] = [
   reviewed("qa-web-explorer", "phase", ["{run}/discovery-report.*", "{testsDir}/pages/**", "{run}/evidence/discovery/**", "{run}/defect-candidates/**", "sandbox/**"]),
   reviewed("qa-test-planner", "phase", ["{run}/plan.*", "{run}/risk-register.*"]),
   {
-    ...reviewed("qa-test-designer", "phase", ["{run}/cases/*", "{run}/scenarios/**", "{run}/rtm.*", "{run}/proposed-changes/**"]),
+    // The case and scenario JSON only: their Markdown (cases/TC-*.md, scenarios/SCN-*.md) is rendered by aegis cases render.
+    ...reviewed("qa-test-designer", "phase", ["{run}/cases/*.json", "{run}/scenarios/*.json", "{run}/rtm.*", "{run}/proposed-changes/**"]),
     // Result files belong to the specialists; the designer owns the case files only.
     excludes: ["{run}/cases/*-result.json", "{run}/cases/*-result-*.json"],
   },
@@ -157,6 +158,8 @@ export function matchGlob(pattern: string, path: string): boolean {
 export const CLI_ONLY_RUN_GLOBS: readonly string[] = [
   "events.jsonl", "run.json", "**/*.lock", "**/*.lock/**", "gates/**", "reports/work/**", "reports/review/**",
   "reports/lint/**", "reports/explore/**", "reports/env/**", "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**", "messaging/**",
+  // The Markdown view of a case and a scenario, rendered from their JSON by aegis cases render (the JSON stays the designer's).
+  "cases/TC-*.md", "scenarios/SCN-*.md",
 ];
 
 /** Is `absPath` (canonical) runs/.active, or a CLI-only file inside any run directory under `aegisRoot`? */

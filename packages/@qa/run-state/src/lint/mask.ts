@@ -2,6 +2,8 @@
 
 /** A line longer than this is scanned in its first MAX_LINE characters only by the wording rules, and in chunks by the personal-data rules. */
 export const MAX_LINE = 20_000;
+/** A file larger than this is not read, by the pre-gate lint and by the case render alike (each says "larger than 5 MB"). */
+export const MAX_TEXT_BYTES = 5 * 1024 * 1024;
 
 /** The lines of a text with every line cut to MAX_LINE characters (one split). */
 export function clipLines(lines: readonly string[]): string[] {

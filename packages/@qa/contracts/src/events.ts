@@ -557,6 +557,15 @@ export const EnvProbedEventSchema = EventBase.extend({
   build: z.string(),
 });
 
+/** The aegis CLI wrote (or removed) the Markdown view of the run's JSON artefacts (cases, scenarios). Recorded only when a file changed. */
+export const CasesRenderedEventSchema = EventBase.extend({
+  type: z.literal("cases.rendered"),
+  agent: z.string(),
+  kinds: z.array(z.enum(["cases", "scenarios"])).min(1),
+  written: z.number().int().nonnegative(),
+  removed: z.number().int().nonnegative(),
+});
+
 export const RtmRenderedEventSchema = EventBase.extend({
   type: z.literal("rtm.rendered"),
   agent: z.string(),
@@ -1925,6 +1934,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   LintCompletedEventSchema,
   ExploreProbedEventSchema,
   EnvProbedEventSchema,
+  CasesRenderedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,
