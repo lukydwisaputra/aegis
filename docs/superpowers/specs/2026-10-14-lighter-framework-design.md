@@ -74,14 +74,14 @@ Checks, each deterministic, each traced to a rejection above:
 
 Where project rules live: `aegis.config.json#reportRules` (`forbiddenWords`, `forbiddenPhrases`, `piiPatterns`), so a rule the owner states once is applied from the next run instead of being rediscovered at each gate. The curator already proposes promotions; an owner note that begins "remove every mention of" could be offered as a rule.
 
-### Decisions needed
+### Decisions (owner, 2026-10-14)
 
-1. Should a failed lint block opening the gate (recommended for `error`), or only be shown to the owner?
-2. The forbidden-words list: start from the words already rejected (`cycle`, `re-verified`, `manual testing`, `prior draft`, `this round`), or empty with the rule mechanism only?
-3. PII patterns: NRIC only, or also email and phone? (A synthetic-data run may legitimately contain test emails.)
-4. A G1 rejection currently reruns from the owner's chosen phase; keep that, or add "re-explore only if the app build changed" as a default?
+1. **A failed lint blocks the gate.** `openGate` refuses G2 and G3 while the lint has an `error`; a `warning` is shown, never blocks.
+2. **The word rules start from the words already rejected, applied in context.** Read from the real files: "cycle" is a domain word in `discharge cycle`, `multi-cycle` and a QA word in `this cycle`, `the cycle took 36.7 hours`, `**Cycle:**`; "before and after" is almost always legitimate (`health 200 before and after`) so it is not a rule; `re-verified` and `this round` are always QA wording; task ids such as `T-execution-11` are internal identifiers that reached customer defects. The rules therefore match the words around the word, skip code spans, fenced blocks, quoted text and JSON keys, and a project can `allow` a phrase or `disable` a rule in `aegis.config.json#reportRules`.
+3. **PII: NRIC, full name, email and phone, unless the data cannot be real.** "Cannot be real" is only accepted when guaranteed: an NRIC whose check letter is wrong cannot exist; an email on an RFC 2606 / 6761 reserved domain is never registered; a masked value (`S****567D`) discloses no more than the PDPC partial. A name is allowed when it carries a synthetic marker (`QA`, `Test`, `E2E`). **Open item: telephone.** IMDA publishes no number range reserved for testing (its national numbering plan assigns the leading digits 3, 6, 8 and 9; Issue 2, February 2026, was not read), so a phone number cannot be guaranteed unregistered from a published range. Until the owner picks a pattern from that plan (or IMDA confirms a test block, nnp_admin@imda.gov.sg), every phone-shaped value in a customer-facing file is an error unless masked or matching a pattern declared in `reportRules.pii.syntheticPhonePatterns`.
+4. **Explore is repeated only when the app version changed, or when the owner asks.** The framework records the build identity of the target (git HEAD plus a hash of the uncommitted diff) at run create and at each Explore; a rejection that reopens Requirements or Env-auth keeps Explore completed when the identity is unchanged, unless `--reopen-phase explore` is given. This is a separate plan after the lint.
 
-A plan follows once these are answered.
+Plan for the lint (checks that read text, and the gate block): `docs/superpowers/plans/2026-10-14-pre-gate-lint.md`.
 
 ## Items 4 to 7 (smaller, independent)
 
