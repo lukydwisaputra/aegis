@@ -9,10 +9,23 @@ const QA_PROCESS = "this describes how the QA work was run, not the application:
 function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
   const rule = (id: string, pattern: string, message: string): ResolvedRule => ({ id, re: new RegExp(pattern, "i"), message, severity: "error" });
   const rules: ResolvedRule[] = [
-    rule("qa-cycle", String.raw`\b(?:this|the|that|current|previous|last|next|whole|full|entire|same)\s+(?:(?:test|qa|testing)\s+)?cycle\b|\bcycle\s+(?:took|ran|used|date)\b|^\s*[-*]?\s*\**cycle\**\s*:`, `"cycle" for the QA run: ${QA_PROCESS} (use "test window" or "run")`),
-    rule("qa-round", String.raw`\b(?:this|that|previous|last|next)\s+round\b|\bround\s+\d+\b`, `"round" for a QA pass: ${QA_PROCESS}`),
+    rule(
+      "qa-cycle",
+      [
+        String.raw`\b(?:this|that)\s+(?:(?:test|qa|testing)\s+)?cycle\b`,
+        String.raw`\b(?:test|qa|testing)\s+cycle\b`,
+        String.raw`\bcycle\s+(?:took|ran|used|date)\b`,
+        String.raw`\bthe\s+cycle\s+(?:took|ran|used|lasted)\b`,
+        // The label forms: a bold label anywhere, a line-start label (optional list or quote marker), a table-cell label.
+        String.raw`\*\*cycle:?\*\*`,
+        String.raw`^\s*(?:(?:[-*+>]|\d+[.)])\s*)*cycle\s*:`,
+        String.raw`\|\s*(?:\*\*)?cycle:?(?:\*\*)?\s*\|`,
+      ].join("|"),
+      `"cycle" for the QA run: ${QA_PROCESS} (use "test window" or "run")`,
+    ),
+    rule("qa-round", String.raw`\b(?:this|that)\s+round\b|\bround\s+\d+\b(?![.,]\d)`, `"round" for a QA pass: ${QA_PROCESS}`),
     rule("re-verified", String.raw`\bre-?verified\b`, `write "re-tested": "re-verified" is not the customer-facing word`),
-    rule("report-history", String.raw`\b(?:prior|previous|earlier|first|last)\s+(?:draft|version|figure|count)s?\b|\bsince\s+the\s+previous\s+version\b|\b(?:corrected|changed|updated)\s+from\s+\d`, "a customer report states the final facts only: leave out what an earlier draft or version said"),
+    rule("report-history", String.raw`\b(?:prior|previous|earlier|first)\s+drafts?\b|\bsince\s+the\s+previous\s+version\b|\b(?:previous|earlier|prior)\s+(?:version|figure|count)s?\s+of\s+(?:this|the)\s+report\b`, "a customer report states the final facts only: leave out what an earlier draft or version said"),
     rule("internal-task-id", String.raw`\bT-(?:\d+|[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*-\d+|GATE-G\d+)\b`, "an internal task id: name the test case or the defect instead"),
   ];
   // Only a run the owner scoped to automated testing: the mention is a finding, a run with a manual budget may describe it.
