@@ -1,13 +1,9 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, type Dirent } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, type Dirent } from "node:fs";
 import { join, relative } from "node:path";
 import { BRAND_CLEAN_RUN_GLOBS, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
-import { appendChained, readLines } from "@qa/event-bus";
-import { assertCallerAllowed } from "../caller.js";
+import { readLines } from "@qa/event-bus";
 import { readRunConfig } from "../config.js";
-import { RunStateError } from "../errors.js";
 import { busPath, runDir } from "../paths.js";
-import { readRun } from "../run.js";
-import { atomicWrite, iso } from "../util.js";
 import { buildClosureView, signoffFedTexts, toolingStringsIn, type ToolingHit } from "@qa/contracts";
 import { scanPii } from "./pii.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
@@ -18,7 +14,10 @@ import { renderingSnapshot } from "../render/artefacts.js";
 
 export interface LintReport {
   runId: string;
-  gate: "G2" | "G3";
+  /** The gate the lint ran before; absent for a stage lint. */
+  gate?: "G2" | "G3";
+  /** The stage the lint ran at (executive); absent for a gate lint. */
+  stage?: string;
   ok: boolean;
   errors: number;
   warnings: number;
@@ -31,9 +30,9 @@ export interface LintReport {
 
 const CUSTOMER_FACING = [...new Set([...BRAND_CLEAN_RUN_GLOBS, ...TOOLING_CLEAN_RUN_GLOBS])];
 /** What the executive scripts print besides the closure and the defect titles: tier 1 holds there too (the deck script refuses it). */
-const EXECUTIVE_INPUTS: ReadonlySet<string> = new Set(["reports/executive/executive-deck.json", "reports/executive/residual-risks.json"]);
-const CLOSURE_JSON = "reports/closure/closure.json";
-const RESIDUAL_RISKS_JSON = "reports/executive/residual-risks.json";
+export const EXECUTIVE_INPUTS: ReadonlySet<string> = new Set(["reports/executive/executive-deck.json", "reports/executive/residual-risks.json"]);
+export const CLOSURE_JSON = "reports/closure/closure.json";
+export const RESIDUAL_RISKS_JSON = "reports/executive/residual-risks.json";
 /** A defect record: every field but the title may cite the URL, local server or file a developer needs (H1 takes only the tooling words there). */
 const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
 const TITLE = ".title";
@@ -233,7 +232,7 @@ function tier1Severity(rel: string): ((hit: ToolingHit, at: ScanText) => Severit
 }
 
 /** The line of a JSON string value in its file: the first line that holds it as written (JSON-escaped), else 1. */
-function jsonLineOf(raw: string): (at: ScanText) => number {
+export function jsonLineOf(raw: string): (at: ScanText) => number {
   return (at) => {
     const i = raw.indexOf(JSON.stringify(at.text).slice(1, -1));
     return i < 0 ? 1 : raw.slice(0, i).split("\n").length;
@@ -241,7 +240,7 @@ function jsonLineOf(raw: string): (at: ScanText) => number {
 }
 
 /** The texts the brand rule reads in a parsed JSON file: every key and every string value, with its field path (H1 reads keys too). */
-function brandTexts(value: unknown, at = ""): ScanText[] {
+export function brandTexts(value: unknown, at = ""): ScanText[] {
   if (typeof value === "string") return [{ location: at, text: value }];
   if (Array.isArray(value)) return value.flatMap((v, i) => brandTexts(v, `${at}[${i}]`));
   if (value !== null && typeof value === "object") {
@@ -264,9 +263,13 @@ function tier1Texts(rel: string, raw: string, parsed: unknown): ScanText[] {
  * defect log, whose titles come from the defect records), with tier 1 and tier 2 and nothing blanked. The closure's own fields are errors:
  * the executive phase comes after G3, so the closure reporter fixes them here. A defect-log title is attributed to closure.json, because
  * listing defectMetrics.openItems with a plain title replaces it in the sign-off. A plain risk sentence of residual-risks.json is a warning:
- * only the executive reporter writes reports/executive/, and its own stage checks it.
+ * only the executive reporter writes reports/executive/, and its own stage checks it. `severity` sets both: the executive stage reads the
+ * closure fields as warnings (only an owner reissue can change the closure after G3) and leaves the plain sentences to its own file scan (null).
  */
-function signoffFedFindings(dir: string, localPorts: readonly number[], allow: readonly string[], disabled: ReadonlySet<string>): Finding[] {
+export function signoffFedFindings(
+  dir: string, localPorts: readonly number[], allow: readonly string[], disabled: ReadonlySet<string>,
+  severity: { closure: Severity; risks: Severity | null } = { closure: "error", risks: "warning" },
+): Finding[] {
   const read = (rel: string): { raw: string; value: unknown } | null => {
     try {
       const abs = join(dir, rel);
@@ -312,8 +315,8 @@ function signoffFedFindings(dir: string, localPorts: readonly number[], allow: r
   });
   const fromRisks = (l: string): boolean => l.startsWith("residual-risks.json");
   return [
-    ...scanTextsUnblanked(CLOSURE_JSON, [...fed.filter((f) => !fromRisks(f.location)), ...logTexts], opts(closure.raw, "error")),
-    ...(risks === null ? [] : scanTextsUnblanked(RESIDUAL_RISKS_JSON, fed.filter((f) => fromRisks(f.location)), opts(risks.raw, "warning"))),
+    ...scanTextsUnblanked(CLOSURE_JSON, [...fed.filter((f) => !fromRisks(f.location)), ...logTexts], opts(closure.raw, severity.closure)),
+    ...(risks === null || severity.risks === null ? [] : scanTextsUnblanked(RESIDUAL_RISKS_JSON, fed.filter((f) => fromRisks(f.location)), opts(risks.raw, severity.risks))),
   ];
 }
 
@@ -426,22 +429,4 @@ export function lintFindings(root: string, runId: string, gate?: "G2" | "G3"): {
   const shownFindings = findings.map((f) => ({ ...f, file: maskPath(f.file) })).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));
   const data = stage === undefined ? [] : dataFindings(root, runId, stage, disabled);
   return { filesScanned, skipped: shownSkipped, findings: [...shownFindings, ...data] };
-}
-
-export async function lintRun(root: string, runId: string, gate: string, caller: string, now?: Date): Promise<LintReport> {
-  assertCallerAllowed(caller, "lint.run");
-  if (gate !== "G2" && gate !== "G3") throw new RunStateError("invalid-input", `lint runs before G2 or G3, not ${gate}`);
-  readRun(root, runId);
-  const { filesScanned, skipped, findings } = lintFindings(root, runId, gate as "G2" | "G3");
-  const errors = findings.filter((f) => f.severity === "error").length;
-  const report: LintReport = { runId, gate, ok: errors === 0, errors, warnings: findings.length - errors, filesScanned, skipped, ...(notScannedCount(skipped) > 0 ? { note: notScannedNote(notScannedCount(skipped)) } : {}), findings };
-  const rel = `reports/lint/gate-${gate}.json`;
-  mkdirSync(join(runDir(root, runId), "reports", "lint"), { recursive: true });
-  atomicWrite(join(runDir(root, runId), rel), JSON.stringify(report, null, 2) + "\n");
-  await appendChained(
-    { type: "lint.completed", ts: iso(now), agent: caller, gate, errors, warnings: report.warnings, report: rel },
-    busPath(root, runId),
-    { emittedBy: caller, runId }
-  );
-  return report;
 }

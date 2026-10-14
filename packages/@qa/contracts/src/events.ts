@@ -525,11 +525,16 @@ export const EnvExecutedEventSchema = EventBase.extend({
   injected: z.array(z.string()),
 });
 
-/** `aegis lint` ran over the customer-facing files before a gate; the report is reports/lint/gate-{G}.json. */
+/**
+ * `aegis lint` ran over the customer-facing files before a gate (`gate`; the report is reports/lint/gate-{G}.json) or at a stage (`stage`,
+ * for example executive; the report is reports/lint/stage-{stage}.json). The CLI records exactly one of them; both are optional so the
+ * events recorded before stages existed (gate only) still validate.
+ */
 export const LintCompletedEventSchema = EventBase.extend({
   type: z.literal("lint.completed"),
   agent: z.string(),
-  gate: z.enum(["G2", "G3"]),
+  gate: z.enum(["G2", "G3"]).optional(),
+  stage: z.string().optional(),
   errors: z.number().int().nonnegative(),
   warnings: z.number().int().nonnegative(),
   report: z.string(),

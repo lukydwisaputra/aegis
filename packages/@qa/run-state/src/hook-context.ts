@@ -53,7 +53,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "rtm.unlink": "rtm unlink --defect <id> --requirement <REQ-id> --reason <text> [--drop-map-entry] [--run <id>]",
   "env.exec": "env exec [--run <id>] -- <command...>",
   "env.check": "env check [--run <id>]",
-  "lint.run": "lint run --gate G2|G3 [--run <id>]",
+  "lint.run": "lint run (--gate G2|G3 | --stage executive) [--run <id>]",
   "explore.probe": "explore probe [--baseline] [--run <id>]",
   "env.probe": "env probe --stage execution|g2 [--run <id>]",
   "cases.render": "cases render [--run <id>]",

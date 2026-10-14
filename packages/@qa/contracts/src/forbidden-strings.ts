@@ -261,7 +261,8 @@ export function describeToolingHits(hits: readonly ToolingHit[], max = 5): strin
  * vocabulary is refused (sign-off exit 9, deck exit 10), with the plain replacement for each phrase. The technical report is an
  * engineering document: it uses tier 1 (TOOLING_WORD_RULES) only, so HTTP status numbers, route paths, CWE ids, oracle, stub and
  * mutation score stay acceptable there and in the case results and defect records. Rules: oracle, stub, mutant or mutation, an env flag
- * in CAPITAL_SNAKE_CASE, an HTTP status written as a number beside status/HTTP/answers/returns/code, CWE- and WSTG- ids, API route paths,
+ * in CAPITAL_SNAKE_CASE, an HTTP status written as a number beside status/HTTP/answers/returns/code, beside the verb that met it ("denied
+ * with 403") or beside its HTTP name ("429 Too Many Requests"), "endpoint", "rate limiting", "fail closed", CWE- and WSTG- ids, API route paths,
  * snake_case code strings, "exit code", "build cache", "bypass module", "HTTP route", "no PR", "NRIC/SPD", a bare severity code
  * ("Sev1" without its word) and the noun "blocker" (the severity name "(Blocker)" and a count such as "1 Blocker" are allowed).
  */
@@ -271,6 +272,11 @@ export const PLAIN_LANGUAGE_RULES: Array<{ pattern: RegExp; instead: string }> =
   { pattern: /\bmutants?\b|\bmutation\b/i, instead: "a test of the tests" },
   { pattern: /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/, instead: "the setting, described in words (for example \"the switch that hides new features\")" },
   { pattern: /\b(?:HTTP|status(?:\s+code)?|answers?|returns?|returned|responds?|responded|code)\s*:?\s*[2-5]\d\d\b|\b[2-5]\d\d\s+(?:status|response|error|expected|observed)\b|\bx\s*[2-5]\d\d\b/i, instead: "the outcome in words: a refusal status, a success status, a server error" },
+  // A status written beside the verb that met it ("denied with 403", "refused by a 429") or beside its HTTP name ("403 Forbidden").
+  { pattern: /\b(?:denied|refused|rejected|blocked|forbidden|answered|failed|fails?)\s+(?:with|by|as)\s+(?:an?\s+)?(?:HTTP\s+|status\s+)?[2-5]\d\d\b|\b[2-5]\d\d\s+(?:Forbidden|Unauthori[sz]ed|Not\s+Found|Too\s+Many\s+Requests|Locked|Bad\s+Request|Conflict|Unprocessable(?:\s+Entity)?|Internal\s+Server\s+Error|Service\s+Unavailable|Gateway\s+Timeout)\b/i, instead: "the outcome in words: a refusal status, a success status, a server error" },
+  { pattern: /\bend-?points?\b/i, instead: "the feature in words (for example \"the export feature\")" },
+  { pattern: /\brate[- ]limit(?:s|ing|ed|ers?)?\b/i, instead: "the limit on repeated requests, in words (for example \"too many attempts in a short time are refused\")" },
+  { pattern: /\bfail(?:s|ed|ing)?[- ]closed\b|\bfail(?:s|ed|ing)?-open\b/i, instead: "what happens when the check cannot run, in words (for example \"it refuses the request\")" },
   { pattern: /\b(?:CWE|WSTG)-[\w.-]+/, instead: "the weakness or test category in words" },
   { pattern: /(?<![\w])\/api\/[\w/{}.-]*/, instead: "the feature in words (for example \"the export feature\")" },
   { pattern: /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/, instead: "the code or field, described in words" },

@@ -14,9 +14,11 @@ let t: TmpAegis;
 /**
  * The longest rules-core brand line and the largest qa-* agent's H4 text (25-character project name, 38-character root). Task 0: 744 and
  * 6036. Task 1a added reports/compliance/** to the brand globs the line is built from: +23 characters for every qa-* agent (767 and 6059).
+ * Task 1b added the executive stage to the lint usage line, "(--gate G2|G3 | --stage executive)": +22 characters for the orchestrator only,
+ * the one qa-* agent that may run the lint (767 and 6081).
  */
 const BRAND_MAX = 767;
-const H4_LARGEST = 6059;
+const H4_LARGEST = 6081;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 

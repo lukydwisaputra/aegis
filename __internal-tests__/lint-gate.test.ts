@@ -389,12 +389,12 @@ describe('the lint tiers: review fixes', () => {
     { id: 'DEF-004-ATT-API', title: 'Headcount session_date uses UTC date, not tenant-local date' },
   ];
 
-  it('G3: with no open item in the closure, the open rows of the defect log are read, as errors on closure.json (R06: 4 more tier-2 hits)', () => {
+  it('G3: with no open item in the closure, the open rows of the defect log are read, as errors on closure.json (R06: 6 more tier-2 hits, 2 of them the executive-stage patterns)', () => {
     for (const d of R06_OPEN) put(`defects/${d.id}.json`, json(d));
     put('defects/DEF-005-VOL-UI.json', json({ id: 'DEF-005-VOL-UI', title: 'Closed defect with a stub in its title', status: 'Closed' }));
     put('reports/closure/closure.json', json({ defectMetrics: { openApplicationDefects: 4 } }));
     const g3 = ours('G3').filter((f) => f.rule === 'tooling-tier2');
-    expect(phrases(g3).sort()).toEqual(['mutation', 'return 200', 'session_date', 'tenant_config']);
+    expect(phrases(g3).sort()).toEqual(['endpoint', 'mutation', 'rate limiting', 'return 200', 'session_date', 'tenant_config']);
     expect(g3.every((f) => f.severity === 'error' && f.file === 'reports/closure/closure.json')).toBe(true);
     expect(g3[0]!.message).toMatch(/the open defect DEF-\S+ title \(defectMetrics\.openItems is empty, so the sign-off prints the defect log: list defectMetrics\.openItems with a plain title\)/);
     // The closed defect is not printed, and G2 does not read the sign-off lines.
@@ -405,7 +405,7 @@ describe('the lint tiers: review fixes', () => {
     expect(ours('G3').filter((f) => f.rule === 'tooling-tier2')).toEqual([]);
   });
 
-  it('R06 replay: its sign-off-fed closure texts and its open defect log give 13 tier-2 errors at G3', () => {
+  it('R06 replay: its sign-off-fed closure texts and its open defect log give 15 tier-2 errors at G3 (endpoint and rate limiting since the executive stage)', () => {
     for (const d of R06_OPEN) put(`defects/${d.id}.json`, json(d));
     put('reports/closure/closure.json', json({
       exitCriteria: [
@@ -418,7 +418,7 @@ describe('the lint tiers: review fixes', () => {
       residualRiskSummary: [{ riskId: 'RISK-CMP-ERRPATH', title: 'Error paths of id-bearing routes not probed as a class (CWE-391 family)' }],
     }));
     const t2 = ours('G3').filter((f) => f.rule === 'tooling-tier2');
-    expect(phrases(t2).sort()).toEqual(['CWE-391', 'NRIC/SPD', 'NRIC/SPD', 'Sev1', 'Sev1', 'Sev2', 'mutation', 'mutation', 'mutation', 'oracle', 'return 200', 'session_date', 'tenant_config'].sort());
+    expect(phrases(t2).sort()).toEqual(['CWE-391', 'NRIC/SPD', 'NRIC/SPD', 'Sev1', 'Sev1', 'Sev2', 'endpoint', 'mutation', 'mutation', 'mutation', 'oracle', 'rate limiting', 'return 200', 'session_date', 'tenant_config'].sort());
     expect(t2.every((f) => f.severity === 'error')).toBe(true);
   });
 

@@ -33,12 +33,19 @@ const SPV_LIST: Array<[string, string, string]> = [
   ['dob_format is returned', 'dob_format', 'the code or field, described in words'],
   ['the tenant_config rows', 'tenant_config', 'the code or field, described in words'],
   ['no ship / no-ship verdict is given', 'no ship', 'nothing: the document itself says it gives no release recommendation'],
+  // The R12 executive deck rejection (attempt 1): phrases the earlier rules missed.
+  ['admin pages were denied with 403', 'denied with 403', 'the outcome in words'],
+  ['a 429 Too Many Requests answer', '429 Too Many Requests', 'the outcome in words'],
+  ['the declaration-questions endpoint', 'endpoint', 'the feature in words'],
+  ['no rate limiting on the form', 'rate limiting', 'the limit on repeated requests'],
+  ['the guard does not fail closed', 'fail closed', 'what happens when the check cannot run'],
 ];
 const CLEAN = [
   'No open critical defects remain.', 'Sev1 (Blocker) defects: none.', 'The severity is Sev3 (Major).', '1 Blocker and 2 Critical defects are open.', 'The blocked check TC-REG-015 could not run.',
   'The page refused the request instead of showing the data.', 'The matrix and the case results agree; 93 of 116 checks passed (80.2%).', 'Retest on build ebf4b428 of DEF-003-REG-SEC.',
   'The upload ceiling is 4 MB against 20 MB in the requirement.', 'A test of the tests was not re-run.', 'The first round ran from 13:26 to 16:59.',
   'This document gives no release recommendation and no compliance verdict.',
+  'Access was refused for every staff role.', 'The end point of the review was the retest.', '403 of 450 checks passed.', 'Repeated attempts are limited.',
 ];
 
 describe('PLAIN_LANGUAGE_RULES', () => {
