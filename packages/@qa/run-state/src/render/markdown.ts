@@ -46,6 +46,33 @@ function oneLine(s: string): string {
   return s.replace(/\r\n|\r|\n/g, "<br>");
 }
 
+/** A key used as a label or a heading: one line, and no pipe, bold marker or hash that could break the line it sits on. */
+function labelText(key: string): string {
+  return oneLine(key).replace(/\*\*|\||#/g, "").trim();
+}
+
+/** A code span that a backtick inside the value cannot close early: the fence is one backtick longer than the longest run inside. */
+function codeSpan(v: string): string {
+  const s = oneLine(v);
+  const longest = Math.max(0, ...(s.match(/`+/g) ?? []).map((r) => r.length));
+  const fence = "`".repeat(longest + 1);
+  const pad = s.startsWith("`") || s.endsWith("`") ? " " : "";
+  return `${fence}${pad}${s}${pad}${fence}`;
+}
+
+/**
+ * A multi-line paragraph printed as is, made unable to escape its section: line breaks normalised to \n, a line that would be
+ * read as a heading (an ATX hash or a setext underline) gets a leading backslash, and an odd number of code fence lines is closed.
+ */
+function block(text: string): string[] {
+  const lines = text.replace(/\r\n|\r/g, "\n").split("\n").map((l) =>
+    /^ {0,3}(#|=+\s*$|-+\s*$)/.test(l) ? l.replace(/^( {0,3})/, "$1\\") : l);
+  for (const fence of ["```", "~~~"]) {
+    if (lines.filter((l) => l.trimStart().startsWith(fence)).length % 2 === 1) lines.push(fence);
+  }
+  return lines;
+}
+
 /** A table cell: one line, and a pipe escaped so it cannot split the cell. */
 function cell(v: unknown): string {
   return oneLine(plain(v)).replace(/\|/g, "\\|");
@@ -66,15 +93,17 @@ function fact(lines: string[], label: string, value: unknown): void {
 }
 
 /** A fact whose plain-object value prints as nested bullets (two spaces per level, at most MAX_DEPTH levels; deeper as JSON). */
+// The parent bullet of an object prints only when one of its children prints (no empty heading bullet).
 function bullets(lines: string[], label: string, value: unknown, depth = 0): void {
   if (isEmpty(value)) return;
   const indent = "  ".repeat(depth);
   if (isPlainObject(value) && depth < MAX_DEPTH - 1) {
-    lines.push(`${indent}- **${label}:**`);
-    for (const [k, v] of Object.entries(value)) bullets(lines, k, v, depth + 1);
+    const children: string[] = [];
+    for (const [k, v] of Object.entries(value)) bullets(children, k, v, depth + 1);
+    if (children.length > 0) lines.push(`${indent}- **${labelText(label)}:**`, ...children);
     return;
   }
-  lines.push(`${indent}- **${label}:** ${oneLine(plain(value))}`);
+  lines.push(`${indent}- **${labelText(label)}:** ${oneLine(plain(value))}`);
 }
 
 function table(header: readonly string[], rows: ReadonlyArray<readonly unknown[]>): string[] {
@@ -87,7 +116,7 @@ function table(header: readonly string[], rows: ReadonlyArray<readonly unknown[]
 
 function section(out: string[], heading: string, body: readonly string[]): void {
   if (body.length === 0) return;
-  out.push("", `## ${heading}`, "", ...body);
+  out.push("", `## ${labelText(heading)}`, "", ...body);
 }
 
 function finish(out: string[]): string {
@@ -99,9 +128,20 @@ function isStringMap(v: unknown): v is Record<string, string> {
   return isPlainObject(v) && Object.keys(v).length > 0 && Object.values(v).every((x) => typeof x === "string");
 }
 
-/** An array of flat objects (scalar values only): a table whose header is the union of the keys in first-seen order. */
+/**
+ * An array of flat objects (scalar values only, at least one key among them): a table whose header is the union of the keys in
+ * first-seen order. A list of empty objects is not a table (it would have no column).
+ */
 function isFlatObjectList(v: unknown): v is Array<Record<string, unknown>> {
-  return Array.isArray(v) && v.length > 0 && v.every((x) => isPlainObject(x) && Object.values(x).every((y) => y === null || isScalar(y)));
+  return Array.isArray(v) && v.length > 0
+    && v.every((x) => isPlainObject(x) && Object.values(x).every((y) => y === null || isScalar(y)))
+    && v.some((x) => Object.keys(x as object).length > 0);
+}
+
+/** Whether a wave label already states the wave value as a word ("Wave 2 ...", or "LAST ..." for wave LAST). */
+function labelNamesWave(label: string, wave: string): boolean {
+  const w = wave.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\bwave\\s*${w}(?!\\w|\\.\\d)`, "i").test(label) || new RegExp(`^${w}(?!\\w|\\.\\d)`, "i").test(label);
 }
 
 function flatObjectTable(rows: ReadonlyArray<Record<string, unknown>>): string[] {
@@ -145,7 +185,7 @@ export function renderCaseMarkdown(tc: TestCase): string {
   const { wave, waveLabel } = retest;
   if (!isEmpty(waveLabel)) {
     const label = plain(waveLabel);
-    fact(out, "Retest wave", isEmpty(wave) || label.includes(plain(wave)) ? label : `${label} (wave ${plain(wave)})`);
+    fact(out, "Retest wave", isEmpty(wave) || labelNamesWave(label, plain(wave)) ? label : `${label} (wave ${plain(wave)})`);
   } else {
     fact(out, "Retest wave", wave);
   }
@@ -161,7 +201,7 @@ export function renderCaseMarkdown(tc: TestCase): string {
     }
   }
 
-  if (tc.designRationale) section(out, "Design rationale (technique evidence)", [tc.designRationale]);
+  if (tc.designRationale) section(out, "Design rationale (technique evidence)", block(tc.designRationale));
   section(out, "Preconditions", tc.preconditions.filter((p) => p !== "").map((p) => `- ${oneLine(p)}`));
   for (const [heading, body] of retestTables) section(out, heading, body);
   if (tc.gherkin) {
@@ -179,7 +219,8 @@ export function renderCaseMarkdown(tc: TestCase): string {
   }
   section(out, "Postconditions", tc.postconditions.filter((p) => p !== "").map((p) => `- ${oneLine(p)}`));
   const data: string[] = [];
-  for (const [k, v] of Object.entries(testData)) if (k !== "retest") bullets(data, k, v);
+  // A plain-object retest is printed above (facts and tables); a retest of any other shape prints here, so it is not lost.
+  for (const [k, v] of Object.entries(testData)) if (!(k === "retest" && isPlainObject(v))) bullets(data, k, v);
   section(out, "Test data", data);
 
   return finish(out);
@@ -195,18 +236,21 @@ export function renderScenarioMarkdown(s: Scenario, cases: ReadonlyMap<string, T
 
   fact(out, "Story", s.storyId);
   if (story) fact(out, "So that", story.soThat);
+  // With a story the heading comes from it; the scenario title still prints when it says more than "{storyId}: {iWant}".
+  if (story && s.title !== `${s.storyId ?? story.id}: ${story.iWant}`) fact(out, "Title", s.title);
   fact(out, "Test cases (run order)", s.testCaseIds);
   const coverage = Object.entries(s.coverage ?? {}).filter(([, v]) => v.length > 0).map(([k, v]) => `${k} (${v.join(", ")})`);
   fact(out, "Coverage", coverage.join(", "));
   const seed = s.sharedSeed;
   if (seed) {
     const parts: string[] = [];
-    if (seed.factory) parts.push(`factory=\`${seed.factory}\``);
+    if (seed.factory) parts.push(`factory=${codeSpan(seed.factory)}`);
     if (seed.reuseAcross && seed.reuseAcross.length > 0) parts.push(`reused across ${seed.reuseAcross.join(", ")}`);
     fact(out, "Shared seed", parts.join(", "));
   }
   const known = new Set(["scenarioId", "storyId", "title", "testCaseIds", "coverage", "sharedSeed"]);
-  if (seed) for (const [k, v] of Object.entries(seed)) if (k !== "factory" && k !== "reuseAcross") bullets(out, k, v);
+  // Other shared-seed keys carry the "Shared seed" scope in their label, so they cannot be read as a scenario key of the same name.
+  if (seed) for (const [k, v] of Object.entries(seed)) if (k !== "factory" && k !== "reuseAcross") bullets(out, `Shared seed ${k}`, v);
   for (const [k, v] of Object.entries(s)) if (!known.has(k)) bullets(out, k, v);
 
   if (s.testCaseIds.length > 0) {
