@@ -12,6 +12,7 @@
     "typecheck": "pnpm -r run typecheck",
     "aegis": "node apps/cli/dist/index.js",
     "qa-build-toc": "tsx scripts/build-toc.ts",
+    "subagent-context-check": "tsx scripts/subagent-context-check.ts",
     "qa-check-onboarding-sync": "tsx scripts/check-onboarding-sync.ts",
     "diagram": "mmdc -i docs/D03-agent-workflow-diagram.md -o docs/D03-agent-workflow-diagram.svg"
   },
