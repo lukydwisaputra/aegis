@@ -130,6 +130,10 @@ describe('A16: oversized and failing contexts in the hook processes', () => {
     const text = context(r.stdout);
     expect(text).toMatch(/run context unavailable/);
     expect(text).toMatch(/\/qa-health/);
+    // The rules core still reaches the agent, ahead of the failure line.
+    expect(text).toContain('CLAUDE.md may not be loaded into qa-* agents');
+    expect(text).toContain("target's source is READ-ONLY");
+    expect(text.indexOf('Rules core')).toBeLessThan(text.indexOf('run context unavailable'));
     expect(text).not.toMatch(/pnpm (install|build)/);
   });
 });

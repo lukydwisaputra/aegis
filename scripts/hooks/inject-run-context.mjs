@@ -26,7 +26,7 @@ try {
         text = rs.runContextFor(ROOT, input.agent_type, typeof input.agent_id === "string" ? input.agent_id : undefined);
       } catch (e) {
         // A16: the real cause (an unreadable runs/.active, run directory or hooks/ ledger), not a build problem.
-        text = `## Aegis run context unavailable (${e.message})\n- Report this to your dispatcher and stop; the owner checks it with /qa-health.`;
+        text = `${rs.subagentRulesLines().join("\n")}\n## Aegis run context unavailable (${e.message})\n- Report this to your dispatcher and stop; the owner checks it with /qa-health.`;
       }
     }
     // Claude Code caps hook additionalContext at 10,000 characters; 9,000 leaves room for the JSON around it.

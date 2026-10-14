@@ -4,8 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { ADAPTERS } from '@qa/messaging';
-import { CLI_ONLY_RUN_GLOBS, readLedger } from '@qa/path-guard';
-import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase } from '@qa/run-state';
+import { BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, readLedger, TOOLING_CLEAN_RUN_GLOBS } from '@qa/path-guard';
+import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase, subagentRulesLines } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
 
@@ -18,6 +18,12 @@ const create = async (environment = 'development') => {
   await startPhase(t.root, runId, 'intake', 'qa-orchestrator');
   return runId;
 };
+
+/** Every qa-* agent type: the qa-*.md files under .claude/agents, the temp/ directory skipped. */
+const qaAgentNames = (): string[] =>
+  (fs.readdirSync(path.join(REPO, '.claude', 'agents'), { recursive: true }) as string[])
+    .filter((f) => !f.split(path.sep).includes('temp') && /^qa-[a-z0-9-]+\.md$/.test(path.basename(f)))
+    .map((f) => path.basename(f, '.md'));
 
 describe('H4 run context (spec §4.2)', () => {
   it('names the run, the verdict, the paths, the exact prefix and only the commands the agent may run', async () => {
@@ -80,8 +86,70 @@ describe('H4 run context (spec §4.2)', () => {
   it('stays well under the 10,000-character additionalContext cap for every qa-* agent', async () => {
     await create();
     for (const agent of ['qa-orchestrator', 'qa-ui-specialist', 'qa-test-executor', 'qa-orchestrator-spv', 'qa-defect-manager']) {
-      expect(runContextFor(t.root, agent, 'x')!.length).toBeLessThan(6000);
+      expect(runContextFor(t.root, agent, 'x')!.length).toBeLessThan(7000);
     }
+  });
+
+  it('every qa-* agent type (with a run) stays under 7000 characters', async () => {
+    await create();
+    const agents = qaAgentNames();
+    expect(agents.length).toBeGreaterThan(40);
+    expect(agents).toContain('qa-ui-specialist');
+    for (const agent of agents) expect(runContextFor(t.root, agent)!.length).toBeLessThan(7000);
+  });
+});
+
+describe('H4 rules core (CLAUDE.md may not be loaded into a subagent)', () => {
+  it('every qa-* agent gets the rules core, with or without an active run, and an agent without a role row too', async () => {
+    const check = (text: string | null) => {
+      expect(text).toContain('CLAUDE.md may not be loaded into qa-* agents');
+      expect(text).toContain("target's source is READ-ONLY");
+      expect(text).toContain('HANDBOOK/17-operating-ruleset.md');
+      expect(text).toContain('{KIND}-{MODULE}-{NNN}');
+    };
+    check(runContextFor(t.root, 'qa-ui-specialist'));
+    check(runContextFor(t.root, 'qa-no-such-agent'));
+    await create();
+    check(runContextFor(t.root, 'qa-ui-specialist'));
+  });
+
+  it('the brand and tooling globs of the core are exactly the path-guard constants', () => {
+    const text = runContextFor(t.root, 'qa-test-designer')!;
+    for (const g of [...BRAND_CLEAN_RUN_GLOBS, ...TOOLING_CLEAN_RUN_GLOBS]) expect(text).toContain(g);
+    const lines = subagentRulesLines();
+    expect(lines[2]).toContain(`in ${BRAND_CLEAN_RUN_GLOBS.join(', ')};`);
+    expect(lines[2]).toContain(`Files under ${TOOLING_CLEAN_RUN_GLOBS.join(', ')} also never`);
+  });
+
+  it('the core comes after the CLI-only line and before the framework-defect line', () => {
+    const text = runContextFor(t.root, 'qa-test-designer')!;
+    const at = (s: string) => text.indexOf(s);
+    expect(at('- Never write these, which the CLI owns')).toBeGreaterThan(-1);
+    expect(at('## Rules core')).toBeGreaterThan(at('- Never write these, which the CLI owns'));
+    expect(at('## Rules core')).toBeLessThan(at('framework.defect-suspected'));
+  });
+
+  it('names the project from aegis.config.json#dashboard.projectName, and reads neutrally without it', () => {
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, dashboard: { projectName: 'Acme Portal' } }));
+    expect(runContextFor(t.root, 'qa-test-designer')).toContain('write as the Acme Portal QA team');
+    fs.writeFileSync(file, JSON.stringify({ ...config, dashboard: {} }));
+    expect(runContextFor(t.root, 'qa-test-designer')).toContain("write as the project's QA team");
+    fs.writeFileSync(file, '{ not json');
+    expect(runContextFor(t.root, 'qa-test-designer')).toContain("write as the project's QA team");
+    expect(subagentRulesLines()[2]).toContain("write as the project's QA team");
+    expect(subagentRulesLines('Zed')[2]).toContain('write as the Zed QA team');
+  });
+
+  it('a non-qa agent gets null', () => {
+    expect(runContextFor(t.root, 'general-purpose')).toBeNull();
+  });
+
+  it('the core never contains the commands other tests forbid in H4', () => {
+    const text = runContextFor(t.root, 'qa-test-designer')!;
+    for (const f of ['run create', 'phase start', 'run reissue', 'run descope', 'defect amend', 'metrics defects', 'metrics coverage', 'metrics rollups']) expect(text).not.toContain(f);
+    expect(text).not.toMatch(/pnpm (install|build)/);
   });
 });
 
