@@ -4,6 +4,7 @@ description: Writes and runs API tests using Playwright APIRequestContext and Ne
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/api-testing.md

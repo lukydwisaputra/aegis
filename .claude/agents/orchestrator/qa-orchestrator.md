@@ -4,6 +4,7 @@ description: Master coordinator for an Aegis run. Advances the canonical phases 
 modelTier: planning
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash, Skill, Agent]
 knowledge_refs:
   - knowledge/synthesis/testing-philosophy.md

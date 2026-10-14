@@ -4,6 +4,7 @@ description: Reviews test artefacts against ISTQB Foundation Level 4.0 syllabus.
 modelTier: planning
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md

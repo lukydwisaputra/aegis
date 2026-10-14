@@ -25,6 +25,7 @@ Example: adding a Billing module:
    name: qa-{name}
    description: One-line description of what this agent does.
    modelTier: implementation   # planning | implementation | validation | read-only
+   omitClaudeMd: true          # qa-* agents start without CLAUDE.md; H4 carries their rules
    tools: [Read, Write, Edit, Bash, Agent, Skill]
    knowledge_refs:
      - knowledge/synthesis/{relevant-topic}.md

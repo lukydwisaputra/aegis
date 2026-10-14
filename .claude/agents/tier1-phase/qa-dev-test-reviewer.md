@@ -4,6 +4,7 @@ description: Reviews the target's developer tests before Requirements. Maps each
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

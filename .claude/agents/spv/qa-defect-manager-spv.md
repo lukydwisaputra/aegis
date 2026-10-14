@@ -4,6 +4,7 @@ description: Reviews qa-defect-manager work reports. Validates 65-char title rul
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/defect-management.md

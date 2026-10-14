@@ -4,6 +4,7 @@ description: Runs application security tests — OWASP ZAP (DAST), Semgrep (SAST
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/security-testing.md

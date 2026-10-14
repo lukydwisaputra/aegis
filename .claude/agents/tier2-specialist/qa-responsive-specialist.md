@@ -4,6 +4,7 @@ description: Runs UI tests across the viewport matrix — desktop (1920×1080), 
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md

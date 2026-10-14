@@ -4,6 +4,7 @@ description: End-of-cycle self-improvement agent. Reads events.jsonl, SPV review
 modelTier: planning
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

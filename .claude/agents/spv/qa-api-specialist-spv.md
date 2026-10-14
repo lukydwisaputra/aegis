@@ -4,6 +4,7 @@ description: Reviews qa-api-specialist work reports. Validates status + schema +
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/api-testing.md

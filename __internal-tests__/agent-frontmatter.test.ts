@@ -424,6 +424,12 @@ describe.each(agents)("agent file: $relPath", (agent) => {
     }
     expect(true).toBe(true); // assertion lives in the throw above for a clearer message
   });
+
+  it("starts without CLAUDE.md: omitClaudeMd true, exactly once, in the frontmatter block", () => {
+    expect(fm.raw["omitClaudeMd"]).toBe("true");
+    const block = source.slice(0, source.indexOf("\n---\n", 4));
+    expect((block.match(/^omitClaudeMd:/gm) ?? []).length).toBe(1);
+  });
 });
 
 describe("model-policy.yaml — effort floor", () => {
@@ -440,6 +446,13 @@ describe("model-policy.yaml — effort floor", () => {
       expect(doc.tokenRates).toHaveProperty([model]);
       expect(MODEL_RATES).toHaveProperty([model]);
     }
+  });
+});
+
+describe("model-policy.yaml — context", () => {
+  it("says qa-* agents start without CLAUDE.md (they get their rules from the SubagentStart hook)", () => {
+    const doc = parseYaml(readFileSync(MODEL_POLICY_PATH, "utf-8")) as { omitClaudeMd?: unknown };
+    expect(doc.omitClaudeMd).toBe(true);
   });
 });
 

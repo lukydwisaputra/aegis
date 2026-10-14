@@ -33,7 +33,7 @@ SPVs run on the `validation` tier. There is no automatic Sonnet-first escalation
 1. Read `model-policy.yaml`
 2. For each `.claude/agents/**/*.md`: parse frontmatter, find `modelTier`
 3. Look up tier → model name
-4. Inject `model: <name>` and `effort: <level>` (from `efforts:`) into frontmatter
+4. Inject `model: <name>` and `effort: <level>` (from `efforts:`) into frontmatter, and `omitClaudeMd: true` when the policy sets it (qa-* agents start without CLAUDE.md; H4 carries their rules)
 5. Validate: every agent has a `modelTier`; every `modelTier` exists in policy; no agent appears in two assignment lists
 
 Runs automatically on `aegis init` and `aegis update`.

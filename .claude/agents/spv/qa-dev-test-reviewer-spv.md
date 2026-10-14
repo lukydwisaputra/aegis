@@ -4,6 +4,7 @@ description: Reviews qa-dev-test-reviewer work reports. Validates that every dev
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/automation-strategy.md

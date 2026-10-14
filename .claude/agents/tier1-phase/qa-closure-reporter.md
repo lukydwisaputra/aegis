@@ -4,6 +4,7 @@ description: Writes the test closure report (ISTQB structure) and all operationa
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-management.md

@@ -4,6 +4,7 @@ description: Designs test cases and builds the RTM. Applies boundary value analy
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-design-techniques.md

@@ -4,6 +4,7 @@ description: Runs first every cycle. Read-only scan of the target project. Detec
 modelTier: read-only
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs: []
 ---

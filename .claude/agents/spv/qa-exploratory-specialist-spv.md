@@ -4,6 +4,7 @@ description: Reviews qa-exploratory-specialist work reports. Validates charter s
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/exploratory-testing.md

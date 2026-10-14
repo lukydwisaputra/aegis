@@ -4,6 +4,7 @@ description: Read-only telemetry aggregator. Dispatched in the foreground before
 modelTier: read-only
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md

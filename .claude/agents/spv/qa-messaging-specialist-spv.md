@@ -4,6 +4,7 @@ description: Reviews qa-messaging-specialist work reports. Validates the static 
 modelTier: validation
 model: claude-sonnet-5-5
 effort: high
+omitClaudeMd: true
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

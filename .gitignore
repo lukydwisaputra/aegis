@@ -105,3 +105,5 @@ runs/*/locks/*.lock
 .playwright-cli/
 # Third-party skill installed by `playwright-cli install --skills` in Env-auth (reinstalled each run)
 .claude/skills/playwright-cli/
+# Native subagent worktrees (framework work by subagents; the path-guard recognises only this location)
+.claude/worktrees/

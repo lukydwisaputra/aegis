@@ -4,6 +4,7 @@ description: Writes and runs Playwright E2E tests for web UI flows. Implements P
 modelTier: implementation
 model: claude-sonnet-5-5
 effort: medium
+omitClaudeMd: true
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/ui-testing.md
