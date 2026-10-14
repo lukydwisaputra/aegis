@@ -4,35 +4,37 @@
 
 **Goal:** After a gate rejection that reopens Requirements, Env-auth or Scan, the Explore phase does not run its full web crawl again when the running application still looks the same; when it does not, only the changed pages are explored again. The owner can always force a full explore.
 
-**Architecture:** A rejection keeps the previous `qa-web-explorer` task done (marked `carried`) instead of reopening it. The Explore phase cannot complete while discovery is carried and unverified. `aegis explore probe` re-visits every page of the stored discovery report as each role (read-only GET, the same fields the explorer already records: final path, status, title, headings, test-id count, console errors) and compares. Same everywhere: discovery is reused. Different or unreachable: the explorer task is reopened with the list of changed pages and runs its existing diff mode. The decision never rests on the source code alone: the source and environment identity are recorded next to it as hints, but the observed behaviour decides.
+**Architecture:** While the explorer's work is accepted, the CLI takes a **baseline**: the same read-only probe visits every concrete page of the discovery report as its role and stores a small signature per page (`reports/explore/baseline.json`). A rejection keeps the `qa-web-explorer` task done and marks Explore `carried`. Explore cannot complete while carried and unverified. `aegis explore probe` visits the same pages with the same code, compares with the baseline and decides `reuse` / `partial` / `full`. Because baseline and probe come from the same fetcher and the same normaliser, the comparison is like for like (it never compares a probe with a hand-written report). The decision rests on what the app shows; the source identity (commit and uncommitted-change hash) is recorded only as a hint next to it.
 
 **Tech Stack:** TypeScript, jest (`__internal-tests__`), commander (`apps/cli`), Playwright resolved from the target project (dynamic import, only in the real page fetcher).
 
-**Spec:** `docs/superpowers/specs/2026-10-14-lighter-framework-design.md` (section "Item 4: explore reuse" and the owner decision 4).
+**Spec:** `docs/superpowers/specs/2026-10-14-lighter-framework-design.md` (owner decision 4). This plan refines it: the spec said "record the build identity at run create, keep Explore completed when unchanged". Because the app can change without a commit (dev server rebuilt from the working tree, a fixed environment), identity alone is not trusted: Explore goes back to pending, carried, and the probe decides. Task 4 edits the spec text to match.
 
 ## Global Constraints
 
-- Owner decision 4: Explore repeats only when the app version changed, or when the owner asks (`gate decide --re-explore`, or `--reopen-phase explore`).
-- "Version" is judged by what the app does, not by git alone. Evidence from the slec run (2026-10-05): five Explore rounds, zero commits in the target between 5 and 13 October, and one round that was truly needed because the local Supabase Vault was empty and the encryption keys were missing: an environment change a git-only identity cannot see.
-- The probe is read-only: GET navigation, no form fill, no clicks, no writes to the target, the same discipline as the explorer. It never runs on a read-only environment differently from the explorer (production is explored read-only already).
-- Unknown means re-explore: an unreachable app, a role without a storage state, a page that errors, a missing report: the decision is `full`, never `reuse`.
-- Secrets never leave the identity hash: `.env*` contents are hashed, never stored or printed.
+- Owner decision 4: Explore repeats only when the app changed, or when the owner asks (`gate decide --re-explore`, or `--reopen-phase explore`).
+- "Changed" is judged by what the app does, not by git. Evidence (slec, 2026-10-05..13): five Explore rounds, zero target commits, and one round truly needed because the local Supabase Vault was empty: an environment change a git-only identity cannot see.
+- The probe is read-only: GET navigation of pages the explorer already visited; no clicks, no form input, no writes. It visits only the environment's own origin and skips logout-like routes (`/log-?out`, `/sign-?out`, `/switch-profile`).
+- Unknown means explore again, and the run never gets stuck: no baseline, no readable pages, Playwright missing in the target, the app down, every page failed: decision `full` (the explorer reopens), never an exception that leaves the phase blocked. A few individual pages that failed or changed count as changed and are explored again (`partial`).
+- No secret leaves the machine through the identity: the source identity is a hash of tracked-modified and untracked-not-ignored files; `.env*` files are gitignored, are never read, and no hash of them is stored. Error text in reports has URLs replaced by `<url>`.
 - Gate: `pnpm build && pnpm typecheck && pnpm test && pnpm test:smoke && pnpm aegis align` stay green; the align ratchet (207) does not grow. (In a worktree under `.claude/worktrees`, 4 tests of `customer-wording.test.ts` fail by location only; CI is their real run.)
+- Never write a backticked dotted token in agent, HANDBOOK or docs prose unless it is a registered event type (`event-type-drift.test.ts` reads every backticked dotted name as an event). The event is `explore.probed`; the command id `explore.probe` appears only in code.
 
 ## Review Focus
 
-- The Vault case: source and git identical, a page that errored now renders: the probe must say `changed`, not `reuse`.
-- An uncommitted edit hot-reloaded by a dev server (no restart, HEAD unchanged): the dirty-source hash changes and is reported as a hint; the pages decide.
-- A page whose text is data (a list with other rows, a counter, a date in the title): same structure must stay `same`.
-- A role whose storage state is missing or expired (the probe lands on the login page): `failed`, so the decision is not `reuse`.
-- The app is down: `full`, with the reason.
-- `--re-explore` and `--reopen-phase explore`: the explorer task reopens exactly as before.
-- A rejection that does not reach Explore (reopen at planning): nothing is carried.
-- A run created before this change (no identity, no carried flag): behaves as today.
+- The Vault case: source and git identical, a page that errored now renders: `changed`, never `reuse`.
+- An uncommitted edit hot-reloaded by a dev server (HEAD unchanged): the pages decide; the dirty hash shows as a hint.
+- A page whose text is data (a list with other rows, a counter, a date in the title, `row-12` test ids): same structure stays `same`.
+- A role whose storage state expired (the probe lands on the login page): the final path differs, so `changed`/`failed`, never `same`.
+- The app is down, Playwright is missing, the baseline is missing: `full` with a reason; Explore can always be completed afterwards.
+- `startPhase` must not wipe `carried` (it replaces the phase record today).
+- A reopened explorer has a fresh attempt count (reopen through `reopenPhaseTasks`, not a bare `client.reopen`).
+- `--re-explore` and `--reopen-phase explore`: the explorer reopens as before; `--re-explore` on an approval or a reopen range without Explore is refused.
+- A run created before this change (no baseline): a rejection carries, the probe finds no baseline and answers `full`: the same work as today.
 
 ---
 
-### Task 1: Page signatures, the comparison, the decision and the source/environment identity
+### Task 1: Page signatures, comparison, decision and source identity (pure code)
 
 **Files:**
 - Create: `packages/@qa/run-state/src/explore/identity.ts`
@@ -42,17 +44,24 @@
 **Interfaces:**
 - Produces:
   ```ts
-  export interface PageSignature { role: string; route: string; finalPath: string; status: number | null; title: string; headings: string[]; testidCount: number; consoleErrors: number }
-  export type ObservedPage = PageSignature | { role: string; route: string; error: string };
-  export function toSignature(raw: unknown): PageSignature | null;           // a discovery-report page entry, normalised
-  export interface ProbeDiff { same: number; changed: Array<{ role: string; route: string; fields: string[] }>; failed: Array<{ role: string; route: string; error: string }>; total: number }
-  export function compareSignatures(previous: readonly PageSignature[], observed: readonly ObservedPage[]): ProbeDiff;
+  export interface RawPage { role: string; url: string; finalPath: string; status: number | null; title: string; h1: string; testids: string[]; consoleErrors: string[] }
+  export type RawObservation = RawPage | { role: string; url: string; error: string };
+  export interface PageSignature { role: string; url: string; finalPath: string; status: number | null; title: string; h1: string; testidHash: string; hasErrors: boolean }
+  export function signatureOf(raw: RawPage): PageSignature;
+  export type Observed = PageSignature | { role: string; url: string; error: string };
+  export function observe(raw: RawObservation): Observed;                     // signatureOf for a page, the redacted error for a failure
+  export interface ProbeDiff { same: number; changed: Array<{ role: string; url: string; fields: string[] }>; failed: Array<{ role: string; url: string; error: string }>; total: number }
+  export function compareSignatures(baseline: readonly PageSignature[], observed: readonly Observed[]): ProbeDiff;
   export type ProbeDecision = "reuse" | "partial" | "full";
-  export function decide(diff: ProbeDiff): ProbeDecision;                   // reuse: nothing changed or failed; partial: at most 30% of the pages; full: more, or nothing observed
-  export interface AppIdentity { head: string | null; dirtyHash: string | null; envHash: string | null }
-  export function appIdentity(targetDir: string, excludeDirs: readonly string[]): AppIdentity;
-  export function identityDiffers(a: AppIdentity | undefined, b: AppIdentity): string[];   // names of the parts that differ ("head", "dirtyHash", "envHash"); a missing `a` means every part
+  export function decideProbe(diff: ProbeDiff): ProbeDecision;
+  export function redactError(message: string): string;                     // URLs become <url>, cut to 120 chars
+  export interface PageRef { role: string; url: string }
+  export function selectPages(entries: unknown, baseOrigin: string): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> };
+  export interface SourceIdentity { head: string | null; dirtyHash: string | null }
+  export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]): SourceIdentity;
+  export function identityDiffers(a: SourceIdentity | undefined, b: SourceIdentity): string[];
   ```
+  `url` is always path + query (no origin, no hash), starting with `/`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -61,65 +70,96 @@ import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { appIdentity, compareSignatures, decide, identityDiffers, toSignature, type ObservedPage, type PageSignature } from '@qa/run-state';
+import { compareSignatures, decideProbe, identityDiffers, observe, redactError, selectPages, signatureOf, sourceIdentity, type PageSignature, type RawPage } from '@qa/run-state';
 
-const page = (over: Partial<PageSignature> = {}): PageSignature => ({
-  role: 'volunteer', route: '/home', finalPath: '/home', status: 200, title: 'Home', headings: ['H1:Welcome'], testidCount: 4, consoleErrors: 0, ...over,
+const raw = (over: Partial<RawPage> = {}): RawPage => ({
+  role: 'volunteer', url: '/home', finalPath: '/home', status: 200, title: 'Home', h1: 'Welcome', testids: ['nav', 'row-1', 'row-2'], consoleErrors: [], ...over,
 });
+const sig = (over: Partial<RawPage> = {}): PageSignature => signatureOf(raw(over));
 
-describe('toSignature', () => {
-  it('reads a discovery-report page entry and normalises digits in text', () => {
-    const s = toSignature({ role: 'volunteer', route: '/home', finalPath: '/home', status: 200, title: 'Home (3 new)', headings: ['H1:Welcome 12', 'H2:Events'], testidCount: 4, consoleErrors: 0, screenshot: 'x.png', inBaseline: true });
-    expect(s).toEqual(page({ title: 'Home (# new)', headings: ['H1:Events'.replace('Events', 'Events'), 'H1:Welcome #'].sort().map((h) => h.replace('H1:Events', 'H2:Events')) }));
+describe('signatureOf', () => {
+  it('turns digits and spacing in text into #, and test ids into a hash of the distinct digit-free values', () => {
+    const a = signatureOf(raw({ title: 'Home (3 new)', h1: ' Welcome  12 ', testids: ['nav', 'row-1', 'row-2', 'row-3'] }));
+    expect(a).toMatchObject({ title: 'Home (# new)', h1: 'Welcome #', hasErrors: false });
+    expect(a.testidHash).toBe(signatureOf(raw({ testids: ['row-9', 'nav'] })).testidHash); // same distinct values: nav, row-#
+    expect(a.testidHash).not.toBe(signatureOf(raw({ testids: ['nav'] })).testidHash);
   });
-  it('is null for an entry without a role or a route', () => {
-    expect(toSignature({ route: '/x' })).toBeNull();
-    expect(toSignature(null)).toBeNull();
-  });
-});
-
-describe('compareSignatures and decide', () => {
-  const prev = [page(), page({ role: 'admin', route: '/admin' }), page({ route: '/events', title: 'Events' })];
-
-  it('same structure with different data is same (a counter, a date, a row count)', () => {
-    const now: ObservedPage[] = [page({ title: 'Home' }), page({ role: 'admin', route: '/admin' }), page({ route: '/events', title: 'Events' })];
-    const diff = compareSignatures(prev, now);
-    expect(diff).toMatchObject({ same: 3, changed: [], failed: [], total: 3 });
-    expect(decide(diff)).toBe('reuse');
-  });
-
-  it('a page that errored before and renders now is changed (the Vault case)', () => {
-    const before = [page({ route: '/profile', status: 500, consoleErrors: 3, testidCount: 0 })];
-    const diff = compareSignatures(before, [page({ route: '/profile', status: 200, consoleErrors: 0, testidCount: 6 })]);
-    expect(diff.changed).toEqual([{ role: 'volunteer', route: '/profile', fields: ['status', 'testidCount', 'consoleErrors'] }]);
-    expect(decide(diff)).toBe('partial');
-  });
-
-  it('a redirect to login (an expired role) and an unreachable page are failed, never same', () => {
-    const now: ObservedPage[] = [page({ finalPath: '/login' }), { role: 'admin', route: '/admin', error: 'timeout' }, page({ route: '/events', title: 'Events' })];
-    const diff = compareSignatures(prev, now);
-    expect(diff.changed).toEqual([{ role: 'volunteer', route: '/home', fields: ['finalPath'] }]);
-    expect(diff.failed).toEqual([{ role: 'admin', route: '/admin', error: 'timeout' }]);
-    expect(decide(diff)).toBe('full'); // 2 of 3 pages
-  });
-
-  it('a recorded page that was not observed is failed; nothing observed is full', () => {
-    expect(compareSignatures(prev, []).failed).toHaveLength(3);
-    expect(decide(compareSignatures(prev, []))).toBe('full');
-    expect(decide(compareSignatures([], []))).toBe('full'); // no discovery to reuse
-  });
-
-  it('partial up to 30% of the pages, full beyond', () => {
-    const ten = Array.from({ length: 10 }, (_, i) => page({ route: `/p${i}` }));
-    const changed = (n: number): ObservedPage[] => ten.map((p, i) => (i < n ? { ...p, title: 'Other' } : p));
-    expect(decide(compareSignatures(ten, changed(3)))).toBe('partial');
-    expect(decide(compareSignatures(ten, changed(4)))).toBe('full');
+  it('console errors count except resource-load noise (favicon, "Failed to load resource")', () => {
+    expect(signatureOf(raw({ consoleErrors: ['Failed to load resource: 404 /favicon.ico'] })).hasErrors).toBe(false);
+    expect(signatureOf(raw({ consoleErrors: ['TypeError: x is undefined'] })).hasErrors).toBe(true);
   });
 });
 
-describe('appIdentity', () => {
+describe('compareSignatures and decideProbe', () => {
+  const four = [raw(), raw({ url: '/events', title: 'Events' }), raw({ role: 'admin', url: '/admin' }), raw({ url: '/profile', status: 500, consoleErrors: ['boom'], testids: [] })].map(signatureOf);
+
+  it('same structure with different data is same: reuse', () => {
+    const now = [raw({ title: 'Home (9 new)', testids: ['nav', 'row-7'] }), raw({ url: '/events', title: 'Events' }), raw({ role: 'admin', url: '/admin' }), raw({ url: '/profile', status: 500, consoleErrors: ['boom'], testids: [] })].map(observe);
+    const diff = compareSignatures(four, now);
+    expect(diff).toMatchObject({ same: 4, changed: [], failed: [], total: 4 });
+    expect(decideProbe(diff)).toBe('reuse');
+  });
+
+  it('a page that errored before and renders now is changed (the Vault case): partial with 1 of 4', () => {
+    const now = [raw(), raw({ url: '/events', title: 'Events' }), raw({ role: 'admin', url: '/admin' }), raw({ url: '/profile', status: 200, consoleErrors: [], testids: ['profile-form'] })].map(observe);
+    const diff = compareSignatures(four, now);
+    expect(diff.changed).toEqual([{ role: 'volunteer', url: '/profile', fields: ['status', 'testidHash', 'hasErrors'] }]);
+    expect(decideProbe(diff)).toBe('partial');
+  });
+
+  it('a redirect to login and an unreachable page are never same; a missing observation is failed', () => {
+    const now = [observe(raw({ finalPath: '/login' })), observe({ role: 'volunteer', url: '/events', error: 'timeout at https://x.test/events?token=abc' })];
+    const diff = compareSignatures(four, now);
+    expect(diff.changed).toEqual([{ role: 'volunteer', url: '/home', fields: ['finalPath'] }]);
+    expect(diff.failed.map((f) => f.url)).toEqual(['/events', '/admin', '/profile']);
+    expect(JSON.stringify(diff)).not.toContain('token=abc');
+    expect(decideProbe(diff)).toBe('full');
+  });
+
+  it('partial up to 30% of the pages, full beyond, full for no pages and for every page failed', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => raw({ url: `/p${i}` }));
+    const base = ten.map(signatureOf);
+    const changed = (n: number) => compareSignatures(base, ten.map((p, i) => observe(i < n ? { ...p, title: 'Other' } : p)));
+    expect(decideProbe(changed(3))).toBe('partial');
+    expect(decideProbe(changed(4))).toBe('full');
+    expect(decideProbe(compareSignatures([], []))).toBe('full');
+    expect(decideProbe(compareSignatures(base, []))).toBe('full');
+  });
+});
+
+describe('selectPages', () => {
+  const entries = [
+    { role: 'volunteer', url: 'https://app.test/home', route: '/home' },
+    { role: 'admin', route: '/volunteers?status=new#top' },
+    { role: 'admin', url: 'https://other.example/x', route: '/x' },
+    { role: 'admin', route: '/volunteers/[id]' },
+    { role: 'admin', route: '/groups/:id' },
+    { role: 'admin', route: '/logout' },
+    { role: 'admin', route: '/switch-profile' },
+    { role: 'volunteer', route: '/home' },
+    { role: 'volunteer' },
+    null,
+  ];
+  it('keeps concrete same-origin pages once, strips origin and hash, and names what it skipped and why', () => {
+    const r = selectPages(entries, 'https://app.test');
+    expect(r.pages).toEqual([{ role: 'volunteer', url: '/home' }, { role: 'admin', url: '/volunteers?status=new' }]);
+    expect(r.skipped.map((s) => s.reason).sort()).toEqual(['dynamic route pattern', 'dynamic route pattern', 'logout-like route', 'logout-like route', 'other origin']);
+  });
+  it('is empty for anything that is not an array', () => {
+    expect(selectPages(undefined, 'https://app.test')).toEqual({ pages: [], skipped: [] });
+  });
+});
+
+describe('redactError', () => {
+  it('replaces URLs and cuts to 120 characters', () => {
+    expect(redactError('failed https://a.test/x?token=1 now')).toBe('failed <url> now');
+    expect(redactError('x'.repeat(300))).toHaveLength(120);
+  });
+});
+
+describe('sourceIdentity', () => {
   let dir: string;
-  const git = (...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@e.com', '-c', 'user.name=t', ...a], { encoding: 'utf8' });
+  const git = (...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@e.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...a], { encoding: 'utf8' });
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-id-'));
     git('init', '-q');
@@ -129,45 +169,48 @@ describe('appIdentity', () => {
   });
   afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-  it('is stable, and changes with an uncommitted edit, an untracked file and an env file, without printing secrets', () => {
-    const base = appIdentity(dir, []);
-    expect(appIdentity(dir, [])).toEqual(base);
+  it('is stable; changes with an edit, a new untracked file, a deletion and a rename; ignores gitignored files and never reads .env', () => {
+    const base = sourceIdentity(dir, []);
+    expect(sourceIdentity(dir, [])).toEqual(base);
     expect(base.head).toMatch(/^[0-9a-f]{40}$/);
     fs.writeFileSync(path.join(dir, 'app.ts'), 'two');
-    const edited = appIdentity(dir, []);
+    const edited = sourceIdentity(dir, []);
     expect(identityDiffers(base, edited)).toEqual(['dirtyHash']);
     fs.writeFileSync(path.join(dir, 'new.ts'), 'x');
-    expect(appIdentity(dir, []).dirtyHash).not.toBe(edited.dirtyHash);
+    const added = sourceIdentity(dir, []);
+    expect(added.dirtyHash).not.toBe(edited.dirtyHash);
+    git('mv', 'app.ts', 'renamed.ts');
+    expect(sourceIdentity(dir, []).dirtyHash).not.toBe(added.dirtyHash);
+    fs.writeFileSync(path.join(dir, '.gitignore'), '.env.local\n');
+    git('add', '.gitignore');
+    const beforeEnv = sourceIdentity(dir, []);
     fs.writeFileSync(path.join(dir, '.env.local'), 'SECRET=abc');
-    const withEnv = appIdentity(dir, []);
-    expect(identityDiffers(edited, withEnv)).toContain('envHash');
-    expect(JSON.stringify(withEnv)).not.toContain('abc');
-    fs.writeFileSync(path.join(dir, '.env.local'), 'SECRET=abd');
-    expect(appIdentity(dir, []).envHash).not.toBe(withEnv.envHash);
+    expect(sourceIdentity(dir, [])).toEqual(beforeEnv);
+    expect(JSON.stringify(sourceIdentity(dir, []))).not.toContain('abc');
   });
 
-  it('ignores the excluded directories and gitignored files; a non-git directory gives null parts', () => {
+  it('leaves out the excluded directories; a non-git directory gives null parts', () => {
     fs.mkdirSync(path.join(dir, 'aegis'));
-    const base = appIdentity(dir, ['aegis']);
+    fs.mkdirSync(path.join(dir, 'tests', 'qa'), { recursive: true });
+    const base = sourceIdentity(dir, ['aegis', 'tests/qa']);
     fs.writeFileSync(path.join(dir, 'aegis', 'run.json'), '{}');
-    expect(appIdentity(dir, ['aegis'])).toEqual(base);
+    fs.writeFileSync(path.join(dir, 'tests', 'qa', 'pom.ts'), 'x');
+    expect(sourceIdentity(dir, ['aegis', 'tests/qa'])).toEqual(base);
     const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-plain-'));
-    expect(appIdentity(plain, [])).toEqual({ head: null, dirtyHash: null, envHash: null });
+    expect(sourceIdentity(plain, [])).toEqual({ head: null, dirtyHash: null });
     fs.rmSync(plain, { recursive: true, force: true });
   });
 
   it('identityDiffers names every part when there is no earlier identity', () => {
-    expect(identityDiffers(undefined, { head: 'a', dirtyHash: 'b', envHash: null })).toEqual(['head', 'dirtyHash', 'envHash']);
+    expect(identityDiffers(undefined, { head: 'a', dirtyHash: 'b' })).toEqual(['head', 'dirtyHash']);
   });
 });
 ```
 
-(The first `toSignature` assertion is written out long-hand: fix the expected value to what the normaliser really returns, `headings` sorted and unique with digits replaced by `#`; the point of the test is the digits and the dropped screenshot fields.)
-
 - [ ] **Step 2: Run it to see it fail**
 
-Run: `cd __internal-tests__ && npx jest explore-identity`
-Expected: FAIL (`toSignature` is not exported).
+Run: `pnpm build && cd __internal-tests__ && npx jest explore-identity`
+Expected: FAIL (`signatureOf` is not exported).
 
 - [ ] **Step 3: Implement**
 
@@ -176,64 +219,80 @@ Expected: FAIL (`toSignature` is not exported).
 ```ts
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
-export interface PageSignature {
+export interface RawPage {
   role: string;
-  route: string;
+  url: string;
   finalPath: string;
   status: number | null;
   title: string;
-  headings: string[];
-  testidCount: number;
-  consoleErrors: number;
+  h1: string;
+  testids: string[];
+  consoleErrors: string[];
 }
-export type ObservedPage = PageSignature | { role: string; route: string; error: string };
+export type RawObservation = RawPage | { role: string; url: string; error: string };
+
+export interface PageSignature {
+  role: string;
+  url: string;
+  finalPath: string;
+  status: number | null;
+  title: string;
+  h1: string;
+  testidHash: string;
+  hasErrors: boolean;
+}
+export type Observed = PageSignature | { role: string; url: string; error: string };
 
 /** Text that is data, not structure: digits become `#` so a counter, a date or a row count is not a change. */
 const flat = (s: unknown): string => String(s ?? "").replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
-const int = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+const NOISE = /failed to load resource|favicon/i;
 
-/** A discovery-report page entry (or a freshly observed page) in its comparable form; null when it has no role or route. */
-export function toSignature(raw: unknown): PageSignature | null {
-  if (raw === null || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  if (typeof r["role"] !== "string" || typeof r["route"] !== "string" || r["role"] === "" || r["route"] === "") return null;
-  const headings = Array.isArray(r["headings"]) ? [...new Set(r["headings"].map(flat))].sort() : [];
+export function signatureOf(raw: RawPage): PageSignature {
+  const ids = [...new Set(raw.testids.map(flat))].sort();
   return {
-    role: r["role"],
-    route: r["route"],
-    finalPath: typeof r["finalPath"] === "string" ? r["finalPath"] : r["route"],
-    status: typeof r["status"] === "number" ? r["status"] : null,
-    title: flat(r["title"]),
-    headings,
-    testidCount: int(r["testidCount"]),
-    consoleErrors: int(r["consoleErrors"]),
+    role: raw.role,
+    url: raw.url,
+    finalPath: raw.finalPath,
+    status: raw.status,
+    title: flat(raw.title),
+    h1: flat(raw.h1),
+    testidHash: createHash("sha256").update(ids.join("\n")).digest("hex").slice(0, 16),
+    hasErrors: raw.consoleErrors.some((m) => !NOISE.test(m)),
   };
+}
+
+export function redactError(message: string): string {
+  return message.replace(/https?:\/\/\S+/g, "<url>").slice(0, 120);
+}
+
+export function observe(raw: RawObservation): Observed {
+  return "error" in raw ? { role: raw.role, url: raw.url, error: redactError(raw.error) } : signatureOf(raw);
 }
 
 export interface ProbeDiff {
   same: number;
-  changed: Array<{ role: string; route: string; fields: string[] }>;
-  failed: Array<{ role: string; route: string; error: string }>;
+  changed: Array<{ role: string; url: string; fields: string[] }>;
+  failed: Array<{ role: string; url: string; error: string }>;
   total: number;
 }
 
-const FIELDS = ["finalPath", "status", "title", "headings", "testidCount", "consoleErrors"] as const;
-const key = (p: { role: string; route: string }): string => `${p.role}\u0000${p.route}`;
+const FIELDS = ["finalPath", "status", "title", "h1", "testidHash", "hasErrors"] as const;
+const key = (p: { role: string; url: string }): string => `${p.role}\u0000${p.url}`;
 
-export function compareSignatures(previous: readonly PageSignature[], observed: readonly ObservedPage[]): ProbeDiff {
+export function compareSignatures(baseline: readonly PageSignature[], observed: readonly Observed[]): ProbeDiff {
   const now = new Map(observed.map((o) => [key(o), o]));
-  const diff: ProbeDiff = { same: 0, changed: [], failed: [], total: previous.length };
-  for (const p of previous) {
+  const diff: ProbeDiff = { same: 0, changed: [], failed: [], total: baseline.length };
+  for (const p of baseline) {
     const o = now.get(key(p));
-    if (o === undefined) diff.failed.push({ role: p.role, route: p.route, error: "not observed" });
-    else if ("error" in o) diff.failed.push({ role: p.role, route: p.route, error: o.error });
+    if (o === undefined) diff.failed.push({ role: p.role, url: p.url, error: "not observed" });
+    else if ("error" in o) diff.failed.push({ role: p.role, url: p.url, error: o.error });
     else {
-      const fields = FIELDS.filter((f) => JSON.stringify(p[f]) !== JSON.stringify(o[f]));
+      const fields = FIELDS.filter((f) => p[f] !== o[f]);
       if (fields.length === 0) diff.same++;
-      else diff.changed.push({ role: p.role, route: p.route, fields: [...fields] });
+      else diff.changed.push({ role: p.role, url: p.url, fields: [...fields] });
     }
   }
   return diff;
@@ -241,21 +300,68 @@ export function compareSignatures(previous: readonly PageSignature[], observed: 
 
 export type ProbeDecision = "reuse" | "partial" | "full";
 
-/** Nothing changed or failed: reuse. At most 30% of the pages: only those are explored again. More, or nothing to compare: a full explore. */
-export function decide(diff: ProbeDiff): ProbeDecision {
+/** Nothing changed or failed: reuse. At most 30% of the pages: only those are explored again. More, every page failed, or nothing to compare: full. */
+export function decideProbe(diff: ProbeDiff): ProbeDecision {
   if (diff.total === 0) return "full";
   const bad = diff.changed.length + diff.failed.length;
   if (bad === 0) return "reuse";
   return bad / diff.total <= 0.3 ? "partial" : "full";
 }
 
-export interface AppIdentity {
-  head: string | null;
-  dirtyHash: string | null;
-  envHash: string | null;
+export interface PageRef {
+  role: string;
+  url: string;
 }
 
-const sha = (h: ReturnType<typeof createHash>): string => h.digest("hex");
+const DYNAMIC = /\[[^\]]+\]|\/:[A-Za-z_]|\{[^}]+\}/;
+const LOGOUT = /(?:^|\/)(?:log-?out|sign-?out|switch-profile)(?:[/?#]|$)/i;
+
+/**
+ * The concrete pages a probe visits, from a discovery report's `pages` array: each entry needs a role and a `url` or `route`.
+ * Other origins, route patterns (`/x/[id]`) and logout-like routes (a GET there changes the session) are skipped and named.
+ */
+export function selectPages(entries: unknown, baseOrigin: string): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> } {
+  const pages: PageRef[] = [];
+  const skipped: Array<{ role: string; route: string; reason: string }> = [];
+  const seen = new Set<string>();
+  if (!Array.isArray(entries)) return { pages, skipped };
+  for (const e of entries) {
+    if (e === null || typeof e !== "object") continue;
+    const r = e as Record<string, unknown>;
+    const role = r["role"];
+    const where = typeof r["url"] === "string" && r["url"] !== "" ? r["url"] : typeof r["route"] === "string" ? r["route"] : "";
+    if (typeof role !== "string" || role === "" || where === "") continue;
+    let path: string;
+    try {
+      const u = new URL(where, baseOrigin);
+      if (u.origin !== new URL(baseOrigin).origin) {
+        skipped.push({ role, route: u.pathname, reason: "other origin" });
+        continue;
+      }
+      path = u.pathname + u.search;
+    } catch {
+      continue;
+    }
+    if (DYNAMIC.test(decodeURIComponent(where)) || DYNAMIC.test(path)) {
+      skipped.push({ role, route: path, reason: "dynamic route pattern" });
+      continue;
+    }
+    if (LOGOUT.test(path)) {
+      skipped.push({ role, route: path, reason: "logout-like route" });
+      continue;
+    }
+    const k = key({ role, url: path });
+    if (seen.has(k)) continue;
+    seen.add(k);
+    pages.push({ role, url: path });
+  }
+  return { pages, skipped };
+}
+
+export interface SourceIdentity {
+  head: string | null;
+  dirtyHash: string | null;
+}
 
 function git(dir: string, args: string[]): string | null {
   try {
@@ -265,44 +371,30 @@ function git(dir: string, args: string[]): string | null {
   }
 }
 
-const ENV_FILE = /^\.env(?:\..+)?$/;
-const ENV_TEMPLATE = /\.(?:example|sample|template)$/;
-
 /**
- * Where the app comes from: the commit, a hash of everything uncommitted that is not ignored (modified and untracked files, by path
- * and content), and a hash of the `.env*` files (an environment switch lives there and is gitignored). Contents are hashed, never stored.
- * `excludeDirs` (target-relative) leave out the QA tree itself. A directory that is not a git checkout gives null parts.
+ * Where the app source stands: the commit and a hash of every uncommitted change (modified, deleted, renamed and untracked-not-ignored
+ * files, by path and content). Gitignored files, including `.env*`, are not read. `excludeDirs` (target-relative) leave out the QA tree
+ * and the tests directory, which change every round. A directory that is not a git checkout gives null parts.
+ * Call it outside run.lock: hashing a large dirty tree is synchronous.
  */
-export function appIdentity(targetDir: string, excludeDirs: readonly string[]): AppIdentity {
+export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]): SourceIdentity {
   const head = git(targetDir, ["rev-parse", "HEAD"])?.trim() ?? null;
-  const status = git(targetDir, ["status", "--porcelain", "-z", "--untracked-files=all"]);
-  let dirtyHash: string | null = null;
-  if (head !== null && status !== null) {
-    const h = createHash("sha256");
-    const skip = (p: string): boolean => excludeDirs.some((d) => p === d || p.startsWith(`${d}/`));
-    for (const entry of status.split("\0").filter((e) => e !== "").sort()) {
-      const path = entry.slice(3);
-      if (skip(path)) continue;
-      h.update(entry).update("\0");
-      const abs = join(targetDir, path);
-      if (existsSync(abs) && statSync(abs).isFile()) h.update(readFileSync(abs));
-    }
-    dirtyHash = sha(h);
+  const changed = git(targetDir, ["diff", "HEAD", "--name-only", "-z"]);
+  const untracked = git(targetDir, ["ls-files", "--others", "--exclude-standard", "-z"]);
+  if (head === null || changed === null || untracked === null) return { head, dirtyHash: null };
+  const skip = (p: string): boolean => excludeDirs.some((d) => d !== "" && (p === d || p.startsWith(`${d}/`)));
+  const names = [...new Set([...changed.split("\0"), ...untracked.split("\0")])].filter((p) => p !== "" && !skip(p)).sort();
+  const h = createHash("sha256");
+  for (const p of names) {
+    const abs = join(targetDir, p);
+    h.update(p).update("\0");
+    h.update(existsSync(abs) && statSync(abs).isFile() ? readFileSync(abs) : "deleted").update("\0");
   }
-  let envHash: string | null = null;
-  if (existsSync(targetDir)) {
-    const names = readdirSync(targetDir).filter((n) => ENV_FILE.test(n) && !ENV_TEMPLATE.test(n) && statSync(join(targetDir, n)).isFile()).sort();
-    if (names.length > 0) {
-      const h = createHash("sha256");
-      for (const n of names) h.update(relative(targetDir, join(targetDir, n))).update("\0").update(readFileSync(join(targetDir, n))).update("\0");
-      envHash = sha(h);
-    }
-  }
-  return { head, dirtyHash, envHash };
+  return { head, dirtyHash: h.digest("hex") };
 }
 
-export function identityDiffers(a: AppIdentity | undefined, b: AppIdentity): string[] {
-  const parts = ["head", "dirtyHash", "envHash"] as const;
+export function identityDiffers(a: SourceIdentity | undefined, b: SourceIdentity): string[] {
+  const parts = ["head", "dirtyHash"] as const;
   return parts.filter((p) => a === undefined || a[p] !== b[p]);
 }
 ```
@@ -310,64 +402,67 @@ export function identityDiffers(a: AppIdentity | undefined, b: AppIdentity): str
 - [ ] **Step 4: Run it to see it pass**
 
 Run: `pnpm build && cd __internal-tests__ && npx jest explore-identity`
-Expected: PASS. If the `toSignature` expectation needs adjusting, adjust the expected value, not the normaliser: the digits and the dropped fields are the behaviour under test.
+Expected: PASS. (`sig` in the test file is a convenience helper: drop it if unused.) A rename shows in `git diff HEAD --name-only` as the new path and the old path as a deletion; the test only needs the hash to change.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/@qa/run-state/src/explore packages/@qa/run-state/src/index.ts __internal-tests__/explore-identity.test.ts
-git commit -m "feat(explore): page signatures, comparison, decision and app identity"
+git commit -m "feat(explore): page signatures, comparison, decision, page selection and source identity"
 ```
 
 ---
 
-### Task 2: The probe: decision record, event, and reopening the explorer on a change
+### Task 2: Baseline and probe: records, event, reopening the explorer on a change
 
 **Files:**
 - Create: `packages/@qa/run-state/src/explore/probe.ts`
-- Modify: `packages/@qa/contracts/src/run-state.ts` (`PhaseRecordSchema`: optional `identity` and `carried`), `packages/@qa/contracts/src/events.ts` (`ExploreProbedEventSchema` + union), `packages/@qa/run-state/src/caller.ts` (`CLI_COMMANDS` `"explore.probe"`, `OWNER_COMMANDS`, `AGENT_SET_COMMANDS` `["qa-orchestrator"]`, `CLI_RECORDED_TYPES` `"explore.probed"`), `packages/@qa/run-state/src/hook-context.ts` (`CLI_USAGE`), `packages/@qa/alignment/src/cli-records.ts`, `__internal-tests__/alignment/cli-records.test.ts` (`ENTRY`), `docs/D13-event-bus-spec.md`, `packages/@qa/path-guard/src/roles.ts` + `guard.ts` (`reports/explore` CLI-only, the same four places `reports/lint` was added), `packages/@qa/run-state/src/index.ts`
+- Modify: `packages/@qa/contracts/src/run-state.ts` (`PhaseRecordSchema`: optional `carried: boolean` and `identity: {head, dirtyHash}` both nullable strings), `packages/@qa/contracts/src/events.ts` (`ExploreProbedEventSchema` + union), `packages/@qa/run-state/src/caller.ts` (`CLI_COMMANDS` `"explore.probe"`, `OWNER_COMMANDS`, `AGENT_SET_COMMANDS` `["qa-orchestrator"]`, `CLI_RECORDED_TYPES` `"explore.probed"`), `packages/@qa/run-state/src/hook-context.ts` (`CLI_USAGE`), `packages/@qa/alignment/src/cli-records.ts`, `__internal-tests__/alignment/cli-records.test.ts` (**add `src/explore` to the scanned directories next to `src` and `src/lint`**, then the `ENTRY`), `docs/D13-event-bus-spec.md`, `packages/@qa/path-guard/src/roles.ts` + `guard.ts` (`reports/explore` CLI-only: the same places `reports/lint` was added; `git log -S "reports/lint" --oneline` finds them), `packages/@qa/run-state/src/index.ts`
 - Test: `__internal-tests__/explore-probe.test.ts` (create)
 
 **Interfaces:**
-- Consumes: `PageSignature`, `ObservedPage`, `compareSignatures`, `decide`, `appIdentity`, `identityDiffers`, `toSignature` (Task 1).
+- Consumes: Task 1 exports; `reopenPhaseTasks` (`supersede.ts`; it gets its optional 6th `keep` parameter in this task, the one-line change listed in Task 3: do it here first and Task 3 reuses it), `commitRun`, `readRun`, `withRunLock` (`run.ts`), `readRunConfig`, `busPath`/`runDir`, `appendChained`.
 - Produces:
   ```ts
-  export interface PageFetcher { visit(page: { role: string; route: string }): Promise<ObservedPage>; close(): Promise<void> }
-  export interface ProbeResult { runId: string; decision: ProbeDecision; diff: ProbeDiff; hints: string[]; reopened: string[]; report: string }
-  export async function probeExplore(root: string, runId: string, caller: string, fetcher: PageFetcher, now?: Date): Promise<ProbeResult>
+  export interface PageFetcher { visit(page: PageRef): Promise<RawObservation>; close(): Promise<void> }
+  export type FetcherFactory = () => Promise<PageFetcher>;     // may throw: the probe turns that into decision full
+  export interface BaselineResult { runId: string; pages: number; skipped: number; unavailable: string | null; report: string }
+  export async function takeBaseline(root: string, runId: string, caller: string, factory: FetcherFactory, now?: Date): Promise<BaselineResult>
+  export interface ProbeResult { runId: string; decision: ProbeDecision; reason: string | null; diff: ProbeDiff; hints: string[]; reopened: string[]; report: string }
+  export async function probeExplore(root: string, runId: string, caller: string, factory: FetcherFactory, now?: Date): Promise<ProbeResult>
   ```
-- Event `explore.probed { agent, decision, same, changed, failed, hints }`, CLI-recorded. Report file `reports/explore/probe.json`. `PhaseRecord.identity?: AppIdentity` (recorded when Explore completes, Task 3) and `PhaseRecord.carried?: boolean`.
+- Files: `reports/explore/baseline.json` = `{ takenAt, baseUrl, pages: PageSignature[], skipped, unavailable, identity }`; `reports/explore/probe.json` = `{ decidedAt, decision, reason, diff, hints, reopened, changedPages: [{role, url}] }`.
+- Event `explore.probed { agent, mode: "baseline"|"verify", decision: "reuse"|"partial"|"full"|"none", pages, same, changed, failed, hints }` (`decision` is `none` for a baseline). CLI-recorded.
+
+Behaviour to implement:
+
+- `takeBaseline`: caller allowed (`assertCallerAllowed(caller, "explore.probe")`); refuses unless `phases.explore.status === "in-progress"` (`invalid-input`: "the baseline is taken while Explore is in progress, after the explorer's review passed"). Reads `discovery-report.json` leniently (a missing or unparsable file or no `pages` array gives `pages: 0` and `unavailable: "<reason>"`, never throws), the base URL from the run's environment in `aegis.config.json`, the roles from `env-auth-report.json#roles[]` (an entry without `storageState` is an unauthenticated role; a page whose role is not listed is skipped with reason `role without auth state`). Calls `selectPages`, builds the fetcher inside try/catch (a failure sets `unavailable`), visits pages one at a time, writes `baseline.json` (with `identity` from `sourceIdentity`, computed before taking any lock), appends the event under `commitRun`/`withRunLock` only for the short write, never while visiting.
+- `probeExplore`: caller allowed; under the lock check `phases.explore.carried === true` else `invalid-input` ("discovery is not carried over in this run: nothing to verify"); release the lock; build the fetcher (failure: decision `full`, reason is the redacted message); read `baseline.json` (missing, `unavailable` set, or zero pages: decision `full`, reason says so); visit every baseline page; `compareSignatures` + `decideProbe`; compute `sourceIdentity` outside the lock; then under the lock re-check `carried`, and in one `commitRun` do: when the decision is not `reuse`, reopen the explorer's tasks with `reopenPhaseTasks(root, runId, state, new Set(["explore"]), ts, (t) => t.assignee !== "qa-web-explorer")` (a fresh attempt count: it records the earlier attempts as superseded); set `phases.explore = { ...record, identity }` with `carried` removed; write `probe.json`; append the event. Always closes the fetcher, also when a visit throws (a throwing visit becomes an `error` observation).
+- Both functions: the report file is written before the commit and overwritten on a retry; a failed event append leaves `carried` set so the call can be repeated.
 
 - [ ] **Step 1: Write the failing test**
 
-Use the helpers the lint tests used (`makeAegisRoot`, a run created with `createRun`). Seed `runs/{id}/discovery-report.json` with `pages` (three entries as in a real report), a done `qa-web-explorer` task in phase `explore` (use the existing test helpers for tasks: see `run-state-gates.test.ts` `workTask`/`fastForward`; the simplest is `addTask` + `claimTask` + `submitWorkReport` + `releaseTask done` + a passing `submitReview` for `qa-web-explorer-spv`), and `state.phases.explore.carried = true` written through the run state writer the other tests use. Tests (each with a fake `PageFetcher` built from a map):
+Use the helpers the lint and gate tests use (`makeAegisRoot` and a run created with `createRun`; read `__internal-tests__/run-state-gates.test.ts` for `workTask`/`fastForward` and how the explorer task is made done). Make the target a real temp git repo by writing `targetProjectRoot` into the test's `aegis.config.json` (the helper leaves it as `..`). Seed `discovery-report.json` with `pages` (at least four entries with `role`, `url`), `env-auth-report.json` with `roles[{role, storageState}]` and one role without a state. Fake `PageFetcher` from a map of url to `RawPage`. Tests:
 
 ```ts
-it('reuse: every page matches; the explorer task stays done, carried becomes false, one event, the report is written', async () => {
-  const r = await probeExplore(t.root, runId, 'qa-orchestrator', fetcherOf(samePages));
-  expect(r).toMatchObject({ decision: 'reuse', reopened: [] });
-  expect(readRun(t.root, runId).phases['explore']).toMatchObject({ carried: false });
-  expect(taskStatus('T-explore-1')).toBe('done');
-  expect(events().find((e) => e.type === 'explore.probed')).toMatchObject({ agent: 'qa-orchestrator', decision: 'reuse', same: 3, changed: 0, failed: 0 });
-  expect(JSON.parse(read('reports/explore/probe.json')).decision).toBe('reuse');
+it('baseline: stores one signature per concrete page, names what it skipped, records identity, one event; refuses outside Explore in-progress', async () => { /* ... */ });
+
+it('baseline never throws: no discovery pages, or a factory that throws, give unavailable and zero pages', async () => { /* ... */ });
+
+it('reuse: every page matches; the explorer task stays done, carried is removed, the identity is recorded, one verify event, probe.json written', async () => { /* ... */ });
+
+it('partial: 1 of 4 pages changed; the explorer task goes back to pending with its earlier attempts superseded; the other explore tasks are untouched; probe.json names the page', async () => { /* ... */ });
+
+it('full without throwing: no baseline file, an unavailable baseline, a factory that throws, every page failing: the explorer is reopened, carried removed, reason recorded', async () => { /* ... */ });
+
+it('hints: an edited working tree is reported as a hint next to a reuse decision, never as the decision', async () => {
+  expect(r.decision).toBe('reuse');
+  expect(r.hints).toContainEqual(expect.stringContaining('dirtyHash'));
 });
 
-it('partial: the changed page is named, the explorer task is reopened for a diff run, carried becomes false', async () => {
-  const r = await probeExplore(t.root, runId, 'qa-orchestrator', fetcherOf({ ...samePages, '/profile': { ...samePages['/profile'], status: 200, testidCount: 6, consoleErrors: 0 } }));
-  expect(r).toMatchObject({ decision: 'partial', reopened: ['T-explore-1'] });
-  expect(r.diff.changed.map((c) => c.route)).toEqual(['/profile']);
-  expect(taskStatus('T-explore-1')).toBe('pending');
-});
+it('refuses when discovery is not carried and for a caller that is not the orchestrator or the owner, before any fetcher is built', async () => { /* factory is a jest.fn that must not be called */ });
 
-it('full: the app is unreachable; the explorer task is reopened and the reason is in the report', async () => { /* fetcher returns {error:'ECONNREFUSED'} for every page */ });
-
-it('hints: an edited working tree and a changed env file are reported next to a reuse decision, never as the decision', async () => { /* appIdentity differs from phases.explore.identity; decision stays reuse; hints contain 'dirtyHash' */ });
-
-it('refuses when discovery is not carried, when there is no discovery-report, and for a caller that is not the orchestrator or the owner', async () => {
-  /* carried false -> invalid-input "discovery is not carried over"; no discovery-report.json -> invalid-input; caller qa-ui-specialist -> caller-forbidden */
-});
-
-it('always closes the fetcher, also when a visit throws', async () => { /* fetcher.visit throws: result is full (error recorded), close() was called once */ });
+it('closes the fetcher exactly once, also when a visit throws (that page becomes failed)', async () => { /* ... */ });
 ```
 
 - [ ] **Step 2: Run it to see it fail**
@@ -377,14 +472,16 @@ Expected: FAIL (`probeExplore` is not exported).
 
 - [ ] **Step 3: Register the event, the command, the record fields and the CLI-only path**
 
-Follow the same touch points as the `lint.completed` event (`git log -S lint.completed --oneline` shows the commit; copy its shape): schema
+Copy the touch points of `lint.completed` (`git log -S lint.completed --oneline`). Schema:
 
 ```ts
-/** `aegis explore probe` compared the running app with the stored discovery and decided whether it is reused. */
+/** `aegis explore probe` took a baseline of the explored pages, or compared the running app with it and decided what is reused. */
 export const ExploreProbedEventSchema = EventBase.extend({
   type: z.literal("explore.probed"),
   agent: z.string(),
-  decision: z.enum(["reuse", "partial", "full"]),
+  mode: z.enum(["baseline", "verify"]),
+  decision: z.enum(["reuse", "partial", "full", "none"]),
+  pages: z.number().int().nonnegative(),
   same: z.number().int().nonnegative(),
   changed: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
@@ -392,118 +489,20 @@ export const ExploreProbedEventSchema = EventBase.extend({
 });
 ```
 
-`PhaseRecordSchema` gets `identity: z.object({ head: z.string().nullable(), dirtyHash: z.string().nullable(), envHash: z.string().nullable() }).strict().optional()` and `carried: z.boolean().optional()`. `CLI_USAGE["explore.probe"] = "explore probe [--run <id>]"`. `reports/explore` is CLI-only exactly as `reports/lint`.
+`PhaseRecordSchema` (it is `.strict()`): `carried: z.boolean().optional()`, `identity: z.object({ head: z.string().nullable(), dirtyHash: z.string().nullable() }).strict().optional()`. `CLI_USAGE["explore.probe"] = "explore probe [--baseline] [--run <id>]"`. `reports/explore` is CLI-only exactly as `reports/lint`; add `reports/explore/` to the CLI-only lists in CLAUDE.md (read/write policy row) and `HANDBOOK/13-mechanics.md` (the list near line 45).
 
-- [ ] **Step 4: Write `probeExplore`**
+- [ ] **Step 4: Implement `takeBaseline` and `probeExplore`** in `explore/probe.ts` as specified above. Read `lint/run-lint.ts` for the I/O style (atomic writes, `runDir`), `gates.ts` `decideGate` for the `reopenPhaseTasks` + `commitRun(root, reopenedState, next, append)` pattern, and `apps/cli/src/commands/lint.ts` for the CLI result shape.
 
-`packages/@qa/run-state/src/explore/probe.ts` (read `lint/run-lint.ts` for the I/O style, `supersede.ts` for `createTaskmasterClient` use):
-
-```ts
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { appendChained } from "@qa/event-bus";
-import { createTaskmasterClient } from "@qa/taskmaster-client";
-import { assertCallerAllowed } from "../caller.js";
-import { readRunConfig } from "../config.js";
-import { RunStateError } from "../errors.js";
-import { busPath, runDir, taskmasterDir } from "../paths.js";
-import { readRun, withRunLock, writeRun } from "../run.js";
-import { atomicWrite, iso } from "../util.js";
-import { appIdentity, compareSignatures, decide, identityDiffers, toSignature, type ObservedPage, type PageSignature, type ProbeDecision, type ProbeDiff } from "./identity.js";
-
-export interface PageFetcher {
-  visit(page: { role: string; route: string }): Promise<ObservedPage>;
-  close(): Promise<void>;
-}
-
-export interface ProbeResult {
-  runId: string;
-  decision: ProbeDecision;
-  diff: ProbeDiff;
-  hints: string[];
-  reopened: string[];
-  report: string;
-}
-
-const EXPLORER = "qa-web-explorer";
-
-export async function probeExplore(root: string, runId: string, caller: string, fetcher: PageFetcher, now?: Date): Promise<ProbeResult> {
-  assertCallerAllowed(caller, "explore.probe");
-  const state0 = readRun(root, runId);
-  if (state0.phases["explore"]?.carried !== true) throw new RunStateError("invalid-input", "discovery is not carried over in this run: there is nothing to verify (the explorer runs as usual)");
-  const reportFile = join(runDir(root, runId), "discovery-report.json");
-  if (!existsSync(reportFile)) throw new RunStateError("invalid-input", "discovery-report.json is missing: the explorer must run in full");
-  let previous: PageSignature[] = [];
-  try {
-    const doc = JSON.parse(readFileSync(reportFile, "utf-8")) as { pages?: unknown };
-    previous = (Array.isArray(doc.pages) ? doc.pages : []).map(toSignature).filter((s): s is PageSignature => s !== null);
-  } catch {
-    previous = [];
-  }
-  const observed: ObservedPage[] = [];
-  try {
-    for (const p of previous) {
-      try {
-        observed.push(await fetcher.visit({ role: p.role, route: p.route }));
-      } catch (e) {
-        observed.push({ role: p.role, route: p.route, error: (e as Error).message.slice(0, 120) });
-      }
-    }
-  } finally {
-    await fetcher.close();
-  }
-  const diff = compareSignatures(previous, observed);
-  const decision = decide(diff);
-  const config = readRunConfig(root);
-  const targetDir = resolve(root, config.targetProjectRoot);
-  const identity = appIdentity(targetDir, [relativeTo(targetDir, root)].filter((d) => d !== ""));
-  const hints = identityDiffers(state0.phases["explore"]?.identity, identity).map((p) => `${p} differs from the last explore`);
-
-  return withRunLock(root, runId, async () => {
-    const state = readRun(root, runId);
-    const client = createTaskmasterClient(taskmasterDir(root, runId));
-    const reopened: string[] = [];
-    if (decision !== "reuse") {
-      for (const t of await client.list()) {
-        if (t.phase === "explore" && t.assignee === EXPLORER && (t.status === "done" || t.status === "failed")) {
-          await client.reopen(t.id);
-          reopened.push(t.id);
-        }
-      }
-    }
-    const ts = iso(now);
-    const report = "reports/explore/probe.json";
-    mkdirSync(join(runDir(root, runId), "reports", "explore"), { recursive: true });
-    atomicWrite(join(runDir(root, runId), report), JSON.stringify({ runId, decidedAt: ts, decision, diff, hints, reopened, changedPages: [...diff.changed, ...diff.failed].map((c) => ({ role: c.role, route: c.route })) }, null, 2) + "\n");
-    writeRun(root, { ...state, phases: { ...state.phases, explore: { ...state.phases["explore"]!, carried: false, identity } }, updatedAt: ts });
-    await appendChained(
-      { type: "explore.probed", ts, agent: caller, decision, same: diff.same, changed: diff.changed.length, failed: diff.failed.length, hints },
-      busPath(root, runId),
-      { emittedBy: caller, runId }
-    );
-    return { runId, decision, diff, hints, reopened, report };
-  });
-}
-
-/** `aegis` lives inside the target: its directory (target-relative) is left out of the source identity. */
-function relativeTo(target: string, root: string): string {
-  const rel = root.startsWith(`${target}/`) ? root.slice(target.length + 1) : "";
-  return rel;
-}
-```
-
-(`createTaskmasterClient`'s task shape has `phase`, `assignee`, `status`; check `packages/@qa/taskmaster-client/src/index.ts` for the exact field names and use them; `client.reopen` already exists.)
-
-- [ ] **Step 5: Run it to see it pass, then the whole suite**
+- [ ] **Step 5: Run it to see it pass, then the suite**
 
 Run: `pnpm build && cd __internal-tests__ && npx jest explore-probe cli-records event-type-drift && cd .. && pnpm test && pnpm typecheck && pnpm aegis align`
-Expected: PASS; ratchet 207. Agent prose that mentions the new command must sit in a contract `cli:` list or avoid a backticked `aegis ...` (the align checker reads it as a command the file runs).
+Expected: PASS; ratchet 207.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages apps __internal-tests docs
-git commit -m "feat(explore): aegis explore probe decides reuse, partial or full and reopens the explorer on a change"
+git add packages apps __internal-tests docs CLAUDE.md HANDBOOK
+git commit -m "feat(explore): baseline and probe decide reuse, partial or full and reopen the explorer on a change"
 ```
 
 ---
@@ -511,33 +510,42 @@ git commit -m "feat(explore): aegis explore probe decides reuse, partial or full
 ### Task 3: A rejection carries the discovery over; Explore cannot complete until the probe verified it
 
 **Files:**
-- Modify: `packages/@qa/run-state/src/gates.ts` (`DecideGateInput.reExplore`, `decideGate`), `packages/@qa/run-state/src/supersede.ts` (`reopenPhaseTasks` gets an optional `keep` predicate), `packages/@qa/run-state/src/phases.ts` (`barrierProblems` and `completePhase`: record `identity` when Explore completes), `apps/cli/src/commands/gate.ts` (`--re-explore`), `packages/@qa/run-state/src/hook-context.ts` (`CLI_USAGE["gate.decide"]`)
+- Modify: `packages/@qa/run-state/src/gates.ts` (`DecideGateInput.reExplore`, `decideGate`), `packages/@qa/run-state/src/supersede.ts` (`reopenPhaseTasks` optional `keep` predicate, if Task 2 did not add it), `packages/@qa/run-state/src/phases.ts` (`startPhase` keeps `carried` and `identity`; `barrierProblems`; `completePhase` records identity), `packages/@qa/contracts/src/events.ts` (`gate.decided` gets optional `reExplore: boolean`), `apps/cli/src/commands/gate.ts` (`--re-explore`), `packages/@qa/run-state/src/hook-context.ts` (`CLI_USAGE["gate.decide"]`), `.claude/skills/qa-gate-decide/SKILL.md` (usage line, argument table, and the step that builds the CLI command)
 - Test: `__internal-tests__/explore-carry.test.ts` (create)
 
 **Interfaces:**
-- Consumes: `PhaseRecord.carried` and `.identity` (Task 2), `appIdentity` (Task 1).
-- Produces: `reopenPhaseTasks(root, runId, state, phases, ts, keep?: (task) => boolean)`; `DecideGateInput.reExplore?: boolean`.
+- Consumes: Task 1 `sourceIdentity`, Task 2 `PhaseRecord.carried` and `.identity`.
+- Produces: `reopenPhaseTasks(root, runId, state, phases, ts, keep?: (task) => boolean)` (a task for which `keep` is true is not reopened and keeps its attempts); `DecideGateInput.reExplore?: boolean`.
 
-- [ ] **Step 1: Write the failing test** (use the gate helpers `run-state-gates.test.ts` uses to drive a full run to an open G1 with a completed Explore)
+Behaviour to implement:
+
+- `reopenPhaseTasks`: filter `!keep(t)` before superseding and reopening.
+- `decideGate` on a rejection whose reopened range includes `explore`: when `reopen !== "explore"` and `reExplore !== true` and a task of phase `explore` assigned to `qa-web-explorer` is `done`, pass `keep = (t) => t.phase === "explore" && t.assignee === "qa-web-explorer"` and, after `reopenPhases` builds the new phase map, set `phases.explore = { status: "pending", carried: true, ...(identity of the earlier explore record, when it had one) }` (`reopenPhases` replaces the record with `{status:"pending"}`, so the identity must come from `open.phases.explore`).
+- `--re-explore` is refused (`invalid-input`) unless the decision is `rejected` and the reopened range includes `explore` (mirror the range check in `gates.ts` around the `reopenedPhaseIds` call); it is recorded as `reExplore: true` in the `gate.decided` event.
+- `startPhase`: when starting `explore`, keep `carried` and `identity` of the previous record: `{ status: "in-progress", startedAt: ts, ...(prev?.carried ? { carried: true } : {}), ...(prev?.identity ? { identity: prev.identity } : {}) }` (today it replaces the record, which would wipe the flag).
+- `barrierProblems` for `explore`: `state.phases["explore"]?.carried === true` adds `carried-over discovery has not been verified: run the explore probe (it compares the running app with the baseline and reopens the explorer when the app changed)`.
+- `completePhase` for `explore`: record `identity: sourceIdentity(target dir, [aegis dir and tests dir, both target-relative])` in the phase record; compute it before taking the run lock. The tests directory comes from the raw `aegis.config.json#testsDir` (`readRunConfig` does not expose it).
+- `/qa-gate-decide` skill: add `--re-explore` to the usage line, the argument table ("with a rejection that reopens Explore: do not reuse the earlier discovery") and the step that builds the CLI command.
+
+- [ ] **Step 1: Write the failing test** (drive a full run to an open G1 with a completed Explore with the gate helpers of `run-state-gates.test.ts`)
 
 ```ts
-it('a G1 rejection that reopens Requirements keeps the web-explorer task done and marks discovery carried; the other explore tasks reopen', async () => {
+it('a G1 rejection that reopens Requirements keeps the web-explorer task done and its attempts, marks discovery carried and keeps the identity; the other explore tasks reopen', async () => {
   await decideGate(t.root, runId, { gate: 'G1', decision: 'rejected', note: 'developer answers', reopenPhase: 'requirements' }, 'owner');
   expect(taskStatus('T-explore-1')).toBe('done');        // qa-web-explorer
   expect(taskStatus('T-explore-2')).toBe('pending');     // qa-exploratory-specialist
-  expect(readRun(t.root, runId).phases['explore']).toMatchObject({ status: 'pending', carried: true });
+  expect(readRun(t.root, runId).phases['explore']).toMatchObject({ status: 'pending', carried: true, identity: earlierIdentity });
 });
 
-it('Explore cannot complete while discovery is carried and unverified, and completes after a reuse probe', async () => {
-  /* after the rejection above: drive Env-auth, start Explore, finish the exploratory task; completePhase('explore') -> barrier "carried-over discovery has not been verified: run the explore probe" */
-  /* probeExplore(... reuse) then completePhase('explore') succeeds and run.json phases.explore.identity is recorded */
-});
+it('carried survives startPhase; Explore cannot complete until a verify probe ran; after a reuse probe it completes and records the identity', async () => { /* start explore: phases.explore.carried still true; completePhase -> barrier text above; probeExplore(reuse); completePhase ok */ });
 
-it('--reopen-phase explore and --re-explore reopen everything as before and nothing is carried', async () => { /* both: taskStatus('T-explore-1') is pending, carried absent/false */ });
+it('after a full probe (explorer reopened) the explorer runs again, a new baseline is taken, and Explore completes', async () => { /* ... */ });
 
-it('a rejection that does not reach Explore (reopen at planning) carries nothing; a run whose explorer task was not done carries nothing', async () => { /* ... */ });
+it('--reopen-phase explore and --re-explore reopen everything as before, nothing is carried, and the event records reExplore', async () => { /* ... */ });
 
-it('a run created before this change (no carried flag anywhere) completes Explore as today', async () => { /* ... */ });
+it('--re-explore is refused on an approval and when the reopened range does not include Explore', async () => { /* ... */ });
+
+it('a rejection that does not reach Explore, or whose explorer task was not done, carries nothing; a run without a baseline is carried and the probe answers full', async () => { /* ... */ });
 ```
 
 - [ ] **Step 2: Run it to see it fail**
@@ -545,36 +553,7 @@ it('a run created before this change (no carried flag anywhere) completes Explor
 Run: `cd __internal-tests__ && npx jest explore-carry`
 Expected: FAIL (the explorer task is reopened).
 
-- [ ] **Step 3: Implement**
-
-`supersede.ts`: add the optional last parameter to `reopenPhaseTasks`:
-
-```ts
-export async function reopenPhaseTasks(root: string, runId: string, state: RunState, phases: ReadonlySet<string>, ts: string, keep: (t: { assignee?: string; phase?: string; status: string }) => boolean = () => false): Promise<RunState> {
-  const client = createTaskmasterClient(taskmasterDir(root, runId));
-  const tasks = (await client.list()).filter((t) => t.phase !== undefined && phases.has(t.phase) && !keep(t));
-```
-
-(the rest unchanged: `supersedeAttempts` and the reopen loop already work on the filtered `tasks`).
-
-`gates.ts` `decideGate`, where `reopenPhaseTasks` is called for a rejection:
-
-```ts
-    let carried = false;
-    if (reopen !== undefined) {
-      const phases = new Set<string>(reopenedPhaseIds(reopen, gate));
-      // Discovery is carried over (the explorer's task stays done) unless the owner reopens Explore itself or asks for a full explore:
-      // the probe verifies it after Env-auth, and reopens the task when the app changed.
-      const carry = phases.has("explore") && reopen !== "explore" && input.reExplore !== true;
-      const explorerDone = carry && (await createTaskmasterClient(taskmasterDir(root, runId)).list()).some((t) => t.phase === "explore" && t.assignee === "qa-web-explorer" && t.status === "done");
-      carried = carry && explorerDone;
-      open = await reopenPhaseTasks(root, runId, state, phases, ts, carried ? (t) => t.phase === "explore" && t.assignee === "qa-web-explorer" : undefined);
-    }
-```
-
-and after `reopenPhases(open, reopen, gate)` computes the phases for the written state, set `phases.explore = { ...phases.explore, status: "pending", carried: true }` when `carried` (keep `identity` of the earlier record). Add `reExplore?: boolean` to `DecideGateInput`, `--re-explore` to `gate decide` (hidden from the usage when false), `CLI_USAGE["gate.decide"]` gets `[--re-explore]`.
-
-`phases.ts`: in `barrierProblems`, for `phase === "explore"` add `if (state.phases["explore"]?.carried === true) problems.push("carried-over discovery has not been verified: run the explore probe (it compares the running app with discovery-report.json and reopens the explorer when the app changed)");`. In `completePhase`, when `id === "explore"` completes, record `identity: appIdentity(<target dir>, [<aegis dir relative to the target>])` in the phase record (the same value the probe records), so the next probe has a reference.
+- [ ] **Step 3: Implement** as specified above.
 
 - [ ] **Step 4: Run the tests, the whole suite and align**
 
@@ -584,7 +563,7 @@ Expected: PASS, ratchet 207.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages apps __internal-tests
+git add packages apps __internal-tests .claude/skills
 git commit -m "feat(gate): a rejection carries the web-explorer discovery over until the probe verifies it"
 ```
 
@@ -594,91 +573,71 @@ git commit -m "feat(gate): a rejection carries the web-explorer discovery over u
 
 **Files:**
 - Create: `apps/cli/src/commands/explore.ts`, `apps/cli/src/explore-fetcher.ts`
-- Modify: `apps/cli/src/program.ts`, `.claude/agents/orchestrator/qa-orchestrator.md` (Explore step and Contract `cli:`), `.claude/agents/tier1-phase/qa-web-explorer.md` (diff mode with a page list; Contract), `HANDBOOK/04-stlc-walkthrough.md` (one paragraph), `CLAUDE.md` (the `gate decide --re-explore` flag in the in-chat commands list if gate decide is listed, and `reports/explore/` in the run tree)
-- Test: `__internal-tests__/explore-cli.test.ts` (create; help and refusal paths through the built CLI; the real fetcher is verified by hand, see Step 5)
+- Modify: `apps/cli/src/program.ts`, `.claude/agents/orchestrator/qa-orchestrator.md` (Explore step and Contract `cli:`), `.claude/agents/tier2-specialist/qa-web-explorer.md` (page entries, diff mode, Contract reads `reports/explore/probe.json`), `.claude/agents/spv/qa-web-explorer-spv.md` (checklist: page entries have role and a concrete same-origin url; a diff-mode report keeps the unchanged entries and passes completeness), `HANDBOOK/04-stlc-walkthrough.md` (one paragraph), `docs/superpowers/specs/2026-10-14-lighter-framework-design.md` (decision 4 text: baseline and probe, see Spec above), `CLAUDE.md` (run tree: `reports/explore/`)
+- Test: `__internal-tests__/explore-cli.test.ts` (create; help and refusal paths through the built CLI; the real fetcher is verified by hand, Step 5)
 
 **Interfaces:**
-- Consumes: `probeExplore`, `PageFetcher` (Task 2).
-- Produces: `aegis explore probe [--run <id>]` and `makePlaywrightFetcher(opts): Promise<PageFetcher>`.
+- Consumes: `takeBaseline`, `probeExplore`, `PageFetcher`, `FetcherFactory` (Task 2).
+- Produces: `aegis explore probe [--baseline] [--run <id>]` and `makePlaywrightFetcher(root: string, runId: string): Promise<PageFetcher>`.
 
 - [ ] **Step 1: Write the failing test**
 
-Through the built CLI (pattern: `__internal-tests__/cli-lenient-input.test.ts`): `explore probe --help` exits 0 and lists no choices; a run whose Explore is not carried refuses with `discovery is not carried over`; an unknown caller (`qa-ui-specialist`) is refused with `caller-forbidden`. The A16 test (`hooks-final-wave`) must still pass with `explore.probe` in `CLI_COMMANDS` and `CLI_USAGE`.
+Through the built CLI (pattern: `__internal-tests__/cli-lenient-input.test.ts`): `explore probe --help` exits 0; a run whose Explore is not carried refuses with `discovery is not carried over` **without starting a browser** (the factory is only called after the check, so this passes on a machine without Playwright); `caller-forbidden` for `qa-ui-specialist`; `--baseline` outside Explore in-progress refuses. The A16 test (`hooks-final-wave`) must still pass with `explore.probe` in `CLI_COMMANDS` and `CLI_USAGE`.
 
 - [ ] **Step 2: Run it to see it fail**
 
 Run: `cd __internal-tests__ && npx jest explore-cli`
 Expected: FAIL (no `explore` command).
 
-- [ ] **Step 3: The fetcher**
+- [ ] **Step 3: The fetcher and the command**
 
-`apps/cli/src/explore-fetcher.ts`: resolves Playwright from the TARGET (never a dependency of this repo): `createRequire(join(targetDir, "package.json")).resolve("playwright")`, falling back to `@playwright/test`; if neither resolves, throw `RunStateError("invalid-input", "playwright is not installed in the target: install it (the environment engineer does) or explore in full")`. It opens one headless Chromium and, per role, one context with the role's storage state (`tests/qa/state/{role}.json`; `public` has none). `visit({role, route})`:
+`apps/cli/src/explore-fetcher.ts`: resolves Playwright from the TARGET (never a dependency of this repo): `createRequire(join(targetDir, "package.json")).resolve("playwright")`, falling back to `@playwright/test`; neither resolving throws `RunStateError("invalid-input", "playwright is not installed in the target")` (the probe turns it into decision `full`). One headless Chromium; per role one context created with the storage state named by `env-auth-report.json#roles[].storageState` (target-relative; a role entry without one is unauthenticated). The base URL is the run environment's `url` from `aegis.config.json`; an unresolved `${VAR}` throws naming the variable. `visit({role, url})`:
 
 ```ts
+const target = new URL(url, baseURL);
+if (target.origin !== new URL(baseURL).origin) return { role, url, error: "outside the environment origin" };
 const page = await context.newPage();
-let errors = 0;
-page.on("console", (m) => { if (m.type() === "error") errors++; });
-page.on("pageerror", () => { errors++; });
-const resp = await page.goto(new URL(route, baseURL).toString(), { waitUntil: "load", timeout: 15_000 });
-await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
-const signature = {
-  role, route,
-  finalPath: new URL(page.url()).pathname,
-  status: resp?.status() ?? null,
-  title: await page.title(),
-  headings: await page.$$eval("h1,h2", (hs) => hs.map((h) => `${h.tagName}:${(h.textContent ?? "").trim()}`)),
-  testidCount: await page.locator("[data-testid]").count(),
-  consoleErrors: errors,
-};
-await page.close();
-return signature; // a navigation error is returned as { role, route, error }
-```
-
-Headings use the same `H1:text` form as the discovery report (check one real `discovery-report.json`: `"headings": ["H1:Welcome ..."]`; the comparison normalises digits). Read-only: only `goto`, no clicks, no form input. The base URL is `aegis.config.json#environments.{env}.url` of the run's environment; a missing or env-variable URL (`${TESTING_PREVIEW_URL}`) that does not resolve is an error naming the variable. Concurrency 1 (the explorer crawled the same pages one at a time; keep it gentle on a dev server).
-
-`apps/cli/src/commands/explore.ts`:
-
-```ts
-import { Command } from "commander";
-import { probeExplore } from "@qa/run-state";
-import { action, context, runIdFor } from "./_io.js";
-import { makePlaywrightFetcher } from "../explore-fetcher.js";
-
-export function exploreCommand(): Command {
-  const explore = new Command("explore").description("Verify that the stored discovery still matches the running app");
-  explore
-    .command("probe")
-    .description("Re-visit every recorded page as its role (read-only), compare with discovery-report.json and decide: reuse, partial (changed pages only) or full")
-    .option("--run <id>", "run id (defaults to the active run)")
-    .action(
-      action(async (o: { run?: string }) => {
-        const ctx = context();
-        const runId = runIdFor(ctx, o.run);
-        const fetcher = await makePlaywrightFetcher(ctx.root, runId);
-        return probeExplore(ctx.root, runId, ctx.caller, fetcher);
-      })
-    );
-  return explore;
+const consoleErrors: string[] = [];
+page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+page.on("pageerror", (e) => consoleErrors.push(e.message));
+try {
+  const resp = await page.goto(target.toString(), { waitUntil: "load", timeout: 15_000 });
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+  return {
+    role, url,
+    finalPath: new URL(page.url()).pathname,
+    status: resp?.status() ?? null,
+    title: await page.title(),
+    h1: (await page.locator("h1").first().textContent({ timeout: 1_000 }).catch(() => null)) ?? "",
+    testids: await page.$$eval("[data-testid]", (els) => els.map((e) => e.getAttribute("data-testid") ?? "")),
+    consoleErrors,
+  };
+} catch (e) {
+  return { role, url, error: (e as Error).message };
+} finally {
+  await page.close();
 }
 ```
 
-Register it in `program.ts`.
+Read-only: only `goto`; one page at a time (gentle on a dev server).
+
+`apps/cli/src/commands/explore.ts`: the `explore` group with `probe` (`--baseline`, `--run`); the action builds `const factory = () => makePlaywrightFetcher(ctx.root, runId)` and calls `takeBaseline` or `probeExplore` (the fetcher is never built before the caller and carried checks). Register it in `program.ts`.
 
 - [ ] **Step 4: The procedure**
 
-`qa-orchestrator.md`, Explore step: after Env-auth and before dispatching the explorer, when the run's Explore is carried (the CLI status shows the Explore phase `carried`), run the probe (Contract `cli:` gets `explore.probe`) and follow its decision: `reuse` — dispatch no explorer task; add the per-story exploratory tasks only for stories that are new or whose text changed since the earlier round; `partial` — the explorer task is already reopened: put `reports/explore/probe.json#changedPages` in its brief and tell it to run its diff mode over exactly those pages; `full` — the explorer task is reopened: it explores in full. The owner forces a full explore with the gate decision flag for a full explore, or by reopening the Explore phase itself. In `qa-web-explorer.md`: one paragraph: given a changed-page list in the brief, crawl only those pages and their new links and merge into discovery-report.json (the file keeps every other page entry as recorded); no list: full BFS as today. HANDBOOK/04: one paragraph (the carry-over, the probe's fields, the three decisions, the owner flag). No backticked `aegis ...` command outside a contract; the align ratchet must stay 207.
+`qa-orchestrator.md`, Explore step: (1) after Env-auth, when Explore is carried (the CLI status shows it), start Explore, then run the probe with a long Bash timeout (600000 ms; the default 2 minutes is short for 60+ pages); (2) `reuse`: dispatch no explorer; the exploratory-session tasks the rejection reopened are dispatched again as usual (a task that was claimed once cannot be cancelled; skipping unchanged stories is a later slice); `partial`: the explorer task is already reopened: put the changed pages of the probe report in its brief and tell it to work in diff mode over exactly those pages; `full`: the explorer task is reopened and explores in full; (3) every time the explorer's work passed its SPV, run the baseline command before completing Explore (a failed baseline is not an error: it only makes the next probe answer `full`). Contract `cli:` gets the explore probe command. In `qa-web-explorer.md`: each `pages[]` entry of `discovery-report.json` carries `role`, `url` (the concrete same-origin URL visited, never a route pattern) and `route`; **diff mode**: given a changed-page list in the brief, crawl only those pages and any new links found from them, merge into `discovery-report.json` keeping every other entry as recorded; no list: full BFS as today. SPV checklist as above. HANDBOOK/04: one paragraph (baseline at acceptance, carried discovery, the three decisions, the owner flags, the limits). No backticked `aegis ...` command in agent prose outside a contract; the align ratchet stays 207.
 
 - [ ] **Step 5: Run the whole gate, then verify the fetcher by hand once**
 
 Run: `pnpm build && pnpm test && pnpm typecheck && pnpm test:smoke && pnpm aegis align`
 Expected: PASS, ratchet 207.
 
-Manual check (record the result in the PR description): against a target with Playwright installed and a running dev server, copy a finished run's `discovery-report.json` and storage states into a scratch aegis root, mark Explore carried, run `aegis explore probe`: it must return `reuse` for an untouched app, and `partial` after you edit a page title in the target (or `full` with the server stopped). If a real page differs only by data (a list with other rows), it must stay `same`.
+Manual check (record the result in the PR description): against a target with Playwright installed and a running dev server, in a scratch aegis root with a finished run's `discovery-report.json`, `env-auth-report.json` and storage states, set Explore in progress and take a baseline, mark it carried, run the probe: `reuse` for an untouched app; `partial` after editing a page title or a heading in the target; `full` with the server stopped; and a list page with other rows stays `same`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps packages .claude HANDBOOK CLAUDE.md __internal-tests
+git add apps packages .claude HANDBOOK docs CLAUDE.md __internal-tests
 git commit -m "feat(cli): aegis explore probe with a Playwright page fetcher, and the orchestrator procedure"
 ```
 
@@ -686,13 +645,15 @@ git commit -m "feat(cli): aegis explore probe with a Playwright page fetcher, an
 
 ## Self-review
 
-- Spec/decision coverage: reuse unless the version changed or the owner asks (Tasks 2-3, `--re-explore`), version judged by behaviour with source and environment identity as hints (Tasks 1-2), unknown means re-explore (Task 2 `full`), the Vault case (Task 1 test, Review Focus), secrets only hashed (Task 1).
-- Placeholders: the Task 2 and 3 tests name their setup helpers and give the assertions; their bodies reuse the existing gate and lint test helpers by name, as the earlier plans did. No step says "add handling" without code or an exact edit.
-- Types: `PageSignature`, `ObservedPage`, `ProbeDiff`, `ProbeDecision`, `AppIdentity`, `PageFetcher`, `ProbeResult`, `probeExplore`, `reopenPhaseTasks(..., keep)` are used with the same names across tasks.
+- Spec/decision coverage: reuse unless the app changed or the owner asks (Tasks 2-3, `--re-explore`); judged by behaviour with the source identity as a hint (Tasks 1-2); unknown means explore again and never stuck (Task 2); the Vault case (Task 1 test, Review Focus); no secrets (identity reads no ignored file, URLs redacted).
+- Findings of the first independent review folded in: `startPhase` wipe (Task 3), stuck run (Task 2: full, factory after checks), report shape mismatch (own baseline, `selectPages`, Task 4 explorer entries), normalisation and like-for-like fields (Task 1), fresh attempts and `commitRun` (Task 2), reuse procedure (exploratory tasks rerun), explorer diff mode and SPV (Task 4), owner flag reachable (Task 3 skill and validation), alignment scan directory (Task 2), test counts (4+ pages), identity noise and rename handling, env hash dropped, origin and logout limits, touch points and typos.
+- Placeholders: the Task 2 and 3 tests with `/* ... */` bodies name their setup and assertions in the sentence above; they reuse the existing gate and lint helpers by name (the implementer reads those helpers), as the earlier plans did.
+- Types: `RawPage`, `RawObservation`, `PageSignature`, `Observed`, `ProbeDiff`, `ProbeDecision`, `decideProbe`, `PageRef`, `SourceIdentity`, `PageFetcher`, `FetcherFactory`, `takeBaseline`, `probeExplore`, `reopenPhaseTasks(..., keep)` keep the same names across tasks.
 
 ## Known limits (stated, not hidden)
 
-- The probe sees what a page shows on load: a change visible only after an interaction (a modal, a form step) or only in an API response is not seen; Execution still tests behaviour, and the exploratory sessions still run for new or changed stories.
-- A new route reachable only from an unchanged page is not discovered by the probe (the explorer finds it when it runs; the probe compares recorded pages only). A later slice can record each page's link set.
-- The per-story exploratory tasks are not made conditional by this plan beyond the orchestrator's instruction; a story hash that skips unchanged stories is a later slice.
-- Only the web-explorer task is carried over; a rejection that reopens Explore itself, or Scan with a changed profile that the owner wants re-explored, uses the owner flag.
+- The probe sees what a page shows on load: a change visible only after an interaction or only in an API response is not seen; Execution still tests behaviour.
+- Route patterns (`/volunteers/[id]`) are skipped (listed in `baseline.json#skipped`); a later slice can record one sample URL per pattern. A new route reachable only from an unchanged page is found only when the explorer runs.
+- The per-story exploratory tasks the rejection reopens are rerun; making them conditional on a story hash is a later slice.
+- An old-format discovery report (no `pages[]` with `role` and `url`/`route`) gives an empty baseline, so the probe answers `full`: the same work as today.
+- Only the web-explorer task is carried; a rejection that reopens Explore itself, or an owner who wants a fresh crawl, uses `--reopen-phase explore` or `--re-explore`.
