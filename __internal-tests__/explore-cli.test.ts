@@ -3,9 +3,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { createRun, readRun, RunStateError, runDir, startPhase } from '@qa/run-state';
+import { createRun, observe, readRun, RunStateError, runDir, signatureOf, startPhase, type RawPage } from '@qa/run-state';
 import {
-  closeBrowser, makePlaywrightFetcher, PLAYWRIGHT_MISSING, resolvePlaywright, storageStates, visitPage, type PageLike,
+  closeBrowser, CONTEXT_FAILED, makePlaywrightFetcher, PLAYWRIGHT_MISSING, REDIRECTED_OUTSIDE, resolvePlaywright, STATE_OUTSIDE, storageStates, visitPage, VISIT_CAPPED,
+  type PageLike, type RouteLike,
 } from '../apps/cli/src/explore-fetcher';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, workTask, writeRunFile } from './helpers/pipeline';
@@ -25,7 +26,7 @@ let log: string;
 
 /**
  * A fake `playwright` package in the target: it records every call to a log file, so a test can tell whether a browser was started.
- * FAKE_PW_HANG_CLOSE makes close() never settle while a timer keeps the process alive: only the kill or process.exit can end it.
+ * FAKE_PW_HANG_CLOSE makes close() never settle while a timer keeps the process alive: only the command's process.exit can end it.
  */
 const FAKE_PLAYWRIGHT = `
 const fs = require('fs');
@@ -59,7 +60,6 @@ exports.chromium = {
         if (process.env.FAKE_PW_HANG_CLOSE) { setInterval(() => undefined, 1000); return new Promise(() => undefined); }
         return Promise.resolve();
       },
-      process: () => ({ kill: (sig) => { note({ kill: sig }); return true; } }),
     };
   },
 };
@@ -169,23 +169,25 @@ const markCarried = () => {
     expect(readRun(t.root, runId).phases['explore']?.carried).toBeUndefined();
   }, 60_000);
 
-  it('a browser that never closes is killed and the command still ends with its result', async () => {
+  it('a browser whose close never settles: the command still exits with its result and status 0 within the cap', async () => {
     installFakePlaywright();
     await exploreInProgress();
     const r = aegis(['explore', 'probe', '--baseline', '--run', runId], ORCH, { FAKE_PW_HANG_CLOSE: '1' });
     expect(r).toMatchObject({ status: 0, out: { pages: 2 } });
-    expect(logged()).toContainEqual({ kill: 'SIGKILL' });
+    expect(logged()).toContainEqual({ close: true });
     expect(r.ms).toBeLessThan(30_000);
   }, 60_000);
 });
 
 describe('the Playwright page fetcher without a browser', () => {
   const BASE = 'http://localhost:5173';
+  type Over = { landing?: string; status?: number | null; gotoError?: string; h1Error?: boolean; responses?: Array<[number, string]> };
 
-  /** A page-like fake: `visit` lands on `landing` (default: the address asked for) with the given extras. */
-  function fakePage(over: { landing?: string; status?: number | null; gotoError?: string; h1Error?: boolean } = {}) {
+  /** A page-like fake: `goto` lands on `landing` (default: the address asked for); every read is counted. */
+  function fakePage(over: Over = {}) {
     const listeners: Record<string, (arg: any) => void> = {};
     let at = '';
+    const reads = jest.fn();
     const page = {
       on: jest.fn((event: string, fn: (arg: any) => void) => { listeners[event] = fn; }),
       goto: jest.fn(async (u: string) => {
@@ -194,27 +196,32 @@ describe('the Playwright page fetcher without a browser', () => {
         listeners['console']?.({ type: () => 'error', text: () => 'Uncaught TypeError' });
         listeners['console']?.({ type: () => 'warning', text: () => 'just a warning' });
         listeners['pageerror']?.(new Error('boom'));
+        for (const [status, url] of over.responses ?? []) listeners['response']?.({ status: () => status, url: () => url });
         return over.status === null ? null : { status: () => over.status ?? 200 };
       }),
       waitForLoadState: jest.fn(async () => { throw new Error('networkidle timeout'); }),
       url: () => at,
-      title: async () => 'Volunteers',
-      locator: () => ({ first: () => ({ textContent: async () => { if (over.h1Error) throw new Error('no h1'); return 'All volunteers'; } }) }),
-      $$eval: async (_s: string, fn: (els: Array<{ getAttribute(n: string): string | null }>) => unknown) =>
-        fn([{ getAttribute: () => 'row-1' }, { getAttribute: () => 'row-1' }, { getAttribute: () => null }]),
+      title: async () => { reads('title'); return 'Volunteers'; },
+      locator: () => ({ first: () => ({ textContent: async () => { reads('h1'); if (over.h1Error) throw new Error('no h1'); return 'All volunteers'; } }) }),
+      $$eval: async (_s: string, fn: (els: Array<{ getAttribute(n: string): string | null }>) => unknown) => {
+        reads('testids');
+        return fn([{ getAttribute: () => 'row-1' }, { getAttribute: () => 'row-1' }, { getAttribute: () => null }]);
+      },
       close: jest.fn(async () => { throw new Error('already closed'); }),
     };
-    return page;
+    return { page, reads };
   }
+  const visitWith = (page: unknown, url = '/home', opts = {}) => visitPage(async () => page as PageLike, { role: 'volunteer', url }, BASE, opts);
 
   it('visits a same-origin page and returns the pathname only, distinct test ids and the console errors', async () => {
-    const page = fakePage({ landing: 'http://localhost:5173/login?next=%2Fhome&token=abc#access_token=x' });
-    const r = await visitPage(async () => page as unknown as PageLike, { role: 'volunteer', url: '/home' }, BASE);
+    const { page } = fakePage({ landing: 'http://localhost:5173/login?next=%2Fhome&token=abc#access_token=x' });
+    const r = await visitWith(page);
     expect(r).toEqual({
       role: 'volunteer', url: '/home', finalPath: '/login', status: 200, title: 'Volunteers', h1: 'All volunteers',
       testids: ['row-1', ''], consoleErrors: ['Uncaught TypeError', 'boom'],
     });
     expect(page.goto).toHaveBeenCalledWith('http://localhost:5173/home', { waitUntil: 'load', timeout: 15_000 });
+    expect(page.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 2_000 });
     expect(page.close).toHaveBeenCalledTimes(1);
   });
 
@@ -226,32 +233,110 @@ describe('the Playwright page fetcher without a browser', () => {
     expect(newPage).not.toHaveBeenCalled();
   });
 
-  it('maps a navigation failure or a page that cannot open to an error observation, and a missing h1 or response to empty values', async () => {
-    const failing = fakePage({ gotoError: 'net::ERR_CONNECTION_REFUSED at http://localhost:5173/home' });
-    expect(await visitPage(async () => failing as unknown as PageLike, { role: 'r', url: '/home' }, BASE)).toEqual({ role: 'r', url: '/home', error: 'net::ERR_CONNECTION_REFUSED at http://localhost:5173/home' });
-    expect(failing.close).toHaveBeenCalledTimes(1);
-    expect(await visitPage(async () => { throw new Error('storage state file not found'); }, { role: 'r', url: '/home' }, BASE)).toEqual({ role: 'r', url: '/home', error: 'storage state file not found' });
-    const bare = fakePage({ status: null, h1Error: true });
-    expect(await visitPage(async () => bare as unknown as PageLike, { role: 'r', url: '/home' }, BASE)).toMatchObject({ status: null, h1: '', finalPath: '/home' });
+  it('a page redirected to another origin is not read at all and is an error, never same', async () => {
+    const { page, reads } = fakePage({ landing: 'https://idp.example/home?code=secret' });
+    const r = await visitWith(page);
+    expect(r).toEqual({ role: 'volunteer', url: '/home', error: REDIRECTED_OUTSIDE });
+    expect(reads).not.toHaveBeenCalled();
+    expect(page.close).toHaveBeenCalledTimes(1);
+    const sig = observe(r);
+    expect('error' in sig).toBe(true);
   });
 
-  it('reads each role storage state from env-auth-report.json, target-relative; a role without one is unauthenticated', () => {
+  it('aborts a main-frame navigation to another origin and lets same-origin and sub-resource requests through', async () => {
+    const { page, reads } = fakePage();
+    const main = { frame: 'main' };
+    let handler: ((route: RouteLike) => unknown) | undefined;
+    const routed = Object.assign(page, {
+      mainFrame: () => main,
+      route: jest.fn(async (_p: string, h: (route: RouteLike) => unknown) => { handler = h; }),
+    });
+    const route = (url: string, nav: boolean, frame: unknown = main) => {
+      const r = { request: () => ({ url: () => url, isNavigationRequest: () => nav, frame: () => frame }), abort: jest.fn(async () => undefined), continue: jest.fn(async () => undefined) };
+      handler!(r);
+      return r;
+    };
+    routed.goto.mockImplementationOnce(async () => {
+      expect(route('http://localhost:5173/home', true).continue).toHaveBeenCalled();
+      expect(route('https://cdn.example/app.js', false).continue).toHaveBeenCalled();
+      expect(route('https://ads.example/frame', true, { frame: 'child' }).continue).toHaveBeenCalled();
+      expect(route('https://idp.example/login', true).abort).toHaveBeenCalled();
+      throw new Error('net::ERR_ABORTED');
+    });
+    expect(await visitWith(routed)).toEqual({ role: 'volunteer', url: '/home', error: REDIRECTED_OUTSIDE });
+    expect(reads).not.toHaveBeenCalled();
+  });
+
+  it('records a same-origin server error while loading as response <status>, which the signature counts as an error', async () => {
+    const { page } = fakePage({ responses: [[500, 'http://localhost:5173/api/vault/42'], [502, 'https://cdn.example/x.js'], [404, 'http://localhost:5173/favicon.ico'], [503, 'http://localhost:5173/rest/v1/x']] });
+    const r = await visitWith(page);
+    expect(r).toMatchObject({ consoleErrors: ['Uncaught TypeError', 'boom', 'response 500', 'response 503'] });
+    const only500 = { ...(r as RawPage), consoleErrors: ['Failed to load resource: the server responded with a status of 500', 'response 500'] };
+    expect(signatureOf(only500).hasErrors).toBe(true);
+    expect(signatureOf({ ...only500, consoleErrors: ['Failed to load resource: the server responded with a status of 500'] }).hasErrors).toBe(false);
+  });
+
+  it('maps a navigation failure or a page that cannot open to an error observation, and a missing h1 or response to empty values', async () => {
+    const failing = fakePage({ gotoError: 'net::ERR_CONNECTION_REFUSED at http://localhost:5173/home\nCall log:\n  - navigating' }).page;
+    expect(await visitWith(failing)).toEqual({ role: 'volunteer', url: '/home', error: 'net::ERR_CONNECTION_REFUSED at http://localhost:5173/home' });
+    expect(failing.close).toHaveBeenCalledTimes(1);
+    expect(await visitPage(async () => { throw new Error('storage state file not found'); }, { role: 'r', url: '/home' }, BASE)).toEqual({ role: 'r', url: '/home', error: 'storage state file not found' });
+    const bare = fakePage({ status: null, h1Error: true }).page;
+    expect(await visitWith(bare)).toMatchObject({ status: null, h1: '', finalPath: '/home' });
+  });
+
+  it('caps the whole visit: a page whose methods never answer gives an error within the cap', async () => {
+    const never = () => new Promise<never>(() => undefined);
+    const stuck = { on: () => undefined, goto: never, waitForLoadState: never, url: () => '', title: never, locator: () => ({ first: () => ({ textContent: never }) }), $$eval: never, close: jest.fn(never) };
+    const started = Date.now();
+    expect(await visitWith(stuck, '/home', { capMs: 100 })).toEqual({ role: 'volunteer', url: '/home', error: VISIT_CAPPED });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await visitPage(never, { role: 'r', url: '/home' }, BASE, { capMs: 100 })).toMatchObject({ error: expect.stringContaining('time cap') });
+  });
+
+  it('reads each role storage state from env-auth-report.json inside the target; a role without one is unauthenticated, one outside is refused', () => {
     writeRunFile(t.root, runId, 'env-auth-report.json', {
       roles: [
         { role: 'admin', storageState: 'tests/qa/state/admin.json' },
         { role: 'anon' },
         { role: 'manager', storageState: '' },
         { role: 'manager', storageState: 'tests/qa/state/manager.json' },
+        { role: 'escaper', storageState: '../../x' },
+        { role: 'absolute', storageState: '/etc/passwd' },
+        { role: 'dot', storageState: '.' },
         { storageState: 'tests/qa/state/nobody.json' },
       ],
     });
     expect(storageStates(t.root, runId, target)).toEqual(new Map([
-      ['admin', path.join(target, 'tests/qa/state/admin.json')],
-      ['anon', null],
-      ['manager', path.join(target, 'tests/qa/state/manager.json')],
+      ['admin', { storageState: path.join(target, 'tests/qa/state/admin.json') }],
+      ['anon', { storageState: null }],
+      ['manager', { storageState: path.join(target, 'tests/qa/state/manager.json') }],
+      ['escaper', { error: STATE_OUTSIDE }],
+      ['absolute', { error: STATE_OUTSIDE }],
+      ['dot', { error: STATE_OUTSIDE }],
     ]));
     fs.rmSync(path.join(runDir(t.root, runId), 'env-auth-report.json'));
     expect(storageStates(t.root, runId, target).size).toBe(0);
+  });
+
+  it('a role refused or whose context cannot be created has every page unobserved with a fixed message', async () => {
+    writeRunFile(t.root, runId, 'env-auth-report.json', { roles: [{ role: 'escaper', storageState: '../../x' }, { role: 'broken', storageState: 'tests/qa/state/broken.json' }, { role: 'anon' }] });
+    const contexts: unknown[] = [];
+    const browser = {
+      newContext: async (o: { storageState?: string }) => {
+        contexts.push(o);
+        if (o.storageState !== undefined) throw new Error('Error reading storage state: Unexpected token { "cookies": [{"value":"secret"');
+        return { newPage: async () => fakePage().page as unknown as PageLike, close: async () => undefined };
+      },
+      close: async () => undefined,
+    };
+    const f = await makePlaywrightFetcher(t.root, runId, { resolver: () => '/x', load: async () => ({ chromium: { launch: async () => browser } }) });
+    expect(await f.visit({ role: 'escaper', url: '/home' })).toEqual({ role: 'escaper', url: '/home', error: STATE_OUTSIDE });
+    expect(await f.visit({ role: 'broken', url: '/home' })).toEqual({ role: 'broken', url: '/home', error: CONTEXT_FAILED });
+    expect(await f.visit({ role: 'broken', url: '/events' })).toEqual({ role: 'broken', url: '/events', error: CONTEXT_FAILED });
+    expect(await f.visit({ role: 'anon', url: '/home' })).toMatchObject({ role: 'anon', finalPath: '/home' });
+    expect(contexts).toEqual([{ baseURL: BASE, storageState: path.join(target, 'tests/qa/state/broken.json') }, { baseURL: BASE }]);
+    await f.close();
   });
 
   it('resolves playwright, then @playwright/test, from the target, and refuses when neither is installed', () => {
@@ -261,6 +346,28 @@ describe('the Playwright page fetcher without a browser', () => {
     expect(resolvePlaywright('/t', only('@playwright/test'))).toBe('/t/node_modules/@playwright/test/index.js');
     expect(seen).toEqual(['/t:playwright', '/t:playwright', '/t:@playwright/test']);
     expect(() => resolvePlaywright('/t', only('none'))).toThrow(new RunStateError('invalid-input', PLAYWRIGHT_MISSING));
+  });
+
+  it('the default resolver accepts a module installed in the target as a symlink into a store outside it, and a scoped package', () => {
+    const store = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-explore-store-'));
+    try {
+      const pkg = (dir: string, name: string) => {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name, version: '1.0.0', main: 'index.js' }));
+        fs.writeFileSync(path.join(dir, 'index.js'), 'module.exports = {};');
+      };
+      pkg(path.join(store, 'playwright'), 'playwright');
+      fs.mkdirSync(path.join(target, 'node_modules'), { recursive: true });
+      fs.symlinkSync(path.join(store, 'playwright'), path.join(target, 'node_modules', 'playwright'), 'dir');
+      expect(resolvePlaywright(target)).toBe(path.join(fs.realpathSync(store), 'playwright', 'index.js'));
+      fs.rmSync(path.join(target, 'node_modules', 'playwright'));
+      pkg(path.join(target, 'node_modules', '@playwright', 'test'), '@playwright/test');
+      expect(resolvePlaywright(target)).toBe(path.join(fs.realpathSync(target), 'node_modules', '@playwright', 'test', 'index.js'));
+      fs.rmSync(path.join(target, 'node_modules'), { recursive: true, force: true });
+      expect(() => resolvePlaywright(target)).toThrow(PLAYWRIGHT_MISSING);
+    } finally {
+      fs.rmSync(store, { recursive: true, force: true });
+    }
   });
 
   it('the fetcher refuses a target without Playwright and an environment url with an unset variable, naming the variable', async () => {
@@ -274,12 +381,10 @@ describe('the Playwright page fetcher without a browser', () => {
     expect(load).not.toHaveBeenCalled();
   });
 
-  it('a browser whose close hangs is killed after the cap', async () => {
-    const kill = jest.fn(() => true);
-    await closeBrowser({ newContext: jest.fn(), close: () => new Promise<void>(() => undefined), process: () => ({ kill }) }, 50);
-    expect(kill).toHaveBeenCalledWith('SIGKILL');
-    const kill2 = jest.fn(() => true);
-    await closeBrowser({ newContext: jest.fn(), close: async () => undefined, process: () => ({ kill: kill2 }) }, 50);
-    expect(kill2).not.toHaveBeenCalled();
+  it('closing the browser waits at most the cap, also when close never settles or throws', async () => {
+    const started = Date.now();
+    await closeBrowser({ newContext: jest.fn(), close: () => new Promise<void>(() => undefined) }, 50);
+    await closeBrowser({ newContext: jest.fn(), close: async () => { throw new Error('gone'); } }, 50);
+    expect(Date.now() - started).toBeLessThan(1_000);
   });
 });

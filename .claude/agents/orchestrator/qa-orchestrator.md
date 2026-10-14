@@ -96,7 +96,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    - `reuse`: dispatch no web explorer; its earlier discovery stands and so does its baseline. The exploratory-session tasks the rejection reopened are pending: dispatch them again as usual (a task that was claimed once cannot be cancelled).
    - `partial`: the CLI has reopened the web explorer's task. Put the `changedPages` list of `probe.json` in its brief and tell it to work in diff mode over exactly those pages.
    - `full`: the CLI has reopened the web explorer's task, and it explores in full (no changed-page list in its brief). The `reason` in `probe.json` says why (no baseline, the app unreachable, Playwright missing in the target, too many pages changed).
-   The phase cannot complete while its discovery is carried and unverified. A refused probe changes nothing: read the refusal, fix its cause and run it again.
+   The phase cannot complete while its discovery is carried and unverified. A refused probe changes nothing: read the refusal, fix its cause and run it again. On a resume, when Explore is in progress and no longer carried, the web explorer's task is pending and `probe.json` holds `partial`, brief the explorer in diff mode with its `changedPages` as above; when it holds `full`, the explorer crawls in full.
 
    **Explore baseline.** Every time the web explorer's work passed its SPV (the first explore, and again after a partial or full rerun), run `aegis explore probe --baseline` with the same 600000 ms timeout before you complete Explore. A baseline that reports a reason under `unavailable` or unobserved pages is not an error and blocks nothing: the next probe of a carried Explore then answers `full`, or explores those pages again.
 

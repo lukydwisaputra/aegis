@@ -48,7 +48,7 @@ You review discovery reports and POM skeletons from `qa-web-explorer`. You verif
 
 - `passed` — all checks pass
 - `passed-with-notes` — single-role only, missing discovery sections; emit CorrectiveInstruction
-- `requested-changes` — form submissions, POM overwrites, POM written directly under `tests/qa/pages/` with no URL-path subfolder, probe scripts found in `tests/qa/specs/`; block
+- `requested-changes` — form submissions, POM overwrites, POM written directly under `tests/qa/pages/` with no URL-path subfolder, probe scripts found in `tests/qa/specs/`, a `discovery-report.json` without a `pages` array or with entries lacking `role` or a concrete `url`, an unchanged entry dropped or rewritten in diff mode; block
 
 ## Submitting Your Verdict
 

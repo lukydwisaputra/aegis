@@ -128,6 +128,8 @@ The files you write that a customer later reads (discovery notes and defect cand
 - Screenshot not captured for any crawled page
 - POM skeleton generated with locators that use CSS class or XPath
 - `@playwright/test` Node API used for browser interactions during discovery (wrong tool — MCP or `playwright-cli` CLI required for decision-as-you-go crawl work)
+- `discovery-report.json` without a `pages` array, or with entries lacking `role` or a concrete same-origin `url`
+- In diff mode, an unchanged entry of `discovery-report.json` dropped or rewritten
 
 ## Task Protocol
 
