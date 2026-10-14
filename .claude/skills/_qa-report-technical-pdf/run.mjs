@@ -168,7 +168,7 @@ const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
 const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 // With counts the pass rate is passed over the checks that ran to a verdict (attempted less the ruled ones), one decimal, so it agrees with the Passed cell; closure's own rate (which a
 // roll-up counting a partial case as a pass can skew) is used only without counts.
-const passRate = rollupCounts ? (rollupCounts.attempted - ruledTotal > 0 ? Math.round((1000 * rollupCounts.passed) / (rollupCounts.attempted - ruledTotal)) / 10 : null) : metric("passRate");
+const passRate = rollupCounts ? (rollupCounts.attempted - ruledTotal > 0 ? Math.round(((100 * rollupCounts.passed) / (rollupCounts.attempted - ruledTotal)) * 10) / 10 : null) : metric("passRate");
 
 // The closure is the source of truth for what the report prints; the metric files and the defect records only fill what it does not
 // carry. buildClosureView reads, from closure.json: the case figures (the case-of-record block when it has one, else the rollup counts),

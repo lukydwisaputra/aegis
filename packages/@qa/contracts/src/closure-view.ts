@@ -137,6 +137,11 @@ function rate(passed: number | null, total: number | null): number | null {
   return passed === null || total === null || total <= 0 ? null : round1((100 * passed) / total);
 }
 
+/** Checks whose result records a ruling (out of scope, deferred, not verified): in attempted, but they ran to no verdict. */
+function ruledChecks(rollup: NonNullable<ClosureViewInput["rollupCounts"]>): number {
+  return (rollup.ruledOutOfScope ?? 0) + (rollup.deferred ?? 0) + (rollup.notVerified ?? 0);
+}
+
 function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput["rollupCounts"], execSummary: unknown): CaseFigures {
   const rs = isPlain(closure["resultsSummary"]) ? closure["resultsSummary"] : {};
   const metrics = isPlain(closure["metrics"]) ? closure["metrics"] : {};
@@ -146,7 +151,7 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
       ? { passed: metrics["passedCaseOfRecord"], failed: metrics["failedCaseOfRecord"] ?? metrics["failed"], blocked: metrics["blockedCaseOfRecord"], partial: metrics["partialCaseOfRecord"], passRate: metrics["passRateCaseOfRecord"], basis: null }
       : null;
   const cor = block ?? fromMetrics;
-  const rollupFig: CaseCounts | null = rollup === null ? null : { passed: rollup.passed, failed: rollup.failed, partial: rollup.partial, blocked: rollup.blocked, skipped: rollup.skipped, unknown: rollup.unknown, total: rollup.attempted, passRate: rate(rollup.passed, rollup.attempted - (rollup.ruledOutOfScope ?? 0) - (rollup.deferred ?? 0) - (rollup.notVerified ?? 0)) };
+  const rollupFig: CaseCounts | null = rollup === null ? null : { passed: rollup.passed, failed: rollup.failed, partial: rollup.partial, blocked: rollup.blocked, skipped: rollup.skipped, unknown: rollup.unknown, total: rollup.attempted, passRate: rate(rollup.passed, rollup.attempted - ruledChecks(rollup)) };
   const reconciliations = Array.isArray(closure["reconciliations"]) ? closure["reconciliations"] : [];
   const rec = reconciliations.find((r) => isPlain(r) && typeof r["point"] === "string" && /case figures|case counts|pass rate/i.test(r["point"]) && str(r["statement"]) !== null);
   const reconciliation = isPlain(rec) ? str(rec["statement"]) : str(metrics["passRateBasisNote"]);
@@ -163,7 +168,8 @@ function caseFigures(closure: Record<string, unknown>, rollup: ClosureViewInput[
     const figs: CaseCounts = {
       passed, failed: num(cor["failed"]), partial: num(cor["partial"]), blocked: num(cor["blocked"]),
       skipped: rollup?.skipped ?? null, unknown: rollup?.unknown ?? null, total,
-      passRate: num(cor["passRate"]) ?? rate(passed, total),
+      // the base is the checks that ran to a verdict: with the rollup's attempted count as the total, its ruled checks are left out
+      passRate: num(cor["passRate"]) ?? rate(passed, rollup !== null && total === rollup.attempted ? total - ruledChecks(rollup) : total),
     };
     const parts = [
       rollupFig === null ? null : fmt("Coverage rollup", rollupFig, rollupFig.passRate),
