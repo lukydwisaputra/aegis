@@ -72,8 +72,10 @@ function canonicalizeId(raw: unknown, kind: "work-report" | "review"): { value: 
   const doc = { ...(raw as Record<string, unknown>) };
   const taskId = kind === "work-report" ? doc["taskId"] : (doc["target"] as { taskId?: unknown } | undefined)?.taskId;
   const want = kind === "work-report" ? (typeof taskId === "string" ? `WR-${taskId}` : null) : typeof taskId === "string" && typeof doc["reviewer"] === "string" ? `RV-${doc["reviewer"]}-${taskId}` : null;
-  const ok = (kind === "work-report" ? WorkReportIdSchema : ReviewIdSchema).safeParse(want).success;
-  if (want === null || !ok || doc["id"] === want) return { value: doc, adjusted: [] };
+  const schema = kind === "work-report" ? WorkReportIdSchema : ReviewIdSchema;
+  // Only a missing or malformed id is filled in: any id that passes its schema stays (a legacy task id may carry an attempt suffix,
+  // WR-T-compliance-gdpr-2, and a review names it in target.workReportId).
+  if (want === null || !schema.safeParse(want).success || schema.safeParse(doc["id"]).success) return { value: doc, adjusted: [] };
   const had = doc["id"];
   doc["id"] = want;
   return { value: doc, adjusted: [`id: ${typeof had === "string" ? `"${had.slice(0, 60)}"` : "missing"} -> ${want}`] };

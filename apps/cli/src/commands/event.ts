@@ -31,7 +31,9 @@ export function eventCommand(): Command {
         let event: Record<string, unknown> = { runId, ...(fields as Record<string, unknown>), type: o.type, ts: new Date().toISOString() };
         // A free-text field over its limit (an observation summary of 340 characters where 300 fit) is cut, not refused for a turn.
         const parsed = AegisEventSchema.safeParse(event);
-        const cut = parsed.success ? null : trimOverlong(event, parsed.error.issues as never);
+        // paths, commands and grouping keys stay exact: a cut evidence item is a broken reference, a cut component a different key
+        const exact = (path: ReadonlyArray<string | number>): boolean => path.includes("evidence") || path.includes("component") || path.includes("path");
+        const cut = parsed.success ? null : trimOverlong(event, parsed.error.issues as never, exact);
         if (cut !== null && cut.trimmed.length > 0) event = cut.value as Record<string, unknown>;
         try {
           const recorded = await appendChained(event, busPath(ctx.root, runId), { emittedBy: ctx.caller, runId });

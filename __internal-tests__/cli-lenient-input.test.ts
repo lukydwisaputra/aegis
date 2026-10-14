@@ -50,6 +50,16 @@ const safe = (s: string) => { try { return JSON.parse(s); } catch { return s; } 
   });
 });
 
+(stale ? describe.skip : describe)('two different task ids are refused', () => {
+  it('names both ids and claims nothing', async () => {
+    await addTask(t.root, runId, { id: 'T-intake-1', title: 'x', agent: A }, A);
+    const r = aegis(['task', 'claim', 'T-intake-1', '--task', 'T-intake-2', '--run', runId]);
+    expect(r.status).not.toBe(0);
+    expect(JSON.stringify(r.err)).toContain('two different task ids were given (T-intake-2 and T-intake-1)');
+    expect(aegis(['task', 'claim', 'T-intake-1', '--task', 'T-intake-1', '--run', runId]).status).toBe(0);
+  });
+});
+
 (stale ? describe.skip : describe)('id next accepts --run, and event append cuts an over-long free-text field', () => {
   it('does not refuse --run on id next', () => {
     expect(aegis(['id', 'next', '--kind', 'TC', '--module', 'AUTH', '--run', runId])).toMatchObject({ status: 0, out: { id: expect.stringMatching(/^TC-AUTH-\d{3}$/) } });
@@ -59,10 +69,16 @@ const safe = (s: string) => { try { return JSON.parse(s); } catch { return s; } 
     const summary = 'The scan screen shows the wrong centre after a rescan. '.repeat(7);
     const r = aegis(['event', 'append', '--type', 'observation.recorded', '--json', JSON.stringify({ kind: 'behaviour-mismatch', summary }), '--run', runId], 'qa-exploratory-specialist');
     expect(r.status).toBe(0);
-    expect(r.out).toMatchObject({ trimmed: [{ field: 'summary', from: summary.length, to: 300 }] });
+    expect(r.out).toMatchObject({ trimmed: [{ field: 'summary', from: summary.length, to: expect.any(Number) }] });
     const ev = readLines(busPath(t.root, runId)).map((l) => JSON.parse(l)).find((e) => e.type === 'observation.recorded');
     expect(ev.summary.length).toBeLessThanOrEqual(300);
     expect(ev.summary.endsWith('…')).toBe(true);
+  });
+
+  it('refuses, never cuts, an over-long evidence item or component of a framework defect', () => {
+    const r = aegis(['event', 'append', '--type', 'framework.defect-suspected', '--json', JSON.stringify({ component: 'aegis env exec', symptom: 'the command is missing a flag it should have', evidence: ['/very/long/path/'.repeat(25)] }), '--run', runId], 'qa-ui-specialist');
+    expect(r.status).not.toBe(0);
+    expect(JSON.stringify(r.err)).toContain('too_big');
   });
 
   it('still refuses an event with a wrong type of value, with the schema message', () => {

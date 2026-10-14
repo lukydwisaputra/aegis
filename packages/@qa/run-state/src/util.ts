@@ -51,7 +51,9 @@ export interface TrimmedField {
 /** A string cut to `max` characters, at the last space of its final fifth when there is one, and ended with an ellipsis. */
 export function cutToFit(text: string, max: number): string {
   if (text.length <= max) return text;
-  const head = text.slice(0, max - 1);
+  let head = text.slice(0, max - 1);
+  // a cut between the two halves of a surrogate pair (an emoji) would leave a lone half behind
+  if (/[\uD800-\uDBFF]$/.test(head)) head = head.slice(0, -1);
   const space = head.lastIndexOf(" ");
   return `${space > max * 0.8 ? head.slice(0, space) : head}\u2026`;
 }
@@ -73,8 +75,9 @@ export function trimOverlong(input: unknown, issues: LimitIssue[], keep: (path: 
     if (parent === null || typeof parent !== "object" || last === undefined) continue;
     const cur = (parent as Record<string | number, unknown>)[last];
     if (typeof cur !== "string" || cur.length <= i.maximum) continue;
-    (parent as Record<string | number, unknown>)[last] = cutToFit(cur, i.maximum);
-    trimmed.push({ field: i.path.join("."), from: cur.length, to: i.maximum });
+    const kept = cutToFit(cur, i.maximum);
+    (parent as Record<string | number, unknown>)[last] = kept;
+    trimmed.push({ field: i.path.join("."), from: cur.length, to: kept.length });
   }
   return { value, trimmed };
 }

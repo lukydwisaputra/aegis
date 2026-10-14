@@ -13,9 +13,12 @@ interface TaskRef {
  * the bare `T-1`. Agents guessed these spellings 60 times in one run and were refused for each; the id is the same whichever way it comes.
  */
 function taskIdOf(o: TaskRef, positional: string | undefined): string {
-  const id = o.task ?? o.id ?? o.taskId ?? positional;
-  if (id === undefined || id === "") throw new RunStateError("invalid-input", "a task id is required: --task <id> (or the id alone: task <verb> T-12)");
-  return id;
+  const given = [o.task, o.id, o.taskId, positional].filter((v): v is string => v !== undefined && v !== "");
+  if (given.length === 0) throw new RunStateError("invalid-input", "a task id is required: --task <id> (or the id alone: task <verb> T-12)");
+  // two spellings that name different tasks are a mistake, never a choice: acting on the wrong one releases or claims the wrong task
+  const other = given.find((v) => v !== given[0]);
+  if (other !== undefined) throw new RunStateError("invalid-input", `two different task ids were given (${given[0]} and ${other}); give one`);
+  return given[0]!;
 }
 
 /** `--task <id>` plus the spellings above; the three are the same option, only --task is documented. */

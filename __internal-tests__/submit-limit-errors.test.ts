@@ -27,7 +27,9 @@ const message = (p: Promise<unknown>) => p.then(() => '', (e: Error) => e.messag
 describe('work report: an over-long narrative field is cut to its limit, other problems are refused', () => {
   it('records an over-long approach with its last words cut, and says what was cut', async () => {
     const r = await submitWorkReport(t.root, runId, file({ ...workReport(A, 'T-intake-1'), approach: 'x '.repeat(306) }), A);
-    expect(r).toMatchObject({ attempt: 1, trimmed: [{ field: 'approach', from: 612, to: 500 }] });
+    expect(r).toMatchObject({ attempt: 1, trimmed: [{ field: 'approach', from: 612, to: expect.any(Number) }] });
+    expect(r.trimmed![0]!.to).toBeLessThanOrEqual(500);
+    expect(r.trimmed![0]!.to).toBeGreaterThan(390);
     const saved = JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), r.path), 'utf8'));
     expect(saved.approach.length).toBeLessThanOrEqual(500);
     expect(saved.approach.endsWith('\u2026')).toBe(true);
@@ -47,6 +49,19 @@ describe('work report: an over-long narrative field is cut to its limit, other p
     expect(m).toBe('work report invalid: summary: 5 characters; the minimum is 20');
     const m2 = await message(submitWorkReport(t.root, runId, file({ ...workReport(A, 'T-intake-1'), lessonsApplied: ['nope'] }), A));
     expect(m2).toMatch(/^work report invalid: lessonsApplied\.0: Lesson ID format/);
+  });
+
+  it('cuts without leaving half an emoji, and reports the length it kept', async () => {
+    const approach = 'a'.repeat(498) + '\u{1F600}' + 'b'.repeat(10);
+    const r = await submitWorkReport(t.root, runId, file({ ...workReport(A, 'T-intake-1'), approach }), A);
+    const saved = JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), r.path), 'utf8'));
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(saved.approach)).toBe(false);
+    expect(r.trimmed![0]!.to).toBe(saved.approach.length);
+  });
+
+  it('keeps a valid legacy id that carries an attempt number', async () => {
+    const wr = { ...workReport(A, 'T-intake-1'), id: 'WR-T-intake-1' } as Record<string, unknown>;
+    expect((await submitWorkReport(t.root, runId, file(wr), A)).adjusted).toBeUndefined();
   });
 
   it('fills in a missing or malformed id from the task, and keeps a correct one', async () => {
@@ -70,7 +85,7 @@ describe('review: a summary is cut, a stored lesson rule is refused', () => {
     await releaseTask(t.root, runId, 'T-intake-1', 'done', A);
     const rv = { ...review('qa-orchestrator-spv', A, 'T-intake-1', 'passed'), id: 'RV-whatever', summary: 'q '.repeat(300) };
     const r = await submitReview(t.root, runId, file(rv), 'qa-orchestrator-spv');
-    expect(r).toMatchObject({ verdict: 'passed', trimmed: [{ field: 'summary', from: 600, to: 500 }], adjusted: ['id: "RV-whatever" -> RV-qa-orchestrator-spv-T-intake-1'] });
+    expect(r).toMatchObject({ verdict: 'passed', trimmed: [{ field: 'summary', from: 600, to: expect.any(Number) }], adjusted: ['id: "RV-whatever" -> RV-qa-orchestrator-spv-T-intake-1'] });
   });
 
   it('names the corrective-instruction field, its limit and its length', async () => {
