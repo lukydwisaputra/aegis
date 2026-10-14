@@ -544,6 +544,19 @@ export const ExploreProbedEventSchema = EventBase.extend({
   hints: z.array(z.string()),
 });
 
+/** `aegis env probe` checked the environment under test before Execution (stage execution) or before G2 (stage g2); the report is reports/env/probe-{stage}.json. */
+export const EnvProbedEventSchema = EventBase.extend({
+  type: z.literal("env.probed"),
+  agent: z.string(),
+  stage: z.enum(["execution", "g2"]),
+  environment: z.string(),
+  ok: z.boolean(),
+  // The names of the failed checks; the details are in the report.
+  failed: z.array(z.string()),
+  // "<kind>:<first 12 characters of the id>", or the kind alone when there is no id.
+  build: z.string(),
+});
+
 export const RtmRenderedEventSchema = EventBase.extend({
   type: z.literal("rtm.rendered"),
   agent: z.string(),
@@ -1911,6 +1924,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   EnvExecutedEventSchema,
   LintCompletedEventSchema,
   ExploreProbedEventSchema,
+  EnvProbedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,
   RunBlockedEventSchema,
