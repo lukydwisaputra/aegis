@@ -99,6 +99,11 @@ export const TestCaseObjectSchema = z.object({
   order: z.number().int().positive(),
   gherkin: GherkinSchema.optional(),
   manualJustification: z.string().optional(),
+  // The technique evidence: why these steps and not others (boundary values chosen, the decision-table rows). Rendered as its own
+  // section of the case's Markdown.
+  designRationale: z.string().min(1).max(2000).optional(),
+  // The page objects the case uses (the designer's POM choice); rendered as a line of the case's Markdown.
+  pageObjects: z.array(z.string().min(1).max(200)).max(20).optional(),
 }).strict();
 
 export const TestCaseSchema = TestCaseObjectSchema.superRefine((tc, ctx) => {
@@ -114,6 +119,17 @@ export const TestCaseSchema = TestCaseObjectSchema.superRefine((tc, ctx) => {
   }
 });
 export type TestCase = z.infer<typeof TestCaseSchema>;
+
+// A scenario groups the cases of one user story. Passthrough: real scenario JSON carries other keys (an execution note, an ordering constraint).
+export const ScenarioSchema = z.object({
+  scenarioId: ScenarioIdSchema,
+  storyId: StoryIdSchema.optional(),
+  title: z.string().min(1),
+  testCaseIds: z.array(TestCaseIdSchema),
+  coverage: z.record(z.array(z.string())).optional(),
+  sharedSeed: z.object({ factory: z.string().optional(), reuseAcross: z.array(z.string()).optional() }).passthrough().optional(),
+}).passthrough();
+export type Scenario = z.infer<typeof ScenarioSchema>;
 
 // ─── Defect ───────────────────────────────────────────────────────────────────
 

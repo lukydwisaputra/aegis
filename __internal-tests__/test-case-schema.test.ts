@@ -1,4 +1,4 @@
-import { TestCaseSchema } from '@qa/contracts';
+import { TestCaseSchema, ScenarioSchema } from '@qa/contracts';
 const ISO = '2026-09-30T00:00:00.000Z';
 const base = {
   id: 'TC-AUTH-031', title: 'SSO login with plus-aliased email', module: 'AUTH', feature: 'sso',
@@ -28,5 +28,31 @@ describe('TestCaseSchema (AUD-085)', () => {
     expect(ok({ ...base, testType: ['Integration'], testTechnique: ['Contract'] })).toBe(true);
     expect(ok({ ...base, testType: ['Performance'], testTechnique: ['Load'] })).toBe(true);
     expect(ok({ ...base, testType: ['Database'], testTechnique: ['Migration'] })).toBe(true);
+  });
+});
+
+describe('designRationale, pageObjects and ScenarioSchema', () => {
+  const base = {
+    id: 'TC-ATT-002', title: 'Scan resolution order decision table', module: 'ATT', feature: 'Scan resolution',
+    testLevel: 'Integration', testType: ['API'], priority: { code: 'P0', name: 'Hotfix' }, automationStatus: 'Automated',
+    steps: [{ step: 1, action: 'Scan at Centre B', expected: 'Resolves to Centre B' }],
+    traceability: { acIds: ['AC-ATT-001-H1'] }, author: 'QA team', createdAt: '2026-10-07T07:00:00Z', lastUpdatedAt: '2026-10-07T07:00:00Z',
+    scenarioId: 'SCN-ATT-001', order: 1,
+  };
+  it('are optional on a test case and bounded; the schema stays strict for every other key', () => {
+    expect(TestCaseSchema.safeParse(base).success).toBe(true);
+    expect(TestCaseSchema.safeParse({ ...base, designRationale: 'Decision table.', pageObjects: ['ScanPage'] }).success).toBe(true);
+    expect(TestCaseSchema.safeParse({ ...base, designRationale: 'x'.repeat(2001) }).success).toBe(false);
+    expect(TestCaseSchema.safeParse({ ...base, designRationale: '' }).success).toBe(false);
+    expect(TestCaseSchema.safeParse({ ...base, pageObjects: [] }).success).toBe(true);
+    expect(TestCaseSchema.safeParse({ ...base, pageObjects: [''] }).success).toBe(false);
+    expect(TestCaseSchema.safeParse({ ...base, rationale: 'misspelled' }).success).toBe(false);
+  });
+  it('ScenarioSchema accepts extra keys and refuses a null coverage, a string reuseAcross and a bad case id', () => {
+    const s = { scenarioId: 'SCN-ATT-001', title: 'Scenario', testCaseIds: ['TC-ATT-002'] };
+    expect(ScenarioSchema.safeParse({ ...s, storyId: 'STORY-ATT-001', coverage: { acceptance: ['happy'] }, executionNote: 'x' }).success).toBe(true);
+    expect(ScenarioSchema.safeParse({ ...s, coverage: null }).success).toBe(false);
+    expect(ScenarioSchema.safeParse({ ...s, sharedSeed: { reuseAcross: 'x' } }).success).toBe(false);
+    expect(ScenarioSchema.safeParse({ ...s, testCaseIds: ['nope'] }).success).toBe(false);
   });
 });
