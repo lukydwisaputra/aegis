@@ -60,6 +60,15 @@ describe('blockedInfoOf', () => {
     expect(blockedInfoOf({ note: 'n', blocker: 'k', blockedReason: 'r', reason: 'why', blockedBy: '  ', environmentNote: 42 }).text).toBe('n k r why');
     expect(blockedInfoOf(null)).toEqual({ cause: 'missing', dependency: '', text: '' });
   });
+
+  it('each free-text field is cut at 2 KB, the entry\'s and the inherited file\'s alike', () => {
+    const long = 'x'.repeat(5000);
+    expect(blockedInfoOf({ notes: long }).text).toBe('x'.repeat(2048));
+    expect(blockedInfoOf({ notes: long, reason: 'why' }).text).toBe(`${'x'.repeat(2048)} why`);
+    expect(blockedInfoOf({ status: 'blocked' }, { environmentNote: long }).text).toBe('x'.repeat(2048));
+    const dir = runWith({ ...designed('TC-ATT-040'), ...Object.fromEntries([result('TC-ATT-040', { notes: long, results: [{ status: 'blocked', blocker: long }, { status: 'blocked' }] })]) });
+    expect(scanChecks(dir).get('TC-ATT-040')!.blocked!.map((b) => b.text.length)).toEqual([2048, 2048]);
+  });
 });
 
 describe('scanChecks collects blocked entries only from the files that count', () => {
@@ -174,7 +183,7 @@ describe('classifyUncovered reads the structured cause first', () => {
     expect(r.byCause).toEqual({ ...zero, environment: 1, testingSide: 2, other: 1 });
   });
 
-  it('with several entries the first valid one wins, product-dependency before requirement-gap', () => {
+  it('a product dependency on any entry outranks a requirement gap, whatever the file order', () => {
     const dir = runWith({
       ...rtm, ...designed('TC-AUTH-010', 'TC-AUTH-011'),
       'cases/TC-AUTH-010-desktop-result.json': { status: 'blocked', blockedCause: 'harness', notes: 'time budget' },
@@ -195,6 +204,33 @@ describe('classifyUncovered reads the structured cause first', () => {
       blocked: [info('b.json', 'requirement-gap'), info('c.json', 'product-dependency'), info('a.json', 'invalid')],
     }]]);
     expect(classifyUncovered(dir, explicit, new Map()).rows).toEqual([{ id: 'TC-AUTH-010', cause: 'environment', via: 'blockedCause' }]);
+  });
+
+  it('a run whose Blocked results carry no blockedCause gives the coverage.json it gave before the field existed', () => {
+    // The literal was produced by computeCoverage on this fixture with the metrics source of the commit before blockedCause.
+    const dir = runWith({
+      'rtm.json': { rows: [
+        { requirementId: 'REQ-ATT-01', testStatus: 'Not Covered', testCaseIds: ['TC-ATT-022'] },
+        { requirementId: 'REQ-ATT-02', testStatus: 'Partial', testCaseIds: ['TC-ATT-023', 'TC-ATT-024'] },
+        { requirementId: 'REQ-ATT-03', testStatus: 'Covered', testCaseIds: ['TC-ATT-025'] },
+      ] },
+      ...designed('TC-ATT-022', 'TC-ATT-023', 'TC-ATT-024', 'TC-ATT-025', 'TC-ATT-026'),
+      ...Object.fromEntries([
+        blocked('TC-ATT-022', att022),
+        blocked('TC-ATT-023', { notes: 'harness' }),
+        result('TC-ATT-024', { status: 'blocked', results: [{ status: 'pass' }, { status: 'blocked', reason: 'time budget' }] }),
+        result('TC-ATT-025', { status: 'pass' }),
+      ]),
+    });
+    expect(JSON.stringify(computeCoverage(dir))).toBe(
+      '{"requirementsCoverage":33.3,"testExecutionCoverage":20,"codeCoverage":null,"partialRequirements":1,'
+      + '"counts":{"designed":5,"attempted":4,"passed":1,"failed":0,"partial":0,"blocked":3,"skipped":0,"unknown":0,"notAttempted":1},'
+      + '"uncovered":{"rows":[{"id":"TC-ATT-022","cause":"environment","via":"keyword: Schedule App"},'
+      + '{"id":"TC-ATT-023","cause":"testing-side","via":"keyword: harness"},'
+      + '{"id":"TC-ATT-024","cause":"testing-side","via":"keyword: time budget"},'
+      + '{"id":"TC-ATT-026","cause":"not-attempted","via":"no result file"}],'
+      + '"byCause":{"environment":1,"testingSide":2,"requirementGap":0,"notAttempted":1,"other":0}}}',
+    );
   });
 
   it('coverage.json carries the classification and no BlockedInfo field', () => {

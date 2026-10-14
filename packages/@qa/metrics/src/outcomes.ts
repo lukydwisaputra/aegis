@@ -83,11 +83,14 @@ function field(o: unknown, key: string): unknown {
   return o !== null && typeof o === "object" ? (o as Record<string, unknown>)[key] : undefined;
 }
 
+/** Each free-text field is read up to this many characters: a hint never needs more, and a huge note never costs a barrier. */
+const TEXT_FIELD_CAP = 2048;
+
 function texts(o: unknown): string[] {
   if (o === null || typeof o !== "object") return [];
   return BLOCKED_TEXT_KEYS.flatMap((k) => {
     const v = (o as Record<string, unknown>)[k];
-    return typeof v === "string" && v.trim() !== "" ? [v.trim()] : [];
+    return typeof v === "string" && v.trim() !== "" ? [v.trim().slice(0, TEXT_FIELD_CAP)] : [];
   });
 }
 
@@ -97,6 +100,11 @@ function texts(o: unknown): string[] {
  * takes the field from `inherited` (the file object); its text is its own followed by the file's.
  */
 export function blockedInfoOf(entry: unknown, inherited?: unknown): Omit<BlockedInfo, "caseId" | "file"> {
+  return infoOf(entry, inherited, inherited === undefined ? [] : texts(inherited));
+}
+
+/** blockedInfoOf with the file's text computed once by the caller (blockedEntries reads it once per file, not once per entry). */
+function infoOf(entry: unknown, inherited: unknown, inheritedTexts: readonly string[]): Omit<BlockedInfo, "caseId" | "file"> {
   const own = (key: string): unknown => (absent(field(entry, key)) ? field(inherited, key) : field(entry, key));
   const rawCause = own("blockedCause");
   let cause: BlockedInfo["cause"];
@@ -107,7 +115,7 @@ export function blockedInfoOf(entry: unknown, inherited?: unknown): Omit<Blocked
   }
   const rawDependency = own("blockedDependency");
   const dependency = typeof rawDependency === "string" ? rawDependency.trim() : "";
-  const text = [...new Set([...texts(entry), ...(inherited === undefined ? [] : texts(inherited))])].join(" ");
+  const text = [...new Set([...texts(entry), ...inheritedTexts])].join(" ");
   return { cause, dependency, text };
 }
 
@@ -119,7 +127,10 @@ function blockedEntries(caseId: string, file: string, doc: unknown): BlockedInfo
   if (doc === null || typeof doc !== "object") return [];
   const list = (doc as { results?: unknown }).results;
   if (Array.isArray(list) && list.length > 0) {
-    return list.filter((r) => outcomeOf(field(r, "status")) === "blocked").map((r) => ({ caseId, file, ...blockedInfoOf(r, doc) }));
+    const blockedList = list.filter((r) => outcomeOf(field(r, "status")) === "blocked");
+    if (blockedList.length === 0) return [];
+    const fileTexts = texts(doc);
+    return blockedList.map((r) => ({ caseId, file, ...infoOf(r, doc, fileTexts) }));
   }
   return outcomeOf(field(doc, "status")) === "blocked" ? [{ caseId, file, ...blockedInfoOf(doc) }] : [];
 }
