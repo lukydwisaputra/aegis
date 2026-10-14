@@ -87,8 +87,29 @@ export interface CopiedReference {
  * resolved root, the checkout's HEAD sha and the copied paths. A reference whose `sha` does not equal HEAD is refused:
  * the run would read a different baseline than the one pinned. All references are checked before any is copied.
  */
-export function copyIntakeReferences(root: string, references: IntakeReference[], intakeDir: string): CopiedReference[] {
-  const resolved = references.map((ref) => {
+export interface ResolvedReference {
+  ref: IntakeReference;
+  globs: string[];
+  dir: string;
+  sha: string | null;
+}
+
+function dirtyPaths(dir: string): string[] {
+  try {
+    return execFileSync("git", ["-C", dir, "status", "--porcelain", "--untracked-files=all", "--", "."], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] })
+      .split("\n")
+      .filter((l) => l !== "");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Check every reference (globs, root, pinned sha, a clean tree for a pinned one) and return what is to be copied. Nothing is created:
+ * `aegis run create` calls this before it allocates the run directory, so a refusal leaves no half-made run behind.
+ */
+export function resolveIntakeReferences(root: string, references: IntakeReference[]): ResolvedReference[] {
+  return references.map((ref) => {
     const globs = ref.sources.map((g) => g.replace(/^(?:\.\/)+/, ""));
     globs.forEach(assertSafeGlob);
     const dir = resolve(root, ref.root);
@@ -97,8 +118,16 @@ export function copyIntakeReferences(root: string, references: IntakeReference[]
     if (ref.sha !== undefined && sha !== ref.sha) {
       throw new RunStateError("invalid-input", `intake reference ${ref.name}: ${dir} is at ${sha ?? "no git HEAD"}, pinned ${ref.sha}`);
     }
+    // The working tree is what gets copied, so a pin only means that commit when the tree matches it.
+    const dirty = ref.sha === undefined ? [] : dirtyPaths(dir);
+    if (dirty.length > 0) {
+      throw new RunStateError("invalid-input", `intake reference ${ref.name}: ${dir} has ${dirty.length} uncommitted or untracked path(s) (${dirty.slice(0, 3).map((l) => l.slice(3)).join(", ")}${dirty.length > 3 ? ", ..." : ""}); the pin ${ref.sha} means that commit: commit, stash or remove them`);
+    }
     return { ref, globs, dir, sha };
   });
+}
+
+export function copyIntakeReferences(root: string, references: IntakeReference[], intakeDir: string, resolved: ResolvedReference[] = resolveIntakeReferences(root, references)): CopiedReference[] {
   return resolved.map(({ ref, globs, dir, sha }) => {
     const dest = join(intakeDir, "references", ref.name);
     mkdirSync(dest, { recursive: true });

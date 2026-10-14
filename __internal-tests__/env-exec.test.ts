@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { createRun, ENV_EXEC_MAP, envExecInfo, execWithEnv, redactSecrets } from '@qa/run-state';
+import { assertCallerAllowed, createRun, ENV_EXEC_MAP, envExecInfo, execWithEnv, redactSecrets } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 
 // `aegis env exec`: QA Supabase credentials reach a test runner without an agent reading the secrets file.
@@ -77,5 +77,25 @@ describe('env exec runs the command in the target root and redacts secrets', () 
 
   it('redacts every secret value in text', () => {
     expect(redactSecrets(`key=${SERVICE} anon=${ANON}`, [SERVICE, ANON])).toBe('key=[redacted] anon=[redacted]');
+  });
+});
+
+describe('env exec and env check are for the agents that run a test runner, no one else', () => {
+  const allowed = ['qa-environment-engineer', 'qa-test-executor', 'qa-ui-specialist', 'qa-api-specialist', 'qa-unit-specialist', 'qa-database-specialist', 'qa-security-specialist', 'qa-accessibility-specialist', 'qa-responsive-specialist', 'qa-messaging-specialist'];
+  const refused = ['qa-test-executor-spv', 'qa-ui-specialist-spv', 'qa-compliance-gdpr', 'qa-context-scanner', 'qa-curator', 'qa-closure-reporter', 'qa-defect-manager', 'qa-web-explorer', 'qa-orchestrator'];
+  it.each(['env.exec', 'env.check'] as const)('%s: the contract agents may, reviewers, compliance and scanners may not', (command) => {
+    for (const a of allowed) expect(() => assertCallerAllowed(a, command)).not.toThrow();
+    for (const a of refused) expect(() => assertCallerAllowed(a, command)).toThrow(/is run only by qa-environment-engineer and/);
+  });
+
+  it('the main thread may not run them either (agent-only commands)', () => {
+    expect(() => assertCallerAllowed('owner', 'env.exec')).toThrow(/agent-only/);
+  });
+
+  it('every agent whose contract lists env.exec may run it', () => {
+    const dirs = ['tier1-phase', 'tier2-specialist'].map((d) => path.join(__dirname, '..', '.claude', 'agents', d));
+    const listing = dirs.flatMap((d) => fs.readdirSync(d).map((f) => path.join(d, f))).filter((f) => /^cli: \[.*\benv\.exec\b/m.test(fs.readFileSync(f, 'utf8')));
+    expect(listing.length).toBeGreaterThan(0);
+    for (const f of listing) expect(() => assertCallerAllowed(path.basename(f, '.md'), 'env.exec')).not.toThrow();
   });
 });

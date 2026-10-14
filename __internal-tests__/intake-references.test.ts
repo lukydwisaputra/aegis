@@ -53,6 +53,34 @@ describe('intake.references copies pinned repositories into intake/references/{n
     expect(fs.existsSync(path.join(dir, 'references'))).toBe(false);
   });
 
+  it('a refused reference leaves no run directory and burns no run id', async () => {
+    setConfig({ intake: { sources: [], references: [{ name: 'a', root: ref, sha: 'f'.repeat(40), sources: ['**'] }] } });
+    const before = fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : [];
+    await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).rejects.toThrow(/pinned f{40}/);
+    expect(fs.existsSync(path.join(t.root, 'runs')) ? fs.readdirSync(path.join(t.root, 'runs')) : []).toEqual(before);
+    setConfig({ intake: { sources: [], references: [{ name: 'a', root: ref, sha, sources: ['**'] }] } });
+    const run = await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner');
+    expect(run.runId).toMatch(/-001$/);
+  });
+
+  it('a pinned reference with an edited or untracked file is refused: the pin means the commit, not the tree', () => {
+    const dir = path.join(t.root, 'intake-d');
+    fs.writeFileSync(path.join(ref, 'baseline/booking/rules.md'), 'edited after the commit');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/has 1 uncommitted or untracked path\(s\) \(baseline\/booking\/rules\.md\)/);
+    git('checkout', '--', '.');
+    fs.writeFileSync(path.join(ref, 'baseline/new.md'), 'untracked');
+    expect(() => copyIntakeReferences(t.root, [{ name: 'a', root: ref, sha, sources: ['**'] }], dir)).toThrow(/new\.md/);
+    expect(fs.existsSync(path.join(dir, 'references'))).toBe(false);
+  });
+
+  it('an unpinned reference is copied as it stands, edits included', () => {
+    const dir = path.join(t.root, 'intake-u');
+    fs.writeFileSync(path.join(ref, 'baseline/booking/rules.md'), 'edited');
+    const [r] = copyIntakeReferences(t.root, [{ name: 'a', root: ref, sources: ['baseline/**'] }], dir);
+    expect(fs.readFileSync(path.join(dir, 'references', 'a', 'baseline/booking/rules.md'), 'utf8')).toBe('edited');
+    expect(r?.files).toEqual(['baseline/booking/rules.md']);
+  });
+
   it('validates the config entries', () => {
     const bad = (references: unknown, msg: string) => {
       setConfig({ intake: { references } });
