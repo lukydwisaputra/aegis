@@ -140,7 +140,8 @@ describe('R2 and removal probes', () => {
     ['m8: removal after a dynamic cd', 'cd "$X" && rm -rf old', AGENT, ROOT, false],
     ['m8: main removal after a dynamic cd', 'cd "$X" && rm -rf old', null, ROOT, false],
     ['m8: git clean after a dynamic cd', 'cd "$X" && git clean -fd', null, ROOT, false],
-    ['cp content into a case (brand-clean text)', `cp /tmp/x.md runs/${RUN}/cases/TC-AUTH-001.md`, 'qa-test-designer', ROOT, true],
+    ['cp content into a case (brand-clean text)', `cp /tmp/x.json runs/${RUN}/cases/TC-AUTH-001.json`, 'qa-test-designer', ROOT, true],
+    ['cp into a case Markdown: rendered by the CLI only', `cp /tmp/x.md runs/${RUN}/cases/TC-AUTH-001.md`, 'qa-test-designer', ROOT, false],
   ])('%s', (_label, command, agent, cwd, allow) => {
     expect(decide(bash(command, agent, cwd), ctx, deps).allow).toBe(allow);
   });

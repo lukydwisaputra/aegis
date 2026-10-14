@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { parse } from 'yaml';
 import { SPECIALISTS } from '@qa/contracts';
-import { ROLES, envVerdict, isEnvSafe, matchGlob, roleOf, roleWritable } from '@qa/path-guard';
+import { ROLES, envVerdict, isCliOnlyRunPath, isEnvSafe, matchGlob, roleOf, roleWritable } from '@qa/path-guard';
 import { SPV_NONE, isSpecialist, pairedSpv } from '@qa/run-state';
 
 const REPO = path.join(__dirname, '..');
@@ -130,6 +130,27 @@ describe('role table, further invariants', () => {
     // I2: roleWritable itself refuses CLI-only files, so no evidence glob covers a nested lock.
     const lockWriters = ROLES.filter((r) => roleWritable(r.agent, lock, paths)).map((r) => r.agent);
     expect(lockWriters).toEqual([]);
+  });
+
+  it('the case and scenario Markdown is CLI-rendered: the designer writes their JSON only, the specialists still write result files', () => {
+    const paths = { aegisRoot: '/r/aegis', targetRoot: '/r', testsDir: '/r/tests/qa', runDir: '/r/aegis/runs/RUN-20261002-001' };
+    const RUN = paths.runDir;
+    expect(roleWritable('qa-test-designer', `${RUN}/cases/TC-ATT-002.json`, paths)).toBe(true);
+    expect(roleWritable('qa-test-designer', `${RUN}/scenarios/SCN-ATT-001.json`, paths)).toBe(true);
+    expect(roleWritable('qa-test-designer', `${RUN}/cases/TC-ATT-002.md`, paths)).toBe(false);
+    expect(roleWritable('qa-test-designer', `${RUN}/scenarios/SCN-ATT-001.md`, paths)).toBe(false);
+    expect(roleWritable('qa-test-designer', `${RUN}/rtm.md`, paths)).toBe(true);
+    expect(roleWritable('qa-test-designer', `${RUN}/cases/TC-ATT-002-result.json`, paths)).toBe(false);
+    // A relative path is never writable, whatever it names.
+    expect(roleWritable('qa-test-designer', 'runs/RUN-20261002-001/cases/TC-ATT-002.json', paths)).toBe(false);
+    for (const s of Object.values(SPECIALISTS)) expect([s.agent, roleWritable(s.agent, `${RUN}/cases/TC-ATT-002-result.json`, paths)]).toEqual([s.agent, true]);
+    // No row reaches the rendered Markdown, of any agent.
+    const md = [`${RUN}/cases/TC-ATT-002.md`, `${RUN}/scenarios/SCN-ATT-001.md`];
+    expect(ROLES.flatMap((r) => md.filter((p) => roleWritable(r.agent, p, paths)).map((p) => `${r.agent}: ${p}`))).toEqual([]);
+    expect(isCliOnlyRunPath('/r/aegis', `${RUN}/cases/TC-ATT-002.md`)).toBe(true);
+    expect(isCliOnlyRunPath('/r/aegis', `${RUN}/scenarios/SCN-ATT-001.md`)).toBe(true);
+    expect(isCliOnlyRunPath('/r/aegis', `${RUN}/cases/TC-ATT-002.json`)).toBe(false);
+    expect(isCliOnlyRunPath('/r/aegis', `${RUN}/cases/TC-ATT-002-result.json`)).toBe(false);
   });
 });
 

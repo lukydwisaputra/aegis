@@ -69,6 +69,43 @@ test('a legacy skill main-thread run write is allowed with a warning and a ledge
   expect(sub.status).toBe(2);
 });
 
+test('the case and scenario Markdown is CLI-written: the designer writes the JSON, nobody writes the .md', () => {
+  const dir = runDir(t.root, runId);
+  const designer = { agent_type: 'qa-test-designer', agent_id: 'd1' };
+  const write = (file: string, who: object = {}) => guard({ tool_name: 'Write', tool_input: { file_path: path.join(dir, file), content: '{}' }, ...who });
+  for (const md of ['cases/TC-AUTH-002.md', 'scenarios/SCN-AUTH-001.md']) {
+    const sub = write(md, designer);
+    expect([md, sub.status]).toEqual([md, 2]);
+    expect(sub.stderr).toMatch(/^aegis guard: .*written only by the aegis CLI/);
+    const owner = write(md);
+    expect([md, owner.status]).toEqual([md, 2]);
+    expect(owner.stderr).toMatch(/written only by the aegis CLI/);
+  }
+  expect(write('cases/TC-AUTH-002.json', designer).status).toBe(0);
+  expect(write('scenarios/SCN-AUTH-001.json', designer).status).toBe(0);
+  // The owner's main thread writes no case design: a scenario JSON is refused outright, and a case JSON passes only as the
+  // qa-health legacy write (renumbering a duplicate id), with its warning.
+  const scenario = write('scenarios/SCN-AUTH-001.json');
+  expect(scenario.status).toBe(2);
+  expect(scenario.stderr).toMatch(/main thread never writes QA artefacts/);
+  const caseJson = write('cases/TC-AUTH-002.json');
+  expect(caseJson.status).toBe(0);
+  expect(systemMessage(caseJson.stdout)).toMatch(/legacy direct run write by qa-health/);
+  // A redirect and a removing find reach the Markdown too.
+  const redirect = guard({ tool_name: 'Bash', tool_input: { command: `echo x > ${dir}/cases/TC-AUTH-002.md` }, ...designer });
+  expect(redirect.status).toBe(2);
+  expect(redirect.stderr).toMatch(/written only by the aegis CLI/);
+  for (const sub of ['cases', 'scenarios']) {
+    const find = guard({ tool_name: 'Bash', tool_input: { command: `find ${dir}/${sub} -name '*.md' -delete` }, ...designer });
+    expect([sub, find.status]).toEqual([sub, 2]);
+    expect(find.stderr).toMatch(/can remove files written only by the aegis CLI/);
+  }
+  const relative = guard({ tool_name: 'Bash', tool_input: { command: `find runs/${runId}/cases -name '*.md' -delete` }, ...designer });
+  expect(relative.status).toBe(2);
+  // A read-only find in cases/ stays allowed.
+  expect(guard({ tool_name: 'Bash', tool_input: { command: `find ${dir}/cases -name '*.md' -exec grep -l Given {} +` }, ...designer }).status).toBe(0);
+});
+
 test('a payload that is not JSON is allowed', () => {
   expect(runHook('guard-writes', 'not json', t.root).status).toBe(0);
 });

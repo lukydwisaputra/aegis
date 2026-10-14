@@ -92,6 +92,8 @@ sources:
     - "{run}/messaging/**"
     - "{run}/reports/explore/**"
     - "{run}/reports/env/**"
+    - "{run}/cases/TC-*.md"
+    - "{run}/scenarios/SCN-*.md"
     - "{tests}/qa/support/test-helpers.ts"
     - "{tests}/qa/support/supabase.ts"
     - "{tests}/qa/support/messaging.ts"

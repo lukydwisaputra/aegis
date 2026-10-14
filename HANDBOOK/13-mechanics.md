@@ -43,7 +43,9 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
 - A call that carries a non-empty `agent_id` (of any type) is a subagent's, and its `agent_type` names the caller; a
   call without one is the main thread (a `--agent` session included).
 - Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `taskmaster/`,
-  `intake/`, `hooks/`, `integrity/`, lock files and the active-run pointer — are refused for every caller.
+  `intake/`, `hooks/`, `integrity/`, the case and scenario Markdown (`cases/TC-*.md`, `scenarios/SCN-*.md`, rendered from their JSON by
+  `aegis cases render`), lock files and the active-run pointer — are refused for every caller. A `find` with `-delete` or a changing
+  `-exec` from `cases/` or `scenarios/` is refused for a subagent too, since it reaches that Markdown.
 - Customer-facing files (`plan.*`, `rtm.*`, `cases/`, `defects/`, `reports/closure/`, `reports/executive/`) are refused
 - Tooling wording is refused too in `defects/`, `reports/closure/` and `reports/compliance/` (`TOOLING_WORD_PATTERNS` in `@qa/contracts`, checked by H1): CLI, defectMap, event sequence numbers (`seq 784`), `framework defect`, `cli.refused` or refusal counts, review and attempt counts, SPV, `requested changes`, work report and "record owner". Tooling facts belong in events and work reports. The list is deliberately narrow (it does not flag the plain word "framework" or "sequence"); it can still hit a target that has its own "CLI" or a "work report" feature, and then the author words it differently ("command-line tool"). Every open question in those files asks a decision of a named audience (PM, owner or developers) and says what changes with each answer.
   when the written text matches a brand-exposure pattern.

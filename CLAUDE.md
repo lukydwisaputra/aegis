@@ -145,7 +145,9 @@ runs/{runId}/
   run.json              # run state: status, phases, gates, integrity checkpoint (CLI-written)
   plan.*                # test plan (brand-clean)
   rtm.*                 # requirements traceability matrix (brand-clean)
-  cases/                # test cases (brand-clean)
+  cases/                # test cases: {TC-ID}.json by the designer, results by the specialists (brand-clean)
+  cases/TC-*.md         # the Markdown of each case, rendered from its JSON (CLI-written, aegis cases render)
+  scenarios/SCN-*.md    # the Markdown of each scenario, rendered from its JSON and its story (CLI-written, aegis cases render)
   defects/              # defect records (brand-clean)
   reports/closure/      # closure report (brand-clean)
   reports/executive/    # executive deck and sign-off (brand-clean)
@@ -223,7 +225,7 @@ this directory.
 | `../tests/**` | WRITE by `qa-*` agents under `testsDir`, per their role row; never by the main thread |
 | `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
 | `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
-| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
+| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`, `cases/TC-*.md`, `scenarios/SCN-*.md`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
 | `aegis/packages/**`, `aegis/apps/**`, `aegis/.claude/**` | Framework source: owner branch work only; agents are denied |
 | `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |

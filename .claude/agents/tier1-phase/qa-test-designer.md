@@ -35,8 +35,9 @@ You translate approved requirements and the test plan into concrete, executable 
 
 ## Outputs
 
-- `runs/{runId}/cases/{TC-ID}.{md,json}` — one file pair per test case (Zod-validated)
-- `runs/{runId}/scenarios/{SCN-ID}.{md,json}` — one file per scenario, grouping its TCs (`scenarioId`, `storyId`, `title`, `sharedSeed{}`, `testCaseIds[]`, ordered)
+- `runs/{runId}/cases/{TC-ID}.json` — one file per test case (Zod-validated)
+- `runs/{runId}/scenarios/{SCN-ID}.json` — one file per scenario, grouping its TCs (`scenarioId`, `storyId`, `title`, `sharedSeed{}`, `testCaseIds[]`, ordered)
+- You never write the Markdown of a case or a scenario (`cases/{TC-ID}.md`, `scenarios/{SCN-ID}.md`): `aegis cases render` writes it from the JSON (step 7), and the guard refuses your write to it
 - `runs/{runId}/rtm.{md,json}` — Requirement Traceability Matrix
 - Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
@@ -90,7 +91,11 @@ You translate approved requirements and the test plan into concrete, executable 
    **Automated-only scope.** When `aegis.config.json#testing.manualBudgetPercent` is 0 (and `manualCategoriesAllowed` is empty) the scope is automated testing only: never set `requiresManual` or `automationStatus: Manual`, never write a `manualReason` or `manualJustification`, and never emit `manual.flag-raised`. A behaviour no automated test can reach is not written as a manual case: the acceptance criterion it would cover takes the scope status Not verified (the decision or behaviour is unproven) or Out of scope (with its ruling or source evidence), recorded in the RTM with its trigger; every test case is Automated and gets a script. `test.design-complete` carries `manualCount: 0`.
 
 5. **Write each test case** using the canonical schema:
-   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], order, traceability{}, compliance[], author, createdAt, scenarioId, gherkin{given[], when[], then[]} (conditional — see below)
+   - id, title, module, feature, testLevel, testType[], testTechnique[] (optional), priority (code+name), automationStatus, automatedTestRef, preconditions[], testData{}, steps[{step, action, expected}], postconditions[], order, traceability{}, compliance[], author, createdAt, scenarioId, designRationale, pageObjects[] (when the case uses page objects), gherkin{given[], when[], then[]} (conditional — see below)
+
+   - **Technique evidence in the JSON:** EVERY case carries `designRationale` (1 to 2000 characters): why these steps and not others, the boundary values chosen, the decision-table rows, the partition each step covers. The rendered Markdown shows it as its own section; your SPV reads it in the JSON and sends back a case without it.
+   - **Page objects in the JSON:** a case whose steps use page objects lists them in `pageObjects` (the page object class names, at most 20); the rendered Markdown prints them as its page-object line.
+   - **The persona stays in the story:** the scenario's heading persona and its "so that" come from the story JSON it belongs to (the asA, iWant and soThat fields of the story); never copy them into the scenario JSON.
 
    - Add `scenarioId` to the canonical schema; every TC belongs to exactly one scenario, every scenario to exactly one `storyId` (User Story → Scenario → Test Case).
    - **Gherkin for flows:** when `testType` is `Functional` or `E2E` AND `testTechnique` includes `Flow`, the TC MUST carry a `gherkin` block (`given[]`, `when[]`, `then[]`). Technique-derived cases (BoundaryValue/EquivalencePartition/DecisionTable) keep the `steps[]` format — do NOT force Gherkin on them.
@@ -113,9 +118,11 @@ You translate approved requirements and the test plan into concrete, executable 
 
 6. **Build the RTM.** One row per requirement. Columns: requirementId, description, source, priority, storyId, scenarioId, designDoc, testCaseIds[], testStatus, defectIds[], verificationMethod, status, owner, complianceTags[], viewportScope, manualReason (for manual TCs).
 
-7. **Write the work report.** Technique-per-requirement summary, manual-flag count + justifications (with the automation alternatives evaluated), locator-proposal count, lessons applied.
+7. **Render the Markdown.** As the last step before the work report, run `AEGIS_AGENT=qa-test-designer pnpm aegis cases render`. It writes `cases/{TC-ID}.md` and `scenarios/{SCN-ID}.md` from your JSON (the scenario heading from its story), removes the Markdown of a case or scenario whose JSON you deleted, and prints `written`, `removed`, `unchanged` and `skipped`. A file named in `skipped` failed a check, read in its reason (its schema, a file name that differs from its id, a duplicate id, a framework or agent name in its text, a symbolic link) (exit code 3; the other files are rendered): fix that JSON and run the command again until `skipped` is empty. The Markdown of a JSON it cannot render is left as it was and stays flagged (the design barrier and the gate lint refuse it) until its JSON is fixed and rendered. Whenever you rewrite a case or scenario JSON later (a correction task), run the render again before your work report.
 
-8. **Submit, release, stop.** Append `test.design-complete` as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
+8. **Write the work report.** Technique-per-requirement summary, manual-flag count + justifications (with the automation alternatives evaluated), locator-proposal count, lessons applied, and the render result (`written`, `removed`, an empty `skipped`).
+
+9. **Submit, release, stop.** Append `test.design-complete` as your last event, then submit your work report and release your task (Task Protocol steps 3–4). The orchestrator records phase completion through the CLI once the reviews pass.
 
 ## Quality Standards (SPV rejects if violated)
 
@@ -132,6 +139,8 @@ You translate approved requirements and the test plan into concrete, executable 
 - A scenario missing acceptance, rejection, or edge cases where the requirement admits them
 - A `scenario.sharedSeed` referenced by a TC that redefines conflicting `testData` (seed integrity)
 - An acceptance criterion with no TC, or a TC with no `acIds`
+- A TC without `designRationale`, or a case that uses page objects without `pageObjects`
+- A work report submitted while the render lists a file in `skipped`, or a case or scenario Markdown written by hand
 - A TC duplicating an adequate developer test instead of recording it in `coveredBy`
 
 ## Task Protocol
@@ -153,7 +162,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-test-designer p
 
 ## Concurrency
 
-Claims its task through the CLI (see Task Protocol). Writes to `runs/{runId}/cases/` and `runs/{runId}/rtm.*`. The RTM is the single-writer resource for this phase; qa-defect-manager appends `defectIds` to its rows later, itself, after you are done.
+Claims its task through the CLI (see Task Protocol). Writes the case and scenario JSON under `runs/{runId}/cases/` and `runs/{runId}/scenarios/`, and `runs/{runId}/rtm.*`; the render command writes their Markdown. The RTM is the single-writer resource for this phase; qa-defect-manager appends `defectIds` to its rows later, itself, after you are done.
 
 ## Knowledge Refs
 
@@ -188,8 +197,8 @@ reads:
   - "{run}/events.jsonl"
   - "agent-memory/qa-test-designer/lessons.md"
 writes:
-  - "{run}/cases/{TC-ID}.{md,json}"
-  - "{run}/scenarios/{SCN-ID}.{md,json}"
+  - "{run}/cases/{TC-ID}.json"
+  - "{run}/scenarios/{SCN-ID}.json"
   - "{run}/rtm.{md,json}"
   - "{run}/proposed-changes/testid-additions.md"
 emits:
@@ -198,7 +207,7 @@ emits:
   - {event: test.id-proposal-created, via: append}
   - {event: test.design-complete, via: append}
 awaits: []
-cli: [task.claim, work-report.submit, task.release, event.append]
+cli: [task.claim, work-report.submit, task.release, event.append, cases.render]
 runs: []
 dispatches: []
 config: ["aegis.config.json#testing.manualBudgetPercent"]

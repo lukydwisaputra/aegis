@@ -35,6 +35,8 @@ The Orchestrator is always active.
 
 > Compliance and reporting are **not** single Tier-1 managers: compliance is six `qa-compliance-*` agents (§6.7), and reporting is split between `qa-closure-reporter` and `qa-executive-reporter` (§6.4). There is no DevOps tier (§6.5).
 
+`qa-test-designer` writes each test case and scenario as JSON only; their Markdown (`cases/TC-*.md`, `scenarios/SCN-*.md`) is rendered from that JSON by `aegis cases render`, which the designer runs as its last step before its work report, and no agent may write it.
+
 ---
 
 ### 6.4 Tier-2 — Specialist Workers
