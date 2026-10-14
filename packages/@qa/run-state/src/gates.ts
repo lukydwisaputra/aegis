@@ -111,8 +111,9 @@ const isExplorerTask = (t: Task): boolean => t.phase === "explore" && t.assignee
  * Owner decision on an open gate (spec §3.2). A rejection reopens `reopenPhase` (default: the gated phase) through
  * the gated phase: every attempt so far on their tasks is recorded in run.json#supersededAttempts and the tasks go back
  * to pending, so only new work can pass the barrier again. It never reopens a phase at or before the previous gate's phase.
- * Explore reuse: when the reopened phases include Explore but start before it, and `reExplore` is not set, a done qa-web-explorer
- * task keeps its status and attempts and Explore goes back to pending marked `carried`, with the identity of the earlier Explore.
+ * Explore reuse: when the reopened phases include Explore but start before it, `reExplore` is not set and every qa-web-explorer task
+ * of Explore (at least one, cancelled ones aside) is done, those tasks keep their status and attempts and Explore goes back to pending
+ * marked `carried`, with the identity of the earlier Explore.
  * Explore then cannot complete until the explore probe verified the carried discovery against the running app.
  * Retryable: until the final run.json write and the gate.decided event both land, the gate stays open, so a failed
  * call can be repeated and ends with one decision file and one event.
@@ -155,10 +156,12 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
       ...(reopen !== undefined ? { reopenPhase: reopen } : {}), decidedBy: "owner", decidedAt: ts,
     };
 
-    // The web explorer's discovery is carried over when Explore is reopened only because an earlier phase was, and its task is done.
+    // The web explorer's discovery is carried over when Explore is reopened only because an earlier phase was, and every explorer
+    // task finished done (a crawl released failed and accepted with risk is explored again).
     let carry = false;
     if (reopen !== undefined && reopen !== "explore" && reopened.includes("explore") && input.reExplore !== true) {
-      carry = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).some((t) => isExplorerTask(t) && t.status === "done");
+      const explorers = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).filter((t) => isExplorerTask(t) && t.status !== "cancelled");
+      carry = explorers.length > 0 && explorers.every((t) => t.status === "done");
     }
     let open = state;
     let phases: RunState["phases"] | undefined;

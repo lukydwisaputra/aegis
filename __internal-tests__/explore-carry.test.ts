@@ -1,7 +1,8 @@
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { staleBuild } from '@qa/alignment';
 import { readLines } from '@qa/event-bus';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
@@ -12,6 +13,10 @@ import {
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, review, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
+const REPO = path.join(__dirname, '..');
+const CLI = path.join(REPO, 'apps', 'cli', 'dist', 'index.js');
+const stale = process.env.CI ? null : staleBuild(REPO);
+if (stale) console.warn(`explore-carry CLI test skipped: ${stale} (run pnpm build)`);
 const EXPLORER = 'qa-web-explorer';
 const SESSION = 'qa-exploratory-specialist';
 const CARRIED = 'carried-over discovery has not been verified: run the explore probe (it compares the running app with the baseline and reopens the explorer when the app changed)';
@@ -67,6 +72,8 @@ interface SetupOptions {
   baseline?: boolean;
   /** The explorer's task released failed and accepted with risk by the owner, instead of done. */
   explorerFailed?: boolean;
+  /** A second explorer task, T-explore-3, released failed and accepted with risk next to the done T-explore-1. */
+  secondExplorerFailed?: boolean;
 }
 
 /**
@@ -92,6 +99,10 @@ async function toOpenG1(opts: SetupOptions = {}): Promise<void> {
     await decideEscalation(root(), runId, { taskId: 'T-explore-1', decision: 'accept-with-risk', reason: 'The crawl stopped at the login wall; accepted for this pilot' }, 'owner');
   } else {
     await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv');
+  }
+  if (opts.secondExplorerFailed) {
+    await workTask(root(), runId, 'T-explore-3', EXPLORER, null, 'passed', 'failed');
+    await decideEscalation(root(), runId, { taskId: 'T-explore-3', decision: 'accept-with-risk', reason: 'The admin area crawl timed out; accepted for this pilot' }, 'owner');
   }
   await workTask(root(), runId, 'T-explore-2', SESSION, 'qa-exploratory-specialist-spv');
   writeRunFile(root(), runId, 'discovery-report.json', DISCOVERY);
@@ -249,6 +260,58 @@ describe('a gate rejection carries the web-explorer discovery over', () => {
     expect(explore()).toEqual({ status: 'pending' });
     expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
   });
+
+  it('two explorer tasks, one done and one failed and accepted with risk: nothing is carried, both are reopened and superseded', async () => {
+    await toOpenG1({ secondExplorerFailed: true });
+    expect(await status('T-explore-1')).toBe('done');
+    expect(await status('T-explore-3')).toBe('failed');
+    await reject();
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(await status('T-explore-3')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    const superseded = readRun(root(), runId).supersededAttempts;
+    expect(superseded?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
+    expect(superseded?.['T-explore-3']).toEqual({ [EXPLORER]: 1 });
+  });
+
+  it('a carrying rejection whose event append fails leaves Explore completed and the gate open; the retry ends carried with one event', async () => {
+    await toOpenG1();
+    const completed = explore();
+    const bus = busPath(root(), runId);
+    const good = fs.readFileSync(bus, 'utf8');
+    fs.appendFileSync(bus, '{"seq":99,"prevH');
+    await expect(reject()).rejects.toThrow(/torn tail/);
+    const s = readRun(root(), runId);
+    expect(s).toMatchObject({ status: 'awaiting-gate', gates: { G1: { status: 'open', decisions: 0 } } });
+    expect(s.phases['explore']).toEqual(completed);
+    expect(await status('T-explore-1')).toBe('done');
+    expect(s.supersededAttempts?.['T-explore-1']).toBeUndefined();
+    fs.writeFileSync(bus, good);
+    await expect(reject()).resolves.toMatchObject({ sequence: 1, decision: 'rejected', reopenPhase: 'requirements' });
+    expect(events().filter((e) => e.type === 'gate.decided')).toHaveLength(1);
+    expect(explore()).toEqual({ status: 'pending', carried: true, identity: completed.identity });
+    expect(await status('T-explore-1')).toBe('done');
+    expect(await status('T-explore-2')).toBe('pending');
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toBeUndefined();
+  });
+
+  (stale ? it.skip : it)('gate decide --re-explore on the built CLI reaches decideGate: the explorer is reopened, nothing is carried, the event records reExplore', async () => {
+    await toOpenG1();
+    const cli = (...args: string[]) => {
+      const env = { ...process.env, AEGIS_AGENT: 'owner', AEGIS_COUNTERS_PATH: path.join(root(), '.aegis', '.counters.json') };
+      const r = spawnSync(process.execPath, [CLI, ...args], { cwd: root(), encoding: 'utf-8', env });
+      return { status: r.status, out: r.stdout ? JSON.parse(r.stdout) : null, err: r.stderr ? JSON.parse(r.stderr) : null };
+    };
+    const decide = ['gate', 'decide', '--gate', 'G1', '--decision', 'rejected', '--note', 'Explore it all again', '--run', runId];
+    // Refused when the rejection does not reopen Explore (the default reopen phase of G1 is Planning).
+    expect(cli(...decide, '--re-explore')).toMatchObject({ status: 2, err: { error: 'invalid-input' } });
+    expect(readRun(root(), runId).gates['G1']).toMatchObject({ status: 'open' });
+    expect(cli(...decide, '--reopen-phase', 'requirements', '--re-explore')).toMatchObject({ status: 0, out: { decision: 'rejected', reopenPhase: 'requirements' } });
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
+    expect(lastOf('gate.decided')).toMatchObject({ decision: 'rejected', reopenPhase: 'requirements', reExplore: true, emittedBy: 'owner' });
+  }, 60_000);
 
   it('a run without a baseline is carried and the probe answers full: the explorer runs again', async () => {
     await toOpenG1({ baseline: false });
