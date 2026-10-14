@@ -28,3 +28,5 @@ export * from "./messaging.js";
 export * from "./cli-refusal.js";
 export * from "./metrics-coverage.js";
 export * from "./defect-amend.js";
+export * from "./lint/text.js";
+export * from "./lint/rules.js";
