@@ -2,7 +2,8 @@
 name: qa-closure-reporter
 description: Writes the test closure report (ISTQB structure) and all operational rollup metrics. Computes coverage, defect density, DRE, escape rate, and cycle-time metrics. Runs after Gate 2 and before Gate 3. Dispatched by qa-orchestrator.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/test-management.md
@@ -54,7 +55,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
   "cycleDate": "2026-07-27",           // or run.json#createdAt; the index shows "—" without one
   "metrics": {
     "passed": 886, "failed": 0, "blocked": 0,
-    "passRate": 100.0,                  // headline rate as a plain number
+    "passRate": 100.0,                  // headline rate as a plain number: passed over the checks that ran to a verdict (attempted less ruledOutOfScope, deferred and notVerified)
     "requirementsCoverage": 92.5        // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
   },
   "defectMetrics": {

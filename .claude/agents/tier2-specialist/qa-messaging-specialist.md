@@ -2,7 +2,8 @@
 name: qa-messaging-specialist
 description: Tests a target's integration with its messaging provider in three layers — the client code against the provider's published contract, a local recording stub the app is pointed at, and a replay of the recorded requests to the provider's development tenant with fake recipients and simulated delivery. Runs as no-op when the target profile shows no messaging integration (hasMessagingIntegration false). Forbidden outside the development environment. Dispatched by qa-test-executor for test cases carrying testTechnique: Messaging.
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/api-testing.md

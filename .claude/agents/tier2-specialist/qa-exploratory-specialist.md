@@ -2,7 +2,8 @@
 name: qa-exploratory-specialist
 description: Runs session-based exploratory testing. In the Explore phase, before planning, it runs one charter per user story against the live app; in Execution it runs extra risk-targeted sessions. Uses Playwright in human-mimicking mode (no scripted assertions). Records observations, files defect candidates and proposes test cases. Dispatched by qa-orchestrator (Explore) and qa-test-executor (Execution).
 modelTier: implementation
-model: claude-sonnet-5
+model: claude-sonnet-5-5
+effort: medium
 tools: [Read, Write, Edit, Bash]
 knowledge_refs:
   - knowledge/synthesis/exploratory-testing.md

@@ -105,7 +105,7 @@ async function load(url, what) {
 }
 
 const { renderTechnicalReport } = await load(RENDERER, "the PDF renderer");
-const { computeCoverage } = await load(METRICS, "the coverage computation");
+const { resolveCheckCounts, completeCounts, CaseOfRecordError } = await load(METRICS, "the coverage computation");
 const { checkBrandExposure, checkToolingWords, buildClosureView } = await load(
   CONTRACTS,
   "the brand check",
@@ -133,19 +133,18 @@ const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[k
 // without a complete counts object (written before counts existed, or never written) is recomputed here from the case files,
 // read-only, by the same function the collector command runs. Only when that finds no data either do the closure figures stand,
 // and a zero is never printed as if it were real.
-const COUNT_KEYS = ["designed", "attempted", "passed", "failed", "partial", "blocked", "skipped", "unknown", "notAttempted"];
-const completeCounts = (c) => c !== null && typeof c === "object" && COUNT_KEYS.every((k) => num(c[k]) !== null);
-// When the script recomputes, the recomputed requirements coverage is used too: closure.json may carry a copy of 0.
-let recomputed = null;
-function resolveCounts() {
-  if (hasData(coverageDoc) && completeCounts(coverageDoc?.counts)) return coverageDoc.counts;
-  if (coverageDoc !== null && !hasData(coverageDoc)) return null;
-  const computed = computeCoverage(runDir);
-  if (computed.noData === true || !completeCounts(computed.counts)) return null;
-  recomputed = computed;
-  return computed.counts;
+let rollupCounts;
+let recomputed;
+try {
+  ({ counts: rollupCounts, recomputed } = resolveCheckCounts(runDir, coverageDoc));
+} catch (e) {
+  // A malformed case-of-record declaration: the collector's coverage command gives the same message; this script exits 10, not a stack trace.
+  if (e instanceof CaseOfRecordError) {
+    console.error(`ERROR: ${e.message}`);
+    process.exit(10);
+  }
+  throw e;
 }
-const rollupCounts = resolveCounts();
 // With a case of record the closure's figures win and the rollup is shown only in the reconciliation note (view.cases.note).
 const onCaseOfRecord = () => view.cases.source === "case-of-record";
 // Total Tests is every check that has a result (the attempted count). Partial and Undetermined have their own cells, so passed,
@@ -169,7 +168,7 @@ const skippedCount = rollupCounts ? rollupCounts.skipped : metric("skipped");
 const totalTests = rollupCounts ? rollupCounts.attempted : passed !== null && failed !== null && blocked !== null ? passed + failed + blocked : null;
 // With counts the pass rate is passed over the checks that ran to a verdict (attempted less the ruled ones), one decimal, so it agrees with the Passed cell; closure's own rate (which a
 // roll-up counting a partial case as a pass can skew) is used only without counts.
-const passRate = rollupCounts ? (rollupCounts.attempted - ruledTotal > 0 ? Math.round((1000 * rollupCounts.passed) / (rollupCounts.attempted - ruledTotal)) / 10 : null) : metric("passRate");
+const passRate = rollupCounts ? (rollupCounts.attempted - ruledTotal > 0 ? Math.round(((100 * rollupCounts.passed) / (rollupCounts.attempted - ruledTotal)) * 10) / 10 : null) : metric("passRate");
 
 // The closure is the source of truth for what the report prints; the metric files and the defect records only fill what it does not
 // carry. buildClosureView reads, from closure.json: the case figures (the case-of-record block when it has one, else the rollup counts),

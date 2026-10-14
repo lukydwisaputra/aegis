@@ -2,7 +2,8 @@
 name: qa-requirements-analyst-spv
 description: Reviews qa-requirements-analyst work reports. Validates O/C/D/U testability scoring accuracy, consistency oracle checks, BLOCK/FLAG/PASS classification correctness, and completeness of the ambiguity report. Emits CorrectiveInstruction on findings.
 modelTier: validation
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Bash]
 knowledge_refs:
   - knowledge/synthesis/stlc-process.md

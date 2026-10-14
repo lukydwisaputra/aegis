@@ -434,6 +434,25 @@ describe('ruling statuses (out_of_scope, deferred, not_verified) are counted apa
     expect(computeCoverage(dir()).testExecutionCoverage).toBe(50); // 3 of 6 ran to a verdict
   });
 
+  it('a ruling is not an uncovered row: the rows add up to the checks that gave no verdict and no ruling', () => {
+    const { uncovered, counts } = computeCoverage(dir());
+    expect(uncovered.rows).toEqual([]);
+    expect(uncovered.rows.length).toBe(counts.blocked + counts.skipped + counts.unknown + counts.notAttempted);
+    expect(uncovered.byCause.other).toBe(0);
+  });
+
+  it('with blocked and not-attempted checks beside the rulings, the rows are exactly those and the sum identity holds', () => {
+    const d = runWith({
+      'rtm.json': rows(4, 0),
+      ...designed('TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-003', 'TC-AUTH-004'),
+      ...Object.fromEntries([result('TC-AUTH-001', { status: 'blocked' }), result('TC-AUTH-002', { status: 'deferred' }), result('TC-AUTH-003', { status: 'passed' })]),
+    });
+    const { uncovered, counts } = computeCoverage(d);
+    expect(uncovered.rows.map((r) => r.id).sort()).toEqual(['TC-AUTH-001', 'TC-AUTH-004']);
+    expect(uncovered.rows.length).toBe(counts.blocked + counts.skipped + counts.unknown + counts.notAttempted);
+    expect(counts).toMatchObject({ blocked: 1, notAttempted: 1, deferred: 1 });
+  });
+
   it('a run with no ruling status has no ruling counts', () => {
     const { counts } = computeCoverage(runWith({ 'rtm.json': rows(1, 0), ...designed('TC-AUTH-001'), ...Object.fromEntries([result('TC-AUTH-001', { status: 'passed' })]) }));
     expect(counts).not.toHaveProperty('deferred');

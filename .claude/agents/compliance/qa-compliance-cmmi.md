@@ -2,7 +2,8 @@
 name: qa-compliance-cmmi
 description: Reviews the QA process itself against CMMI V&V (Verification and Validation) process area at Maturity Level 2-3. Evaluates whether testing practices meet CMMI SP (Specific Practices) for verification planning, peer review, and validation. Produces CMMI-{process-area}-{practice} tagged gap report.
 modelTier: planning
-model: claude-opus-4-8
+model: claude-sonnet-5-5
+effort: high
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/compliance-and-regulations.md
