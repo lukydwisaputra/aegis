@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { environmentBaseUrl, readRun, RunStateError, runDir, type PageFetcher, type PageRef, type RawObservation } from "@qa/run-state";
+import { environmentBaseUrl, readRun, RunStateError, runDir, targetDirOf, within, type PageFetcher, type PageRef, type RawObservation } from "@qa/run-state";
 
 /**
  * The real page fetcher of the explore probe: one headless Chromium from the TARGET's Playwright (never a dependency of this repo), one
@@ -17,6 +17,7 @@ export interface ConsoleMessageLike {
 export interface ResponseLike {
   status(): number;
   url(): string;
+  request(): { resourceType(): string };
 }
 export interface RouteLike {
   request(): { url(): string; isNavigationRequest(): boolean; frame(): unknown };
@@ -92,19 +93,6 @@ export function resolvePlaywright(targetDir: string, resolver: ModuleResolver = 
   throw new RunStateError("invalid-input", PLAYWRIGHT_MISSING);
 }
 
-/** The target directory: aegis.config.json#targetProjectRoot (default `..`) resolved against the aegis root. */
-export function targetDirOf(root: string): string {
-  let target = "..";
-  try {
-    const cfg: unknown = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8"));
-    const t = cfg !== null && typeof cfg === "object" ? (cfg as Record<string, unknown>)["targetProjectRoot"] : undefined;
-    if (typeof t === "string" && t !== "") target = t;
-  } catch {
-    // the default
-  }
-  return resolve(root, target);
-}
-
 /** A role's storage state: an absolute path inside the target, none (unauthenticated), or why it is refused (a fixed message). */
 export type RoleState = { storageState: string | null } | { error: string };
 
@@ -146,20 +134,6 @@ export function storageStates(root: string, runId: string, targetDir: string): M
 /** The first line of an error: Playwright appends a multi-line call log. */
 const firstLine = (e: unknown): string => (e instanceof Error ? e.message : String(e)).split("\n")[0]!.trim();
 
-/** `work`, or `onTimeout` after `ms`; the timer never keeps the process alive. */
-async function capped<T>(work: Promise<T>, ms: number, onTimeout: T): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<T>((res) => {
-    timer = setTimeout(() => res(onTimeout), Math.max(0, ms));
-    timer.unref();
-  });
-  try {
-    return await Promise.race([work, timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 const originOf = (u: string): string | null => {
   try {
     return new URL(u).origin;
@@ -177,8 +151,8 @@ export interface VisitOptions {
  * Visits one page read-only: the only navigation is `goto` of a same-origin address. A main-frame navigation to another origin is
  * aborted (a server redirect is not interceptable, so the final address is checked too): a page that ends on another origin is read
  * not at all and returns REDIRECTED_OUTSIDE, which compares as failed, never as same. The final path is the pathname only (a redirect's
- * query or fragment can carry a token). Console errors, page errors and same-origin responses with status 500 or more (as
- * `response <status>`, without the address) are the error signals. The whole visit is capped; any failure is an error observation.
+ * query or fragment can carry a token). Console errors, page errors and responses with status 500 or more (of the environment origin,
+ * or an API call to any origin; as `response <status>`, without the address) are the error signals. The whole visit is capped; any failure is an error observation.
  */
 export async function visitPage(newPage: () => Promise<PageLike>, ref: PageRef, baseURL: string, opts: VisitOptions = {}): Promise<RawObservation> {
   const { role, url } = ref;
@@ -211,8 +185,18 @@ export async function visitPage(newPage: () => Promise<PageLike>, ref: PageRef, 
       if (m.type() === "error") consoleErrors.push(m.text());
     }) as (arg: never) => void);
     p.on("pageerror", ((e: Error) => consoleErrors.push(e.message)) as (arg: never) => void);
+    // A server error while loading is a signal (the Vault case): any response of the environment origin, and an API call (fetch or
+    // XHR) to any origin, since the app's own backend often sits on another one. Only the status is kept, never an address.
     p.on("response", ((r: ResponseLike) => {
-      if (r.status() >= 500 && originOf(r.url()) === origin) consoleErrors.push(`response ${r.status()}`);
+      if (r.status() < 500) return;
+      let api = false;
+      try {
+        const type = r.request().resourceType();
+        api = type === "fetch" || type === "xhr";
+      } catch {
+        // no request detail: only the origin decides
+      }
+      if (api || originOf(r.url()) === origin) consoleErrors.push(`response ${r.status()}`);
     }) as (arg: never) => void);
     try {
       if (p.route !== undefined) {
@@ -259,7 +243,8 @@ export async function visitPage(newPage: () => Promise<PageLike>, ref: PageRef, 
       await p.close().catch(() => undefined);
     }
   };
-  const result = await capped(work(), capMs, { role, url, error: VISIT_CAPPED });
+  const raced = await within(work(), capMs);
+  const result: RawObservation = raced.done ? raced.value : { role, url, error: VISIT_CAPPED };
   finished = true;
   if ("error" in result && result.error === VISIT_CAPPED) page?.close().catch(() => undefined);
   return result;
@@ -271,7 +256,7 @@ export async function visitPage(newPage: () => Promise<PageLike>, ref: PageRef, 
  * Playwright's own exit handler, which kills the browser processes it launched when the Node process exits.
  */
 export async function closeBrowser(browser: BrowserLike, ms: number = BROWSER_CLOSE_MS): Promise<void> {
-  await capped(Promise.resolve().then(() => browser.close()).catch(() => undefined), ms, undefined);
+  await within(Promise.resolve().then(() => browser.close()).catch(() => undefined), ms);
 }
 
 export interface FetcherDeps {

@@ -112,6 +112,18 @@ describe('selectPages', () => {
     expect(selectPages([{ role: 'a', route: '/x' }], '${PREVIEW_URL}').skipped).toEqual([{ role: 'a', route: '/x', reason: 'invalid page address' }]);
     expect(selectPages([{ role: 'a', route: '/unsubscribe?t=1' }], 'https://app.test', [/unsubscribe/]).skipped[0]?.reason).toBe('skip pattern');
   });
+  it('skips side-effect routes and pages with a sensitive query parameter, storing only the path; ordinary words and parameters stay', () => {
+    const side = ['/auth/callback', '/verify-email', '/account/confirm/42', '/password-reset', '/activate', '/unsubscribe', '/invites/accept', '/magic-link'];
+    const r = selectPages(side.map((route) => ({ role: 'a', route })), 'https://app.test');
+    expect(r.pages).toEqual([]);
+    expect(r.skipped.map((s) => s.reason)).toEqual(side.map(() => 'side-effect route'));
+    const queries = ['/login?token=abc', '/sso?code=1&state=2', '/x?api_key=k', '/y?access_token=t', '/z?signature=s', '/w?password=p', '/v?secret=s'];
+    const q = selectPages(queries.map((route) => ({ role: 'a', route })), 'https://app.test');
+    expect(q.pages).toEqual([]);
+    expect(q.skipped).toEqual(queries.map((route) => ({ role: 'a', route: route.slice(0, route.indexOf('?')), reason: 'sensitive query' })));
+    const kept = selectPages([{ role: 'a', route: '/search?keyword=x&postcode=1' }, { role: 'a', route: '/statements' }, { role: 'a', route: '/reports?status=new' }], 'https://app.test');
+    expect(kept.pages.map((p) => p.url)).toEqual(['/search?keyword=x&postcode=1', '/statements', '/reports?status=new']);
+  });
 });
 
 describe('redactError', () => {
@@ -169,6 +181,24 @@ describe('sourceIdentity', () => {
     expect(sourceIdentity(dir, [])).toEqual(beforeEnv);
     fs.writeFileSync(path.join(dir, '.env.example'), 'SECRET=placeholder'); // not ignored: part of the source
     expect(sourceIdentity(dir, [])).not.toEqual(beforeEnv);
+  });
+
+  it('never reads an environment file that is not gitignored: its content and its presence leave the identity unchanged; template variants count', () => {
+    const base = sourceIdentity(dir, []);
+    fs.mkdirSync(path.join(dir, 'apps', 'web'), { recursive: true });
+    for (const name of ['.env', '.env.local', 'apps/web/.env.production']) {
+      fs.writeFileSync(path.join(dir, name), 'SECRET=first');
+      expect(sourceIdentity(dir, [])).toEqual(base);
+      fs.writeFileSync(path.join(dir, name), 'SECRET=second');
+      expect(sourceIdentity(dir, [])).toEqual(base);
+    }
+    for (const name of ['.env.sample', 'apps/web/.env.template']) {
+      fs.writeFileSync(path.join(dir, name), 'SECRET=placeholder');
+      expect(sourceIdentity(dir, []).dirtyHash).not.toBe(base.dirtyHash);
+      fs.rmSync(path.join(dir, name));
+    }
+    fs.writeFileSync(path.join(dir, 'env.ts'), 'x'); // an ordinary file whose name contains env counts
+    expect(sourceIdentity(dir, []).dirtyHash).not.toBe(base.dirtyHash);
   });
 
   it('a deleted tracked file and a removed untracked file change the hash', () => {

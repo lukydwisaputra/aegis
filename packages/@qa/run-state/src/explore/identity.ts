@@ -117,10 +117,16 @@ export interface PageRef {
 
 const DYNAMIC = /\[[^\]]+\]|\/:[A-Za-z_]|\{[^}]+\}/;
 const LOGOUT = /(?:^|\/)(?:log-?out|sign-?out|switch-profile)(?:[/?#]|$)/i;
+/** A path segment whose GET can change state (consume a one-time link, confirm, reset, unsubscribe, accept an invite). */
+const SIDE_EFFECT = /(?:^|\/)[^/]*(?:callback|verify|confirm|reset|activate|unsubscribe|invite|magic)[^/]*(?:\/|$)/i;
+/** A query parameter that carries a credential or a one-time value (`token`, `access_token`, `api_key`, `code`, `state`, ...). */
+const SENSITIVE_PARAM = /^(?:.*[_-])?(?:token|code|key|secret|password|signature|state)$/i;
 
 /**
  * The concrete pages a probe visits, from a discovery report's `pages` array: each entry needs a role and a `url` or `route`.
- * Other origins, route patterns (`/x/[id]`) and logout-like routes (a GET there changes the session) are skipped and named.
+ * Other origins, route patterns (`/x/[id]`), logout-like routes (a GET there changes the session), side-effect routes (callback,
+ * verify, confirm, reset, activate, unsubscribe, invite, magic) and pages whose query holds a sensitive parameter (stored by path
+ * only) are skipped and named.
  */
 export function selectPages(entries: unknown, baseOrigin: string, extraSkip: readonly RegExp[] = []): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> } {
   const pages: PageRef[] = [];
@@ -170,6 +176,14 @@ export function selectPages(entries: unknown, baseOrigin: string, extraSkip: rea
       skipped.push({ role, route: path, reason: "logout-like route" });
       continue;
     }
+    if (SIDE_EFFECT.test(decode(pathname))) {
+      skipped.push({ role, route: pathname, reason: "side-effect route" });
+      continue;
+    }
+    if ([...new URLSearchParams(path.slice(pathname.length)).keys()].some((k) => SENSITIVE_PARAM.test(k))) {
+      skipped.push({ role, route: pathname, reason: "sensitive query" });
+      continue;
+    }
     const k = key({ role, url: path });
     if (seen.has(k)) continue;
     seen.add(k);
@@ -213,7 +227,7 @@ function normaliseDir(d: string): string | null {
  * not move it; with every path excluded, or a repository holding only QA commits, it falls back to the repository HEAD), and
  * `dirtyHash` covers every uncommitted change (modified, deleted, renamed and untracked-not-ignored files, by path and content; a
  * rename enters the hash with both its old and its new path). Every path and every content enters the hash behind its tag and its
- * byte length, so no two different trees frame the same bytes. Gitignored files, including `.env*`, are not read. `excludeDirs`
+ * byte length, so no two different trees frame the same bytes. Gitignored files are not read, and neither is an environment file (`.env`, `.env.<anything>`, except the example, sample and template variants) that is not gitignored. `excludeDirs`
  * (target-relative) leave out the QA tree and the tests directory, which change every round. A directory that is not a git checkout
  * gives null parts. Call it outside run.lock: hashing a large dirty tree is synchronous. It never throws.
  */
@@ -225,7 +239,12 @@ export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]
   const changed = git(targetDir, ["diff", "HEAD", "--name-only", "--no-renames", "--relative", "-z"]);
   const untracked = git(targetDir, ["ls-files", "--others", "--exclude-standard", "-z"]);
   if (head === null || changed === null || untracked === null) return { head, dirtyHash: null };
-  const skip = (p: string): boolean => dirs.some((d) => p === d || p.startsWith(`${d}/`));
+  // An environment file is never read, gitignored or not; the example, sample and template variants are source and count.
+  const envFile = (p: string): boolean => {
+    const base = p.slice(p.lastIndexOf("/") + 1);
+    return /^\.env(\..*)?$/.test(base) && !/\.(example|sample|template)$/.test(base);
+  };
+  const skip = (p: string): boolean => envFile(p) || dirs.some((d) => p === d || p.startsWith(`${d}/`));
   const names = [...new Set([...changed.split("\0"), ...untracked.split("\0")])].filter((p) => p !== "" && !skip(p)).sort();
   const h = createHash("sha256");
   const frame = (tag: string, payload: Buffer): void => {

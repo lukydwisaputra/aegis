@@ -1757,6 +1757,8 @@ export const GateDecidedEventSchema = EventBase.extend({
   reopenPhase: PhaseIdSchema.optional(),
   // A rejection whose reopened phases include Explore, decided with --re-explore: the web explorer's discovery is not carried over.
   reExplore: z.boolean().optional(),
+  // The rejection carried the web explorer's discovery over: Explore is pending and a probe verifies the discovery before reuse.
+  carried: z.literal(true).optional(),
 });
 
 export const GateAutoDecidedEventSchema = EventBase.extend({

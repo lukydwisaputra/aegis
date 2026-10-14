@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { PhaseRecord, RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
@@ -10,6 +10,7 @@ import { busPath, runDir, taskmasterDir } from "../paths.js";
 import { commitRun, readRun, withRunLock } from "../run.js";
 import { reopenPhaseTasks } from "../supersede.js";
 import { atomicWrite, iso } from "../util.js";
+import { explorerAccepted, isExplorerTask } from "./explorer.js";
 import {
   compareSignatures, decideProbe, identityDiffers, observe, redactError, selectPages, sourceIdentity,
   type Observed, type PageRef, type PageSignature, type ProbeDecision, type ProbeDiff, type RawObservation, type SourceIdentity,
@@ -54,9 +55,9 @@ export interface ProbeResult {
   report: string;
 }
 
-const EXPLORER = "qa-web-explorer";
 const BASELINE_REL = "reports/explore/baseline.json";
-const PROBE_REL = "reports/explore/probe.json";
+/** The probe report, run-relative; a rejection that reopens Explore removes it (gates.ts). */
+export const PROBE_REL = "reports/explore/probe.json";
 const BUDGET_ERROR = "not observed (time budget)";
 /** A fetcher that does not close in this time is left behind: the call must return. */
 const CLOSE_MS = 10_000;
@@ -132,12 +133,19 @@ export function environmentBaseUrl(root: string, environment: string): { url: st
   }
 }
 
+/** The target directory: aegis.config.json#targetProjectRoot (default `..`) resolved against the aegis root. Never throws. */
+export function targetDirOf(root: string): string {
+  const raw = rawConfig(root);
+  const t = "config" in raw ? raw.config["targetProjectRoot"] : undefined;
+  return resolve(root, typeof t === "string" && t !== "" ? t : "..");
+}
+
 /** Where the target source stands, with the aegis directory and the tests directory left out. Never throws. */
 export function exploreIdentity(root: string): SourceIdentity {
   try {
     const raw = rawConfig(root);
     const config = "config" in raw ? raw.config : {};
-    const target = resolve(root, typeof config["targetProjectRoot"] === "string" ? config["targetProjectRoot"] : "..");
+    const target = targetDirOf(root);
     const testsDir = typeof config["testsDir"] === "string" ? config["testsDir"] : "../tests/qa";
     return sourceIdentity(target, [relative(target, root), relative(target, resolve(root, testsDir))]);
   } catch {
@@ -196,10 +204,11 @@ function probeSetting(root: string, runId: string, environment: string): ProbeSe
 }
 
 /** Settles `work` or gives up after `ms`; the timer never keeps the process alive. */
-async function within<T>(work: Promise<T>, ms: number): Promise<{ done: true; value: T } | { done: false }> {
+export async function within<T>(work: Promise<T>, ms: number): Promise<{ done: true; value: T } | { done: false }> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<{ done: false }>((res) => {
     timer = setTimeout(() => res({ done: false }), Math.max(0, ms));
+    timer.unref();
   });
   try {
     return await Promise.race([work.then((value) => ({ done: true as const, value })), timeout]);
@@ -263,10 +272,17 @@ async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budg
 
 const notInProgress = (state: RunState): boolean => state.phases["explore"]?.status !== "in-progress";
 
-function assertBaselineAllowed(state: RunState): void {
+async function assertBaselineAllowed(root: string, runId: string, state: RunState): Promise<void> {
   if (notInProgress(state)) throw new RunStateError("invalid-input", "the baseline is taken while Explore is in progress, after the explorer's review passed");
   if (state.phases["explore"]?.carried === true) {
     throw new RunStateError("invalid-input", "discovery is carried over and not verified: verify the carried discovery first (explore probe without --baseline)");
+  }
+  const explorers = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).filter((t) => isExplorerTask(t) && t.status !== "cancelled");
+  if (explorers.length === 0 || !explorers.every((t) => explorerAccepted(root, runId, state, t))) {
+    throw new RunStateError(
+      "invalid-input",
+      "the baseline is taken only when every qa-web-explorer task of Explore is done and the latest attempt of each has a passing review (none accepted with risk)"
+    );
   }
 }
 
@@ -286,7 +302,7 @@ function assertProbeAllowed(state: RunState): void {
 export async function takeBaseline(root: string, runId: string, caller: string, factory: FetcherFactory, opts: ProbeOptions = {}): Promise<BaselineResult> {
   assertCallerAllowed(caller, "explore.probe");
   const before = readRun(root, runId);
-  assertBaselineAllowed(before);
+  await assertBaselineAllowed(root, runId, before);
   const startedAt = Date.now();
   const identity = exploreIdentity(root); // synchronous hashing: outside run.lock, inside the time budget
   const setting = probeSetting(root, runId, before.environment);
@@ -303,7 +319,7 @@ export async function takeBaseline(root: string, runId: string, caller: string, 
       const listed = new Set(setting.roles.map((r) => r.role));
       for (const p of selected.pages) {
         if (listed.has(p.role)) pages.push(p);
-        else skipped.push({ role: p.role, route: p.url, reason: "role without auth state" });
+        else skipped.push({ role: p.role, route: p.url, reason: "role not in env-auth-report" });
       }
     }
   }
@@ -320,7 +336,7 @@ export async function takeBaseline(root: string, runId: string, caller: string, 
     }
   }
   return withRunLock(root, runId, async () => {
-    assertBaselineAllowed(readRun(root, runId));
+    await assertBaselineAllowed(root, runId, readRun(root, runId));
     const ts = iso(opts.now);
     const baseline: Baseline = {
       takenAt: ts, baseUrl: setting.origin, pages: signatures, skipped, unobserved, unavailable, identity, roles: setting.roles, discoveryConfigHash: setting.discoveryConfigHash,
@@ -385,6 +401,8 @@ export async function probeExplore(root: string, runId: string, caller: string, 
   const before = await withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     assertProbeAllowed(state);
+    // A new decision starts: an earlier probe report must never be read as this one's (it is written again below).
+    rmSync(join(runDir(root, runId), PROBE_REL), { force: true });
     return state;
   });
   const startedAt = Date.now();
@@ -427,14 +445,14 @@ export async function probeExplore(root: string, runId: string, caller: string, 
     assertProbeAllowed(state);
     const ts = iso(opts.now);
     const client = createTaskmasterClient(taskmasterDir(root, runId));
-    const explorer = (await client.list()).filter((t) => t.phase === "explore" && t.assignee === EXPLORER);
+    const explorer = (await client.list()).filter(isExplorerTask);
     // An earlier try of this probe reopened the explorer and could not record its result: its work is gone, so reuse is not possible.
     if (decision === "reuse" && explorer.some((t) => t.status === "pending" || t.status === "in-progress" || t.status === "blocked")) {
       decision = "full";
       reason = "the explorer task was already reopened by an earlier probe of this run";
     }
-    const open = decision === "reuse" ? state : await reopenPhaseTasks(root, runId, state, new Set(["explore"]), ts, (t) => t.assignee !== EXPLORER);
-    const reopened = decision === "reuse" ? [] : (await client.list()).filter((t) => t.phase === "explore" && t.assignee === EXPLORER && t.status === "pending").map((t) => t.id).sort();
+    const open = decision === "reuse" ? state : await reopenPhaseTasks(root, runId, state, new Set(["explore"]), ts, (t) => !isExplorerTask(t));
+    const reopened = decision === "reuse" ? [] : (await client.list()).filter((t) => isExplorerTask(t) && t.status === "pending").map((t) => t.id).sort();
     const { carried: _carried, ...record }: PhaseRecord = open.phases["explore"] ?? { status: "in-progress" };
     const next: RunState = { ...open, phases: { ...open.phases, explore: { ...record, identity } }, updatedAt: ts };
     const changedPages = [...diff.changed, ...diff.failed].map((p) => ({ role: p.role, url: p.url }));

@@ -56,14 +56,14 @@ function fetcher(changed: string[] = []): { factory: () => Promise<PageFetcher>;
 }
 
 /** Another attempt of a reopened task: claim, new work report, release done, passing review. */
-async function redo(taskId: string, agent: string, n: number): Promise<void> {
+async function redo(taskId: string, agent: string, n: number, verdict: 'passed' | 'requested-changes' = 'passed'): Promise<void> {
   await claimTask(root(), runId, taskId, agent);
   const w = path.join(root(), `redo-w-${taskId}-${n}.json`);
   fs.writeFileSync(w, JSON.stringify(workReport(agent, taskId)));
   await submitWorkReport(root(), runId, w, agent);
   await releaseTask(root(), runId, taskId, 'done', agent);
   const r = path.join(root(), `redo-r-${taskId}-${n}.json`);
-  fs.writeFileSync(r, JSON.stringify(review(`${agent}-spv`, agent, taskId, 'passed')));
+  fs.writeFileSync(r, JSON.stringify(review(`${agent}-spv`, agent, taskId, verdict)));
   await submitReview(root(), runId, r, `${agent}-spv`);
 }
 
@@ -74,6 +74,8 @@ interface SetupOptions {
   explorerFailed?: boolean;
   /** A second explorer task, T-explore-3, released failed and accepted with risk next to the done T-explore-1. */
   secondExplorerFailed?: boolean;
+  /** The explorer's crawl released done three times, rejected by its SPV each time, and accepted with risk by the owner. */
+  explorerRejectedThenAccepted?: boolean;
 }
 
 /**
@@ -94,7 +96,11 @@ async function toOpenG1(opts: SetupOptions = {}): Promise<void> {
   runId = (await createRun(root(), { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
   fastForward(root(), runId, 'explore');
   await startPhase(root(), runId, 'explore', ORCH);
-  if (opts.explorerFailed) {
+  if (opts.explorerRejectedThenAccepted) {
+    await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv', 'requested-changes');
+    for (const n of [2, 3]) await redo('T-explore-1', EXPLORER, n, 'requested-changes');
+    await decideEscalation(root(), runId, { taskId: 'T-explore-1', decision: 'accept-with-risk', reason: 'The crawl misses the admin area; accepted for this pilot' }, 'owner');
+  } else if (opts.explorerFailed) {
     await workTask(root(), runId, 'T-explore-1', EXPLORER, null, 'passed', 'failed');
     await decideEscalation(root(), runId, { taskId: 'T-explore-1', decision: 'accept-with-risk', reason: 'The crawl stopped at the login wall; accepted for this pilot' }, 'owner');
   } else {
@@ -107,7 +113,12 @@ async function toOpenG1(opts: SetupOptions = {}): Promise<void> {
   await workTask(root(), runId, 'T-explore-2', SESSION, 'qa-exploratory-specialist-spv');
   writeRunFile(root(), runId, 'discovery-report.json', DISCOVERY);
   writeRunFile(root(), runId, 'env-auth-report.json', { roles: ROLES });
-  if (opts.baseline !== false) await takeBaseline(root(), runId, ORCH, fetcher().factory);
+  if (opts.baseline !== false) {
+    // The baseline is taken only over a crawl its reviewer accepted: one accepted with risk is refused, and the next probe answers full.
+    if (opts.explorerFailed || opts.secondExplorerFailed || opts.explorerRejectedThenAccepted) {
+      await expect(takeBaseline(root(), runId, ORCH, fetcher().factory)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/only when every qa-web-explorer task of Explore is done/) });
+    } else await takeBaseline(root(), runId, ORCH, fetcher().factory);
+  }
   await completePhase(root(), runId, 'explore', ORCH);
   await startPhase(root(), runId, 'planning', ORCH);
   writeRunFile(root(), runId, 'plan.json', {});
@@ -149,7 +160,7 @@ describe('a gate rejection carries the web-explorer discovery over', () => {
     expect(s.supersededAttempts?.['T-explore-1']).toBeUndefined();
     expect(s.supersededAttempts?.['T-explore-2']).toEqual({ [SESSION]: 1 });
     const e = lastOf('gate.decided')!;
-    expect(e).toMatchObject({ decision: 'rejected', reopenPhase: 'requirements' });
+    expect(e).toMatchObject({ decision: 'rejected', reopenPhase: 'requirements', carried: true });
     expect(e).not.toHaveProperty('reExplore');
   });
 
@@ -215,6 +226,7 @@ describe('a gate rejection carries the web-explorer discovery over', () => {
     expect(explore()).toEqual({ status: 'pending' });
     expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 1 });
     expect(lastOf('gate.decided')).toMatchObject({ decision: 'rejected', reopenPhase: 'requirements', reExplore: true });
+    expect(lastOf('gate.decided')).not.toHaveProperty('carried');
     // Started again, Explore is not carried: it completes on new work without a probe.
     await backToExplore();
     expect(explore().carried).toBeUndefined();
@@ -324,6 +336,82 @@ describe('a gate rejection carries the web-explorer discovery over', () => {
     expect(f.visit).not.toHaveBeenCalled();
     expect(await status('T-explore-1')).toBe('pending');
     expect(explore().carried).toBeUndefined();
+  });
+
+  it('a crawl rejected three times and then accepted with risk is not carried: the explorer is reopened and superseded', async () => {
+    await toOpenG1({ explorerRejectedThenAccepted: true });
+    expect(await status('T-explore-1')).toBe('done');
+    await reject();
+    expect(await status('T-explore-1')).toBe('pending');
+    expect(explore()).toEqual({ status: 'pending' });
+    expect(readRun(root(), runId).supersededAttempts?.['T-explore-1']).toEqual({ [EXPLORER]: 3 });
+    expect(lastOf('gate.decided')).not.toHaveProperty('carried');
+  });
+
+  it('a rejection that reopens Explore removes the probe report of the earlier round, after the decision is recorded', async () => {
+    await toOpenG1();
+    await reject();
+    await backToExplore();
+    const probeFile = path.join(runDir(root(), runId), 'reports', 'explore', 'probe.json');
+    expect(await probeExplore(root(), runId, ORCH, fetcher(['/home']).factory)).toMatchObject({ reopened: ['T-explore-1'] });
+    expect(fs.existsSync(probeFile)).toBe(true);
+    await redo('T-explore-1', EXPLORER, 2);
+    await redo('T-explore-2', SESSION, 2);
+    await takeBaseline(root(), runId, ORCH, fetcher().factory);
+    await completePhase(root(), runId, 'explore', ORCH);
+    await startPhase(root(), runId, 'planning', ORCH);
+    await redo('T-planning-1', 'qa-test-planner', 2);
+    await redo('T-GATE-G1', ORCH, 2);
+    await completePhase(root(), runId, 'planning', ORCH);
+    await openGate(root(), runId, 'G1', ORCH);
+    // A failed decision leaves the report in place: it is removed only once the decision is recorded.
+    const bus = busPath(root(), runId);
+    const good = fs.readFileSync(bus, 'utf8');
+    fs.appendFileSync(bus, '{"seq":99,"prevH');
+    await expect(reject({ reopenPhase: 'explore' })).rejects.toThrow(/torn tail/);
+    expect(fs.existsSync(probeFile)).toBe(true);
+    fs.writeFileSync(bus, good);
+    await reject({ reopenPhase: 'explore' });
+    expect(fs.existsSync(probeFile)).toBe(false);
+  }, 30_000);
+
+  it('a probe removes an earlier probe report before it decides: a probe refused after its visits leaves no stale report', async () => {
+    await toOpenG1();
+    await reject();
+    await backToExplore();
+    const probeFile = path.join(runDir(root(), runId), 'reports', 'explore', 'probe.json');
+    writeRunFile(root(), runId, 'reports/explore/probe.json', { decidedAt: '2026-01-01T00:00:00.000Z', decision: 'partial', changedPages: [{ role: 'volunteer', url: '/home' }] });
+    // While the pages are visited, another command takes the carried mark away: the probe is refused at its final check.
+    const runFile = path.join(runDir(root(), runId), 'run.json');
+    const visit = jest.fn(async (p: PageRef): Promise<RawObservation> => {
+      const s = JSON.parse(fs.readFileSync(runFile, 'utf8'));
+      delete s.phases.explore.carried;
+      fs.writeFileSync(runFile, JSON.stringify(s));
+      return { role: p.role, url: p.url, finalPath: p.url, status: 200, title: `Page ${p.url}`, h1: 'Heading', testids: ['nav'], consoleErrors: [] };
+    });
+    await expect(probeExplore(root(), runId, ORCH, async () => ({ visit, close: async () => undefined }))).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/not carried over/) });
+    expect(fs.existsSync(probeFile)).toBe(false);
+  });
+
+  it('completing Explore hashes the source only when the barrier would pass', async () => {
+    const probeModule = require('../packages/@qa/run-state/src/explore/probe');
+    const spy = jest.spyOn(probeModule, 'exploreIdentity');
+    try {
+      await toOpenG1();
+      await reject();
+      await backToExplore();
+      spy.mockClear();
+      // Carried and unverified, the exploratory session pending: refused, nothing hashed.
+      await expect(completePhase(root(), runId, 'explore', ORCH)).rejects.toMatchObject({ code: 'barrier' });
+      expect(spy).not.toHaveBeenCalled();
+      await probeExplore(root(), runId, ORCH, fetcher().factory);
+      await redo('T-explore-2', SESSION, 2);
+      spy.mockClear();
+      await completePhase(root(), runId, 'explore', ORCH);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('completing Explore never fails on an unreadable source identity (the target is not a git checkout)', async () => {

@@ -181,7 +181,7 @@ const markCarried = () => {
 
 describe('the Playwright page fetcher without a browser', () => {
   const BASE = 'http://localhost:5173';
-  type Over = { landing?: string; status?: number | null; gotoError?: string; h1Error?: boolean; responses?: Array<[number, string]> };
+  type Over = { landing?: string; status?: number | null; gotoError?: string; h1Error?: boolean; responses?: Array<[number, string, string?]> };
 
   /** A page-like fake: `goto` lands on `landing` (default: the address asked for); every read is counted. */
   function fakePage(over: Over = {}) {
@@ -196,7 +196,7 @@ describe('the Playwright page fetcher without a browser', () => {
         listeners['console']?.({ type: () => 'error', text: () => 'Uncaught TypeError' });
         listeners['console']?.({ type: () => 'warning', text: () => 'just a warning' });
         listeners['pageerror']?.(new Error('boom'));
-        for (const [status, url] of over.responses ?? []) listeners['response']?.({ status: () => status, url: () => url });
+        for (const [status, url, type] of over.responses ?? []) listeners['response']?.({ status: () => status, url: () => url, request: () => ({ resourceType: () => type ?? 'document' }) });
         return over.status === null ? null : { status: () => over.status ?? 200 };
       }),
       waitForLoadState: jest.fn(async () => { throw new Error('networkidle timeout'); }),
@@ -268,12 +268,24 @@ describe('the Playwright page fetcher without a browser', () => {
   });
 
   it('records a same-origin server error while loading as response <status>, which the signature counts as an error', async () => {
-    const { page } = fakePage({ responses: [[500, 'http://localhost:5173/api/vault/42'], [502, 'https://cdn.example/x.js'], [404, 'http://localhost:5173/favicon.ico'], [503, 'http://localhost:5173/rest/v1/x']] });
+    const { page } = fakePage({ responses: [[500, 'http://localhost:5173/api/vault/42', 'fetch'], [502, 'https://cdn.example/x.js', 'script'], [404, 'http://localhost:5173/favicon.ico'], [503, 'http://localhost:5173/rest/v1/x', 'document']] });
     const r = await visitWith(page);
     expect(r).toMatchObject({ consoleErrors: ['Uncaught TypeError', 'boom', 'response 500', 'response 503'] });
     const only500 = { ...(r as RawPage), consoleErrors: ['Failed to load resource: the server responded with a status of 500', 'response 500'] };
     expect(signatureOf(only500).hasErrors).toBe(true);
     expect(signatureOf({ ...only500, consoleErrors: ['Failed to load resource: the server responded with a status of 500'] }).hasErrors).toBe(false);
+  });
+
+  it('counts an API call (fetch or XHR) to another origin that answers 500 or more by its status only; other cross-origin resources are not counted', async () => {
+    const { page } = fakePage({ responses: [
+      [500, 'https://abc.supabase.co/rest/v1/vault?select=*&apikey=secret', 'xhr'],
+      [503, 'https://api.example/v1/items', 'fetch'],
+      [502, 'https://cdn.example/app.css', 'stylesheet'],
+      [404, 'https://api.example/v1/missing', 'fetch'],
+    ] });
+    const r = (await visitWith(page)) as RawPage;
+    expect(r.consoleErrors).toEqual(['Uncaught TypeError', 'boom', 'response 500', 'response 503']);
+    expect(JSON.stringify(r)).not.toContain('supabase');
   });
 
   it('maps a navigation failure or a page that cannot open to an error observation, and a missing h1 or response to empty values', async () => {

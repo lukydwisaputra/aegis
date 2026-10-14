@@ -141,7 +141,7 @@ describe('takeBaseline', () => {
     expect(b.skipped).toEqual(expect.arrayContaining([
       { role: 'volunteer', route: '/events/[id]', reason: 'dynamic route pattern' },
       { role: 'volunteer', route: '/x', reason: 'other origin' },
-      { role: 'ghost', route: '/ghost', reason: 'role without auth state' },
+      { role: 'ghost', route: '/ghost', reason: 'role not in env-auth-report' },
     ]));
     expect(b).toMatchObject({ baseUrl: 'http://localhost:5173', unobserved: [], unavailable: null, identity: { head: git('rev-parse', 'HEAD'), dirtyHash: EMPTY_SHA256 } });
     expect(b.roles).toEqual([{ role: 'admin', auth: true }, { role: 'guest', auth: false }, { role: 'volunteer', auth: true }]);
@@ -157,6 +157,30 @@ describe('takeBaseline', () => {
     await expect(takeBaseline(root(), runId, ORCH, g.factory)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/baseline is taken while Explore is in progress/) });
     expect(g.factory).not.toHaveBeenCalled();
     expect(probed()).toHaveLength(1);
+  });
+
+  it('baseline is refused unless every web-explorer task of Explore is done with a passing review of its latest attempt', async () => {
+    const PRECONDITION = /baseline is taken only when every qa-web-explorer task of Explore is done and the latest attempt of each has a passing review/;
+    t = makeAegisRoot();
+    target = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-target-'));
+    setConfig({ targetProjectRoot: target, testsDir: path.join(target, 'tests', 'qa') });
+    runId = (await createRun(root(), { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).runId;
+    fastForward(root(), runId, 'explore');
+    await startPhase(root(), runId, 'explore', ORCH);
+    put('discovery-report.json', DISCOVERY);
+    put('env-auth-report.json', { roles: ROLES });
+    const f = fake();
+    // No explorer task at all.
+    await expect(takeBaseline(root(), runId, ORCH, f.factory)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(PRECONDITION) });
+    // The crawl was released and rejected by its reviewer: the task is pending again.
+    await workTask(root(), runId, 'T-explore-1', EXPLORER, 'qa-web-explorer-spv', 'requested-changes');
+    await expect(takeBaseline(root(), runId, ORCH, f.factory)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(PRECONDITION) });
+    // One explorer task accepted, a second one released but not yet reviewed.
+    await workTask(root(), runId, 'T-explore-3', EXPLORER, 'qa-web-explorer-spv');
+    await workTask(root(), runId, 'T-explore-4', EXPLORER, null);
+    await expect(takeBaseline(root(), runId, ORCH, f.factory)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringMatching(PRECONDITION) });
+    expect(f.factory).not.toHaveBeenCalled();
+    expect(probed()).toHaveLength(0);
   });
 
   it('baseline never throws: no discovery pages, or a factory that throws, give unavailable and zero pages', async () => {

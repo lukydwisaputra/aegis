@@ -297,6 +297,17 @@ function scanSnapshot(root: string, runId: string): { existingTestsCount: number
   return { existingTestsCount: profile.data.existingTests.files.length, personalData: showsPersonalData(profile.data) };
 }
 
+/** Lock-free: the phase is the one in progress and its barrier has no problem now. Any error counts as no (the locked check decides). */
+async function completionLikely(root: string, runId: string, id: PhaseId): Promise<boolean> {
+  try {
+    const state = readRun(root, runId);
+    const step = nextStep(state);
+    return step.kind === "continue-phase" && step.phase === id && (await barrierProblems(root, runId, state, id)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
 export interface CompletePhaseOptions {
   notApplicable?: boolean;
   now?: Date;
@@ -308,8 +319,9 @@ export async function completePhase(root: string, runId: string, phase: string, 
   // Spec §6.1 item 4. A failing verify records integrity.violation and blocks the run itself.
   const integrity = await verifyRunIntegrity(root, runId, caller, opts.now);
   if (!integrity.ok) throw new RunStateError("integrity-failed", `event log does not verify: ${integrity.errors.join("; ")}`);
-  // Explore records where the target source stood. Hashed before run.lock is taken; exploreIdentity never throws (nulls when unreadable).
-  const identity = id === "explore" && opts.notApplicable !== true ? exploreIdentity(root) : undefined;
+  // Explore records where the target source stood. Hashed before run.lock is taken, and only when a lock-free pre-check of the order
+  // and the barrier passes (a refused completion hashes nothing); exploreIdentity never throws (nulls when unreadable).
+  let identity = id === "explore" && opts.notApplicable !== true && (await completionLikely(root, runId, id)) ? exploreIdentity(root) : undefined;
 
   const outcome = await withRunLock(root, runId, async (): Promise<{ state: RunState } | { preflight: string }> => {
     const state = readRun(root, runId);
@@ -332,6 +344,8 @@ export async function completePhase(root: string, runId: string, phase: string, 
     }
     const problems = await barrierProblems(root, runId, state, id);
     if (problems.length > 0) throw new RunStateError("barrier", `phase ${id} cannot complete: ${problems.join("; ")}`);
+    // The pre-check refused but the phase can complete now (the state changed in between): hash under the lock, rarely.
+    if (id === "explore" && identity === undefined) identity = exploreIdentity(root);
     let snapshot = {};
     if (id === "scan") {
       const preflight = preflightProblem(root, runId, state);

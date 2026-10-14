@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
@@ -17,9 +17,11 @@ import {
   type RunState,
 } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
+import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
 import { RunStateError } from "./errors.js";
+import { explorerAccepted, isExplorerTask } from "./explore/explorer.js";
+import { PROBE_REL } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir, taskmasterDir } from "./paths.js";
@@ -104,9 +106,6 @@ export interface DecideGateInput {
   now?: Date;
 }
 
-const EXPLORER = "qa-web-explorer";
-const isExplorerTask = (t: Task): boolean => t.phase === "explore" && t.assignee === EXPLORER;
-
 /**
  * Owner decision on an open gate (spec §3.2). A rejection reopens `reopenPhase` (default: the gated phase) through
  * the gated phase: every attempt so far on their tasks is recorded in run.json#supersededAttempts and the tasks go back
@@ -157,11 +156,11 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
     };
 
     // The web explorer's discovery is carried over when Explore is reopened only because an earlier phase was, and every explorer
-    // task finished done (a crawl released failed and accepted with risk is explored again).
+    // task's work was accepted by its reviewer (a crawl released failed, or rejected and accepted with risk, is explored again).
     let carry = false;
     if (reopen !== undefined && reopen !== "explore" && reopened.includes("explore") && input.reExplore !== true) {
       const explorers = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).filter((t) => isExplorerTask(t) && t.status !== "cancelled");
-      carry = explorers.length > 0 && explorers.every((t) => t.status === "done");
+      carry = explorers.length > 0 && explorers.every((t) => explorerAccepted(root, runId, state, t));
     }
     let open = state;
     let phases: RunState["phases"] | undefined;
@@ -190,11 +189,21 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
         {
           type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note,
           ...(reopen !== undefined ? { reopenPhase: reopen } : {}), ...(input.reExplore === true ? { reExplore: true } : {}),
+          ...(carry ? { carried: true } : {}),
         },
         busPath(root, runId),
         { emittedBy: caller, runId }
       )
     );
+    // A probe decision belongs to the Explore round it was taken in: a rejection that reopens Explore makes it stale. Removed only
+    // once the decision is recorded; a file that cannot be removed does not undo the decision.
+    if (reopened.includes("explore")) {
+      try {
+        rmSync(join(runDir(root, runId), PROBE_REL), { force: true });
+      } catch {
+        // stale but harmless: the orchestrator uses a probe report only when it is newer than the start of Explore
+      }
+    }
     return decision;
   });
 }
