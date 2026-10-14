@@ -50,7 +50,7 @@ export type GuardResult =
 export const ROLLUP_OWNED_RUN_GLOBS: readonly string[] = ["execution-summary.json", "reports/metrics/**", "reports/closure/metrics.json"];
 
 /** Customer-facing run files (CLAUDE.md brand exposure rule). */
-export const BRAND_CLEAN_RUN_GLOBS: readonly string[] = ["plan.*", "rtm.*", "cases/**", "defects/**", "reports/closure/**", "reports/executive/**"];
+export const BRAND_CLEAN_RUN_GLOBS: readonly string[] = ["plan.*", "rtm.*", "cases/**", "defects/**", "reports/closure/**", "reports/executive/**", "reports/compliance/**"];
 
 /** Customer-facing run files that must also be free of tooling wording (TOOLING_WORD_PATTERNS in @qa/contracts). */
 export const TOOLING_CLEAN_RUN_GLOBS: readonly string[] = ["defects/**", "reports/closure/**", "reports/compliance/**"];

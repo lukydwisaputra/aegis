@@ -11,9 +11,12 @@ import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
 
 let t: TmpAegis;
-/** The longest rules-core brand line and the largest qa-* agent's H4 text (25-character project name, 38-character root), after Task 0. */
-const BRAND_MAX = 744;
-const H4_LARGEST = 6036;
+/**
+ * The longest rules-core brand line and the largest qa-* agent's H4 text (25-character project name, 38-character root). Task 0: 744 and
+ * 6036. Task 1a added reports/compliance/** to the brand globs the line is built from: +23 characters for every qa-* agent (767 and 6059).
+ */
+const BRAND_MAX = 767;
+const H4_LARGEST = 6059;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 
@@ -217,7 +220,9 @@ describe('H4 rules core (CLAUDE.md may not be loaded into a subagent)', () => {
     const brand = subagentRulesLines()[2]!;
     expect(TOOLING_WORD_PATTERNS.length).toBe(20);
     expect(brand).toContain('a defect record may cite paths and servers in every field but the title');
-    // Task 0 of the pre-checks plan added the path and port rules to this line: 523 -> 744 characters (+221 for every qa-* agent).
+    // Task 0 of the pre-checks plan added the path and port rules to this line: 523 -> 744 characters (+221 for every qa-* agent); Task 1a
+    // the compliance glob to the brand list: 744 -> 767 (+23).
+    expect(brand).toContain('reports/executive/**, reports/compliance/**;');
     expect(brand.length).toBeLessThanOrEqual(BRAND_MAX);
     for (const pattern of TOOLING_WORD_PATTERNS) {
       const expected = phrase[pattern.source];

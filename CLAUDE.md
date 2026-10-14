@@ -86,7 +86,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `dashboard.projectName` — appears in all customer-facing report output
 - `reportRules` — what the pre-gate lint (`aegis lint run`, run before G2 and G3) checks in the customer-facing files; each key is optional:
   - `extend` — extra wording rules (`{id, pattern, message, severity?}`)
-  - `disable` — ids of built-in rules the project turns off, or a data rule group (`blocked-qa-side`, `defect-origin`, `defect-counts`, `env-probe`) checked at Execution, Triage and G2
+  - `disable` — ids of built-in rules the project turns off (the wording rules, `brand-name`, `tooling-tier1`, `tooling-tier2`), or a data rule group (`blocked-qa-side`, `defect-origin`, `defect-counts`, `env-probe`) checked at Execution, Triage and G2
   - `allow` — phrases the project uses on purpose, so the wording rules skip them
   - `localPorts` — default `[]`: the local server and stub ports of the project's environments (for example `[3002, 3011, 3998, 54421, 54422]` for a target whose dev server, stubs and local database use them). An unlisted `:N` is not flagged by H1, the report scripts or the executive checker. `localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` (not a CIDR range such as `0.0.0.0/0`) and "port N" are always flagged. List ports of 1024 or above: a low port such as `:22` also matches clock times (10:22)
   - `pii.syntheticValues` — exact personal-data values declared as test data that cannot be real
@@ -246,8 +246,9 @@ Never write the word "Aegis", internal agent names (e.g. `qa-director`,
 - `runs/*/defects/**`
 - `runs/*/plan.*`
 - `runs/*/rtm.*`
+- `runs/*/reports/compliance/**`
 
-Customer-facing reports must read as if produced by the project's own QA team. `defects/`, `reports/closure/` and `reports/compliance/` also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", review or attempt counts, "record owner", file paths or names such as `reports/...` or `coverage.json`, local hosts and the ports in `reportRules.localPorts`): HANDBOOK/13 lists them and H1 refuses them. In a defect record (`defects/DEF-*`) every field but the title may cite URLs, local servers and files (reproduction steps, ruled-out notes, build line, history) and the application's own attempt count: there H1 and `defect amend` refuse only the tooling words; the title takes every rule.
+Customer-facing reports must read as if produced by the project's own QA team. `defects/`, `reports/closure/` and `reports/compliance/` also never carry tooling words (CLI, defectMap, event sequence numbers, "framework defect", review or attempt counts, "record owner", file paths or names such as `reports/...` or `coverage.json`, local hosts and the ports in `reportRules.localPorts`): HANDBOOK/13 lists them and H1 refuses them. In a defect record (`defects/DEF-*`) every field but the title may cite URLs, local servers and files (reproduction steps, ruled-out notes, build line, history) and the application's own attempt count: there H1 and `defect amend` refuse only the tooling words; the title takes every rule. The pre-gate lint reports the same rules before G2 and G3 (`brand-name`; `tooling-tier1` over these files and the executive inputs, never cases, plan or RTM; a path or server in a defect record outside its title and every compliance hit are warnings) and at G3 checks the closure fields the sign-off prints with `tooling-tier1` and `tooling-tier2` (plain business language), quoted text included.
 Use neutral language: "QA team", "automated pipeline", or the project name from
 `aegis.config.json#dashboard.projectName`.
 

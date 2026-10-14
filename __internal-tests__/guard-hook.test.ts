@@ -450,3 +450,30 @@ describe('m1: an uncaught crash denies subagents and applies the main-thread rul
     expect(systemMessage(fw.stdout)).toMatch(/guard crashed \(boom\); main-thread call allowed/);
   });
 });
+
+// Task 1a of the mechanical pre-checks plan: the compliance reports are brand-clean (BRAND_CLEAN_RUN_GLOBS has reports/compliance/**).
+test('denies a compliance report that names an agent, the event log or a CLI command, and allows the plain wording', async () => {
+  const file = path.join(runDir(t.root, runId), 'run.json');
+  const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const id of Object.keys(state.phases)) {
+    if (id === 'compliance') break;
+    state.phases[id] = { status: 'completed' };
+  }
+  const approved = { status: 'approved', decisions: 1 };
+  fs.writeFileSync(file, JSON.stringify({ ...state, status: 'running', gates: { ...state.gates, G1: approved, G2: approved } }));
+  await startPhase(t.root, runId, 'compliance', 'qa-orchestrator');
+  const write = (content: string) =>
+    guard({ tool_name: 'Write', tool_input: { file_path: path.join(runDir(t.root, runId), 'reports', 'compliance', 'cmmi.md'), content }, agent_type: 'qa-compliance-cmmi', agent_id: 'c1' });
+  for (const [text, pattern] of [
+    ['Reviewed by qa-ui-specialist.', 'qa-ui-specialist'],
+    ['The secret scan ran with aegis messaging scan-secrets.', 'aegis'],
+    ['The trail is in events.jsonl.', 'events'],
+  ] as const) {
+    const r = write(`# CMMI coverage\n\n${text}\n`);
+    expect([text, r.status]).toEqual([text, 2]);
+    // The brand rule answers first (before the tooling rule that also knows events.jsonl).
+    expect(r.stderr).toMatch(/is customer-facing and the text matches .*write "QA team" or the project name instead \(CLAUDE\.md brand exposure rule\)/);
+    expect(r.stderr).toContain(pattern);
+  }
+  expect(write('# CMMI coverage\n\nThe QA team reviewed every verification practice.\n').status).toBe(0);
+});

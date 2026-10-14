@@ -193,6 +193,10 @@ export interface ToolingHit {
   instead: string;
   /** Where it was found (a closure.json field path, e.g. "closure.json#openQuestions[3].question"); empty for plain text. */
   location: string;
+  /** The offset of the phrase in the scanned string. */
+  index: number;
+  /** The kind of the rule that matched. */
+  kind: ToolingKind;
 }
 
 /** JSON keys whose whitespace-free string values are data paths (evidence lists, a report's file, metric file names), not prose. */
@@ -208,7 +212,7 @@ export function findToolingWords(text: string, opts: ToolingOptions & { exemptBa
     if (opts.kinds !== undefined && !opts.kinds.includes(rule.kind)) continue;
     if (bare && rule.kind === "path") continue;
     const re = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`);
-    for (const m of text.matchAll(re)) hits.push({ phrase: m[0], pattern: rule.pattern, instead: rule.instead(m[0]), location: opts.location ?? "" });
+    for (const m of text.matchAll(re)) hits.push({ phrase: m[0], pattern: rule.pattern, instead: rule.instead(m[0]), location: opts.location ?? "", index: m.index ?? 0, kind: rule.kind });
   }
   return hits;
 }
@@ -218,14 +222,22 @@ export function findToolingWords(text: string, opts: ToolingOptions & { exemptBa
  * whitespace-free value under a DATA_PATH_KEYS key (or inside an array under one) is a data path and skips the path rules.
  */
 export function findToolingWordsIn(value: unknown, base: string, opts: ToolingOptions = {}): ToolingHit[] {
-  return toolingIn(value, base, opts, false);
+  return toolingStringsIn(value, base).flatMap((s) => findToolingWords(s.text, { ...opts, exemptBarePaths: s.dataKey, location: s.location }));
 }
 
-function toolingIn(value: unknown, base: string, opts: ToolingOptions, dataKey: boolean): ToolingHit[] {
-  if (typeof value === "string") return findToolingWords(value, { ...opts, exemptBarePaths: dataKey, location: base });
-  if (Array.isArray(value)) return value.flatMap((v, i) => toolingIn(v, `${base}[${i}]`, opts, dataKey));
-  if (value !== null && typeof value === "object") return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => toolingIn(v, `${base}.${k}`, opts, DATA_PATH_KEYS.has(k)));
-  return [];
+/**
+ * The string values of a JSON-like value (keys are not read), each with its field path under `base` and whether it sits under a
+ * DATA_PATH_KEYS key (or in an array under one): the strings findToolingWordsIn scans, for a caller that needs the text of each hit.
+ */
+export function toolingStringsIn(value: unknown, base: string): Array<{ location: string; text: string; dataKey: boolean }> {
+  const out: Array<{ location: string; text: string; dataKey: boolean }> = [];
+  const walk = (v: unknown, at: string, dataKey: boolean): void => {
+    if (typeof v === "string") out.push({ location: at, text: v, dataKey });
+    else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${at}[${i}]`, dataKey));
+    else if (v !== null && typeof v === "object") for (const [k, x] of Object.entries(v as Record<string, unknown>)) walk(x, `${at}.${k}`, DATA_PATH_KEYS.has(k));
+  };
+  walk(value, base, false);
+  return out;
 }
 
 /** The first tooling-word pattern the text matches, or null when clean. */
@@ -277,6 +289,8 @@ export interface PlainLanguageHit {
   phrase: string;
   instead: string;
   location: string;
+  /** The offset of the phrase in the scanned string. */
+  index: number;
 }
 
 /** Every tier-2 phrase in a text. */
@@ -284,7 +298,7 @@ export function findPlainLanguage(text: string, location = ""): PlainLanguageHit
   const hits: PlainLanguageHit[] = [];
   for (const rule of PLAIN_LANGUAGE_RULES) {
     const re = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`);
-    for (const m of text.matchAll(re)) hits.push({ phrase: m[0], instead: rule.instead, location });
+    for (const m of text.matchAll(re)) hits.push({ phrase: m[0], instead: rule.instead, location, index: m.index ?? 0 });
   }
   return hits;
 }
