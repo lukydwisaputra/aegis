@@ -18,6 +18,7 @@
 - Unknown means explore again, and the run never gets stuck: no baseline, no readable pages, Playwright missing in the target, the app down, every page failed: decision `full` (the explorer reopens), never an exception that leaves the phase blocked. A few individual pages that failed or changed count as changed and are explored again (`partial`).
 - No secret leaves the machine through the identity: the source identity is a hash of tracked-modified and untracked-not-ignored files; `.env*` files are gitignored, are never read, and no hash of them is stored. Error text in reports has URLs replaced by `<url>`.
 - Gate: `pnpm build && pnpm typecheck && pnpm test && pnpm test:smoke && pnpm aegis align` stay green; the align ratchet (207) does not grow. (In a worktree under `.claude/worktrees`, 4 tests of `customer-wording.test.ts` fail by location only; CI is their real run.)
+- The probe and the baseline return within 8 minutes however slow the app is (time budget), so a Bash timeout can never leave Explore blocked.
 - Never write a backticked dotted token in agent, HANDBOOK or docs prose unless it is a registered event type (`event-type-drift.test.ts` reads every backticked dotted name as an event). The event is `explore.probed`; the command id `explore.probe` appears only in code.
 
 ## Review Focus
@@ -56,7 +57,7 @@
   export function decideProbe(diff: ProbeDiff): ProbeDecision;
   export function redactError(message: string): string;                     // URLs become <url>, cut to 120 chars
   export interface PageRef { role: string; url: string }
-  export function selectPages(entries: unknown, baseOrigin: string): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> };
+  export function selectPages(entries: unknown, baseOrigin: string, extraSkip?: readonly RegExp[]): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> };   // extraSkip: aegis.config.json#discovery.skipPatterns, when present
   export interface SourceIdentity { head: string | null; dirtyHash: string | null }
   export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]): SourceIdentity;
   export function identityDiffers(a: SourceIdentity | undefined, b: SourceIdentity): string[];
@@ -88,13 +89,17 @@ describe('signatureOf', () => {
     expect(signatureOf(raw({ consoleErrors: ['Failed to load resource: 404 /favicon.ico'] })).hasErrors).toBe(false);
     expect(signatureOf(raw({ consoleErrors: ['TypeError: x is undefined'] })).hasErrors).toBe(true);
   });
+  it('UUID and hash test ids are data: card-<uuid> rows are the same structure', () => {
+    const a = signatureOf(raw({ testids: ['card-3f9a1c2e-0b1d-4e5f-8a9b-1c2d3e4f5a6b'] }));
+    expect(a.testidHash).toBe(signatureOf(raw({ testids: ['card-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', 'card-11111111-2222-3333-4444-555555555555'] })).testidHash);
+  });
 });
 
 describe('compareSignatures and decideProbe', () => {
   const four = [raw(), raw({ url: '/events', title: 'Events' }), raw({ role: 'admin', url: '/admin' }), raw({ url: '/profile', status: 500, consoleErrors: ['boom'], testids: [] })].map(signatureOf);
 
-  it('same structure with different data is same: reuse', () => {
-    const now = [raw({ title: 'Home (9 new)', testids: ['nav', 'row-7'] }), raw({ url: '/events', title: 'Events' }), raw({ role: 'admin', url: '/admin' }), raw({ url: '/profile', status: 500, consoleErrors: ['boom'], testids: [] })].map(observe);
+  it('same structure with different data (other row ids) is same: reuse', () => {
+    const now = [raw({ testids: ['nav', 'row-7'] }), raw({ url: '/events', title: 'Events' }), raw({ role: 'admin', url: '/admin' }), raw({ url: '/profile', status: 500, consoleErrors: ['boom'], testids: [] })].map(observe);
     const diff = compareSignatures(four, now);
     expect(diff).toMatchObject({ same: 4, changed: [], failed: [], total: 4 });
     expect(decideProbe(diff)).toBe('reuse');
@@ -145,8 +150,11 @@ describe('selectPages', () => {
     expect(r.pages).toEqual([{ role: 'volunteer', url: '/home' }, { role: 'admin', url: '/volunteers?status=new' }]);
     expect(r.skipped.map((s) => s.reason).sort()).toEqual(['dynamic route pattern', 'dynamic route pattern', 'logout-like route', 'logout-like route', 'other origin']);
   });
-  it('is empty for anything that is not an array', () => {
+  it('is empty for anything that is not an array; never throws on a stray % or a bad base; honours extra skip patterns', () => {
     expect(selectPages(undefined, 'https://app.test')).toEqual({ pages: [], skipped: [] });
+    expect(selectPages([{ role: 'a', route: '/discount/100%' }], 'https://app.test').pages).toEqual([{ role: 'a', url: '/discount/100%' }]);
+    expect(selectPages([{ role: 'a', route: '/x' }], '${PREVIEW_URL}').skipped).toEqual([{ role: 'a', route: '/x', reason: 'invalid page address' }]);
+    expect(selectPages([{ role: 'a', route: '/unsubscribe?t=1' }], 'https://app.test', [/unsubscribe/]).skipped[0]?.reason).toBe('skip pattern');
   });
 });
 
@@ -184,9 +192,9 @@ describe('sourceIdentity', () => {
     fs.writeFileSync(path.join(dir, '.gitignore'), '.env.local\n');
     git('add', '.gitignore');
     const beforeEnv = sourceIdentity(dir, []);
-    fs.writeFileSync(path.join(dir, '.env.local'), 'SECRET=abc');
+    fs.writeFileSync(path.join(dir, '.env.local'), 'SECRET=zq-not-hex-secret');
     expect(sourceIdentity(dir, [])).toEqual(beforeEnv);
-    expect(JSON.stringify(sourceIdentity(dir, []))).not.toContain('abc');
+    expect(JSON.stringify(sourceIdentity(dir, []))).not.toContain('zq-not-hex-secret');
   });
 
   it('leaves out the excluded directories; a non-git directory gives null parts', () => {
@@ -246,8 +254,9 @@ export interface PageSignature {
 }
 export type Observed = PageSignature | { role: string; url: string; error: string };
 
-/** Text that is data, not structure: digits become `#` so a counter, a date or a row count is not a change. */
-const flat = (s: unknown): string => String(s ?? "").replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+/** Text that is data, not structure: UUIDs, long hex ids and digits become `#` so a counter, a date, a row id or a row count is not a change. */
+const ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{12,}/gi;
+const flat = (s: unknown): string => String(s ?? "").replace(ID, "#").replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
 const NOISE = /failed to load resource|favicon/i;
 
 export function signatureOf(raw: RawPage): PageSignature {
@@ -320,7 +329,7 @@ const LOGOUT = /(?:^|\/)(?:log-?out|sign-?out|switch-profile)(?:[/?#]|$)/i;
  * The concrete pages a probe visits, from a discovery report's `pages` array: each entry needs a role and a `url` or `route`.
  * Other origins, route patterns (`/x/[id]`) and logout-like routes (a GET there changes the session) are skipped and named.
  */
-export function selectPages(entries: unknown, baseOrigin: string): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> } {
+export function selectPages(entries: unknown, baseOrigin: string, extraSkip: readonly RegExp[] = []): { pages: PageRef[]; skipped: Array<{ role: string; route: string; reason: string }> } {
   const pages: PageRef[] = [];
   const skipped: Array<{ role: string; route: string; reason: string }> = [];
   const seen = new Set<string>();
@@ -340,9 +349,20 @@ export function selectPages(entries: unknown, baseOrigin: string): { pages: Page
       }
       path = u.pathname + u.search;
     } catch {
+      skipped.push({ role, route: where.slice(0, 80), reason: "invalid page address" });
       continue;
     }
-    if (DYNAMIC.test(decodeURIComponent(where)) || DYNAMIC.test(path)) {
+    let decoded = path;
+    try {
+      decoded = decodeURIComponent(path);
+    } catch {
+      // keep the raw path: a stray % must not throw
+    }
+    if (extraSkip.some((re) => re.test(decoded))) {
+      skipped.push({ role, route: path, reason: "skip pattern" });
+      continue;
+    }
+    if (DYNAMIC.test(decoded)) {
       skipped.push({ role, route: path, reason: "dynamic route pattern" });
       continue;
     }
@@ -375,11 +395,11 @@ function git(dir: string, args: string[]): string | null {
  * Where the app source stands: the commit and a hash of every uncommitted change (modified, deleted, renamed and untracked-not-ignored
  * files, by path and content). Gitignored files, including `.env*`, are not read. `excludeDirs` (target-relative) leave out the QA tree
  * and the tests directory, which change every round. A directory that is not a git checkout gives null parts.
- * Call it outside run.lock: hashing a large dirty tree is synchronous.
+ * Call it outside run.lock: hashing a large dirty tree is synchronous. It never throws.
  */
 export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]): SourceIdentity {
   const head = git(targetDir, ["rev-parse", "HEAD"])?.trim() ?? null;
-  const changed = git(targetDir, ["diff", "HEAD", "--name-only", "-z"]);
+  const changed = git(targetDir, ["diff", "HEAD", "--name-only", "--relative", "-z"]);
   const untracked = git(targetDir, ["ls-files", "--others", "--exclude-standard", "-z"]);
   if (head === null || changed === null || untracked === null) return { head, dirtyHash: null };
   const skip = (p: string): boolean => excludeDirs.some((d) => d !== "" && (p === d || p.startsWith(`${d}/`)));
@@ -388,7 +408,17 @@ export function sourceIdentity(targetDir: string, excludeDirs: readonly string[]
   for (const p of names) {
     const abs = join(targetDir, p);
     h.update(p).update("\0");
-    h.update(existsSync(abs) && statSync(abs).isFile() ? readFileSync(abs) : "deleted").update("\0");
+    try {
+      if (!existsSync(abs) || !statSync(abs).isFile()) h.update("deleted");
+      else {
+        const st = statSync(abs);
+        // A huge file is hashed by size and mtime, not read into memory.
+        h.update(st.size > 5 * 1024 * 1024 ? `big:${st.size}:${st.mtimeMs}` : readFileSync(abs));
+      }
+    } catch {
+      h.update("unreadable"); // an unreadable file must not stop Explore from completing
+    }
+    h.update("\0");
   }
   return { head, dirtyHash: h.digest("hex") };
 }
@@ -402,7 +432,7 @@ export function identityDiffers(a: SourceIdentity | undefined, b: SourceIdentity
 - [ ] **Step 4: Run it to see it pass**
 
 Run: `pnpm build && cd __internal-tests__ && npx jest explore-identity`
-Expected: PASS. (`sig` in the test file is a convenience helper: drop it if unused.) A rename shows in `git diff HEAD --name-only` as the new path and the old path as a deletion; the test only needs the hash to change.
+Expected: PASS. (`sig` in the test file is a convenience helper: drop it if unused.) With rename detection `--name-only` lists the new path; the test only needs the hash to change.
 
 - [ ] **Step 5: Commit**
 
@@ -427,22 +457,26 @@ git commit -m "feat(explore): page signatures, comparison, decision, page select
   export interface PageFetcher { visit(page: PageRef): Promise<RawObservation>; close(): Promise<void> }
   export type FetcherFactory = () => Promise<PageFetcher>;     // may throw: the probe turns that into decision full
   export interface BaselineResult { runId: string; pages: number; skipped: number; unavailable: string | null; report: string }
-  export async function takeBaseline(root: string, runId: string, caller: string, factory: FetcherFactory, now?: Date): Promise<BaselineResult>
+  export const PROBE_BUDGET_MS = 480_000;   // wall-clock budget of one visit loop; the Bash call has a 600 s ceiling
+  export interface ProbeOptions { now?: Date; budgetMs?: number }
+  export async function takeBaseline(root: string, runId: string, caller: string, factory: FetcherFactory, opts?: ProbeOptions): Promise<BaselineResult>
   export interface ProbeResult { runId: string; decision: ProbeDecision; reason: string | null; diff: ProbeDiff; hints: string[]; reopened: string[]; report: string }
-  export async function probeExplore(root: string, runId: string, caller: string, factory: FetcherFactory, now?: Date): Promise<ProbeResult>
+  export async function probeExplore(root: string, runId: string, caller: string, factory: FetcherFactory, opts?: ProbeOptions): Promise<ProbeResult>
   ```
-- Files: `reports/explore/baseline.json` = `{ takenAt, baseUrl, pages: PageSignature[], skipped, unavailable, identity }`; `reports/explore/probe.json` = `{ decidedAt, decision, reason, diff, hints, reopened, changedPages: [{role, url}] }`.
+- Files: `reports/explore/baseline.json` = `{ takenAt, baseUrl, pages: PageSignature[], skipped, unavailable, identity }`; `reports/explore/probe.json` = `{ decidedAt, decision, reason, diff, hints, reopened, changedPages: [{role, url}] }` (`changedPages` lists the `changed` pages and the `failed` ones: the diff-mode brief needs both). `baseline.json` adds `roles` and `discoveryConfigHash` (see Behaviour).
 - Event `explore.probed { agent, mode: "baseline"|"verify", decision: "reuse"|"partial"|"full"|"none", pages, same, changed, failed, hints }` (`decision` is `none` for a baseline). CLI-recorded.
 
 Behaviour to implement:
 
-- `takeBaseline`: caller allowed (`assertCallerAllowed(caller, "explore.probe")`); refuses unless `phases.explore.status === "in-progress"` (`invalid-input`: "the baseline is taken while Explore is in progress, after the explorer's review passed"). Reads `discovery-report.json` leniently (a missing or unparsable file or no `pages` array gives `pages: 0` and `unavailable: "<reason>"`, never throws), the base URL from the run's environment in `aegis.config.json`, the roles from `env-auth-report.json#roles[]` (an entry without `storageState` is an unauthenticated role; a page whose role is not listed is skipped with reason `role without auth state`). Calls `selectPages`, builds the fetcher inside try/catch (a failure sets `unavailable`), visits pages one at a time, writes `baseline.json` (with `identity` from `sourceIdentity`, computed before taking any lock), appends the event under `commitRun`/`withRunLock` only for the short write, never while visiting.
-- `probeExplore`: caller allowed; under the lock check `phases.explore.carried === true` else `invalid-input` ("discovery is not carried over in this run: nothing to verify"); release the lock; build the fetcher (failure: decision `full`, reason is the redacted message); read `baseline.json` (missing, `unavailable` set, or zero pages: decision `full`, reason says so); visit every baseline page; `compareSignatures` + `decideProbe`; compute `sourceIdentity` outside the lock; then under the lock re-check `carried`, and in one `commitRun` do: when the decision is not `reuse`, reopen the explorer's tasks with `reopenPhaseTasks(root, runId, state, new Set(["explore"]), ts, (t) => t.assignee !== "qa-web-explorer")` (a fresh attempt count: it records the earlier attempts as superseded); set `phases.explore = { ...record, identity }` with `carried` removed; write `probe.json`; append the event. Always closes the fetcher, also when a visit throws (a throwing visit becomes an `error` observation).
+- `takeBaseline`: caller allowed (`assertCallerAllowed(caller, "explore.probe")`); refuses unless `phases.explore.status === "in-progress"` (`invalid-input`: "the baseline is taken while Explore is in progress, after the explorer's review passed") and refuses while `carried` is still true ("verify the carried discovery first"). Resolves the environment URL first (an unresolved `${VAR}` sets `unavailable` before any page is selected), then reads `discovery-report.json` leniently (a missing or unparsable file or no `pages` array gives `pages: 0` and `unavailable: "<reason>"`, never throws), the base URL from the run's environment in `aegis.config.json`, the roles from `env-auth-report.json#roles[]` (an entry without `storageState` is an unauthenticated role; a page whose role is not listed is skipped with reason `role without auth state`). Calls `selectPages` (extra skip patterns from `aegis.config.json#discovery.skipPatterns` when present), builds the fetcher inside try/catch (a failure sets `unavailable`), visits pages one at a time, writes `baseline.json` (with `identity` from `sourceIdentity`, computed before taking any lock), appends the event under `commitRun`/`withRunLock` only for the short write, never while visiting.
+- `probeExplore`: caller allowed; under the lock check `phases.explore.status === "in-progress"` (the probe runs after Env-auth has completed again and Explore has started, so the storage states are current) and `phases.explore.carried === true`, else `invalid-input` ("discovery is not carried over in this run: nothing to verify"); release the lock; build the fetcher (failure: decision `full`, reason is the redacted message); read `baseline.json` (missing, `unavailable` set, or zero pages: decision `full`, reason says so); visit every baseline page; `compareSignatures` + `decideProbe`; compute `sourceIdentity` outside the lock; then under the lock re-check `carried`, and in one `commitRun` do: when the decision is not `reuse`, reopen the explorer's tasks with `reopenPhaseTasks(root, runId, state, new Set(["explore"]), ts, (t) => t.assignee !== "qa-web-explorer")` (a fresh attempt count: it records the earlier attempts as superseded); set `phases.explore = { ...record, identity }` with `carried` removed; write `probe.json`; append the event. Always closes the fetcher, also when a visit throws (a throwing visit becomes an `error` observation).
+- Time budget: the visit loop stops when `budgetMs` (default `PROBE_BUDGET_MS`, 8 minutes) has elapsed, and also races each visit against the remaining budget; pages not visited become `{ error: "not observed (time budget)" }`, so a slow app gives `partial` or `full` and the call always returns before the Bash limit kills it (a killed call would record nothing and leave `carried` set).
+- Roles and discovery config: `baseline.json` also stores `roles` (each role name and whether it has a storage state) and `discoveryConfigHash` (a hash of `aegis.config.json#discovery`, or of `null` when absent). The probe reads the current `env-auth-report.json` roles and config the same way: any difference (a role newly logged in or gone, a changed entry point, role list or skip pattern) gives decision `full` with a reason, since Env-auth is in the typical reopen range and a role that was skipped before would never be explored.
 - Both functions: the report file is written before the commit and overwritten on a retry; a failed event append leaves `carried` set so the call can be repeated.
 
 - [ ] **Step 1: Write the failing test**
 
-Use the helpers the lint and gate tests use (`makeAegisRoot` and a run created with `createRun`; read `__internal-tests__/run-state-gates.test.ts` for `workTask`/`fastForward` and how the explorer task is made done). Make the target a real temp git repo by writing `targetProjectRoot` into the test's `aegis.config.json` (the helper leaves it as `..`). Seed `discovery-report.json` with `pages` (at least four entries with `role`, `url`), `env-auth-report.json` with `roles[{role, storageState}]` and one role without a state. Fake `PageFetcher` from a map of url to `RawPage`. Tests:
+Use the helpers the lint and gate tests use (`makeAegisRoot` and a run created with `createRun`; read `__internal-tests__/run-state-gates.test.ts` for `workTask`/`fastForward` and how the explorer task is made done). Make the target a real temp git repo by writing `targetProjectRoot` into the test's `aegis.config.json` (the helper leaves it as `..`). Seed `discovery-report.json` with `pages` (at least four entries with `role`, `url`), `env-auth-report.json` with `roles[{role, storageState}]` and one role without a state. Fake `PageFetcher` from a map of url to `RawPage`. Task 3 is what sets `carried` and `identity` in real runs, so these tests seed them: read the run with `readRun`, set `phases.explore = { status: "in-progress", startedAt, carried: true, identity }` and write it back with `writeRun`, with the explorer task (`qa-web-explorer`) done and the other explore task pending. Tests:
 
 ```ts
 it('baseline: stores one signature per concrete page, names what it skipped, records identity, one event; refuses outside Explore in-progress', async () => { /* ... */ });
@@ -463,6 +497,12 @@ it('hints: an edited working tree is reported as a hint next to a reuse decision
 it('refuses when discovery is not carried and for a caller that is not the orchestrator or the owner, before any fetcher is built', async () => { /* factory is a jest.fn that must not be called */ });
 
 it('closes the fetcher exactly once, also when a visit throws (that page becomes failed)', async () => { /* ... */ });
+
+it('a fetcher that never resolves: the call returns within the budget (use budgetMs: 200), unvisited pages are failed with the time-budget reason, the decision is partial or full and carried is removed', async () => { /* ... */ });
+
+it('a changed role set (a role newly in env-auth-report, or a role without a storage state before) or a changed discovery config gives full with a reason, even when every visited page matches', async () => { /* ... */ });
+
+it('the probe refuses while Explore is not in progress; the baseline refuses while carried', async () => { /* ... */ });
 ```
 
 - [ ] **Step 2: Run it to see it fail**
@@ -524,7 +564,7 @@ Behaviour to implement:
 - `--re-explore` is refused (`invalid-input`) unless the decision is `rejected` and the reopened range includes `explore` (mirror the range check in `gates.ts` around the `reopenedPhaseIds` call); it is recorded as `reExplore: true` in the `gate.decided` event.
 - `startPhase`: when starting `explore`, keep `carried` and `identity` of the previous record: `{ status: "in-progress", startedAt: ts, ...(prev?.carried ? { carried: true } : {}), ...(prev?.identity ? { identity: prev.identity } : {}) }` (today it replaces the record, which would wipe the flag).
 - `barrierProblems` for `explore`: `state.phases["explore"]?.carried === true` adds `carried-over discovery has not been verified: run the explore probe (it compares the running app with the baseline and reopens the explorer when the app changed)`.
-- `completePhase` for `explore`: record `identity: sourceIdentity(target dir, [aegis dir and tests dir, both target-relative])` in the phase record; compute it before taking the run lock. The tests directory comes from the raw `aegis.config.json#testsDir` (`readRunConfig` does not expose it).
+- `completePhase` for `explore`: record `identity` in the phase record; compute it before taking the run lock and wrap the call so that any throw gives `{ head: null, dirtyHash: null }`. The excludes are `relative(targetDir, root)` (the aegis directory) and `relative(targetDir, resolve(root, testsDir))`, with `testsDir` read from the raw `aegis.config.json` (`readRunConfig` does not expose it; do not use `loadGuardContext`: its tests-dir check throws on a misconfigured value).
 - `/qa-gate-decide` skill: add `--re-explore` to the usage line, the argument table ("with a rejection that reopens Explore: do not reuse the earlier discovery") and the step that builds the CLI command.
 
 - [ ] **Step 1: Write the failing test** (drive a full run to an open G1 with a completed Explore with the gate helpers of `run-state-gates.test.ts`)
@@ -625,7 +665,7 @@ Read-only: only `goto`; one page at a time (gentle on a dev server).
 
 - [ ] **Step 4: The procedure**
 
-`qa-orchestrator.md`, Explore step: (1) after Env-auth, when Explore is carried (the CLI status shows it), start Explore, then run the probe with a long Bash timeout (600000 ms; the default 2 minutes is short for 60+ pages); (2) `reuse`: dispatch no explorer; the exploratory-session tasks the rejection reopened are dispatched again as usual (a task that was claimed once cannot be cancelled; skipping unchanged stories is a later slice); `partial`: the explorer task is already reopened: put the changed pages of the probe report in its brief and tell it to work in diff mode over exactly those pages; `full`: the explorer task is reopened and explores in full; (3) every time the explorer's work passed its SPV, run the baseline command before completing Explore (a failed baseline is not an error: it only makes the next probe answer `full`). Contract `cli:` gets the explore probe command. In `qa-web-explorer.md`: each `pages[]` entry of `discovery-report.json` carries `role`, `url` (the concrete same-origin URL visited, never a route pattern) and `route`; **diff mode**: given a changed-page list in the brief, crawl only those pages and any new links found from them, merge into `discovery-report.json` keeping every other entry as recorded; no list: full BFS as today. SPV checklist as above. HANDBOOK/04: one paragraph (baseline at acceptance, carried discovery, the three decisions, the owner flags, the limits). No backticked `aegis ...` command in agent prose outside a contract; the align ratchet stays 207.
+`qa-orchestrator.md`, Explore step: (1) after Env-auth, when Explore is carried (the CLI status shows it), start Explore, then run the probe with a long Bash timeout (600000 ms; the default 2 minutes is short for 60+ pages); (2) `reuse`: dispatch no explorer; the exploratory-session tasks the rejection reopened are dispatched again as usual (a task that was claimed once cannot be cancelled; skipping unchanged stories is a later slice); `partial`: the explorer task is already reopened: put the changed pages of the probe report in its brief and tell it to work in diff mode over exactly those pages; `full`: the explorer task is reopened and explores in full; (3) every time the explorer's work passed its SPV, run the baseline command before completing Explore (a failed baseline is not an error: it only makes the next probe answer `full`). Contract `cli:` gets the explore probe command and `reads:` gets `reports/explore/probe.json` (so the align ratchet does not grow). In `qa-web-explorer.md`: each `pages[]` entry of `discovery-report.json` carries `role`, `url` (the concrete same-origin URL visited, never a route pattern) and `route`; **diff mode**: given a changed-page list in the brief, crawl only those pages and any new links found from them, merge into `discovery-report.json` keeping every other entry as recorded; no list: full BFS as today. SPV checklist as above. HANDBOOK/04: one paragraph (baseline at acceptance, carried discovery, the three decisions, the owner flags, the limits). No backticked `aegis ...` command in agent prose outside a contract, and no backticked dotted token such as `phases.explore.carried` in agent or HANDBOOK prose (the drift test reads it as an event type); the align ratchet stays 207.
 
 - [ ] **Step 5: Run the whole gate, then verify the fetcher by hand once**
 
