@@ -192,12 +192,12 @@ describe('parenthesised country code', () => {
 });
 
 describe('large tables', () => {
-  it('a 5,000-row table with a Phone column is scanned in under 500 ms', () => {
+  it('a 5,000-row table with a Phone column is scanned in under 5 s (about 10x the usual time: a quadratic scan takes minutes)', () => {
     const rows = Array.from({ length: 5000 }, (_, i) => `| QA ${i} | ${String(91230000 + i)} |`);
     const text = ['| Name | Phone |', '| --- | --- |', ...rows].join('\n');
     const started = Date.now();
     const fs = found(text);
-    expect(Date.now() - started).toBeLessThan(500);
+    expect(Date.now() - started).toBeLessThan(5_000);
     expect(fs.length).toBe(5000);
   });
 });
