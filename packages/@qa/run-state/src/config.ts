@@ -4,6 +4,11 @@ import { COMPLIANCE_REGULATIONS, isReadOnlyEnvironment, localPortsOf, type Envir
 import { RunStateError } from "./errors.js";
 import { assertMessagingConfig, type MessagingConfig } from "./messaging.js";
 
+/** How the executor dispatches specialists (aegis.config.json#execution.dispatchMode); absent means batch. */
+export type DispatchMode = "batch" | "continuous";
+export const DISPATCH_MODES: readonly DispatchMode[] = ["batch", "continuous"];
+const EXECUTION_KEYS: readonly string[] = ["dispatchMode"];
+
 export interface AegisSettings {
   maxSpecialists: number;
   environments: string[];
@@ -13,6 +18,7 @@ export interface AegisSettings {
 
 interface RawConfig {
   parallelism?: { maxSpecialists?: unknown };
+  execution?: unknown;
   environments?: Record<string, unknown>;
 }
 
@@ -34,6 +40,38 @@ export function readSettings(root: string): AegisSettings {
       .filter(([, env]) => env !== null && typeof env === "object" && isReadOnlyEnvironment(env as EnvironmentSpecialistConfig))
       .map(([name]) => name),
   };
+}
+
+/**
+ * aegis.config.json#execution.dispatchMode, validated lazily (fix 4, m4): read only where it is used (aegis task next, the
+ * dispatch check, a specialist claim) and at run create for the owner, never by readSettings, so a typo under `execution`
+ * never breaks env exec, the seed check or a non-specialist claim. Absent (or no execution block) is batch; any other value,
+ * a non-object block or an unknown key is refused by name. batch: one wave up to the cap, its SPVs once the whole wave
+ * returned, then the next wave; continuous: refill a slot as it frees, review alongside.
+ */
+export function readDispatchMode(root: string): DispatchMode {
+  let raw: RawConfig;
+  try {
+    raw = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as RawConfig;
+  } catch (e) {
+    throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
+  }
+  return dispatchModeOf(raw.execution);
+}
+
+function dispatchModeOf(execution: unknown): DispatchMode {
+  if (execution === undefined) return "batch";
+  if (execution === null || typeof execution !== "object" || Array.isArray(execution)) {
+    throw new RunStateError("invalid-input", "aegis.config.json#execution must be an object, for example {\"dispatchMode\": \"batch\"}");
+  }
+  const unknown = Object.keys(execution).filter((k) => !EXECUTION_KEYS.includes(k));
+  if (unknown.length > 0) {
+    throw new RunStateError("invalid-input", `aegis.config.json#execution has unknown key(s) ${unknown.map((k) => JSON.stringify(k)).join(", ")}; the only key is "dispatchMode" ("batch", the default, or "continuous")`);
+  }
+  const mode = (execution as { dispatchMode?: unknown }).dispatchMode;
+  if (mode === undefined) return "batch";
+  if (typeof mode === "string" && (DISPATCH_MODES as readonly string[]).includes(mode)) return mode as DispatchMode;
+  throw new RunStateError("invalid-input", `aegis.config.json#execution.dispatchMode must be "batch" (the default) or "continuous", not ${JSON.stringify(mode)}`);
 }
 
 export interface RunConfig {

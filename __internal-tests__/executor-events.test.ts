@@ -88,6 +88,8 @@ describe('the executor appends its specialist events', () => {
       const env = { ...process.env, AEGIS_AGENT: EXEC, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
       return spawnSync(process.execPath, [CLI, 'event', 'append', '--type', type, '--json', JSON.stringify(fields)], { cwd: t.root, encoding: 'utf-8', env });
     };
+    // item 1: the dispatch reserves a slot for an existing task of that specialist, so the task is added first
+    expect(spawnSync(process.execPath, [CLI, 'task', 'add', '--id', DISPATCHED.taskId, '--title', 'dispatch', '--agent', DISPATCHED.specialistName], { cwd: t.root, encoding: 'utf-8', env: { ...process.env, AEGIS_AGENT: EXEC, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') } })).toMatchObject({ status: 0 });
     expect(aegis('specialist.dispatched', DISPATCHED)).toMatchObject({ status: 0 });
     expect(aegis('specialist.completed', COMPLETED)).toMatchObject({ status: 0 });
     expect(readLines(busPath(t.root, runId)).slice(-2).map((l) => JSON.parse(l).type)).toEqual(['specialist.dispatched', 'specialist.completed']);

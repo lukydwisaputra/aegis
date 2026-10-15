@@ -2,7 +2,7 @@
 // H1 guard-writes (P0 spec §4.2): PreToolUse on Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task.
 // The hook payload arrives as JSON on stdin. Exit 2 with the reason on stderr denies the call; a warning goes to stdout
 // as {"systemMessage": …} with exit 0 (never a permissionDecision: the normal permission flow still applies).
-import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, statSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, openSync, readFileSync, readlinkSync, readSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -174,6 +174,14 @@ const isSubagent = isSubagentId(input.agent_id);
 const agentId = !isSubagent ? null : typeof input.agent_id === "string" ? input.agent_id : JSON.stringify(input.agent_id);
 const agentType = !isSubagent ? null : typeof input.agent_type === "string" && input.agent_type !== "" ? input.agent_type : "unknown-subagent";
 const isQa = isSubagent && /^qa-[a-z0-9-]+$/.test(agentType);
+// The Claude Code session of this call: the payload's session_id, else the session transcript's file name (<session>.jsonl).
+const session =
+  typeof input.session_id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(input.session_id)
+    ? input.session_id
+    : typeof input.transcript_path === "string" && /\/([A-Za-z0-9_-]{1,128})\.jsonl$/.test(input.transcript_path)
+      ? /\/([A-Za-z0-9_-]{1,128})\.jsonl$/.exec(input.transcript_path)[1]
+      : undefined;
+const withSession = (entry) => (session === undefined ? entry : { ...entry, session });
 const cwd = typeof input.cwd === "string" && isAbsolute(input.cwd) ? canonical(input.cwd) : null;
 const payload = { ...input, ...(cwd !== null ? { cwd } : {}) };
 
@@ -200,6 +208,71 @@ function fixFor(message) {
   return "rebuild with pnpm build, and report it if it persists";
 }
 
+/** At most one heartbeat ledger entry per qa-* instance in this window. */
+const HEARTBEAT_EVERY_MS = 30_000;
+/** How much of the ledger's end the throttle reads for this instance's latest heartbeat. */
+const HEARTBEAT_TAIL_BYTES = 64 * 1024;
+
+/**
+ * Append `{kind: "heartbeat"}` for this instance to the active run's hook ledger, unless the ledger's last 64 KB already hold
+ * one of its heartbeats from the last 30 s. A heartbeat stamped in the future (the clock stepped back) counts as expired, and
+ * a heartbeat further back than the tail only costs one extra line; no marker file is kept. It fires only on the calls this
+ * hook's matcher covers (Write, Edit, MultiEdit, NotebookEdit, Bash, Agent, Task), never on Read, Grep, Glob, Skill or MCP
+ * calls. Best-effort: it never fails, delays or denies the tool call.
+ */
+function heartbeat(runId) {
+  try {
+    if (!/^RUN-\d{8}-\d{3}$/.test(runId) || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId)) return;
+    const file = join(RUNS, runId, "hooks", "agents.jsonl");
+    const now = Date.now();
+    let tail = "";
+    try {
+      const size = statSync(file).size;
+      const fd = openSync(file, "r");
+      try {
+        const len = Math.min(size, HEARTBEAT_TAIL_BYTES);
+        const buf = Buffer.alloc(len);
+        readSync(fd, buf, 0, len, size - len);
+        tail = buf.toString("utf-8");
+      } finally {
+        closeSync(fd);
+      }
+    } catch {
+      // no ledger yet: first entry of the run
+    }
+    const mine = `"agentId":${JSON.stringify(agentId)}`;
+    for (const line of tail.split("\n").reverse()) {
+      if (!line.includes('"kind":"heartbeat"') || !line.includes(mine)) continue;
+      let age;
+      try {
+        age = now - Date.parse(JSON.parse(line).ts);
+      } catch {
+        continue; // a torn line: keep looking
+      }
+      if (age >= 0 && age < HEARTBEAT_EVERY_MS) return;
+      break; // its latest heartbeat is older, or in the future: write a new one
+    }
+    pg.appendLedger(ROOT, runId, withSession({ ts: new Date(now).toISOString(), agentId, agentType, kind: "heartbeat" }));
+  } catch {
+    // liveness is best-effort; the guard decision never depends on it
+  }
+}
+
+/** A main-thread Bash call that runs `aegis run resume`: record the resuming session in that run's ledger. Best-effort. */
+function recordResume(activeRunId, ts) {
+  try {
+    const ti = input.tool_input;
+    const command = input.tool_name === "Bash" && ti !== null && typeof ti === "object" && typeof ti.command === "string" ? ti.command : "";
+    if (!/\baegis\s+run\s+resume\b/.test(command)) return;
+    const named = /--run[\s=]+(RUN-\d{8}-\d{3})\b/.exec(command);
+    const runId = named !== null ? named[1] : activeRunId;
+    if (typeof runId !== "string" || !/^RUN-\d{8}-\d{3}$/.test(runId) || !existsSync(join(RUNS, runId, "run.json"))) return;
+    pg.appendLedger(ROOT, runId, { ts, agentId: "main", agentType: "owner", kind: "run-resume", session });
+  } catch {
+    // best-effort: liveness falls back to the time rule without it
+  }
+}
+
 let pg;
 let caller;
 try {
@@ -221,6 +294,8 @@ try {
     ...(loaded.collectorRoot !== undefined ? { collectorRoot: canonical(loaded.collectorRoot) } : {}),
     ...(Array.isArray(loaded.nativeWorktrees) ? { nativeWorktrees: loaded.nativeWorktrees.map(canonical) } : {}),
   };
+  // Item 1 fix 2: a call of a qa-* instance this hook sees is a sign of life (liveness in @qa/run-state claim-holder.ts).
+  if (isQa && typeof ctx.activeRunId === "string") heartbeat(ctx.activeRunId);
   const result = pg.decide(payload, ctx, {
     cliAllowed(who, command) {
       if (!caller.CLI_COMMANDS.includes(command)) return null;
@@ -240,9 +315,11 @@ try {
   if (isSubagent) {
     for (const { taskId, runId: named } of result.claims) {
       const runId = named === null ? ctx.activeRunId : /^RUN-\d{8}-\d{3}$/.test(named) && existsSync(join(RUNS, named, "run.json")) ? named : null;
-      if (runId !== null) pg.appendLedger(ROOT, runId, { ts, agentId, agentType, kind: "claim", taskId });
+      if (runId !== null) pg.appendLedger(ROOT, runId, withSession({ ts, agentId, agentType, kind: "claim", taskId }));
     }
   }
+  // Fix 4 (m2): the session that resumes a run. At its run.resumed, the instances of other sessions (a dead session's) end.
+  if (!isSubagent && session !== undefined) recordResume(ctx.activeRunId, ts);
   // Decision 24: a legacy skill's main-thread run write is allowed, but logged and announced.
   for (const w of result.warnings) {
     warnings.push(`legacy direct run write by ${w.skills.join(" or ")} to ${w.path}; allowed until that skill moves onto the CLI (LEGACY_MAIN_THREAD_RUN_WRITES)`);

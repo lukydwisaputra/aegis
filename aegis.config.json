@@ -18,6 +18,7 @@
   "preCycleHealthCheck": true,
   "compliance": ["iso25010", "iso5055", "istqb", "cmmi", "gdpr", "pdpa"],
   "parallelism": { "maxSpecialists": 2 },
+  "execution": { "dispatchMode": "batch" },
   "intake": { "sources": [] },
   "target": {
     "platform": "generic",

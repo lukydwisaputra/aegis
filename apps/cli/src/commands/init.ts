@@ -168,6 +168,7 @@ function scaffoldConfig(aegisDir: string, targetRoot: string, opts: InitOptions)
     messaging: defaultMessagingConfig(opts.messaging),
     compliance: opts.compliance.split(","),
     parallelism: { maxSpecialists: 4 },
+    execution: { dispatchMode: "batch" },
     intake: { sources: [] },
     ports: {
       dashboard: 3030,

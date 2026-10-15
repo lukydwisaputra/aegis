@@ -2,12 +2,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ReviewSchema } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { appendLedger, readRunLedger, roleOf, type LedgerEntry } from "@qa/path-guard";
+import { appendLedger, roleOf, type LedgerEntry } from "@qa/path-guard";
 import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, pairedSpv } from "./caller.js";
+import { claimHolder, readEffectiveLedger } from "./claim-holder.js";
 import { RunStateError } from "./errors.js";
 import { busPath, readActiveRun, taskmasterDir } from "./paths.js";
 import { reviewDir, workDir } from "./submit.js";
+import { inFlightOf, readNextTasks } from "./task-next.js";
 import { freshAttempt, releaseTask } from "./tasks.js";
 import { transcriptUsage } from "./token-usage.js";
 import { iso } from "./util.js";
@@ -37,40 +39,46 @@ const WORK_FILE = /^(qa-[a-z0-9-]+)\.([A-Za-z0-9][A-Za-z0-9._-]*)\.(\d+)\.json$/
 
 const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf-8"));
 
-/** An instance has ended (H2 let it stop, or gave up blocking it) at or after `since`. */
-function endedSince(runLedger: LedgerEntry[], agentId: string, since: number): boolean {
-  return runLedger.some((e) => e.agentId === agentId && (e.kind === "stopped" || e.kind === "stop-unresolved") && Date.parse(e.ts) >= since);
-}
+const isHeldBy = (task: Task | null, agent: string): task is Task => task !== null && task.status === "in-progress" && task.claimedBy === agent;
+
+const EXECUTOR = "qa-test-executor";
 
 /**
- * m5: the instance whose claim the CLI granted for the task's current claim. H1 logs a claim in PreToolUse, before the
- * CLI runs, so a refused claim or `task claim --help` is in the ledger too. The holder is the latest ledger claim of
- * this task by this agent type at or before the task file's `claimedAt`; a later entry never produced that claim.
- * Fix-1 m1: once that holder has ended, the claim passes to the latest same-type instance that tried to claim the task
- * after `claimedAt` and has not ended (a resumed worker, which the CLI tells to continue without claiming). While the
- * holder is live, a parallel duplicate never inherits it. With no such successor the holder keeps it.
+ * Item 1: the executor dispatches in the background and holds its task until every specialist task is settled. Its stop before
+ * then gets the loop instruction (aegis task next --wait), never "submit your work report", which would prompt a summary written
+ * while specialists still run. During an escalation, a stop request or a block it may return once nothing it dispatched is in
+ * flight (its task stays claimed, as its prose says). Null lets this task through.
  */
-function claimHolder(runLedger: LedgerEntry[], task: Task, agentType: string): string | null {
-  const claimedAt = task.claimedAt === undefined ? NaN : Date.parse(task.claimedAt);
-  if (Number.isNaN(claimedAt)) return null;
-  const claims = runLedger.filter((e) => e.kind === "claim" && e.taskId === task.id && e.agentType === agentType);
-  let holder: LedgerEntry | null = null;
-  for (const e of claims) {
-    const ts = Date.parse(e.ts);
-    if (ts <= claimedAt && (holder === null || ts >= Date.parse(holder.ts))) holder = e;
+async function executorLoopProblem(root: string, runId: string, task: Task, noReport: string, out: StopVerdict, now?: Date): Promise<string | null> {
+  let v;
+  try {
+    v = await readNextTasks(root, runId, task.phase, now);
+  } catch (e) {
+    // Fix 5 (m1): a bad aegis.config.json#execution never traps the executor; the stop is let through and says why.
+    if (e instanceof RunStateError && /aegis\.config\.json/.test(e.message)) {
+      out.warnings.push(`executor loop guard off: ${e.message.split("\n")[0]}; stop allowed (the owner fixes aegis.config.json)`);
+      return null;
+    }
+    throw e;
   }
-  if (holder === null) return null;
-  if (!endedSince(runLedger, holder.agentId, Date.parse(holder.ts))) return holder.agentId;
-  let successor: LedgerEntry | null = null;
-  for (const e of claims) {
-    const ts = Date.parse(e.ts);
-    if (ts <= claimedAt || e.agentId === holder.agentId || endedSince(runLedger, e.agentId, ts)) continue;
-    if (successor === null || ts >= Date.parse(successor.ts)) successor = e;
+  const phase = v.phase ?? task.phase ?? "execution";
+  const wait = `AEGIS_AGENT=${EXECUTOR} pnpm aegis task next --phase ${phase} --wait 540`;
+  const inFlight = inFlightOf(v);
+  if (v.next === "blocked") {
+    if (inFlight.length === 0) return null;
+    return `the loop is blocked (${v.blockedBy}) but ${inFlight.join(", ")} are still in flight: dispatch nothing, wait until they finish (${wait}), then return to your dispatcher with task ${task.id} still claimed`;
   }
-  return (successor ?? holder).agentId;
+  if (v.next === "settled") return noReport;
+  const parts = [
+    ["running", [...v.running, ...v.dispatched]],
+    ["to dispatch", v.dispatch],
+    ["waiting for a slot", v.waiting],
+    ["awaiting their SPV", [...v.review, ...v.reviewing, ...v.held, ...v.redrive]],
+    ["to re-release failed", v.failedRelease],
+  ] as const;
+  const state = parts.filter(([, xs]) => xs.length > 0).map(([label, xs]) => `${label}: ${xs.map((e) => e.task).join(", ")}`).join("; ");
+  return `task ${task.id}: the specialist tasks of phase ${phase} are not settled (${state}); do not stop and do not write the summary yet. Run ${wait} and act on its next field (act: dispatch and review what it lists; wait: run it again)`;
 }
-
-const isHeldBy = (task: Task | null, agent: string): task is Task => task !== null && task.status === "in-progress" && task.claimedBy === agent;
 
 async function workerProblem(root: string, runId: string, input: StopInput, runLedger: LedgerEntry[], out: StopVerdict): Promise<string | null> {
   const agent = input.agentType;
@@ -81,7 +89,12 @@ async function workerProblem(root: string, runId: string, input: StopInput, runL
     if (!isHeldBy(task, agent)) continue;
     if (claimHolder(runLedger, task, agent) !== input.agentId) continue; // m5: not a claim the CLI granted to this instance
     const noReport = `task ${taskId} is still claimed by you and has no work report from this claim: submit it (AEGIS_AGENT=${agent} pnpm aegis work-report submit --file /dev/stdin), then release it (aegis task release --task ${taskId} --result done|failed) before you stop`;
-    if (freshAttempt(root, runId, agent, taskId) === null) return noReport;
+    if (freshAttempt(root, runId, agent, taskId) === null) {
+      if (agent !== EXECUTOR) return noReport;
+      const loop = await executorLoopProblem(root, runId, task, noReport, out, input.now);
+      if (loop === null) continue;
+      return loop;
+    }
     try {
       await releaseTask(root, runId, taskId, "done", agent, input.now);
       out.released.push(taskId);
@@ -192,7 +205,8 @@ export async function checkSubagentStop(root: string, input: StopInput): Promise
   const runId = readActiveRun(root);
   if (runId === null) return out;
   const role = roleOf(input.agentType);
-  const runLedger = readRunLedger(root, runId);
+  // Fix round 1 (M1): instances a resume left behind count as ended, as in aegis task next and task claim.
+  const runLedger = readEffectiveLedger(root, runId, input.now);
   const own = runLedger.filter((e) => e.agentId === input.agentId);
   let problem: string | null = null;
   if (role?.kind === "spv") {
