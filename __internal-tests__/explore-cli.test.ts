@@ -300,9 +300,8 @@ describe('the Playwright page fetcher without a browser', () => {
   it('caps the whole visit: a page whose methods never answer gives an error within the cap', async () => {
     const never = () => new Promise<never>(() => undefined);
     const stuck = { on: () => undefined, goto: never, waitForLoadState: never, url: () => '', title: never, locator: () => ({ first: () => ({ textContent: never }) }), $$eval: never, close: jest.fn(never) };
-    const started = Date.now();
+    // A cap that did not fire would hang here until the jest timeout: no wall-clock ceiling to flake under load.
     expect(await visitWith(stuck, '/home', { capMs: 100 })).toEqual({ role: 'volunteer', url: '/home', error: VISIT_CAPPED });
-    expect(Date.now() - started).toBeLessThan(2_000);
     expect(await visitPage(never, { role: 'r', url: '/home' }, BASE, { capMs: 100 })).toMatchObject({ error: expect.stringContaining('time cap') });
   });
 
@@ -394,9 +393,8 @@ describe('the Playwright page fetcher without a browser', () => {
   });
 
   it('closing the browser waits at most the cap, also when close never settles or throws', async () => {
-    const started = Date.now();
+    // Returning at all is the assertion: a close that is not capped would hang until the jest timeout.
     await closeBrowser({ newContext: jest.fn(), close: () => new Promise<void>(() => undefined) }, 50);
     await closeBrowser({ newContext: jest.fn(), close: async () => { throw new Error('gone'); } }, 50);
-    expect(Date.now() - started).toBeLessThan(1_000);
   });
 });

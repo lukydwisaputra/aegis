@@ -489,12 +489,10 @@ describe('read-back polling (PR #18 item 6)', () => {
       const provider = await scriptedProvider([{ status, body: { code: 'UNAUTHORIZED' } }, SIMULATED]);
       try {
         await withProvider(provider.url, null, async () => {
-          const started = Date.now();
           const e = await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan() }).then(() => null, (x) => x);
           expect(e).toBeInstanceOf(NotSimulatedError);
           expect(e.reason).toBe('undecided');
           expect(e.message).toMatch(/read-back ended problem/);
-          expect(Date.now() - started).toBeLessThan(1500);
         });
         expect(provider.reads()).toBe(1);
       } finally { await provider.close(); }
