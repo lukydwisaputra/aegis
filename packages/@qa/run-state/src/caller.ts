@@ -83,7 +83,7 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   // Gap 7: read-only, the defect headline numbers of the run's records.
   "metrics.defects",
   "metrics.rollups",
-  // The orchestrator writes every metric file before Closure-draft and before Executive; the owner may run it too.
+  // aegis phase start writes every metric file in-process at Closure-draft, Closure-final and Executive; the orchestrator and the owner may run it by hand to refresh.
   "metrics.all",
   "rtm.sync-defects",
   "rtm.render",
@@ -157,7 +157,7 @@ export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly st
   // nothing, enforced in writeRollups). No other agent runs either: the orchestrator runs metrics all.
   "metrics.coverage": [],
   "metrics.rollups": ["qa-defect-manager"],
-  // aegis metrics all writes the six metric files (the retired collector's job): the orchestrator, before Closure-draft and Executive.
+  // aegis metrics all writes the six metric files (no agent does: the retired collector agent only ran this command). aegis phase start runs it at Closure-draft, Closure-final and Executive; the orchestrator runs it by hand to refresh.
   "metrics.all": ["qa-orchestrator"],
   "env.exec": ENV_EXEC_AGENTS,
   "env.check": ENV_EXEC_AGENTS,
