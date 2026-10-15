@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { appendChained, EventBusRefusal } from "@qa/event-bus";
 import { AegisEventSchema } from "@qa/contracts";
-import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, RunStateError, trimOverlong } from "@qa/run-state";
+import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, readRunConfig, RunStateError, trimOverlong } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 export function eventCommand(): Command {
@@ -27,7 +27,16 @@ export function eventCommand(): Command {
         if (typeof fields !== "object" || fields === null || Array.isArray(fields)) {
           throw new RunStateError("invalid-input", "--json must be a JSON object");
         }
-        assertEventConsistent(o.type, fields as Record<string, unknown>);
+        // The owner's recorded exceptions (reportRules.disable) are read only for the one type that checks them; an unreadable config lifts nothing.
+        let disabled = new Set<string>();
+        if (o.type === "compliance.review-complete") {
+          try {
+            disabled = new Set(readRunConfig(ctx.root).reportRules.disable);
+          } catch {
+            /* the tag check stands */
+          }
+        }
+        assertEventConsistent(o.type, fields as Record<string, unknown>, disabled);
         let event: Record<string, unknown> = { runId, ...(fields as Record<string, unknown>), type: o.type, ts: new Date().toISOString() };
         // A free-text field over its limit (an observation summary of 340 characters where 300 fit) is cut, not refused for a turn.
         const parsed = AegisEventSchema.safeParse(event);

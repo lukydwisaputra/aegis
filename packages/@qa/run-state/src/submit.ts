@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import { join, relative } from "node:path";
-import { ReviewIdSchema, ReviewSchema, WorkReportIdSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
+import { ReviewIdSchema, ReviewSchema, WORK_REPORT_KEYS, WorkReportIdSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
@@ -27,6 +27,8 @@ export interface SubmitResult {
 /** A work report's submit result: for a report writer, the lint of the files it produced (a stamp in the stored report, never a refusal). */
 export interface WorkReportSubmitResult extends SubmitResult {
   lint?: SubmitLint;
+  /** Top-level keys of the submitted report the schema does not know (a `findings` key, for one): they are not stored, so the worker moves the content into a key that is kept. */
+  droppedKeys?: string[];
 }
 
 export interface LessonOutcome {
@@ -113,6 +115,13 @@ function withoutLintStamp(raw: unknown): { value: unknown; dropped: boolean } {
   return { value: rest, dropped: true };
 }
 
+/** The top-level keys of a submitted work report that WorkReportSchema drops (it is not strict): said in the result, never silent. */
+function unknownKeys(raw: unknown): string[] {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const known = new Set(WORK_REPORT_KEYS);
+  return Object.keys(raw).filter((k) => !known.has(k));
+}
+
 /**
  * Record a work report as the next attempt of the caller's claimed task. For a report writer (lint/submit-lint.ts) the files of its
  * artifactsProduced are linted before the write: the findings come back in `lint` and the error ids are stamped into the stored report as
@@ -124,6 +133,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
   const { value: raw, dropped } = withoutLintStamp(loadJson(file));
   const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
   if (dropped) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
+  const droppedKeys = unknownKeys(raw);
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
@@ -165,7 +175,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
       fs.rmSync(out, { force: true });
       throw e;
     }
-    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}), ...(linted !== null ? { lint: linted.lint } : {}) };
+    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}), ...(droppedKeys.length > 0 ? { droppedKeys } : {}), ...(linted !== null ? { lint: linted.lint } : {}) };
   });
 }
 

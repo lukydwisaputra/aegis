@@ -6,6 +6,10 @@ import { addTask, busPath, claimTask, releaseTask, runDir, submitReview, submitW
 export const TS = '2026-09-30T08:00:00.000Z';
 export const ORCH = 'qa-orchestrator';
 
+/** Every metric of a closure.json (the closure file schema: each stated, or declared unavailable), for fixtures that complete a closure phase. */
+export const CLOSURE_METRICS = { designed: 3, passed: 3, failed: 0, blocked: 0, passRate: 100, requirementsCoverage: 100, testExecutionCoverage: 100, automationCoverage: 100, defectDensity: 0, dre: null, escapeRate: null, reopenRate: null, mttdHours: null, mttrHours: null };
+export const VALID_CLOSURE = { metrics: CLOSURE_METRICS };
+
 /** Write `value` as JSON at `rel` inside the run directory. */
 export function writeRunFile(root: string, runId: string, rel: string, value: unknown): void {
   const file = path.join(runDir(root, runId), rel);

@@ -35,6 +35,9 @@ export const WorkReportSchema = z.object({
 
 export type WorkReport = z.infer<typeof WorkReportSchema>;
 
+/** The top-level keys a work report keeps; the schema is not strict, so every other key a worker writes is dropped when it is stored. */
+export const WORK_REPORT_KEYS: readonly string[] = Object.keys(WorkReportSchema.shape);
+
 // ─── Corrective instruction (emitted by SPV on pass-with-notes or rejection) ──
 
 export const CorrectiveInstructionSchema = z.object({

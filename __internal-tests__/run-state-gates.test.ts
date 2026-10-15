@@ -5,7 +5,7 @@ import { EscalationDecisionSchema, GateDecisionSchema } from '@qa/contracts';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import { addTask, autoDecideGate, busPath, claimTask, completePhase, createRun, decideEscalation, decideGate, gateDecisionPath, nextStep, openGate, readRun, releaseTask, runDir, startPhase, submitReview, submitWorkReport, taskmasterDir } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { fastForward, ORCH, review, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { fastForward, ORCH, review, VALID_CLOSURE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
 let t: TmpAegis;
 let runId: string;
@@ -83,7 +83,7 @@ describe('human gates (spec §3.2)', () => {
     const approved = { status: 'approved', decisions: 1 };
     fastForward(t.root, runId, 'closure-final', { G1: approved, G2: approved });
     await startPhase(t.root, runId, 'closure-final', ORCH);
-    writeRunFile(t.root, runId, 'reports/closure/closure.json', {});
+    writeRunFile(t.root, runId, 'reports/closure/closure.json', VALID_CLOSURE);
     await workTask(t.root, runId, 'T-closure-final-1', 'qa-closure-reporter', 'qa-closure-reporter-spv');
     await expect(completePhase(t.root, runId, 'closure-final', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/gate task T-GATE-G3 is missing/) });
     await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');

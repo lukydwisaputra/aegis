@@ -5,7 +5,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { pairedSpv, SPV_NONE } from '@qa/run-state';
 import { DEV_TEST_REVIEW, ENV_AUTH_REPORT, STORY } from './helpers/p0a2-fixtures';
-import { PROFILE } from './helpers/pipeline';
+import { PROFILE, VALID_CLOSURE } from './helpers/pipeline';
 
 // Drives the built aegis CLI through whole cycles with fake agents (the P0a-1 final review's scratch scripts).
 // Every step is a real CLI call; the "agents" only claim, submit, release and review.
@@ -231,7 +231,7 @@ e2e('full cycle: gates G1-G3, an escalation retry, a G2 rejection and its recove
   sim.ok('owner', 'gate', 'decide', '--gate', 'G2', '--decision', 'approved', '--note', 'ok now');
   expect(fs.readdirSync(path.join(sim.runDir, 'gates')).sort()).toEqual(['gate-1-decision.json', 'gate-2-decision.1.json', 'gate-2-decision.json']);
 
-  sim.phase('closure-draft', 'qa-closure-reporter', { 'reports/closure/closure.json': {} });
+  sim.phase('closure-draft', 'qa-closure-reporter', { 'reports/closure/closure.json': VALID_CLOSURE });
   sim.phase('compliance', 'qa-compliance-iso25010', {}, 'T-compliance-iso25010-1');
   sim.ok(O, 'phase', 'start', '--phase', 'closure-final');
   sim.work(O, 'T-closure-final-1', 'qa-closure-reporter');

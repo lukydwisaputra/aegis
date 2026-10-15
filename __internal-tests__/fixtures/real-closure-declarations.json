@@ -1,0 +1,103 @@
+{
+  "R12": {
+    "_source": "read-only copy of the metric fields of reports/closure/closure.json of RUN-20261012-002",
+    "metrics": {
+      "designed": 105,
+      "attempted": 105,
+      "passed": 87,
+      "failed": 15,
+      "blocked": 2,
+      "partial": 1,
+      "skipped": 0,
+      "notAttempted": 0,
+      "outOfScope": 11,
+      "passRate": 82.9,
+      "requirementsCoverage": 87.5,
+      "partialRequirements": 4,
+      "requirementsInScope": 32,
+      "testExecutionCoverage": 98.1,
+      "codeCoverage": 60.4,
+      "defectDensity": 4.76,
+      "dre": 100,
+      "escapeRate": 0,
+      "automationCoverage": 98.1,
+      "reopenRate": null,
+      "mttdHours": 1.92,
+      "mttrHours": null,
+      "cycleWallClockHours": 36.7,
+      "openApplicationDefects": 5
+    },
+    "unavailableMetrics": [],
+    "unavailableMetricsNote": "All six metric files were present and none is marked as holding no data, so none is listed by file name. Two values inside the defect trend figures hold no value: repair time (MTTR) and reopen rate. They are stated by value in the not-available list, never as 0, because the file itself is present and carries the other defect figures. The flaky list is empty (no case is recorded flaky); two cases (TC-REG-018 and TC-RPT-005) are listed as suspected flaky because an earlier failing attempt records no non-application cause, and both earlier failures were our own test mistakes, corrected in this retest, not instability.",
+    "unavailableMetricValues": {
+      "repair time (MTTR)": "Not available: no defect closure time was recorded, so repair time cannot be computed.",
+      "reopen rate": "Not available: no defect reopening was recorded (the 2 PARTIALLY FIXED records are retest outcomes, not recorded reopenings)."
+    }
+  },
+  "R06": {
+    "_source": "read-only copy of the metric fields of reports/closure/closure.json of RUN-20261006-001",
+    "metrics": {
+      "passed": 90,
+      "failed": 7,
+      "blocked": 2,
+      "partial": 1,
+      "blockedExcludingPartial": 1,
+      "outOfScope": 1,
+      "designed": 99,
+      "attempted": 99,
+      "passRate": 90.9,
+      "requirementsCoverage": 92.1,
+      "testExecutionCoverage": 99,
+      "codeCoverage": 88.1,
+      "defectDensity": 0.36,
+      "defectDensityOpenApplicationDefects": 0.24,
+      "dre": null,
+      "escapeRate": null,
+      "automationCoverage": 98,
+      "reopenRate": 0,
+      "cycleWallClockHours": 149.1
+    },
+    "unavailableMetrics": [
+      "flaky.json",
+      "agent-reliability.json"
+    ],
+    "unavailableMetricsNote": {
+      "flaky.json": "Present but empty (no flaky-test rollup recorded); flakiness is stated as not available, not as zero.",
+      "agent-reliability.json": "Present but empty; agent reliability is stated as not available.",
+      "defect-trend.json#mttdMs": "Not available: the file is present but mttdMs is null; no detection timestamps were recorded. Not stated as 0.",
+      "defect-trend.json#mttrMs": "Not available: the file is present but mttrMs is null; no repair or fix-verification data was recorded (no defect fixed or verified this cycle). Not stated as 0."
+    },
+    "unavailableMetricValues": [
+      "MTTD (defect-trend.json#mttdMs null)",
+      "MTTR (defect-trend.json#mttrMs null)"
+    ]
+  },
+  "S05": {
+    "_source": "read-only copy of the metric fields of reports/closure/closure.json of RUN-20261005-002",
+    "metrics": {
+      "passed": 166,
+      "failed": 3,
+      "blocked": 0,
+      "partial": 0,
+      "skipped": 0,
+      "notVerified": 0,
+      "outOfScope": 4,
+      "deferred": 1,
+      "totalTestCases": 174,
+      "attempted": 169,
+      "passRate": 98.2,
+      "requirementsCoverage": 85.9,
+      "requirementsCoverageInScope": 100,
+      "testExecutionCoverage": 97.1,
+      "codeCoverage": 83.9,
+      "automationCoverage": 100,
+      "dre": 100,
+      "defectDensity": 19.54,
+      "escapeRate": 0,
+      "mttdMs": 54667015,
+      "mttrMs": null,
+      "reopenRate": null
+    },
+    "unavailableMetrics": []
+  }
+}

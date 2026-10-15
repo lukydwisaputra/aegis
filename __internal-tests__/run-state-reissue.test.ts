@@ -8,7 +8,7 @@ import {
   readActiveRun, readRun, reissueRun, releaseTask, runDir, startPhase, submitReview, submitWorkReport, taskmasterDir, verifyRunIntegrity,
 } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { fastForward, ORCH, produceDeliverables, review, TS, workReport, workTask, writeRunFile } from './helpers/pipeline';
+import { fastForward, ORCH, produceDeliverables, review, TS, VALID_CLOSURE, workReport, workTask, writeRunFile } from './helpers/pipeline';
 
 const APPROVED = { status: 'approved', decisions: 1 };
 const G2_DECIDED = { status: 'approved-with-conditions', decisions: 2 };
@@ -274,7 +274,7 @@ describe('reissueRun before the last gate', () => {
     expect(step()).toEqual({ kind: 'await-gate', gate: 'G2' });
     await decideGate(t.root, runId, { gate: 'G2', decision: 'approved', note: 'Blocked checks re-run' }, 'owner');
     expect(step()).toEqual({ kind: 'start-phase', phase: 'closure-draft' });
-    writeRunFile(t.root, runId, 'reports/closure/closure.json', { ok: true });
+    writeRunFile(t.root, runId, 'reports/closure/closure.json', { ...VALID_CLOSURE, ok: true });
     await startPhase(t.root, runId, 'closure-draft', ORCH);
     await workTask(t.root, runId, 'T-closure-draft-1', 'qa-closure-reporter', 'qa-closure-reporter-spv');
     await completePhase(t.root, runId, 'closure-draft', ORCH);

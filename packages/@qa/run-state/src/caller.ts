@@ -1,3 +1,4 @@
+import { ComplianceTagSchema } from "@qa/contracts";
 import { roleOf } from "@qa/path-guard";
 import { RunStateError } from "./errors.js";
 
@@ -188,12 +189,33 @@ export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));
 }
 
+/** Rule id of the append-time refusal of a malformed compliance gap tag; reportRules.disable with it lifts the refusal. */
+export const COMPLIANCE_TAG_RULE = "compliance-tag-invalid";
+
+/** One valid example per tag form, named in the refusal. */
+const TAG_FORMS = "ISO25010-{Characteristic}-{Subcharacteristic}, ISO5055-{Characteristic}-CWE-{id}, ISTQB-Foundation-{section.subsection} (ISTQB-Foundation-1.2), CMMI-{Area}-SP{x.y}, GDPR-Art{N}, PDPA-Sec{N}[{L}] or PDPA-Part{Roman}, WCAG-2.{v}-{criterion}, WSTG-v{n}-{CAT}-{NN}, CWE-{id}";
+
 /**
  * Content checks `aegis event append` runs before it appends (the schema alone cannot say it): a `defect.management-complete` that
  * states openApplicationDefects must have a severityBreakdown that sums to it, because the breakdown counts the open application
- * defects. The refusal names both numbers. Other types and events without the field pass.
+ * defects. The refusal names both numbers. A `compliance.review-complete` whose gaps carry a tag that matches no tag format
+ * (ISTQB-Foundation-1, PDPA-DNC) is refused at append only: the stored event keeps `gaps` as plain strings, so a log that already
+ * holds such a tag still reads and verifies. `disabled` (reportRules.disable) lifts the tag check by its rule id. Other types and
+ * events without the field pass.
  */
-export function assertEventConsistent(type: string, fields: Record<string, unknown>): void {
+export function assertEventConsistent(type: string, fields: Record<string, unknown>, disabled: ReadonlySet<string> = new Set()): void {
+  if (type === "compliance.review-complete") {
+    const gaps = fields["gaps"];
+    if (!Array.isArray(gaps) || disabled.has(COMPLIANCE_TAG_RULE)) return;
+    const bad = [...new Set(gaps.filter((g): g is string => typeof g === "string" && !ComplianceTagSchema.safeParse(g).success))];
+    if (bad.length > 0) {
+      throw new RunStateError(
+        "invalid-input",
+        `${COMPLIANCE_TAG_RULE}: gaps carry ${bad.length} tag(s) that match no tag format: ${bad.slice(0, 8).join(", ")}${bad.length > 8 ? ", ..." : ""}. Tag forms: ${TAG_FORMS}. Correct the tags and append the event again`
+      );
+    }
+    return;
+  }
   if (type !== "defect.management-complete") return;
   const open = fields["openApplicationDefects"];
   const by = fields["severityBreakdown"];
