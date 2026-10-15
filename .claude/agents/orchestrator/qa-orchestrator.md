@@ -254,7 +254,6 @@ reads:
   - "{run}/reports/explore/probe.json"
   - "{run}/reports/env/probe-execution.json"
   - "{run}/reports/env/probe-g2.json"
-  - {path: "{run}/reports/unit-coverage.json", optional: true}
   - "agent-memory/qa-orchestrator/lessons.md"
   - "agent-memory/{worker}/lessons.md"
 writes: []

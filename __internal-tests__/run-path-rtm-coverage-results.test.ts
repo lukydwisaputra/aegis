@@ -109,10 +109,11 @@ describe('unit coverage has its own file; the CLI writes reports/metrics/coverag
     expect(unit).toContain('recomputed over the whole QA unit-test scope');
   });
 
-  it('the coverage rollup reads unit-coverage.json (optional), not the unit work reports; the orchestrator, whose metrics command reads it, lists it as optional', () => {
+  it('the coverage rollup reads unit-coverage.json (optional), not the unit work reports; the unit SPV, its reader in the contracts, reviews it', () => {
     const c = metricDefs();
     expect(c).toContain('`reports/unit-coverage.json`');
-    expect(JSON.stringify(contractOf(read('.claude/agents/orchestrator/qa-orchestrator.md')).reads)).toContain('{run}/reports/unit-coverage.json');
+    expect(paths(contractOf(read('.claude/agents/spv/qa-unit-specialist-spv.md')).reads)).toContain('{run}/reports/unit-coverage.json');
+    expect(JSON.stringify(contractOf(read('.claude/agents/orchestrator/qa-orchestrator.md')).reads)).not.toContain('unit-coverage');
     expect(c).not.toMatch(/reports\/work\/qa-unit-specialist/);
   });
 });
