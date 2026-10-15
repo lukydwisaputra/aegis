@@ -17,10 +17,10 @@ let t: TmpAegis;
  * Task 1b added the executive stage to the lint usage line, "(--gate G2|G3 | --stage executive)": +22 characters for the orchestrator only,
  * the one qa-* agent that may run the lint (767 and 6081).
  * Task 3 added the schema-generated enums, time format and lesson id pattern to the usage notes line (+287 for every qa-* agent) and
- * `(--json '<fields>' | --json-file <path>)` to the event append usage (+23 for the agents that may append events): 6081 -> 6391.
+ * `(--json '<fields>' | --json-file <path>)` to the event append usage (+23 for the agents that may append events): 6081 -> 6391. The fix round replaced the epoch example with the timestamp format and its date command (+29 for every qa-* agent): 6420.
  */
 const BRAND_MAX = 767;
-const H4_LARGEST = 6391;
+const H4_LARGEST = 6420;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 
@@ -113,11 +113,12 @@ describe('H4 run context (spec §4.2)', () => {
       expect(text).toContain(`uncertainty impact ${impact.join('|')}`);
       expect(text).toContain(`review verdict ${verdict.join('|')}`);
       expect(text).toContain(`lessonsApplied ids: ${lessonPattern}.`);
-      expect(text).toMatch(/Times \(startedAt, completedAt, reviewedAt\): UTC with Z, no offset, e\.g\. (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)/);
+      expect(text).toContain('Times (startedAt, completedAt, reviewedAt): UTC with Z, no offset, YYYY-MM-DDTHH:MM:SS.sssZ (date -u +%Y-%m-%dT%H:%M:%S.000Z).');
     }
-    // the example in the text is a value the schemas accept
-    const example = /e\.g\. (\d{4}-\d\d-\d\dT[\d:.]+Z)/.exec(runContextFor(t.root, 'qa-ui-specialist')!)![1]!;
-    expect(WorkReportSchema.shape.startedAt.safeParse(example).success).toBe(true);
+    // the format the text names is one the schemas accept (and no value to copy: an epoch example was copied into real timestamps)
+    expect(runContextFor(t.root, 'qa-ui-specialist')!).not.toMatch(/\b\d{4}-\d\d-\d\dT/);
+    const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, '.000Z');
+    expect(WorkReportSchema.shape.startedAt.safeParse(stamp).success).toBe(true);
     expect(WorkReportSchema.shape.startedAt.safeParse('2026-01-02T03:04:05+02:00').success).toBe(false);
     expect(CLI_USAGE['event.append']).toContain("--json-file <path>");
   });

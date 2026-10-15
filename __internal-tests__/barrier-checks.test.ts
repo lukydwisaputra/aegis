@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { completePhase, completePhaseWithWarnings, createRun, dataFindings, designBlockMessage, executionTotalsMismatch, renderArtefacts, runDir, runJsonPath, startPhase } from '@qa/run-state';
+import { PHASE_IDS } from '@qa/contracts';
+import { completePhase, completePhaseWithWarnings, createRun, dataFindings, designBlockMessage, executionTotalsMismatch, readRun, reissueRun, renderArtefacts, runDir, runJsonPath, startPhase, writeRun } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, workTask, writeRunFile } from './helpers/pipeline';
 
@@ -58,6 +59,22 @@ const finish = async (cases: Record<string, unknown>, stories = story()) => {
   await renderArtefacts(t.root, runId, TD);
 };
 const refusal = () => completePhase(t.root, runId, 'design', ORCH).then(() => new Error('completed'), (e: Error & { code?: string }) => e);
+
+describe('the design checks in a scoped reissue', () => {
+  it('a case outside the reissued case list keeps its design error as a warning; the listed case is an error; without a list both are errors', async () => {
+    putJson('dev-test-review.json', { tests: [{ ref: REF, verdict: 'weak' }] });
+    putJson('cases/TC-ATT-001.json', tc('TC-ATT-001', { automationStatus: 'Manual', requiresManual: true }));
+    putJson('cases/TC-ATT-002.json', tc('TC-ATT-002', {}, { coveredBy: { kind: 'dev-test', ref: REF } }));
+    const brief = () => dataFindings(t.root, runId, 'design', new Set()).map((f) => `${f.rule}|${f.severity}|${f.file}${f.context.includes('carried case') ? '|carried' : ''}`);
+    expect(brief()).toEqual(['design-manual-reason-missing|error|cases/TC-ATT-001.json', 'design-covered-by-weak|error|cases/TC-ATT-002.json']);
+    const s = readRun(t.root, runId);
+    const phases = { ...s.phases };
+    for (const id of PHASE_IDS) if (phases[id]?.status === 'pending') phases[id] = { status: 'completed' };
+    writeRun(t.root, { ...s, status: 'completed', phases, gates: { G1: { status: 'approved', decisions: 1 }, G2: { status: 'approved', decisions: 1 }, G3: { status: 'approved', decisions: 1 } } } as never);
+    await reissueRun(t.root, runId, { phase: 'design', reason: 'Redesign the first case', cases: ['TC-ATT-001'] }, 'owner');
+    expect(brief()).toEqual(['design-manual-reason-missing|error|cases/TC-ATT-001.json', 'design-covered-by-weak|warning|cases/TC-ATT-002.json|carried']);
+  });
+});
 
 describe('the design checks', () => {
   it('a manual case without its reason fields refuses Design and names the case and the missing fields; with both it passes', async () => {

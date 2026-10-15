@@ -15,6 +15,13 @@ export function runIdFor(ctx: Ctx, explicit: string | undefined): string {
   return resolveRunId(ctx.root, explicit);
 }
 
+/** Text the caller gave through a file or stdin (not argv): subtracted from a recorded refusal exactly like what was typed on the command line. */
+const typedInput: string[] = [];
+export function addTypedInput(text: string): void {
+  typedInput.push(text);
+}
+const typedArgv = (): string[] => [...process.argv.slice(2), ...typedInput];
+
 /** The command id of an action: `<group>.<verb>` (the Command is the action's last argument); the bare name at top level. */
 export function commandIdOf(args: readonly unknown[]): string | null {
   const cmd = args[args.length - 1];
@@ -109,7 +116,7 @@ export function action<A extends unknown[]>(fn: (...args: A) => unknown) {
       if (e instanceof RunStateError) {
         process.stderr.write(JSON.stringify({ error: e.code, message: e.message }) + "\n");
         process.exitCode = 2;
-        await noteRefusal(commandIdOf(args), runOptionOf(args), e.code, e.message, process.argv.slice(2), vocabularyOfArgs(args));
+        await noteRefusal(commandIdOf(args), runOptionOf(args), e.code, e.message, typedArgv(), vocabularyOfArgs(args));
         return;
       }
       if ((e as NodeJS.ErrnoException).code === "ELOCKED") {
@@ -120,7 +127,7 @@ export function action<A extends unknown[]>(fn: (...args: A) => unknown) {
       }
       process.stderr.write(JSON.stringify({ error: "internal", message: (e as Error).message }) + "\n");
       process.exitCode = 1;
-      await noteRefusal(commandIdOf(args), runOptionOf(args), "internal", (e as Error).message, process.argv.slice(2), vocabularyOfArgs(args));
+      await noteRefusal(commandIdOf(args), runOptionOf(args), "internal", (e as Error).message, typedArgv(), vocabularyOfArgs(args));
     }
   };
 }

@@ -1,31 +1,41 @@
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import { Command } from "commander";
 import { appendChained, EventBusRefusal } from "@qa/event-bus";
 import { AegisEventSchema } from "@qa/contracts";
 import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, readRunConfig, RunStateError, trimOverlong } from "@qa/run-state";
-import { action, context, runIdFor } from "./_io.js";
+import { action, addTypedInput, context, runIdFor } from "./_io.js";
 
 /** The most a --json-file may hold: an event is a few lines, so anything larger is a wrong file, not an event. */
 const JSON_FILE_MAX_BYTES = 1024 * 1024;
 
 /** The text of a --json-file: UTF-8 only; a missing file, a directory or a file that is not text is refused with the path. */
 function readJsonFile(file: string): string {
-  let bytes: Buffer;
+  const tooBig = new RunStateError("invalid-input", `--json-file ${file} is larger than ${JSON_FILE_MAX_BYTES} bytes: an event holds its fields only`);
+  const chunks: Buffer[] = [];
+  let total = 0;
+  let fd: number | undefined;
   try {
-    // /dev/stdin and other pipes report no size, so only a regular file is checked up front
-    const st = statSync(file);
-    if (st.isDirectory()) throw Object.assign(new Error("directory"), { code: "EISDIR" });
-    if (st.isFile() && st.size > JSON_FILE_MAX_BYTES) throw new RunStateError("invalid-input", `--json-file ${file} is larger than ${JSON_FILE_MAX_BYTES} bytes: an event holds its fields only`);
-    bytes = readFileSync(file);
+    fd = openSync(file, "r");
+    if (fstatSync(fd).isDirectory()) throw Object.assign(new Error("directory"), { code: "EISDIR" });
+    // Read through the descriptor and stop one byte past the limit, so a pipe, /dev/stdin or a device (/dev/zero) never costs more than that.
+    const buf = Buffer.alloc(64 * 1024);
+    for (;;) {
+      const n = readSync(fd, buf, 0, Math.min(buf.length, JSON_FILE_MAX_BYTES + 1 - total), null);
+      if (n === 0) break;
+      chunks.push(Buffer.from(buf.subarray(0, n)));
+      total += n;
+      if (total > JSON_FILE_MAX_BYTES) throw tooBig;
+    }
   } catch (e) {
     if (e instanceof RunStateError) throw e;
     const code = (e as NodeJS.ErrnoException).code;
-    const why = code === "ENOENT" ? "no such file" : code === "EISDIR" ? "not a file" : code === "EACCES" || code === "EPERM" ? "permission denied" : (code ?? "read error");
+    const why = code === "ENOENT" ? "no such file" : code === "EISDIR" ? "not a file" : code === "EACCES" || code === "EPERM" ? "permission denied" : code === "EAGAIN" ? "no input is ready" : (code ?? "read error");
     throw new RunStateError("invalid-input", `--json-file ${file} cannot be read: ${why}`);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
-  if (bytes.length > JSON_FILE_MAX_BYTES) throw new RunStateError("invalid-input", `--json-file ${file} is larger than ${JSON_FILE_MAX_BYTES} bytes: an event holds its fields only`);
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
   } catch {
     throw new RunStateError("invalid-input", `--json-file ${file} is not UTF-8 text`);
   }
@@ -55,7 +65,13 @@ export function eventCommand(): Command {
         const source = o.jsonFile !== undefined ? `--json-file ${o.jsonFile}` : "--json";
         let fields: unknown;
         try {
-          fields = JSON.parse(o.jsonFile !== undefined ? readJsonFile(o.jsonFile) : o.json!);
+          let text = o.json!;
+          if (o.jsonFile !== undefined) {
+            text = readJsonFile(o.jsonFile);
+            // What the caller typed into the file is typed input like --json: a refusal that echoes it is recorded with it subtracted.
+            addTypedInput(text);
+          }
+          fields = JSON.parse(text);
         } catch (e) {
           if (e instanceof RunStateError) throw e;
           throw new RunStateError(

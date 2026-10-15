@@ -358,6 +358,38 @@ describe('the built CLI records refusals without changing them', () => {
     expect(bytesOf()).not.toContain('xxxxxxxx');
   }, 60_000);
 
+  // --json-file and /dev/stdin carry the same typed input as --json: what a refusal echoes of it is subtracted from the recorded message.
+  const appendFromFile = (type: string, body: string, via: 'stdin' | 'file') => {
+    const args = ['event', 'append', '--type', type];
+    const env = { ...process.env, AEGIS_AGENT: 'qa-ui-specialist', AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+    if (via === 'file') {
+      const f = path.join(t.root, 'typed-input.json');
+      fs.writeFileSync(f, body);
+      return spawnSync(process.execPath, [CLI, ...args, '--json-file', f], { cwd: t.root, encoding: 'utf-8', env });
+    }
+    return spawnSync(process.execPath, [CLI, ...args, '--json-file', '/dev/stdin'], { cwd: t.root, encoding: 'utf-8', env, input: body });
+  };
+
+  ctest.each(['stdin', 'file'] as const)('--json-file (%s): a personal-data gap refused by the tag check is recorded as <value>, not as typed', (via) => {
+    const body = JSON.stringify({ regulation: 'pdpa', sectionsCovered: ['PDPA-Sec24'], gaps: ['NRIC S1234567D of Tan Ah Kow shown'] });
+    expect(appendFromFile('compliance.review-complete', body, via).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/compliance-tag-invalid: gaps carry 1 tag\(s\) that match no tag format: <value>\./);
+    expect(bytesOf()).not.toMatch(/S1234567D|Tan Ah Kow/);
+  }, 60_000);
+
+  ctest.each(['stdin', 'file'] as const)('--json-file (%s): an undeclared key is redacted, a declared field name stays', (via) => {
+    const body = JSON.stringify({ component: 'cli', symptom: 'the command answered nothing at all', evidence: ['e'], 'jane.doe@acme.example': 1 });
+    expect(appendFromFile('framework.defect-suspected', body, via).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/undeclared field/);
+    expect(bytesOf()).not.toContain('jane.doe');
+    const over = JSON.stringify({ component: 'x'.repeat(250), symptom: 'the command answered nothing at all', evidence: ['e'] });
+    expect(appendFromFile('framework.defect-suspected', over, via).status).toBe(2);
+    expect(refused()[1]!['message']).toContain('component: longer than 200 characters (got 250)');
+    expect(bytesOf()).not.toContain('xxxxxxxx');
+  }, 60_000);
+
   ctest('a --file path that resolves to another spelling is not recorded', () => {
     expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', '/nonexistent/zz/../hunterpathxyz.json').status).toBe(2);
     expect(refused()).toHaveLength(1);

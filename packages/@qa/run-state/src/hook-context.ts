@@ -77,7 +77,7 @@ function submissionEnumsText(): string {
   const offset = stamp !== undefined && stamp.kind === "datetime" && stamp.offset === true ? "an offset allowed" : "no offset";
   const lessonId = LessonIdSchema._def.checks.find((c) => c.kind === "regex");
   const pattern = lessonId !== undefined && lessonId.kind === "regex" ? lessonId.regex.source.replace(/^\^|\$$/g, "") : "L-XX-001";
-  return `Enums: finding severity ${FindingSeveritySchema.options.join("|")}; uncertainty impact ${UncertaintyImpactSchema.options.join("|")}; review verdict ${ReviewVerdictSchema.options.join("|")}. Times (startedAt, completedAt, reviewedAt): UTC with Z, ${offset}, e.g. ${new Date(0).toISOString()}. lessonsApplied ids: ${pattern}.`;
+  return `Enums: finding severity ${FindingSeveritySchema.options.join("|")}; uncertainty impact ${UncertaintyImpactSchema.options.join("|")}; review verdict ${ReviewVerdictSchema.options.join("|")}. Times (startedAt, completedAt, reviewedAt): UTC with Z, ${offset}, YYYY-MM-DDTHH:MM:SS.sssZ (date -u +%Y-%m-%dT%H:%M:%S.000Z). lessonsApplied ids: ${pattern}.`;
 }
 
 /**

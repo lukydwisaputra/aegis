@@ -56,9 +56,12 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 {
   "cycleDate": "2026-07-27",           // or run.json#createdAt; the index shows "—" without one
   "metrics": {
-    "passed": 886, "failed": 0, "blocked": 0,
+    "designed": 900, "passed": 886, "failed": 0, "blocked": 0,
     "passRate": 100.0,                  // headline rate as a plain number: passed over the checks that ran to a verdict (attempted less ruledOutOfScope, deferred and notVerified)
-    "requirementsCoverage": 92.5        // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
+    "requirementsCoverage": 92.5,       // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
+    "testExecutionCoverage": 98.0, "automationCoverage": 85.0,
+    "defectDensity": 0.4, "dre": 88.0, "escapeRate": 12.0, "reopenRate": 0.0,
+    "mttdHours": 6.5, "mttrHours": null // all fourteen keys are written; null when a figure cannot be computed (also name it in unavailableMetricValues)
   },
   "defectMetrics": {
     "totalLogged": 16,

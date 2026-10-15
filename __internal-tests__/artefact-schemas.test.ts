@@ -196,6 +196,22 @@ describe('the schema is the barrier of closure-draft and closure-final, and repo
     expect((await completePhase(t.root, runId, phase, ORCH)).phases[phase as 'closure-draft']).toMatchObject({ status: 'completed' });
   });
 
+  it.each(['closure-draft', 'closure-final'])('%s: the closure refusal names the closure-schema exception; Closure-final does not tell the reporter to add metric keys', async (phase) => {
+    fastForward(t.root, runId, phase, GATES);
+    await startPhase(t.root, runId, phase, ORCH);
+    await workTask(t.root, runId, `T-${phase}-1`, 'qa-closure-reporter', 'qa-closure-reporter-spv');
+    if (phase === 'closure-final') await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');
+    writeRunFile(t.root, runId, 'reports/closure/closure.json', { metrics: without('defectDensity', 'dre') });
+    const message = await completePhase(t.root, runId, phase, ORCH).then(() => '', (e: Error) => e.message);
+    expect(message).toContain("reportRules.disable with closure-schema is the owner's recorded exception for a closure that predates this check");
+    if (phase === 'closure-final') {
+      expect(message).toContain('name each in unavailableMetricValues (the metrics stay as drafted at Closure-final)');
+      expect(message).not.toContain('state each');
+    } else {
+      expect(message).toContain('state each (null when it cannot be computed) or name it in unavailableMetricValues');
+    }
+  });
+
   it('reportRules.disable with closure-schema lifts the whole check; a rule id lifts only that rule', async () => {
     fastForward(t.root, runId, 'closure-draft', GATES);
     writeRunFile(t.root, runId, 'reports/closure/closure.json', { metrics: without('dre'), uncoveredByCause: {} });

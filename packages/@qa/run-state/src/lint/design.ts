@@ -21,7 +21,8 @@ const CASE_FILE = /^TC-[A-Z]{2,8}-\d{3,}\.json$/;
 
 const MANUAL_REASON =
   "a manual case states why no automation is possible: manualReason (or manualJustification) and automationBlocker, which cites the criterion or the alternatives tried (mock, simulation, visual regression); a case that can run unattended is Automated";
-const COVERED_WEAK = "a developer test the review rates weak, wrong or unmapped is not coverage: write the QA script for this case, or have the review re-rate the test";
+const COVERED_WEAK =
+  "a developer test the review rates weak, wrong or unmapped is not coverage: drop coveredBy and design the case as Automated (its script is written in Execution), or name an adequate developer test";
 const COVERED_UNKNOWN = "coveredBy names a developer test no file of dev-test-review.json lists: check the path and the test name";
 const UNUSED = "a criterion an adequate developer test covers has one case with automationStatus Automated and coveredBy naming that test";
 
@@ -71,7 +72,10 @@ function resolve(review: Review, ref: string): Verdict | "unknown" {
 
 const blank = (v: unknown): boolean => typeof v !== "string" || v.trim() === "";
 
-export function designFindings(root: string, runId: string): Finding[] {
+/** A scoped reissue designs only its listed cases: a case outside the list keeps the design of an earlier round, so its error is shown as a warning (as the Blocked checks do). */
+const CARRIED = " (carried case, outside the reissued cases)";
+
+export function designFindings(root: string, runId: string, scope: ReadonlySet<string> | null = null): Finding[] {
   const dir = runDir(root, runId);
   const review = readReview(dir);
   const out: Finding[] = [];
@@ -87,9 +91,11 @@ export function designFindings(root: string, runId: string): Finding[] {
     const doc = readJson(dir, rel);
     if (!isPlain(doc)) continue; // an unreadable or invalid case is the rendering barrier's business
     const id = typeof doc["id"] === "string" ? doc["id"] : name.replace(/\.json$/, "");
+    const carried = scope !== null && !scope.has(id) && !scope.has(name.replace(/\.json$/, ""));
+    const error = (rule: string, message: string, context: string): Finding => finding(rule, carried ? "warning" : "error", rel, message, carried ? context + CARRIED : context);
     if (doc["requiresManual"] === true || doc["automationStatus"] === "Manual") {
       const missing = [...(blank(doc["manualReason"]) && blank(doc["manualJustification"]) ? ["manualReason"] : []), ...(blank(doc["automationBlocker"]) ? ["automationBlocker"] : [])];
-      if (missing.length > 0) out.push(finding("design-manual-reason-missing", "error", rel, MANUAL_REASON, `${snippet(id)}: ${missing.join(", ")} missing`));
+      if (missing.length > 0) out.push(error("design-manual-reason-missing", MANUAL_REASON, `${snippet(id)}: ${missing.join(", ")} missing`));
     }
     const trace = isPlain(doc["traceability"]) ? doc["traceability"] : {};
     const covered = isPlain(trace["coveredBy"]) ? trace["coveredBy"] : undefined;
@@ -98,7 +104,7 @@ export function designFindings(root: string, runId: string): Finding[] {
       if (review !== null) {
         const verdict = resolve(review, covered["ref"]);
         if (verdict === "unknown") out.push(finding("design-covered-by-unknown", "warning", rel, COVERED_UNKNOWN, `${snippet(id)}: ${snippet(fileOf(covered["ref"]))}`));
-        else if (verdict !== "adequate") out.push(finding("design-covered-by-weak", "error", rel, COVERED_WEAK, `${snippet(id)}: coveredBy names a ${verdict} developer test`));
+        else if (verdict !== "adequate") out.push(error("design-covered-by-weak", COVERED_WEAK, `${snippet(id)}: coveredBy names a ${verdict} developer test`));
       }
     }
   }
@@ -143,6 +149,6 @@ export function designBlockMessage(errors: readonly Pick<Finding, "file" | "rule
         : "a manual case states manualReason and automationBlocker (the criterion or the alternatives tried: mock, simulation, visual regression), or is re-designed as Automated",
     );
   }
-  if (weak) fixes.push("a coveredBy names an adequate developer test of dev-test-review.json, or the case is written as a QA script");
+  if (weak) fixes.push("a coveredBy names an adequate developer test of dev-test-review.json, or is dropped and the case is designed as Automated (its script is written in Execution)");
   return `${errors.length} design check error(s): ${listed}${errors.length > 10 ? "; ..." : ""}. Add a correction task for qa-test-designer to the active Design phase (its earlier task is already done): it corrects each case JSON (${fixes.join("; ")}) and runs aegis cases render, then complete the phase again; reportRules.disable with the group design-checks is the owner's recorded exception`;
 }

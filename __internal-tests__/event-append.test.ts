@@ -129,6 +129,19 @@ describe('the bus formats schema issues with the field path and the limit', () =
     expect(events('framework.defect-suspected')).toHaveLength(0);
   }, 60_000);
 
+  ctest('a file over 1 MB, and a stream with no end (/dev/zero), are refused after reading at most 1 MB + 1 byte', () => {
+    const big = write('big.json', JSON.stringify(fields({ symptom: 'x'.repeat(1024 * 1024) })));
+    const r = aegis([...FRAMEWORK, '--json-file', big]);
+    expect(r.status).toBe(2);
+    expect(r.err.message).toBe(`--json-file ${big} is larger than 1048576 bytes: an event holds its fields only`);
+    const zero = aegis([...FRAMEWORK, '--json-file', '/dev/zero']);
+    expect(zero.status).toBe(2);
+    expect(zero.err.message).toBe('--json-file /dev/zero is larger than 1048576 bytes: an event holds its fields only');
+    const piped = aegis([...FRAMEWORK, '--json-file', '/dev/stdin'], 'a'.repeat(1024 * 1024 + 10));
+    expect(piped.err.message).toBe('--json-file /dev/stdin is larger than 1048576 bytes: an event holds its fields only');
+    expect(events('framework.defect-suspected')).toHaveLength(0);
+  }, 60_000);
+
   ctest('a missing file names its path; a directory and a file that is not UTF-8 text are refused', () => {
     const missing = path.join(t.root, 'nowhere', 'fields.json');
     const r = aegis([...FRAMEWORK, '--json-file', missing]);

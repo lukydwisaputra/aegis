@@ -377,7 +377,7 @@ export function dataFindings(root: string, runId: string, stage: DataStage, disa
   const dir = runDir(root, runId);
   const on = (group: DataRuleGroup): boolean => !disabled.has(group);
   const out: Finding[] = [];
-  if (stage === "design" && on("design-checks")) out.push(...designFindings(root, runId));
+  if (stage === "design" && on("design-checks")) out.push(...designFindings(root, runId, reissueCaseScope(root, runId, state)));
   if (stage !== "design" && on("blocked-qa-side")) out.push(...blockedFindings(dir, reissueCaseScope(root, runId, state)));
   // The totals of the summary are compared where the Execution barrier stands; at G2 the descopes of Triage and later results would differ.
   if (stage === "execution" && on("execution-totals")) out.push(...totalsFindings(root, runId));
