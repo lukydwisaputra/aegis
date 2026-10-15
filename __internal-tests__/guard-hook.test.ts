@@ -41,7 +41,8 @@ test('allows a qa-* agent its role path and denies it another run (AUD-026)', ()
 test('records a subagent claim in the hook ledger', () => {
   const r = guard({ tool_name: 'Bash', tool_input: { command: 'AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task T-1' }, agent_type: 'qa-ui-specialist', agent_id: 'agent-7' });
   expect(r.status).toBe(0);
-  expect(readLedger(t.root, runId, 'agent-7')).toEqual([expect.objectContaining({ kind: 'claim', taskId: 'T-1', agentType: 'qa-ui-specialist' })]);
+  // the call also records a heartbeat of agent-7 (item 1 fix 2); the claim is the only other entry
+  expect(readLedger(t.root, runId, 'agent-7').filter((e) => e.kind !== 'heartbeat')).toEqual([expect.objectContaining({ kind: 'claim', taskId: 'T-1', agentType: 'qa-ui-specialist' })]);
 });
 
 test('denies an unprefixed CLI call and a mismatched identity (spec §4.1)', () => {

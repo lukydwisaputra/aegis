@@ -27,6 +27,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "task.cancel": "task cancel --task <id> --reason <text> [--run <id>]",
   "task.abandon": "task abandon --task <id> --reason <text> [--run <id>]",
   "task.list": "task list [--phase <id>] [--run <id>]",
+  "task.next": "task next [--phase <id>] [--wait <seconds>] [--run <id>]",
   "work-report.submit": "work-report submit --file /dev/stdin [--run <id>]",
   "review.submit": "review submit --file /dev/stdin [--run <id>]",
   "integrity.verify": "integrity verify [--run <id>]",
@@ -132,7 +133,7 @@ function allowedFor(agent: string): CliCommand[] {
  * environment verdict, absolute paths, writable globs, the exact CLI prefix and the commands it may run. Records the
  * agent instance's start in the hook ledger. Null for agents that are not qa-*.
  */
-export function runContextFor(root: string, agentType: string, agentId?: string, now?: Date): string | null {
+export function runContextFor(root: string, agentType: string, agentId?: string, now?: Date, session?: string): string | null {
   if (!AGENT_ID.test(agentType)) return null;
   const prefix = `AEGIS_AGENT=${agentType} pnpm aegis`;
   const lines = ["## Aegis run context (SubagentStart hook)"];
@@ -141,7 +142,7 @@ export function runContextFor(root: string, agentType: string, agentId?: string,
     lines.push("- No active run: commands that need a run refuse until your dispatcher creates or resumes one; report that and stop.");
   } else {
     // First, so a context that cannot be built (a corrupt config) never loses the start H2 times an SPV from.
-    if (agentId !== undefined && agentId !== "") appendLedger(root, runId, { ts: iso(now), agentId, agentType, kind: "start" });
+    if (agentId !== undefined && agentId !== "") appendLedger(root, runId, { ts: iso(now), agentId, agentType, kind: "start", ...(session !== undefined && session !== "" ? { session } : {}) });
     // A16: a context that cannot be loaded (a corrupt aegis.config.json) is reported with its own cause, not as a build problem.
     let ctx: ReturnType<typeof loadGuardContext> | null = null;
     try {

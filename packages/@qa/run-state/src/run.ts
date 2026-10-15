@@ -4,7 +4,7 @@ import { PHASE_IDS, RunIdSchema, RunStateSchema, type BlockCause, type BlockKind
 import { appendChained, readCommittedLines } from "@qa/event-bus";
 import { nextId } from "@qa/ids";
 import { assertCallerAllowed, OWNER } from "./caller.js";
-import { readRunConfig, readSettings } from "./config.js";
+import { readDispatchMode, readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { assertIntakeCopyable, copyIntake, copyIntakeReferences, resolveIntakeReferences } from "./intake.js";
 import { acknowledgementOf, checkpointOfRecord, logErrors, type IntegrityAcknowledgement, type IntegrityCheckpoint } from "./log-check.js";
@@ -139,6 +139,8 @@ async function allocateRunDir(root: string, day: string): Promise<string> {
 export async function createRun(root: string, input: CreateRunInput, caller: string): Promise<RunState> {
   assertCallerAllowed(caller, "run.create");
   const settings = readSettings(root);
+  // The owner-facing check of aegis.config.json#execution (a typo is refused by name before the run starts).
+  readDispatchMode(root);
   if (!settings.environments.includes(input.environment)) {
     throw new RunStateError(
       "invalid-input",

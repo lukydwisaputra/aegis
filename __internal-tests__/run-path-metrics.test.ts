@@ -96,10 +96,11 @@ describe('every dispatch waits for its child (fix round)', () => {
     expect(orch).toContain('wait for the child to return before the next CLI phase or claim step');
   });
 
-  it('the executor does the same for specialists and SPVs and waits for all concurrent children', () => {
-    expect(executor).toContain('Every `Agent` call you make (specialists and SPVs) passes `run_in_background: false`');
-    expect(executor).toContain('you complete nothing');
-    expect(executor).toContain('`run_in_background: false`, and wait for it to return');
+  it('the executor dispatches specialists and SPVs in the background (item 1: continuous refill) and completes nothing while a child runs', () => {
+    expect(executor).toContain('Every `Agent` call you make (specialists and SPVs) runs in the background: pass `run_in_background: true`');
+    expect(executor).toContain('You complete nothing (no summary, no release of your own task) while a specialist or SPV you dispatched is still running');
+    expect(executor).toContain('Never end your turn while `next` is `wait`');
+    expect(executor).not.toContain('run_in_background: false');
   });
 
   it('the handbook names the cycle event payload fields', () => {

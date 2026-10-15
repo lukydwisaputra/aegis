@@ -23,7 +23,14 @@ try {
     }
     if (rs !== null) {
       try {
-        text = rs.runContextFor(ROOT, input.agent_type, typeof input.agent_id === "string" ? input.agent_id : undefined);
+        // The Claude Code session of this start (liveness: a resume from another session ends this instance).
+        const session =
+          typeof input.session_id === "string" && input.session_id !== ""
+            ? input.session_id
+            : typeof input.transcript_path === "string" && input.transcript_path.endsWith(".jsonl")
+              ? input.transcript_path.split("/").pop().slice(0, -".jsonl".length)
+              : undefined;
+        text = rs.runContextFor(ROOT, input.agent_type, typeof input.agent_id === "string" ? input.agent_id : undefined, undefined, session);
         // A stale dist: the agent files drop CLAUDE.md at once but this build has no rules core to replace it.
         if (text && typeof rs.subagentRulesLines !== "function") {
           text += "\n- The build is older than the source (no rules core): before your first write read CLAUDE.md (Read/write policy, Brand exposure rule, ID format, Gitignore rule) and tell your dispatcher the owner must run pnpm build.";
