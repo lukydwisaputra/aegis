@@ -2117,6 +2117,9 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   CliRefusedEventSchema,
 ]);
 
+/** The field names the event schemas declare (every key of every event shape): the one set of event words the CLI may record verbatim in a refusal. */
+export const EVENT_FIELD_NAMES: readonly string[] = [...new Set(AegisEventUnionSchema.options.flatMap((o) => Object.keys(o.shape)))].sort();
+
 /** Every event parser uses this: the union plus the rules a single object schema cannot carry. */
 export const AegisEventSchema = AegisEventUnionSchema.superRefine((e, ctx) => {
   if (e.type === "tc.proposal" && e.storyId === undefined && e.acIds.length === 0) {

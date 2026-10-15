@@ -3,6 +3,9 @@ import { LessonIdSchema, WorkReportIdSchema, ReviewIdSchema } from "./ids.js";
 
 // ─── Work report (worker → SPV) ───────────────────────────────────────────────
 
+/** How much an uncertainty could change the result. One list: the schema below and the H4 cheat-sheet both read it. */
+export const UncertaintyImpactSchema = z.enum(["low", "medium", "high"]);
+
 export const WorkReportSchema = z.object({
   id: WorkReportIdSchema,
   taskId: z.string(),
@@ -20,7 +23,7 @@ export const WorkReportSchema = z.object({
   })).default([]),
   uncertainties: z.array(z.object({
     topic: z.string(),
-    impact: z.enum(["low", "medium", "high"]),
+    impact: UncertaintyImpactSchema,
     wouldUnblockBy: z.string().optional(),
   })).default([]),
   // Lessons from this agent's lessons.json that shaped the work.
@@ -58,8 +61,11 @@ export type CorrectiveInstruction = z.infer<typeof CorrectiveInstructionSchema>;
 export const ReviewVerdictSchema = z.enum(["passed", "passed-with-notes", "requested-changes"]);
 export type ReviewVerdict = z.infer<typeof ReviewVerdictSchema>;
 
+/** The severity of one review finding (not a defect severity). One list: the schema and the H4 cheat-sheet both read it. */
+export const FindingSeveritySchema = z.enum(["info", "low", "medium", "high", "blocker"]);
+
 export const ReviewFindingSchema = z.object({
-  severity: z.enum(["info", "low", "medium", "high", "blocker"]),
+  severity: FindingSeveritySchema,
   claim: z.string(),
   evidence: z.array(z.string()).default([]),
   regulatoryRef: z.string().optional(),

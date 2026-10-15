@@ -97,6 +97,19 @@ function canonicalizeId(raw: unknown, kind: "work-report" | "review"): { value: 
   return { value: doc, adjusted: [`id: ${typeof had === "string" ? `"${had.slice(0, 60)}"` : "missing"} -> ${want}`] };
 }
 
+/** An id that fails its format says what the id must be and that leaving it out lets the CLI fill it in (the commonest submit refusal). */
+function withIdFix<I extends { path: Array<string | number>; message: string }>(issues: I[], kind: "work-report" | "review"): I[] {
+  return issues.map((i) => {
+    const last = i.path[i.path.length - 1];
+    if (last !== "id" && last !== "workReportId") return i;
+    if (last === "workReportId") return { ...i, message: "must be WR- followed by the task id of the work report under review (WR-T-intake-1)" };
+    if (kind === "work-report") {
+      return { ...i, message: `must be WR- followed by the task id (WR-T-intake-1); with a valid taskId in the report, leave id out and the CLI fills it in` };
+    }
+    return { ...i, message: `must be RV-{reviewer}-{taskId} (RV-qa-orchestrator-spv-T-intake-1); with a valid reviewer and target.taskId, leave id out and the CLI fills it in` };
+  });
+}
+
 /** Parse a submission; over-long narrative fields are cut to their limits (except a stored lesson rule), anything else invalid is refused. */
 function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: { issues: Array<{ path: Array<string | number>; message: string }> } } }, raw: unknown, kind: "work-report" | "review"): { data: T; trimmed: TrimmedField[]; adjusted: string[] } {
   const { value, adjusted } = canonicalizeId(raw, kind);
@@ -105,7 +118,7 @@ function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true
   const { value: cut, trimmed } = trimOverlong(value, first.error.issues as never, (path) => path.includes("correctiveInstructions"));
   const second = trimmed.length === 0 ? first : schema.safeParse(cut);
   if (second.success) return { data: second.data, trimmed, adjusted };
-  throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, second.error.issues as never)}`);
+  throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, withIdFix(second.error.issues, kind) as never)}`);
 }
 
 /** `lintErrors` is the CLI's stamp: one the agent wrote is dropped before parsing, and the result says so. */

@@ -5,7 +5,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { ADAPTERS } from '@qa/messaging';
 import { BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, readLedger, TOOLING_CLEAN_RUN_GLOBS } from '@qa/path-guard';
-import { TOOLING_WORD_PATTERNS, TOOLING_WORD_RULES } from '@qa/contracts';
+import { LessonIdSchema, ReviewFindingSchema, ReviewVerdictSchema, TOOLING_WORD_PATTERNS, TOOLING_WORD_RULES, WorkReportSchema } from '@qa/contracts';
 import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase, subagentRulesLines } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, REPO, runHook } from './helpers/hooks';
@@ -16,9 +16,11 @@ let t: TmpAegis;
  * 6036. Task 1a added reports/compliance/** to the brand globs the line is built from: +23 characters for every qa-* agent (767 and 6059).
  * Task 1b added the executive stage to the lint usage line, "(--gate G2|G3 | --stage executive)": +22 characters for the orchestrator only,
  * the one qa-* agent that may run the lint (767 and 6081).
+ * Task 3 added the schema-generated enums, time format and lesson id pattern to the usage notes line (+287 for every qa-* agent) and
+ * `(--json '<fields>' | --json-file <path>)` to the event append usage (+23 for the agents that may append events): 6081 -> 6391.
  */
 const BRAND_MAX = 767;
-const H4_LARGEST = 6081;
+const H4_LARGEST = 6391;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 
@@ -97,6 +99,27 @@ describe('H4 run context (spec §4.2)', () => {
     for (const agent of ['qa-orchestrator', 'qa-ui-specialist', 'qa-test-executor', 'qa-orchestrator-spv', 'qa-defect-manager']) {
       expect(runContextFor(t.root, agent, 'x')!.length).toBeLessThan(7000);
     }
+  });
+
+  it('the cheat-sheet lists the finding severity, impact and review verdict enums, the datetime format and the lesson id pattern, read from the schemas', async () => {
+    await create();
+    const severity = ReviewFindingSchema.shape.severity.options;
+    const impact = WorkReportSchema.shape.uncertainties.removeDefault().element.shape.impact.options;
+    const verdict = ReviewVerdictSchema.options;
+    const lessonPattern = (LessonIdSchema._def.checks.find((c) => c.kind === 'regex') as { regex: RegExp }).regex.source.replace(/^\^|\$$/g, '');
+    for (const agent of ['qa-ui-specialist', 'qa-ui-specialist-spv', 'qa-orchestrator']) {
+      const text = runContextFor(t.root, agent)!;
+      expect(text).toContain(`finding severity ${severity.join('|')}`);
+      expect(text).toContain(`uncertainty impact ${impact.join('|')}`);
+      expect(text).toContain(`review verdict ${verdict.join('|')}`);
+      expect(text).toContain(`lessonsApplied ids: ${lessonPattern}.`);
+      expect(text).toMatch(/Times \(startedAt, completedAt, reviewedAt\): UTC with Z, no offset, e\.g\. (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)/);
+    }
+    // the example in the text is a value the schemas accept
+    const example = /e\.g\. (\d{4}-\d\d-\d\dT[\d:.]+Z)/.exec(runContextFor(t.root, 'qa-ui-specialist')!)![1]!;
+    expect(WorkReportSchema.shape.startedAt.safeParse(example).success).toBe(true);
+    expect(WorkReportSchema.shape.startedAt.safeParse('2026-01-02T03:04:05+02:00').success).toBe(false);
+    expect(CLI_USAGE['event.append']).toContain("--json-file <path>");
   });
 
   it('every qa-* agent type (with a run) stays under 7000 characters', async () => {

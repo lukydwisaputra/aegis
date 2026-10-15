@@ -11,6 +11,48 @@ export function undeclaredFields(event: Record<string, unknown>, kept: Record<st
   return Object.keys(event).filter((k) => !(k in kept) && !allowed.has(k));
 }
 
+type EventIssue = {
+  path: Array<string | number>;
+  message: string;
+  code?: string;
+  type?: string;
+  maximum?: number | bigint;
+  minimum?: number | bigint;
+  options?: unknown[];
+  expected?: string;
+  received?: string;
+};
+
+/** The value of `event` at `path`, or undefined. */
+function valueAt(event: unknown, path: ReadonlyArray<string | number>): unknown {
+  let cur = event;
+  for (const key of path) cur = cur !== null && typeof cur === "object" ? (cur as Record<string | number, unknown>)[key] : undefined;
+  return cur;
+}
+
+/**
+ * The schema issues of an event, one per field and read like the submit validations: the field path and the limit ("component: longer than
+ * 200 characters (got 250)"), never the raw zod dump and never the value itself.
+ */
+export function formatEventIssues(event: unknown, issues: readonly EventIssue[]): string {
+  return issues
+    .map((i) => {
+      const where = i.path.join(".") || "(root)";
+      const cur = valueAt(event, i.path);
+      const size = typeof cur === "string" || Array.isArray(cur) ? cur.length : undefined;
+      const unit = i.type === "array" ? "items" : "characters";
+      if (i.code === "invalid_union_discriminator") {
+        return `${where}: not a registered event type; copy the type exactly as your instructions name it (an agent appends only the event types its instructions list)`;
+      }
+      if (i.code === "too_big" && (i.type === "string" || i.type === "array") && size !== undefined) return `${where}: ${i.type === "array" ? "more" : "longer"} than ${String(i.maximum)} ${unit} (got ${size})`;
+      if (i.code === "too_small" && (i.type === "string" || i.type === "array") && size !== undefined) return `${where}: ${i.type === "array" ? "fewer" : "shorter"} than ${String(i.minimum)} ${unit} (got ${size})`;
+      if (i.code === "invalid_enum_value" && Array.isArray(i.options)) return `${where}: must be one of ${i.options.map(String).join(", ")}`;
+      if (i.code === "invalid_type") return i.received === "undefined" ? `${where}: required` : `${where}: expected ${String(i.expected)}, got ${String(i.received)}`;
+      return `${where}: ${i.message}`;
+    })
+    .join("; ");
+}
+
 /**
  * The bus refused an event on validation (schema, undeclared fields, caller-set envelope fields,
  * runId conflict, invalid context). Nothing was written. I/O and torn-tail failures stay plain Errors.
@@ -107,7 +149,7 @@ function validateChained(event: Record<string, unknown>, ctx: ChainContext): Rec
 
   const parsed = AegisEventSchema.safeParse(event);
   if (!parsed.success) {
-    throw new EventBusRefusal(`EventBus schema validation failed: ${parsed.error.message}`);
+    throw new EventBusRefusal(`EventBus schema validation failed: ${formatEventIssues(event, parsed.error.issues as EventIssue[])}`);
   }
   const kept = parsed.data as Record<string, unknown>;
   const stripped = undeclaredFields(event, kept, ENVELOPE_KEYS);

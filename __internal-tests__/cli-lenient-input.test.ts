@@ -78,11 +78,44 @@ const safe = (s: string) => { try { return JSON.parse(s); } catch { return s; } 
   it('refuses, never cuts, an over-long evidence item or component of a framework defect', () => {
     const r = aegis(['event', 'append', '--type', 'framework.defect-suspected', '--json', JSON.stringify({ component: 'aegis env exec', symptom: 'the command is missing a flag it should have', evidence: ['/very/long/path/'.repeat(25)] }), '--run', runId], 'qa-ui-specialist');
     expect(r.status).not.toBe(0);
-    expect(JSON.stringify(r.err)).toContain('too_big');
+    expect(JSON.stringify(r.err)).toContain('evidence.0: longer than 300 characters (got 400)');
+    expect(JSON.stringify(r.err)).not.toContain('too_big');
   });
 
   it('still refuses an event with a wrong type of value, with the schema message', () => {
     const r = aegis(['event', 'append', '--type', 'observation.recorded', '--json', JSON.stringify({ kind: 'nonsense', summary: 'a summary that is long enough' }), '--run', runId], 'qa-exploratory-specialist');
     expect(r.status).not.toBe(0);
+  });
+});
+
+const submit = (kind: 'work-report' | 'review', doc: unknown, caller: string) => {
+  const f = path.join(t.root, `${kind}.json`);
+  fs.writeFileSync(f, JSON.stringify(doc));
+  return aegis([kind, 'submit', '--file', f, '--run', runId], caller);
+};
+
+(stale ? describe.skip : describe)('the commonest refusals name the fix', () => {
+  it('a work report id that cannot be filled in says what it must be and how to leave it out', async () => {
+    await addTask(t.root, runId, { id: 'T-intake-1', title: 'x', agent: A }, A);
+    const bad = { id: 'report-1', taskId: 'intake-1', agent: A, startedAt: '2026-10-15T00:00:00.000Z', completedAt: '2026-10-15T00:01:00.000Z', summary: 'did the work as asked, all of it', approach: 'followed the steps' };
+    const r = submit('work-report', bad, A);
+    expect(r.status).toBe(2);
+    const message = (r.err as { message: string }).message;
+    expect(message).toContain('id: must be WR- followed by the task id (WR-T-intake-1)');
+    expect(message).toContain('leave id out and the CLI fills it in');
+  });
+
+  it('a review id that cannot be filled in says what it must be and how to leave it out', () => {
+    const bad = { id: 'review-1', reviewer: 'qa-orchestrator-spv', target: { agent: A }, verdict: 'passed', summary: 'the work is fine and complete', reviewedAt: '2026-10-15T00:00:00.000Z', modelUsed: 'x' };
+    const r = submit('review', bad, 'qa-orchestrator-spv');
+    expect(r.status).toBe(2);
+    const message = (r.err as { message: string }).message;
+    expect(message).toContain('id: must be RV-{reviewer}-{taskId} (RV-qa-orchestrator-spv-T-intake-1)');
+    expect(message).toContain('leave id out and the CLI fills it in');
+  });
+
+  it('event --json that is not JSON and an unknown event type each say what to do', () => {
+    expect(JSON.stringify(aegis(['event', 'append', '--type', 'observation.recorded', '--json', '{nope', '--run', runId]).err)).toContain('give one JSON object');
+    expect(JSON.stringify(aegis(['event', 'append', '--type', 'no.such-type', '--json', '{}', '--run', runId]).err)).toContain('copy the type exactly as your instructions name it');
   });
 });

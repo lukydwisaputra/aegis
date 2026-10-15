@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { EVENT_FIELD_NAMES } from "@qa/contracts";
 import { CLI_COMMANDS, findAegisRoot, recordCliRefusal, resolveCaller, resolveRunId, RunStateError } from "@qa/run-state";
 
 export interface Ctx {
@@ -26,7 +27,9 @@ export function commandIdOf(args: readonly unknown[]): string | null {
 export function vocabularyOf(cmd: Command): ReadonlySet<string> {
   let root = cmd;
   while (root.parent !== null) root = root.parent;
-  const out = new Set<string>(["--help", "-h", "--version", "-V", "help"]);
+  // The event schema's declared field names are vocabulary too: a refusal that names the field ("component: longer than 200 characters")
+  // stays readable. Only declared names: any other key the caller typed in a --json object is still dropped.
+  const out = new Set<string>(["--help", "-h", "--version", "-V", "help", ...EVENT_FIELD_NAMES]);
   const walk = (c: Command): void => {
     out.add(c.name());
     for (const o of c.options) {

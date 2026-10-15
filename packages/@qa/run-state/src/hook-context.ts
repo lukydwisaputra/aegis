@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CorrectiveInstructionSchema, WorkReportSchema } from "@qa/contracts";
+import { CorrectiveInstructionSchema, FindingSeveritySchema, LessonIdSchema, ReviewVerdictSchema, UncertaintyImpactSchema, WorkReportSchema } from "@qa/contracts";
 import { ADAPTERS } from "@qa/messaging";
 import { appendLedger, BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, envVerdict, loadGuardContext, roleOf, TOOLING_CLEAN_RUN_GLOBS } from "@qa/path-guard";
 import { AGENT_ID, assertCallerAllowed, CLI_COMMANDS, type CliCommand } from "./caller.js";
@@ -19,7 +19,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "run.resume": "run resume [--acknowledge-integrity --reason <text>] [--run <id>]",
   "run.reissue": "run reissue --phase <id> --reason <text> [--cases <ids>] [--run <id>]",
   "run.descope": "run descope --case <id> (repeat for several) --reason <text> [--run <id>]",
-  "event.append": "event append --type <type> --json '<fields>' [--run <id>]",
+  "event.append": "event append --type <type> (--json '<fields>' | --json-file <path>) [--run <id>]",
   "id.next": "id next --kind TC|DEF|STORY|REQ|RISK|AC [--module <CODE>] [--story <id> --category happy|rejection|edge] [--defect-type <t>]",
   "task.add": "task add --id <id> --title <text> --agent <qa-*> [--description <text>] [--run <id>]",
   "task.claim": "task claim --task <id> [--run <id>]",
@@ -69,10 +69,22 @@ export const FRAMEWORK_DEFECT_LINE =
 const range = (f: { minLength: number | null; maxLength: number | null }): string => `${f.minLength}-${f.maxLength}`;
 
 /**
+ * The values a submission is refused for most often, read from the schemas that refuse them so this text cannot drift: the three enums,
+ * the timestamp format (an offset is refused when the schema says `offset: false`) and the lesson id pattern.
+ */
+function submissionEnumsText(): string {
+  const stamp = WorkReportSchema.shape.startedAt._def.checks.find((c) => c.kind === "datetime");
+  const offset = stamp !== undefined && stamp.kind === "datetime" && stamp.offset === true ? "an offset allowed" : "no offset";
+  const lessonId = LessonIdSchema._def.checks.find((c) => c.kind === "regex");
+  const pattern = lessonId !== undefined && lessonId.kind === "regex" ? lessonId.regex.source.replace(/^\^|\$$/g, "") : "L-XX-001";
+  return `Enums: finding severity ${FindingSeveritySchema.options.join("|")}; uncertainty impact ${UncertaintyImpactSchema.options.join("|")}; review verdict ${ReviewVerdictSchema.options.join("|")}. Times (startedAt, completedAt, reviewedAt): UTC with Z, ${offset}, e.g. ${new Date(0).toISOString()}. lessonsApplied ids: ${pattern}.`;
+}
+
+/**
  * Gap 8: two facts agents learned by being refused. The hook denies `eval` of text that names aegis, and the CLI refuses an over-long field
  * of a work report or review. The limits are read from the schemas, so this line never drifts from what the CLI enforces.
  */
-export const CLI_USAGE_NOTES_LINE = `- Run each aegis command as its own direct call, \`AEGIS_AGENT=<you> pnpm aegis ...\`: never wrap it in \`eval\` (the PreToolUse hook denies an eval of text that names aegis). Field limits the CLI enforces, in characters: work report summary ${range(WorkReportSchema.shape.summary)}, approach ${range(WorkReportSchema.shape.approach)}; review corrective instruction mistake ${range(CorrectiveInstructionSchema.shape.mistake)}, rootCause ${range(CorrectiveInstructionSchema.shape.rootCause)}, correctiveRule ${range(CorrectiveInstructionSchema.shape.correctiveRule)}. A work report or review summary or approach that runs over its limit is recorded with its last words cut to the limit (the result lists what was cut: write it tight so nothing is lost); a corrective-instruction field over its limit, or a field under its minimum, is refused with its name, limit and length, and nothing is recorded. The \`id\` of a work report or review is filled in for you (WR-{taskId}, RV-{your name}-{taskId}); leave it out or copy it from the cheat-sheet.`;
+export const CLI_USAGE_NOTES_LINE = `- Run each aegis command as its own direct call, \`AEGIS_AGENT=<you> pnpm aegis ...\`: never wrap it in \`eval\` (the PreToolUse hook denies an eval of text that names aegis). Field limits the CLI enforces, in characters: work report summary ${range(WorkReportSchema.shape.summary)}, approach ${range(WorkReportSchema.shape.approach)}; review corrective instruction mistake ${range(CorrectiveInstructionSchema.shape.mistake)}, rootCause ${range(CorrectiveInstructionSchema.shape.rootCause)}, correctiveRule ${range(CorrectiveInstructionSchema.shape.correctiveRule)}. A work report or review summary or approach that runs over its limit is recorded with its last words cut to the limit (the result lists what was cut: write it tight so nothing is lost); a corrective-instruction field over its limit, or a field under its minimum, is refused with its name, limit and length, and nothing is recorded. The \`id\` of a work report or review is filled in for you (WR-{taskId}, RV-{your name}-{taskId}); leave it out or copy it from the cheat-sheet. ${submissionEnumsText()}`;
 
 /**
  * The rules every qa-* agent must know when CLAUDE.md is not loaded into it: a restatement of CLAUDE.md (read-only target, brand
