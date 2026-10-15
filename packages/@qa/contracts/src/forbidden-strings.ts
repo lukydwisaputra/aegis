@@ -266,7 +266,7 @@ export function describeToolingHits(hits: readonly ToolingHit[], max = 5): strin
  * 403"; "blocked by 403 duplicate rows" is a count) or beside its HTTP name in Title Case ("429 Too Many Requests"),
  * "endpoint" (not a study or trial endpoint), "rate limiting", "fail closed", CWE- and WSTG- ids, API route paths,
  * snake_case code strings, "exit code", "build cache", "bypass module", "HTTP route", "no PR", "NRIC/SPD", a bare severity code
- * ("Sev1" without its word) and the noun "blocker" (the severity name "(Blocker)" and a count such as "1 Blocker" are allowed).
+ * ("Sev1" without its word) and the noun "blocker" for what stopped a check (the severity name is allowed: "(Blocker)", a count such as "1 Blocker", "Blocker and Critical defects", "the Blocker defect", "severity Blocker").
  */
 /** The HTTP statuses a stakeholder text may carry as a number: only these read as a status; any other number is a count. */
 export const HTTP_STATUS = "(?:200|201|204|301|302|304|400|401|403|404|405|409|410|422|423|429|500|502|503|504)";
@@ -303,7 +303,17 @@ export const PLAIN_LANGUAGE_RULES: Array<{ pattern: RegExp; instead: string }> =
   { pattern: /\bno PR\b/i, instead: "no fix recorded" },
   { pattern: /\bNRIC\/SPD\b/, instead: "personal identity data" },
   { pattern: /\bSev[1-5]\b(?!\s*\()/, instead: "the severity with its word (\"Sev1 (Blocker)\")" },
-  { pattern: /(?<!\()(?<!\d\s)\bblockers?\b(?!\))/i, instead: "what stopped the check, in words" },
+  // "blocker" for what stopped a check. The severity name is not that (Sev1 is "Blocker" in the severity scale): it is allowed in "(Blocker)", after
+  // a count ("1 Blocker"), after a severity word ("severity Blocker", "re-rated from Blocker"), beside another severity name ("Blocker and Critical",
+  // "Critical and Blocker") and before the noun it qualifies ("the Blocker defect", "Blocker severity").
+  { pattern: new RegExp([
+    String.raw`(?<!\()(?<!\d\s)`,
+    String.raw`(?<!\b(?:severity|rated?|re-?rated|reclassified|classified|downgraded|upgraded|raised|lowered)\s+(?:(?:as|to|from|of|is|at)\s+)?)`,
+    String.raw`(?<!\b(?:Critical|Major|Minor|Trivial)\s*(?:,|/|and|or|to)\s*)`,
+    String.raw`\bblockers?\b(?!\))`,
+    String.raw`(?![\s-]+(?:defects?|severity|bugs?|level|findings?)\b)`,
+    String.raw`(?!\s*(?:,|/|and|or)\s*(?:Critical|Major|Minor|Trivial)\b)`,
+  ].join(""), "i"), instead: "what stopped the check, in words" },
   { pattern: /\bship\s*\/\s*no[- ]ship\b|\bno[- ]ship\b/i, instead: "nothing: the document itself says it gives no release recommendation and no compliance verdict" },
 ];
 
