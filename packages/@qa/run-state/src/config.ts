@@ -234,6 +234,16 @@ export function readRunConfig(root: string): RunConfig {
     throw new RunStateError("invalid-input", `aegis.config.json#compliance lists unknown regulation(s) ${unknown.join(", ")}; known: ${COMPLIANCE_REGULATIONS.join(", ")}`);
   }
   const messaging = assertMessagingConfig(raw);
+  const rules = reportRules(raw["reportRules"]);
+  // The messaging block's own fake recipients are test data the framework hands the messaging specialist: a case that quotes them is not real
+  // personal data, so the personal-data rules read them as declared synthetic values (as reportRules.pii.syntheticValues).
+  if (messaging !== null) {
+    const squash = (v: string): string => v.toLowerCase().replace(/[\s-]/g, "");
+    const known = new Set(rules.pii.syntheticValues.map(squash));
+    for (const v of [messaging.fakeRecipients.phone, messaging.fakeRecipients.email]) {
+      if (!known.has(squash(v))) { rules.pii.syntheticValues.push(v); known.add(squash(v)); }
+    }
+  }
   return {
     targetProjectRoot: typeof raw["targetProjectRoot"] === "string" ? raw["targetProjectRoot"] : "..",
     compliance,
@@ -241,7 +251,7 @@ export function readRunConfig(root: string): RunConfig {
     intakeSources: stringList(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["sources"] : undefined, "intake.sources"),
     intakeReferences: intakeReferences(intake !== null && typeof intake === "object" ? (intake as Record<string, unknown>)["references"] : undefined),
     messaging,
-    reportRules: reportRules(raw["reportRules"]),
+    reportRules: rules,
     manualBudgetPercent: manualBudgetPercent(testing),
   };
 }

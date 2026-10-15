@@ -1,5 +1,5 @@
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { PHASE_IDS, checkBrandExposure, findToolingWords, findToolingWordsIn } from "@qa/contracts";
+import { PHASE_IDS, blankDefectAuditSections, checkBrandExposure, findToolingWords, findToolingWordsIn, withoutDefectAudit } from "@qa/contracts";
 import { XARGS_VALUE_FLAGS, bashWriteTargets, expandBraces, findParts, unwrap, writtenBy, xargsCommand, type LocatedCommand, type ShellWord, type WriteTarget } from "./bash.js";
 import type { GuardContext } from "./context.js";
 import { envVerdict, isCliOnlyRunPath, matchGlob, roleOf, roleWritable } from "./roles.js";
@@ -358,8 +358,8 @@ function defectTitles(inRun: string, content: string, parsed: unknown): string[]
  * The first tooling phrase of customer-facing content. A JSON file is read by its string values (a value that is only a path, such as an
  * evidence list, is data and exempt from the path rules); anything else, markdown included, is read whole. A defect record takes the word
  * rules only in every field but the title (its steps, ruled-out notes and build line cite URLs, ports and files to reproduce the defect,
- * and an application can have an attempt count): its title, which the technical report and the sign-off print, takes every rule, also
- * in a fragment that does not parse. The project's local ports come from the context.
+ * and an application can have an attempt count), and its append-only audit fields (history, investigationLog) are not read at all: its title,
+ * which the technical report and the sign-off print, takes every rule, also in a fragment that does not parse. The project's local ports come from the context.
  */
 function toolingHit(inRun: string, content: string, ctx: GuardContext): ReturnType<typeof findToolingWords>[number] | null {
   const localPorts = ctx.localPorts ?? [];
@@ -375,7 +375,11 @@ function toolingHit(inRun: string, content: string, ctx: GuardContext): ReturnTy
       // not parseable (a partial edit): read it as text
     }
   }
-  const hit = isJson ? findToolingWordsIn(parsed, "", opts)[0] : findToolingWords(content, opts)[0];
+  // A defect record's append-only audit fields (history, investigationLog; in the Markdown the sections of those names) are not read: no report
+  // prints them and an old entry cannot be reworded. A fragment that does not parse is read whole.
+  const hit = isJson
+    ? findToolingWordsIn(record ? withoutDefectAudit(parsed) : parsed, "", opts)[0]
+    : findToolingWords(record && inRun.endsWith(".md") ? blankDefectAuditSections(content) : content, opts)[0];
   if (hit !== undefined || !record) return hit ?? null;
   for (const title of defectTitles(inRun, content, parsed)) {
     const t = findToolingWords(title, { localPorts, location: ".title" })[0];

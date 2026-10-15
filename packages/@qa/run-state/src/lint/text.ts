@@ -67,6 +67,8 @@ export interface ResolvedRuleLike {
   re: RegExp;
   message: string;
   severity: "error" | "warning";
+  /** A match this returns true for (line as written, match span) is dropped: the rule's own exemption for text that is not prose. */
+  skip?: (line: string, start: number, end: number) => boolean;
 }
 
 /**
@@ -93,6 +95,7 @@ export function scanWithRules(file: string, text: string, rules: readonly Resolv
         const start = m.index;
         const end = start + m[0].length;
         if (allowed.some(([s, e]) => s < end && e > start)) continue;
+        if (rule.skip?.(orig, start, end) === true) continue;
         findings.push({ rule: rule.id, severity: rule.severity, file, line, message: rule.message, context: contextOf(shownLine ??= maskPersonalData(orig), start, end) });
       }
     }
@@ -179,6 +182,7 @@ export function scanTextsUnblanked(file: string, texts: readonly ScanText[], opt
       const re = new RegExp(rule.re.source, rule.re.flags.includes("g") ? rule.re.flags : `${rule.re.flags}g`);
       for (let m = re.exec(at.text); m !== null; m = re.exec(at.text)) {
         if (m[0] === "") { re.lastIndex++; continue; }
+        if (rule.skip?.(at.text, m.index, m.index + m[0].length) === true) continue;
         push(rule.id, rule.severity, m.index, m.index + m[0].length, `${rule.message}${where}`);
       }
     }
