@@ -26,8 +26,9 @@ export const ScanProfileSchema = TargetProfileSchema.superRefine((p, ctx) => {
   }
 });
 
-// Every phase except Intake needs at least one released task before it can complete.
-export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake"]);
+// Every phase except Intake and Closure-draft needs at least one released task before it can complete. Closure-draft hosts only the record
+// corrections a gate decision demands, so a started one with nothing to correct completes without a task (never stuck).
+export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake", "closure-draft"]);
 
 /** What the barrier needs from an output schema: zod's safeParse, without run-state depending on zod. */
 export interface OutputSchema {

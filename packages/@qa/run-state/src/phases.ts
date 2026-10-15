@@ -19,7 +19,7 @@ import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed, ORCHESTRATOR, pairedSpv } from "./caller.js";
 import { parseCaseIds } from "./cases.js";
 import { relevantRegulations, showsPersonalData } from "./compliance.js";
-import { recordComplianceRound } from "./compliance-reuse.js";
+import { recordComplianceRound, staleComplianceProblem } from "./compliance-reuse.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { executionProbeProblems, removeStaleProbeReports } from "./env-probe.js";
@@ -173,7 +173,19 @@ export function notApplicableReason(root: string, runId: string, phase: PhaseId)
   }
   if (phase === "closure-draft") {
     // The closure is written once, at Closure-final. Closure-draft stays in the phase list (old runs and their events name it) and hosts only
-    // the record corrections a gate decision demands; without any, the orchestrator records it not-applicable.
+    // the record corrections a gate decision demands; without any, the orchestrator records it not-applicable. The owner who reopened it on
+    // purpose (a Gate 3 rejection with --reopen-phase closure-draft, a reissue of it) asked for the corrections: not-applicable is refused then.
+    // A condition in free text (approved-with-conditions) has no machine-readable demand: that stays the orchestrator's prose rule.
+    const state = readRun(root, runId);
+    if (state.reissue?.phase === "closure-draft") return null;
+    let rejectedToDraft = false;
+    try {
+      const g3 = loadJson(gateDecisionPath(root, runId, "G3")) as { decision?: unknown; reopenPhase?: unknown } | null;
+      rejectedToDraft = g3?.decision === "rejected" && g3.reopenPhase === "closure-draft";
+    } catch {
+      // no decision file: nothing was demanded
+    }
+    if (rejectedToDraft) return null;
     return "the closure report is written once, at Closure-final; this phase only hosts corrections a gate decision demands";
   }
   if (phase === "env-data") {
@@ -325,6 +337,12 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       if (specErrors.length > 0) problems.push(specBlockMessage(specErrors));
       warnings?.push(...spec.filter((f) => f.severity === "warning"));
     }
+    // A closure must not fold in compliance reports older than what they reviewed (the compliance record of the last completed round).
+    // Skipped for a run with no record (in flight, older) and with reportRules.disable compliance-fresh.
+    if (phase === "closure-final" && !readRunConfig(root).reportRules.disable.includes("compliance-fresh")) {
+      const stale = await staleComplianceProblem(root, runId, state);
+      if (stale !== null) problems.push(stale);
+    }
     // The executive stage as a safety net: its errors (the deck, the plain risk sentences, the deliverable events) refuse the phase while
     // the reporter can still fix them; the reporter saw them in its submit result already.
     if (phase === "executive") {
@@ -399,6 +417,12 @@ async function completionLikely(root: string, runId: string, id: PhaseId): Promi
 export interface CompletePhaseOptions {
   notApplicable?: boolean;
   now?: Date;
+  /**
+   * Internal, for the compliance probe only: complete Compliance with the reports of an earlier round (`carriedFrom` is that round's completion
+   * time). Everything else about completing a phase still holds (integrity check, the run running and the phase in progress, the gates before
+   * it decided); only the task checks are replaced by the probe's own conditions, and `event` is recorded first.
+   */
+  reuse?: { carriedFrom: string; event: Record<string, unknown> & { type: "compliance.probed" } };
 }
 
 /** A completed phase: the new run state, and the warnings its barrier saw (never a refusal; also in reports/lint/phase-{id}.json when there are any). */
@@ -437,6 +461,11 @@ function recordPhaseWarnings(root: string, runId: string, phase: PhaseId, warnin
 
 export async function completePhaseWithWarnings(root: string, runId: string, phase: string, caller: string, opts: CompletePhaseOptions = {}): Promise<PhaseCompletion> {
   assertCallerAllowed(caller, "phase.complete");
+  return completePhaseCore(root, runId, phase, caller, opts);
+}
+
+/** The completion every phase goes through, without the caller check of `phase.complete` (the compliance probe has its own, and the owner may run it). */
+export async function completePhaseCore(root: string, runId: string, phase: string, caller: string, opts: CompletePhaseOptions = {}): Promise<PhaseCompletion> {
   const id = parsePhase(phase);
   // Spec §6.1 item 4. A failing verify records integrity.violation and blocks the run itself.
   const integrity = await verifyRunIntegrity(root, runId, caller, opts.now);
@@ -474,6 +503,20 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
     if (step.kind !== "continue-phase" || step.phase !== id) {
       throw new RunStateError("out-of-order", `cannot complete ${id}: ${describeStep(step)}`);
     }
+    if (opts.reuse !== undefined) {
+      // Carried reports: the tasks are not the barrier here (the probe checked its own conditions), but the gates before the phase are.
+      const gatePending = cycleGates(state).filter((g) => PHASE_IDS.indexOf(GATE_AFTER[g]) < PHASE_IDS.indexOf(id) && !gateSatisfied(state, g));
+      if (id !== "compliance" || gatePending.length > 0) {
+        throw new RunStateError("barrier", `phase ${id} cannot complete: ${gatePending.map((g) => `gate ${g} is not approved`).join("; ") || "only Compliance can be completed with carried reports"}`);
+      }
+      const reused = opts.reuse;
+      const done: RunState = { ...state, phases: { ...state.phases, [id]: { ...state.phases[id]!, status: "completed", completedAt: ts, reusedFrom: reused.carriedFrom } }, updatedAt: ts };
+      await commitRun(root, state, done, async () => {
+        await appendChained(reused.event as never, busPath(root, runId), { emittedBy: caller, runId });
+        await appendChained({ type: "run.phase.completed", ts, runId, phase: id, result: "done" }, busPath(root, runId), { emittedBy: caller, runId });
+      });
+      return { state: done };
+    }
     warnings.length = 0;
     const problems = await barrierProblems(root, runId, state, id, pre, warnings);
     if (problems.length > 0) throw new RunStateError("barrier", `phase ${id} cannot complete: ${problems.join("; ")}`);
@@ -494,7 +537,7 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
   });
   if ("state" in outcome) {
     // What a completed Compliance round read and produced, for the next round's probe (never throws).
-    if (id === "compliance" && opts.notApplicable !== true) await recordComplianceRound(root, runId, outcome.state.phases[id]?.completedAt);
+    if (id === "compliance" && opts.notApplicable !== true && opts.reuse === undefined) await recordComplianceRound(root, runId, outcome.state.phases[id]?.completedAt, outcome.state.phases[id]?.probed?.fingerprint);
     const report = recordPhaseWarnings(root, runId, id, warnings, outcome.state.phases[id]?.completedAt);
     return { state: outcome.state, warnings, ...(report !== undefined ? { warningsReport: report } : {}) };
   }

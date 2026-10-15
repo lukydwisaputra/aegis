@@ -28,6 +28,8 @@ export const PhaseRecordSchema = z
     identity: z.object({ head: z.string().nullable(), dirtyHash: z.string().nullable() }).strict().optional(),
     // Compliance only: the phase completed by reuse (aegis compliance probe), carrying the reports of the round that completed at this time.
     reusedFrom: Iso.optional(),
+    // Compliance only: the compliance probe answered full in this round; its fingerprint (what the reviews read, taken then) is the one the completed round is recorded with, and a second probe in the round answers full again.
+    probed: z.object({ fingerprint: z.string().min(1), forced: z.boolean() }).strict().optional(),
   })
   .strict();
 
