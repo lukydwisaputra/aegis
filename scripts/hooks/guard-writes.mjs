@@ -174,6 +174,14 @@ const isSubagent = isSubagentId(input.agent_id);
 const agentId = !isSubagent ? null : typeof input.agent_id === "string" ? input.agent_id : JSON.stringify(input.agent_id);
 const agentType = !isSubagent ? null : typeof input.agent_type === "string" && input.agent_type !== "" ? input.agent_type : "unknown-subagent";
 const isQa = isSubagent && /^qa-[a-z0-9-]+$/.test(agentType);
+// The Claude Code session of this call: the payload's session_id, else the session transcript's file name (<session>.jsonl).
+const session =
+  typeof input.session_id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(input.session_id)
+    ? input.session_id
+    : typeof input.transcript_path === "string" && /\/([A-Za-z0-9_-]{1,128})\.jsonl$/.test(input.transcript_path)
+      ? /\/([A-Za-z0-9_-]{1,128})\.jsonl$/.exec(input.transcript_path)[1]
+      : undefined;
+const withSession = (entry) => (session === undefined ? entry : { ...entry, session });
 const cwd = typeof input.cwd === "string" && isAbsolute(input.cwd) ? canonical(input.cwd) : null;
 const payload = { ...input, ...(cwd !== null ? { cwd } : {}) };
 
@@ -244,9 +252,24 @@ function heartbeat(runId) {
       if (age >= 0 && age < HEARTBEAT_EVERY_MS) return;
       break; // its latest heartbeat is older, or in the future: write a new one
     }
-    pg.appendLedger(ROOT, runId, { ts: new Date(now).toISOString(), agentId, agentType, kind: "heartbeat" });
+    pg.appendLedger(ROOT, runId, withSession({ ts: new Date(now).toISOString(), agentId, agentType, kind: "heartbeat" }));
   } catch {
     // liveness is best-effort; the guard decision never depends on it
+  }
+}
+
+/** A main-thread Bash call that runs `aegis run resume`: record the resuming session in that run's ledger. Best-effort. */
+function recordResume(activeRunId, ts) {
+  try {
+    const ti = input.tool_input;
+    const command = input.tool_name === "Bash" && ti !== null && typeof ti === "object" && typeof ti.command === "string" ? ti.command : "";
+    if (!/\baegis\s+run\s+resume\b/.test(command)) return;
+    const named = /--run[\s=]+(RUN-\d{8}-\d{3})\b/.exec(command);
+    const runId = named !== null ? named[1] : activeRunId;
+    if (typeof runId !== "string" || !/^RUN-\d{8}-\d{3}$/.test(runId) || !existsSync(join(RUNS, runId, "run.json"))) return;
+    pg.appendLedger(ROOT, runId, { ts, agentId: "main", agentType: "owner", kind: "run-resume", session });
+  } catch {
+    // best-effort: liveness falls back to the time rule without it
   }
 }
 
@@ -292,9 +315,11 @@ try {
   if (isSubagent) {
     for (const { taskId, runId: named } of result.claims) {
       const runId = named === null ? ctx.activeRunId : /^RUN-\d{8}-\d{3}$/.test(named) && existsSync(join(RUNS, named, "run.json")) ? named : null;
-      if (runId !== null) pg.appendLedger(ROOT, runId, { ts, agentId, agentType, kind: "claim", taskId });
+      if (runId !== null) pg.appendLedger(ROOT, runId, withSession({ ts, agentId, agentType, kind: "claim", taskId }));
     }
   }
+  // Fix 4 (m2): the session that resumes a run. At its run.resumed, the instances of other sessions (a dead session's) end.
+  if (!isSubagent && session !== undefined) recordResume(ctx.activeRunId, ts);
   // Decision 24: a legacy skill's main-thread run write is allowed, but logged and announced.
   for (const w of result.warnings) {
     warnings.push(`legacy direct run write by ${w.skills.join(" or ")} to ${w.path}; allowed until that skill moves onto the CLI (LEGACY_MAIN_THREAD_RUN_WRITES)`);

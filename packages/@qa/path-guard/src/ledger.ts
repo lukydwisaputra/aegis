@@ -18,7 +18,9 @@ export type LedgerKind =
   /** H2 recorded no token.used for this stop; `note` says why (AUD-042b). */
   | "token-unattributed"
   /** H1 saw a call of this qa-* instance its matcher covers (Write, Edit, MultiEdit, NotebookEdit, Bash, Agent, Task; not Read, Grep, Glob, Skill or MCP): a sign of life, at most one entry per instance every 30 s. */
-  | "heartbeat";
+  | "heartbeat"
+  /** H1 saw the main thread run `aegis run resume`; `session` is the resuming Claude Code session (agentId "main"). */
+  | "run-resume";
 
 export interface LedgerEntry {
   ts: string;
@@ -33,6 +35,8 @@ export interface LedgerEntry {
   through?: string;
   /** token-unattributed only: why no token.used was recorded. */
   note?: string;
+  /** The Claude Code session of the hook call (payload session_id, else the transcript file name): start, claim, heartbeat, run-resume. */
+  session?: string;
 }
 
 const RUN_ID = /^RUN-\d{8}-\d{3}$/;

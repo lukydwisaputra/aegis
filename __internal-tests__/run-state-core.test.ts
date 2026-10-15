@@ -147,7 +147,7 @@ describe('shared id patterns (R8)', () => {
 
 describe('config', () => {
   it('reads the cap and environments; there is no profile setting (AUD-053)', () => {
-    expect(readSettings(t.root)).toEqual({ maxSpecialists: 2, dispatchMode: 'batch', environments: ['development', 'production'], readOnlyEnvironments: ['production'] });
+    expect(readSettings(t.root)).toEqual({ maxSpecialists: 2, environments: ['development', 'production'], readOnlyEnvironments: ['production'] });
   });
 
   it('rejects a non-positive cap', () => {

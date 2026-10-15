@@ -11,8 +11,6 @@ const EXECUTION_KEYS: readonly string[] = ["dispatchMode"];
 
 export interface AegisSettings {
   maxSpecialists: number;
-  /** batch (default): one wave up to the cap, its SPVs once the whole wave returned, then the next wave. continuous: refill a slot as it frees, review alongside. */
-  dispatchMode: DispatchMode;
   environments: string[];
   /** Environments with `readOnly: true` or `mutating: false`. */
   readOnlyEnvironments: string[];
@@ -37,7 +35,6 @@ export function readSettings(root: string): AegisSettings {
   }
   return {
     maxSpecialists: cap,
-    dispatchMode: dispatchModeOf(raw.execution),
     environments: Object.keys(raw.environments ?? {}),
     readOnlyEnvironments: Object.entries(raw.environments ?? {})
       .filter(([, env]) => env !== null && typeof env === "object" && isReadOnlyEnvironment(env as EnvironmentSpecialistConfig))
@@ -45,7 +42,23 @@ export function readSettings(root: string): AegisSettings {
   };
 }
 
-/** aegis.config.json#execution.dispatchMode: absent (or no execution block) is batch; any other value is refused by name. */
+/**
+ * aegis.config.json#execution.dispatchMode, validated lazily (fix 4, m4): read only where it is used (aegis task next, the
+ * dispatch check, a specialist claim) and at run create for the owner, never by readSettings, so a typo under `execution`
+ * never breaks env exec, the seed check or a non-specialist claim. Absent (or no execution block) is batch; any other value,
+ * a non-object block or an unknown key is refused by name. batch: one wave up to the cap, its SPVs once the whole wave
+ * returned, then the next wave; continuous: refill a slot as it frees, review alongside.
+ */
+export function readDispatchMode(root: string): DispatchMode {
+  let raw: RawConfig;
+  try {
+    raw = JSON.parse(readFileSync(join(root, "aegis.config.json"), "utf-8")) as RawConfig;
+  } catch (e) {
+    throw new RunStateError("invalid-input", `cannot read aegis.config.json: ${(e as Error).message}`);
+  }
+  return dispatchModeOf(raw.execution);
+}
+
 function dispatchModeOf(execution: unknown): DispatchMode {
   if (execution === undefined) return "batch";
   if (execution === null || typeof execution !== "object" || Array.isArray(execution)) {

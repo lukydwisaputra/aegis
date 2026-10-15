@@ -4,8 +4,8 @@ import { appendChained } from "@qa/event-bus";
 import { readRunLedger, type LedgerEntry } from "@qa/path-guard";
 import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { assertCallerAllowed, isSpecialist, pairedSpv } from "./caller.js";
-import { claimHolderEntry, effectiveLedger, endedAt, holderGone } from "./claim-holder.js";
-import { readSettings, type DispatchMode } from "./config.js";
+import { claimHolderEntry, effectiveLedger, endedAt, holderGone, livenessFacts } from "./claim-holder.js";
+import { readDispatchMode, readSettings, type DispatchMode } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun } from "./run.js";
@@ -176,12 +176,13 @@ interface View {
 async function computeView(root: string, runId: string, phase: string | undefined, now: number): Promise<View> {
   const state = readRun(root, runId);
   const scope = phase ?? state.currentPhase ?? undefined;
-  const { maxSpecialists: cap, dispatchMode: mode } = readSettings(root);
+  const { maxSpecialists: cap } = readSettings(root);
+  const mode = readDispatchMode(root);
   const all = (await readTaskList(root, runId)).tasks.filter((t) => t.assignee !== null && isSpecialist(t.assignee));
   const dir = taskmasterDir(root, runId);
   const raws = new Map((existsSync(join(dir, "tasks")) ? await createTaskmasterClient(dir).list() : []).map((t) => [t.id, t]));
   const { tasks: evs, resumes } = scanEvents(root, runId);
-  const ledger = effectiveLedger(readRunLedger(root, runId), resumes, now);
+  const ledger = effectiveLedger(readRunLedger(root, runId), livenessFacts(busPath(root, runId)), now);
 
   // Where each task stands; an in-progress task's holder decides between running and resume (a dead holder never runs).
   const gone = new Map<string, number>();
@@ -273,14 +274,18 @@ async function computeView(root: string, runId: string, phase: string | undefine
     result.dispatch.push(...candidates.slice(0, freeSlots));
     result.waiting.push(...candidates.slice(freeSlots));
   } else {
-    const waveOpen = result.running.length + result.dispatched.length + result.dispatch.length > 0;
-    const awaitingSpv = result.review.length + result.reviewing.length + result.redrive.length > 0;
-    if (waveOpen) {
+    // A wave fills up to the cap while none of its tasks has come back. Once one has, it waits in `held` while any member still
+    // runs, is reserved or is to be resumed, and nothing new is offered (no refill); when the wave has returned its SPVs are
+    // offered; the next wave only once no task awaits its SPV (held, review, reviewing or any redrive). The dispatch check
+    // refuses exactly what this withholds.
+    const waveRunning = result.running.length + result.dispatched.length + result.dispatch.length > 0;
+    if (waveRunning) {
       result.held.push(...result.review, ...result.redrive.filter((e) => e.inFlight !== true));
       result.review = [];
       result.redrive = result.redrive.filter((e) => e.inFlight === true);
-      result.waiting.push(...candidates);
-    } else if (awaitingSpv) result.waiting.push(...candidates);
+    }
+    const awaitingSpv = result.held.length + result.review.length + result.reviewing.length + result.redrive.length > 0;
+    if (awaitingSpv) result.waiting.push(...candidates);
     else {
       result.dispatch.push(...candidates.slice(0, freeSlots));
       result.waiting.push(...candidates.slice(freeSlots));
@@ -292,6 +297,9 @@ async function computeView(root: string, runId: string, phase: string | undefine
   else if (result.escalated.length > 0) result.blockedBy = `an escalation is open (${result.escalated.map((e) => e.task).join(", ")}): the owner decides it with /qa-escalation`;
   const actionable = result.dispatch.length + result.review.length + result.redrive.filter((e) => e.inFlight !== true).length + result.failedRelease.filter((e) => e.inFlight !== true).length;
   if (result.blockedBy !== null) {
+    // nothing is offered while blocked; the dispatch check refuses the same (offer == verdict)
+    result.waiting = [...result.dispatch.filter((e) => e.resume !== true), ...result.waiting];
+    result.dispatch = [];
     result.next = "blocked";
     result.reason = inFlightOf(result).length === 0 ? `${result.blockedBy}; nothing dispatched is in flight: return to your dispatcher` : `${result.blockedBy}; wait for what is in flight (${inFlightOf(result).join(", ")})`;
   } else if (actionable > 0) result.next = "act";
@@ -390,8 +398,9 @@ export async function withDispatchReservation<T>(root: string, runId: string, fi
     const state = readRun(root, runId);
     if (state.stopRequested) throw new RunStateError("stop-requested", `run ${runId} has a stop request; dispatch nothing`);
     if (state.status !== "running") throw new RunStateError("run-not-active", `run ${runId} is "${state.status}"; dispatch nothing until it runs again`);
-    const { result, byId } = await computeView(root, runId, undefined, (now ?? new Date()).getTime());
-    const c = byId.get(taskId);
+    const at = (now ?? new Date()).getTime();
+    let { result, byId } = await computeView(root, runId, undefined, at);
+    let c = byId.get(taskId);
     if (c === undefined) {
       const any = (await readTaskList(root, runId)).tasks.find((t) => t.id === taskId);
       if (any === undefined) throw new RunStateError("invalid-input", `task ${taskId} not found in run ${runId}`);
@@ -400,28 +409,35 @@ export async function withDispatchReservation<T>(root: string, runId: string, fi
     if (c.entry.assignee !== specialist) {
       throw new RunStateError("invalid-input", `task ${taskId} is assigned to ${c.entry.assignee}; specialistName must be that specialist`);
     }
+    // The verdict is the offer of the task's own phase (fix 4, m3): accepted exactly when aegis task next offers the task.
+    if (c.entry.phase !== null && c.entry.phase !== result.phase) {
+      ({ result, byId } = await computeView(root, runId, c.entry.phase, at));
+      c = byId.get(taskId)!;
+    }
+    if (result.next === "blocked") throw new RunStateError("run-not-active", `${result.blockedBy}: dispatch nothing (aegis task next offers nothing while the loop is blocked)`);
     const busy = result.running.concat(result.dispatched).map((e) => e.task).join(", ");
+    const offered = result.dispatch.some((e) => e.task === taskId);
     switch (c.slot) {
       case "dispatched":
         throw new RunStateError("invalid-input", `already-dispatched: task ${taskId} was dispatched at ${new Date(c.since!).toISOString()} and is not claimed yet; do not dispatch it again (aegis task next shows it under dispatched until its claim)`);
       case "running":
         throw new RunStateError("invalid-input", `already-running: task ${taskId} is held by a running ${c.entry.assignee}; wait for its release (aegis task next)`);
       case "resume":
-        return append();
       case "candidate": {
-        // Fix 3 (m2): batch mode is enforced, not advisory. A refill needs a release first, and a released task is held, under
-        // review or reviewing until the whole wave returned and was reviewed; the first wave's own dispatches never see one.
-        const waveOpen = [...result.held, ...result.review, ...result.reviewing, ...result.redrive.filter((e) => e.inFlight === true)].map((e) => e.task);
-        if (result.mode === "batch" && waveOpen.length > 0) {
-          throw new RunStateError(
-            "invalid-input",
-            `batch-wave-open: aegis.config.json#execution.dispatchMode is batch and the current wave is not complete (${waveOpen.join(", ")} await their review); dispatch task ${taskId} when aegis task next offers it`
-          );
-        }
+        if (offered) return append();
         if (result.freeSlots <= 0) {
           throw new RunStateError("cap-reached", `all ${result.cap} specialist slots are taken (running or dispatched and not yet claimed: ${busy}); dispatch task ${taskId} when aegis task next offers it`);
         }
-        return append();
+        // Batch mode is enforced, not advisory: while a specialist of the wave runs, is reserved or is to be resumed, or a task of
+        // the wave awaits its SPV (held, review, reviewing, redrive), the offer withholds new dispatches and so does this check.
+        const open = [...result.running, ...result.dispatched, ...result.held, ...result.review, ...result.reviewing, ...result.redrive].map((e) => e.task);
+        if (result.mode === "batch") {
+          throw new RunStateError(
+            "invalid-input",
+            `batch-wave-open: aegis.config.json#execution.dispatchMode is batch and the current wave is not complete (${open.join(", ")}); dispatch task ${taskId} when aegis task next offers it`
+          );
+        }
+        throw new RunStateError("invalid-input", `not-offered: task ${taskId} waits behind ${result.dispatch.map((e) => e.task).join(", ")} for a free slot; dispatch what aegis task next offers`);
       }
       default: {
         const why = c.entry.status === "done" && c.entry.reviewState === "none" ? "awaits its review: dispatch its SPV, not the specialist" : `is ${c.entry.status} (review state ${c.entry.reviewState}); no specialist dispatch`;

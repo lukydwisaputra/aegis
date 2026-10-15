@@ -60,39 +60,68 @@ export function claimHolderEntry(runLedger: LedgerEntry[], task: Task, agentType
 export const LIVENESS_GRACE_MS = 30 * 60_000;
 
 /**
- * A `run.resumed` ends every instance (heartbeat runs) whose latest entry at or before the resume is older than the resume by
- * more than this. A survivor working across the resume has an entry at most one heartbeat interval (30 s) before it; a crashed
- * one was silent from the crash to the resume.
+ * Fallback only (no session on the instance or on the resume): a `run.resumed` ends an instance of a heartbeat run whose latest
+ * entry at or before the resume is older than this. A survivor working across the resume has an entry at most one heartbeat
+ * interval (30 s) before it, unless it is inside one long call.
  */
 export const RESUME_FRESH_MS = 90_000;
+
+/** The same fallback for NO_EXPIRY_AGENTS, which wait in one call for up to ~10 minutes (a Bash call, `task next --wait 540`). */
+export const RESUME_FRESH_DISPATCHER_MS = 11 * 60_000;
+
+/** How long before a `run.resumed` the H1 `run-resume` entry that names its session may be (the resume command runs right after H1). */
+const RESUME_SESSION_WINDOW_MS = 10 * 60_000;
 
 /**
  * The agents that wait in one foreground Agent call for hours (the orchestrator for its phase agents; the executor before the
  * continuous loop): silent for long stretches while alive, so they never expire by heartbeat. They end by their stop record or
- * by the resume rule only. Nothing reads their liveness except the duplicate check on their own re-claim.
+ * by a resume. Nothing reads their liveness except the duplicate check on their own re-claim.
  */
 export const NO_EXPIRY_AGENTS: ReadonlySet<string> = new Set(["qa-orchestrator", "qa-test-executor"]);
 
+/** What the event log adds to liveness: the resumes, and every accepted specialist dispatch per task (a takeover). */
+export interface LivenessFacts {
+  resumes: readonly number[];
+  dispatches?: ReadonlyMap<string, readonly number[]>;
+}
+
 /**
- * Item 1 fix 2/3: when an instance has ended. A session that dies (crash, auth failure, killed terminal) fires no SubagentStop,
- * so its agents keep a `start` with no end entry forever; the synthetic ends added here (a `stop-unresolved` entry, never
- * written) say when they died.
- * - Heartbeat liveness: in a run whose ledger records heartbeats (H1), an instance first seen at or after the run's first
- *   heartbeat, or with a heartbeat of its own, ends at the first `run.resumed` its latest entry before it precedes by more than
- *   RESUME_FRESH_MS (a crash then /qa-resume recovers at once), or LIVENESS_GRACE_MS after its latest entry, whichever comes
- *   first; NO_EXPIRY_AGENTS end by the resume rule only. An entry after that end does not revive it.
- * - Fallback for runs and instances with no heartbeat data: every instance first seen before a `run.resumed` with no end by
- *   then is ended at that resume. A stop request alone ends nothing in either mode: the agents in flight may still be finishing.
+ * Item 1 fixes 2-4: when an instance has ended. A session that dies (crash, auth failure, killed terminal) fires no
+ * SubagentStop, so its agents keep a `start` with no end entry forever; the synthetic ends added here (a `stop-unresolved`
+ * entry, never written) say when they died.
+ * - A resume. Every hook entry carries the Claude Code session of its call, and H1 records the session that runs
+ *   `aegis run resume` (a `run-resume` entry). At a `run.resumed` whose session is known, an instance of ANOTHER session is
+ *   ended (a dead session's agents are dead by construction) and an instance of the SAME session is not (it is alive, or has
+ *   its stop record). Without session data on either side the fallback is by time: in a heartbeat run an instance whose
+ *   latest entry before the resume is older than RESUME_FRESH_MS (RESUME_FRESH_DISPATCHER_MS for NO_EXPIRY_AGENTS) is ended;
+ *   in a run with no heartbeat data every instance first seen before the resume is ended. A resume end is permanent.
+ * - Expiry (heartbeat runs; never for NO_EXPIRY_AGENTS): an instance silent for LIVENESS_GRACE_MS is ended at its latest entry
+ *   plus the grace. A later entry (a beat after a long stall) revives it only if nobody took its task over meanwhile: no
+ *   accepted `specialist.dispatched` and no claim by another instance for a task it claimed, between the expiry and that entry.
+ *   Once taken over, the end is permanent. An instance with no heartbeat in a run that records heartbeats from before it was
+ *   seen follows the resume fallback only.
+ * A stop request alone ends nothing: the agents in flight may still be finishing.
  */
-export function effectiveLedger(ledger: LedgerEntry[], resumes: readonly number[], now: number = Date.now()): LedgerEntry[] {
+export function effectiveLedger(ledger: LedgerEntry[], facts: LivenessFacts | readonly number[], now: number = Date.now()): LedgerEntry[] {
+  const { resumes, dispatches } = Array.isArray(facts) ? { resumes: facts as readonly number[], dispatches: undefined } : (facts as LivenessFacts);
   const own = new Map<string, LedgerEntry[]>();
   let firstBeat = Infinity;
+  const resumeEntries: LedgerEntry[] = [];
   for (const e of ledger) {
+    if (e.kind === "run-resume") {
+      resumeEntries.push(e);
+      continue;
+    }
     const list = own.get(e.agentId) ?? [];
     list.push(e);
     own.set(e.agentId, list);
     if (e.kind === "heartbeat") firstBeat = Math.min(firstBeat, Date.parse(e.ts));
   }
+  // The session that ran each resume: the latest run-resume entry at or shortly before it.
+  const sessionOf = (r: number): string | undefined =>
+    resumeEntries
+      .filter((e) => typeof e.session === "string" && Date.parse(e.ts) <= r && r - Date.parse(e.ts) <= RESUME_SESSION_WINDOW_MS)
+      .sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))[0]?.session;
   const sortedResumes = [...resumes].sort((a, b) => a - b);
   const ends: LedgerEntry[] = [];
   for (const [agentId, entries] of own) {
@@ -102,51 +131,79 @@ export function effectiveLedger(ledger: LedgerEntry[], resumes: readonly number[
     const first = entries[times.indexOf(since)]!;
     const ended = endedAt(ledger, agentId, since);
     const end = (at: number) => ends.push({ ts: new Date(at).toISOString(), agentId, agentType: first.agentType, kind: "stop-unresolved" });
-    if (entries.some((e) => e.kind === "heartbeat") || since >= firstBeat) {
-      if (ended !== null) continue;
-      let at = Infinity;
-      for (const r of sortedResumes) {
-        if (r <= since) continue;
-        const before = times.filter((x) => x <= r);
-        if (r - Math.max(...before) > RESUME_FRESH_MS) {
-          at = r;
+    const session = entries.find((e) => typeof e.session === "string")?.session;
+    const heartbeatRun = entries.some((e) => e.kind === "heartbeat") || since >= firstBeat;
+    const dispatcher = NO_EXPIRY_AGENTS.has(first.agentType);
+    // 1. the first resume that ends it
+    let at = Infinity;
+    for (const r of sortedResumes) {
+      if (r <= since || (ended !== null && ended <= r)) continue;
+      const resumer = sessionOf(r);
+      let endsHere: boolean;
+      if (resumer !== undefined && session !== undefined) endsHere = session !== resumer;
+      else if (heartbeatRun) endsHere = r - Math.max(...times.filter((x) => x <= r)) > (dispatcher ? RESUME_FRESH_DISPATCHER_MS : RESUME_FRESH_MS);
+      else endsHere = true;
+      if (endsHere) {
+        at = r;
+        break;
+      }
+    }
+    if (ended !== null && ended <= at) continue;
+    // 2. expiry by silence, revived by a later entry unless the task was taken over meanwhile
+    if (heartbeatRun && !dispatcher) {
+      const tasks = new Set(entries.filter((e) => e.kind === "claim" && e.taskId !== undefined).map((e) => e.taskId!));
+      const takenOver = (from: number, to: number): boolean =>
+        [...tasks].some(
+          (task) =>
+            (dispatches?.get(task) ?? []).some((d) => d > from && d <= to) ||
+            ledger.some((e) => e.kind === "claim" && e.taskId === task && e.agentId !== agentId && Date.parse(e.ts) > from && Date.parse(e.ts) <= to)
+        );
+      const ts = [...new Set(times.filter((x) => x <= at))].sort((a, b) => a - b);
+      for (let k = 0; k < ts.length; k++) {
+        const expiry = ts[k]! + LIVENESS_GRACE_MS;
+        const next = ts[k + 1];
+        if (next === undefined) {
+          if (now > expiry) at = Math.min(at, expiry);
+          break;
+        }
+        if (next > expiry && takenOver(expiry, next)) {
+          at = Math.min(at, expiry);
           break;
         }
       }
-      if (!NO_EXPIRY_AGENTS.has(first.agentType)) {
-        // the latest entry before any resume end: a later one cannot revive an ended instance
-        const last = Math.max(...times.filter((x) => x <= at));
-        if (now - last > LIVENESS_GRACE_MS) at = Math.min(at, last + LIVENESS_GRACE_MS);
-      }
-      if (at !== Infinity) end(at);
-      continue;
     }
-    const resume = sortedResumes.find((r) => r > since);
-    if (resume === undefined || (ended !== null && ended <= resume)) continue;
-    end(resume);
+    if (at !== Infinity) end(at);
   }
   return ends.length === 0 ? ledger : [...ledger, ...ends];
 }
 
 /** The times of the run's `run.resumed` events, from the event log (a line scan; unreadable lines are skipped). */
 export function resumeTimes(busFile: string): number[] {
-  if (!existsSync(busFile)) return [];
-  const out: number[] = [];
+  return livenessFacts(busFile).resumes as number[];
+}
+
+/** The resumes and the accepted specialist dispatches per task, from the event log (a line scan). */
+export function livenessFacts(busFile: string): LivenessFacts {
+  const resumes: number[] = [];
+  const dispatches = new Map<string, number[]>();
+  if (!existsSync(busFile)) return { resumes, dispatches };
   for (const line of readFileSync(busFile, "utf-8").split("\n")) {
-    if (!line.includes('"run.resumed"')) continue;
+    if (!line.includes('"run.resumed"') && !line.includes('"specialist.dispatched"')) continue;
     try {
-      const e = JSON.parse(line) as { type?: unknown; ts?: unknown };
-      if (e.type === "run.resumed" && typeof e.ts === "string") out.push(Date.parse(e.ts));
+      const e = JSON.parse(line) as { type?: unknown; ts?: unknown; taskId?: unknown };
+      if (typeof e.ts !== "string") continue;
+      if (e.type === "run.resumed") resumes.push(Date.parse(e.ts));
+      else if (e.type === "specialist.dispatched" && typeof e.taskId === "string") dispatches.set(e.taskId, [...(dispatches.get(e.taskId) ?? []), Date.parse(e.ts)]);
     } catch {
       /* skipped */
     }
   }
-  return out;
+  return { resumes, dispatches };
 }
 
 /** The run's hook ledger with the ends liveness implies (effectiveLedger), judged at `now`. */
 export function readEffectiveLedger(root: string, runId: string, now?: Date): LedgerEntry[] {
-  return effectiveLedger(readRunLedger(root, runId), resumeTimes(join(root, "runs", runId, "events.jsonl")), (now ?? new Date()).getTime());
+  return effectiveLedger(readRunLedger(root, runId), livenessFacts(join(root, "runs", runId, "events.jsonl")), (now ?? new Date()).getTime());
 }
 
 /**

@@ -7,7 +7,7 @@ import { appendChained } from '@qa/event-bus';
 import { appendLedger, readLedger } from '@qa/path-guard';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, appendSpecialistDispatched, LIVENESS_GRACE_MS, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
+  addTask, appendSpecialistDispatched, createRun, LIVENESS_GRACE_MS, readSettings, RESUME_FRESH_DISPATCHER_MS, RESUME_FRESH_MS, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
   releaseTask, requestStop, resumeRun, reviewDir, submitReview, submitWorkReport, taskmasterDir, waitNextTasks,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
@@ -199,7 +199,9 @@ describe('the dispatch reservation (aegis event append --type specialist.dispatc
     const results = await Promise.allSettled([dispatch('T-2', UI), dispatch('T-3', API), dispatch('T-4', DB), dispatch('T-5', SEC)]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
     const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-    expect(rejected.map((r) => r.reason.code)).toEqual(['cap-reached', 'cap-reached']);
+    // fix 4: the verdict is the offer, so a task beyond the offer is refused not-offered when it comes first, cap-reached after
+    expect(rejected).toHaveLength(2);
+    for (const r of rejected) expect(['cap-reached', 'invalid-input']).toContain(r.reason.code);
     expect(events('specialist.dispatched')).toHaveLength(2);
   });
 
@@ -207,11 +209,11 @@ describe('the dispatch reservation (aegis event append --type specialist.dispatc
     await dispatch('T-2', UI);
     await dispatch('T-3', API);
     await expect(dispatch('T-4', DB, later(DISPATCH_GRACE_MS - 1000))).rejects.toMatchObject({ code: 'cap-reached' });
-    await dispatch('T-4', DB, later(DISPATCH_GRACE_MS + 1000)); // T-2 and T-3 lapsed: no instance started
-    await claimTask(t.root, runId, 'T-4', DB, later(DISPATCH_GRACE_MS + 1500));
+    await dispatch('T-2', UI, later(DISPATCH_GRACE_MS + 1000)); // T-2 and T-3 lapsed: no instance started, T-2 is offered again
+    await claimTask(t.root, runId, 'T-2', UI, later(DISPATCH_GRACE_MS + 1500));
     const v = await nextTasks(t.root, runId, EXEC, { now: later(DISPATCH_GRACE_MS + 2000) });
-    expect(ids(v.running)).toEqual(['T-4']);
-    expect(ids(v.dispatch)).toEqual(['T-2']);
+    expect(ids(v.running)).toEqual(['T-2']);
+    expect(ids(v.dispatch)).toEqual(['T-3']);
   });
 
   it('a live instance started after the dispatch keeps the reservation past the grace period; its end frees it', async () => {
@@ -720,16 +722,16 @@ describe('fix 3: a resume ends the silent, keeps the fresh; long grace; dispatch
   const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
   const beat = (agentId: string, agentType: string, ts: string) => appendLedger(t.root, runId, { ts, agentId, agentType, kind: 'heartbeat' });
 
-  it('crash then an immediate /qa-resume: the re-dispatched executor continues its task, a dead specialist is offered as resume', async () => {
+  it('fallback without session data: the executor silent 12 minutes before a resume is ended, a dead specialist is offered as resume', async () => {
     await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
-    ledger('ex-1', EXEC, 'start', undefined, ago(10));
-    ledger('ex-1', EXEC, 'claim', 'T-1', ago(10));
+    ledger('ex-1', EXEC, 'start', undefined, ago(14));
+    ledger('ex-1', EXEC, 'claim', 'T-1', ago(14));
     await claimTask(t.root, runId, 'T-1', EXEC);
-    beat('ex-1', EXEC, ago(3));
+    beat('ex-1', EXEC, ago(12)); // over RESUME_FRESH_DISPATCHER_MS (11 minutes)
     ledger('ui-1', UI, 'start', undefined, ago(9));
     ledger('ui-1', UI, 'claim', 'T-2', ago(9));
     await claimTask(t.root, runId, 'T-2', UI);
-    beat('ui-1', UI, ago(3)); // the session died 3 minutes ago
+    beat('ui-1', UI, ago(3)); // the session died 3 minutes ago (over RESUME_FRESH_MS, 90 s)
     await crash();
     ledger('ex-2', EXEC, 'start');
     ledger('ex-2', EXEC, 'claim', 'T-1');
@@ -807,5 +809,244 @@ describe('fix 3: batch is enforced at the dispatch; unknown execution keys are r
     const config = JSON.parse(fs.readFileSync(file, 'utf8'));
     fs.writeFileSync(file, JSON.stringify({ ...config, execution: { dispatchmode: 'continuous' } }));
     await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('aegis.config.json#execution has unknown key(s) "dispatchmode"') });
+  });
+});
+
+// ─── Fix round 4 ──────────────────────────────────────────────────────────────
+
+describe('fix 4: liveness by session at a resume, by time only as the fallback; revival only without a takeover', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+    await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
+  });
+  const at = (base: number, min: number) => new Date(base + min * 60_000);
+  const entry = (agentId: string, agentType: string, kind: 'start' | 'claim' | 'heartbeat' | 'stopped', when: Date, extra: { taskId?: string; session?: string } = {}) =>
+    appendLedger(t.root, runId, { ts: when.toISOString(), agentId, agentType, kind, ...extra } as never);
+  const resumeBy = async (session: string | undefined) => {
+    await requestStop(t.root, runId, 'stop', 'owner');
+    if (session !== undefined) appendLedger(t.root, runId, { ts: new Date().toISOString(), agentId: 'main', agentType: 'owner', kind: 'run-resume', session } as never);
+    await resumeRun(t.root, runId, 'owner');
+  };
+  const holdT1 = async (agentId: string, session: string | undefined, minutesAgo: number) => {
+    const when = new Date(Date.now() - minutesAgo * 60_000);
+    entry(agentId, EXEC, 'start', when, session ? { session } : {});
+    entry(agentId, EXEC, 'claim', when, { taskId: 'T-1', ...(session ? { session } : {}) });
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    entry(agentId, EXEC, 'heartbeat', when, session ? { session } : {});
+  };
+  const holdT2 = async (agentId: string, session: string | undefined, minutesAgo: number) => {
+    const when = new Date(Date.now() - minutesAgo * 60_000);
+    entry(agentId, UI, 'start', when, session ? { session } : {});
+    entry(agentId, UI, 'claim', when, { taskId: 'T-2', ...(session ? { session } : {}) });
+    await claimTask(t.root, runId, 'T-2', UI);
+    entry(agentId, UI, 'heartbeat', when, session ? { session } : {});
+  };
+  const reclaimT1 = (agentId: string) => {
+    entry(agentId, EXEC, 'claim', new Date(), { taskId: 'T-1', session: 'S1' });
+    return claimTask(t.root, runId, 'T-1', EXEC);
+  };
+
+  it('crash + immediate resume from a new session: the old session ends at once, even with fresh entries', async () => {
+    await holdT1('ex-1', 'S0', 0.1);
+    await holdT2('ui-1', 'S0', 0.1); // 6 seconds before the resume: the time rule alone would keep it
+    await resumeBy('S1');
+    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+    const v = await nextTasks(t.root, runId, EXEC);
+    expect(v.running).toEqual([]);
+    expect(v.dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+
+  it('an agent inside a long Bash call across a resume of its own session stays alive', async () => {
+    await holdT2('ui-1', 'S1', 5); // 5 minutes into one call: the 90 s fallback would end it
+    await resumeBy('S1');
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
+  });
+
+  it('the executor inside task next --wait 540 across a resume of its own session stays alive', async () => {
+    await holdT1('ex-1', 'S1', 9);
+    await resumeBy('S1');
+    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+  });
+
+  it('fallback without session data: 11 minutes for the executor, 90 seconds for the others', async () => {
+    expect(RESUME_FRESH_DISPATCHER_MS).toBe(11 * 60_000);
+    expect(RESUME_FRESH_MS).toBe(90_000);
+    await holdT1('ex-1', undefined, 9); // 9 minutes in --wait: kept
+    await holdT2('ui-1', undefined, 100 / 60); // 100 s: ended
+    await resumeBy(undefined);
+    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+    expect((await nextTasks(t.root, runId, EXEC)).dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+
+  it('fallback: a specialist with an entry 80 s before the resume stays alive', async () => {
+    await holdT2('ui-1', undefined, 80 / 60);
+    await resumeBy(undefined);
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
+  });
+
+  it('expiry then a later beat with no takeover revives the agent (injected clock across 30 minutes)', async () => {
+    const base = Date.now() - 60 * 60_000;
+    entry('ex-0', EXEC, 'heartbeat', at(base, -1)); // the run records heartbeats
+    entry('ui-1', UI, 'start', at(base, 0));
+    entry('ui-1', UI, 'claim', at(base, 0), { taskId: 'T-2' });
+    await claimTask(t.root, runId, 'T-2', UI, at(base, 0.01));
+    entry('ui-1', UI, 'heartbeat', at(base, 1));
+    expect(ids((await nextTasks(t.root, runId, EXEC, { now: at(base, 30) })).running)).toEqual(['T-2']);
+    expect((await nextTasks(t.root, runId, EXEC, { now: at(base, 33) })).dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+    entry('ui-1', UI, 'heartbeat', at(base, 36)); // a stall of 35 minutes, then it beats again
+    expect(ids((await nextTasks(t.root, runId, EXEC, { now: at(base, 37) })).running)).toEqual(['T-2']);
+  });
+
+  it('expiry, a resume dispatch accepted, then a later beat: the end is permanent', async () => {
+    const base = Date.now() - 60 * 60_000;
+    entry('ex-0', EXEC, 'heartbeat', at(base, -1));
+    entry('ui-1', UI, 'start', at(base, 0));
+    entry('ui-1', UI, 'claim', at(base, 0), { taskId: 'T-2' });
+    await claimTask(t.root, runId, 'T-2', UI, at(base, 0.01));
+    entry('ui-1', UI, 'heartbeat', at(base, 1));
+    await dispatch('T-2', UI, at(base, 33)); // the task is taken over after the expiry at +31
+    entry('ui-1', UI, 'heartbeat', at(base, 36));
+    const v = await nextTasks(t.root, runId, EXEC, { now: at(base, 37) });
+    expect(v.running).toEqual([]);
+    expect(v.dispatched).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+});
+
+describe('fix 4: the dispatch check accepts exactly what task next offers (state-generated, batch and continuous)', () => {
+  type State = 'none' | 'running' | 'released' | 'reviewing' | 'redrive' | 'redriving' | 'resume' | 'escalated';
+  const STATES: State[] = ['none', 'running', 'released', 'reviewing', 'redrive', 'redriving', 'resume', 'escalated'];
+  const SECOND: State[] = ['none', 'running', 'released', 'resume'];
+  const rawDispatch = (id: string, agent: string) =>
+    appendChained({ type: 'specialist.dispatched', ts: new Date().toISOString(), runId, specialistName: agent, taskId: id, tcIds: [], environment: 'development', reserved: true } as never, busPath(t.root, runId), { emittedBy: EXEC, runId });
+  async function put(id: string, agent: string, state: State) {
+    if (state === 'none') return;
+    await rawDispatch(id, agent);
+    if (state === 'resume') {
+      ledger(`${id}-a`, agent, 'start');
+      ledger(`${id}-a`, agent, 'claim', id);
+    }
+    await claimTask(t.root, runId, id, agent);
+    if (state === 'running') return;
+    if (state === 'resume') {
+      ledger(`${id}-a`, agent, 'stopped', undefined, later(1000).toISOString());
+      return;
+    }
+    await submitWorkReport(t.root, runId, tmp(workReport(agent, id)), agent);
+    if (state === 'escalated') {
+      await releaseTask(t.root, runId, id, 'failed', agent);
+      return;
+    }
+    await releaseTask(t.root, runId, id, 'done', agent);
+    if (state === 'reviewing') ledger(`${id}-spv`, `${agent}-spv`, 'start', undefined, later(1000).toISOString());
+    if (state === 'redrive' || state === 'redriving') {
+      const rv = review(`${agent}-spv`, agent, id, 'requested-changes');
+      fs.mkdirSync(reviewDir(t.root, runId), { recursive: true });
+      fs.writeFileSync(path.join(reviewDir(t.root, runId), `${agent}.${id}.1.json`), JSON.stringify({ ...rv, id: `RV-${agent}-spv-${id}`, target: { agent, taskId: id, workReportId: `WR-${id}` } }));
+      await appendChained({ type: 'review.requested-changes', ts: new Date().toISOString(), runId, target: { agent, taskId: id }, reviewId: `RV-${agent}-spv-${id}`, findingCount: 1 } as never, busPath(t.root, runId), { emittedBy: `${agent}-spv`, runId });
+      if (state === 'redriving') ledger(`${id}-spv`, `${agent}-spv`, 'start', undefined, later(1000).toISOString());
+    }
+  }
+
+  it('offer == verdict for every combination', async () => {
+    const mismatches: string[] = [];
+    let scenarios = 0;
+    const seen = { offered: 0, withheld: 0 };
+    for (const mode of ['batch', 'continuous'] as const) {
+      for (const a of STATES) {
+        for (const b of SECOND) {
+          t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: mode });
+          runId = await startedRun(t.root);
+          for (const [id, agent] of [['T-2', UI], ['T-3', API], ['T-4', DB], ['T-5', SEC]] as const) await add(id, agent);
+          await put('T-3', API, b); // an escalation blocks the run, so the first task's state is set last
+          await put('T-2', UI, a);
+          const now = later(5000);
+          const v = await nextTasks(t.root, runId, EXEC, { now });
+          const subjects: Array<[string, string]> = [['T-4', DB], ['T-5', SEC]];
+          if (a === 'resume') subjects.push(['T-2', UI]);
+          if (b === 'resume') subjects.push(['T-3', API]);
+          for (const [id, agent] of subjects) {
+            const copy = fs.mkdtempSync(path.join(path.dirname(t.root), 'aegis-copy-'));
+            fs.cpSync(t.root, copy, { recursive: true });
+            let accepted = true;
+            try {
+              await appendSpecialistDispatched(copy, runId, { specialistName: agent, taskId: id, tcIds: [], environment: 'development' }, EXEC, now);
+            } catch {
+              accepted = false;
+            }
+            fs.rmSync(copy, { recursive: true, force: true });
+            const offered = v.dispatch.some((e) => e.task === id);
+            seen[offered ? 'offered' : 'withheld']++;
+            if (offered !== accepted) mismatches.push(`${mode} T-2=${a} T-3=${b} ${id}: offered=${offered} accepted=${accepted}`);
+          }
+          scenarios++;
+          t.cleanup();
+        }
+      }
+    }
+    t = makeAegisRoot();
+    expect(scenarios).toBe(2 * STATES.length * SECOND.length);
+    expect(seen.offered).toBeGreaterThan(20); // both verdicts are exercised
+    expect(seen.withheld).toBeGreaterThan(20);
+    expect(mismatches).toEqual([]);
+  }, 300_000);
+});
+
+describe('fix 4: the hooks record the session; the throttle reads a ledger over 64 KB', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
+    runId = await startedRun(t.root);
+  });
+  const call = (extra: object) =>
+    runHook('guard-writes', { cwd: t.root, tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'x.txt'), content: 'x' }, ...extra }, t.root);
+  const ledgerFile = () => path.join(t.root, 'runs', runId, 'hooks', 'agents.jsonl');
+  const beats = (id: string) => readLedger(t.root, runId, id).filter((e) => e.kind === 'heartbeat');
+
+  (hookStale() ? it.skip : it)('H1 and H4 record the session (session_id, else the transcript name); H1 records the session that runs aegis run resume', () => {
+    expect(call({ agent_type: UI, agent_id: 'ui-1', session_id: 'sess-A' }).status).toBe(0);
+    expect(beats('ui-1')[0]).toMatchObject({ session: 'sess-A' });
+    expect(call({ agent_type: API, agent_id: 'api-1', transcript_path: '/x/projects/p/sess-B.jsonl' }).status).toBe(0);
+    expect(beats('api-1')[0]).toMatchObject({ session: 'sess-B' });
+    runHook('inject-run-context', { hook_event_name: 'SubagentStart', agent_type: UI, agent_id: 'ui-2', session_id: 'sess-C' }, t.root);
+    expect(readLedger(t.root, runId, 'ui-2')[0]).toMatchObject({ kind: 'start', session: 'sess-C' });
+    const r = runHook('guard-writes', { cwd: t.root, tool_name: 'Bash', tool_input: { command: 'AEGIS_AGENT=owner pnpm aegis run resume' }, session_id: 'sess-D' }, t.root);
+    expect(r.status).toBe(0);
+    expect(readLedger(t.root, runId, 'main')).toEqual([expect.objectContaining({ kind: 'run-resume', session: 'sess-D' })]);
+  }, 60_000);
+
+  (hookStale() ? it.skip : it)('a heartbeat beyond the last 64 KB costs one extra line, then the throttle holds; a torn line at the tail boundary is skipped', () => {
+    const recent = JSON.stringify({ ts: new Date().toISOString(), agentId: 'ui-7', agentType: UI, kind: 'heartbeat' });
+    const filler = (n: number) => '\n' + JSON.stringify({ ts: new Date().toISOString(), agentId: 'zz', agentType: 'qa-zz', kind: 'start', note: 'x'.repeat(Math.max(0, n - 80)) }).slice(0, n) + '\n';
+    fs.mkdirSync(path.dirname(ledgerFile()), { recursive: true });
+    fs.appendFileSync(ledgerFile(), '\n' + recent + '\n' + filler(70 * 1024));
+    expect(call({ agent_type: UI, agent_id: 'ui-7' }).status).toBe(0);
+    expect(beats('ui-7')).toHaveLength(2);
+    expect(call({ agent_type: UI, agent_id: 'ui-7' }).status).toBe(0);
+    expect(beats('ui-7')).toHaveLength(2);
+    // the tail of the next file starts 10 bytes into a fresh heartbeat line of ui-8: it is skipped as torn, one new beat is written
+    const fresh = JSON.stringify({ ts: new Date().toISOString(), agentId: 'ui-8', agentType: UI, kind: 'heartbeat' });
+    const after = 64 * 1024 - (fresh.length - 10) - 1;
+    const pad = '\n' + 'y'.repeat(after - 2) + '\n';
+    fs.appendFileSync(ledgerFile(), '\n' + fresh + pad);
+    expect(call({ agent_type: UI, agent_id: 'ui-8' }).status).toBe(0);
+    expect(beats('ui-8')).toHaveLength(2);
+  }, 60_000);
+});
+
+describe('fix 4: execution is validated where it is used, never by unrelated paths', () => {
+  it('a typo mid-run refuses task next, a specialist claim and run create, but not readSettings or a non-specialist claim', async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+    await addTask(t.root, runId, { id: 'T-3', title: 'data', agent: 'qa-environment-engineer' }, 'qa-orchestrator');
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, execution: { dispatchmode: 'continuous' } }));
+    expect(readSettings(t.root).maxSpecialists).toBe(2); // env exec and the seed check read only this
+    await claimTask(t.root, runId, 'T-3', 'qa-environment-engineer');
+    await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ message: expect.stringContaining('unknown key(s) "dispatchmode"') });
+    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('aegis.config.json#execution') });
+    await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).rejects.toMatchObject({ message: expect.stringContaining('aegis.config.json#execution') });
   });
 });
