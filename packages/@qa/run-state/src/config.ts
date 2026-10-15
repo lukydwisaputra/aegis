@@ -7,6 +7,7 @@ import { assertMessagingConfig, type MessagingConfig } from "./messaging.js";
 /** How the executor dispatches specialists (aegis.config.json#execution.dispatchMode); absent means batch. */
 export type DispatchMode = "batch" | "continuous";
 export const DISPATCH_MODES: readonly DispatchMode[] = ["batch", "continuous"];
+const EXECUTION_KEYS: readonly string[] = ["dispatchMode"];
 
 export interface AegisSettings {
   maxSpecialists: number;
@@ -49,6 +50,10 @@ function dispatchModeOf(execution: unknown): DispatchMode {
   if (execution === undefined) return "batch";
   if (execution === null || typeof execution !== "object" || Array.isArray(execution)) {
     throw new RunStateError("invalid-input", "aegis.config.json#execution must be an object, for example {\"dispatchMode\": \"batch\"}");
+  }
+  const unknown = Object.keys(execution).filter((k) => !EXECUTION_KEYS.includes(k));
+  if (unknown.length > 0) {
+    throw new RunStateError("invalid-input", `aegis.config.json#execution has unknown key(s) ${unknown.map((k) => JSON.stringify(k)).join(", ")}; the only key is "dispatchMode" ("batch", the default, or "continuous")`);
   }
   const mode = (execution as { dispatchMode?: unknown }).dispatchMode;
   if (mode === undefined) return "batch";

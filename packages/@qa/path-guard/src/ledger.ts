@@ -17,7 +17,7 @@ export type LedgerKind =
   | "tokens-recorded"
   /** H2 recorded no token.used for this stop; `note` says why (AUD-042b). */
   | "token-unattributed"
-  /** H1 saw a tool call of this qa-* instance (at most one entry per instance every 30 s): it is alive. */
+  /** H1 saw a call of this qa-* instance its matcher covers (Write, Edit, MultiEdit, NotebookEdit, Bash, Agent, Task; not Read, Grep, Glob, Skill or MCP): a sign of life, at most one entry per instance every 30 s. */
   | "heartbeat";
 
 export interface LedgerEntry {

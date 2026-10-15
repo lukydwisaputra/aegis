@@ -653,7 +653,7 @@ describe('fix 2: heartbeat liveness', () => {
     ledger('ui-1', UI, 'start', undefined, ago(40));
     ledger('ui-1', UI, 'claim', 'T-2', ago(40));
     await claimTask(t.root, runId, 'T-2', UI);
-    beat('ui-1', UI, ago(39));
+    beat('ui-1', UI, new Date(Date.now() - 30_000).toISOString()); // a beat within 90 s of the resume: it works across it
     await crash(); // a /qa-resume while it works
     beat('ui-1', UI, new Date().toISOString());
     const v = await nextTasks(t.root, runId, EXEC);
@@ -696,9 +696,116 @@ describe('fix 2: heartbeat liveness', () => {
     expect(beats).toHaveLength(1);
     expect(readLedger(t.root, runId, 'api-1').filter((e) => e.kind === 'heartbeat')).toHaveLength(1);
     expect(readLedger(t.root, runId, 'main')).toEqual([]);
-    // an unwritable heartbeat place changes nothing for the call
-    fs.rmSync(path.join(t.root, 'runs', runId, 'hooks', 'heartbeat'), { recursive: true, force: true });
-    fs.writeFileSync(path.join(t.root, 'runs', runId, 'hooks', 'heartbeat'), 'not a directory');
+    expect(fs.existsSync(path.join(t.root, 'runs', runId, 'hooks', 'heartbeat'))).toBe(false); // no marker files
+    // a heartbeat stamped in the future (the clock stepped back) counts as expired: a new one is written
+    beat('ui-9', UI, new Date(Date.now() + 10 * 60_000).toISOString());
+    expect(call({ agent_type: UI, agent_id: 'ui-9' }).status).toBe(0);
+    expect(readLedger(t.root, runId, 'ui-9').filter((e) => e.kind === 'heartbeat')).toHaveLength(2);
+    // an unwritable ledger changes nothing for the call
+    const ledgerFile = path.join(t.root, 'runs', runId, 'hooks', 'agents.jsonl');
+    fs.rmSync(ledgerFile, { force: true });
+    fs.mkdirSync(ledgerFile);
     expect(call({ agent_type: UI, agent_id: 'ui-8' }).status).toBe(0);
   }, 60_000);
+});
+
+// ─── Fix round 3 ──────────────────────────────────────────────────────────────
+
+describe('fix 3: a resume ends the silent, keeps the fresh; long grace; dispatchers never expire', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+  });
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const beat = (agentId: string, agentType: string, ts: string) => appendLedger(t.root, runId, { ts, agentId, agentType, kind: 'heartbeat' });
+
+  it('crash then an immediate /qa-resume: the re-dispatched executor continues its task, a dead specialist is offered as resume', async () => {
+    await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
+    ledger('ex-1', EXEC, 'start', undefined, ago(10));
+    ledger('ex-1', EXEC, 'claim', 'T-1', ago(10));
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    beat('ex-1', EXEC, ago(3));
+    ledger('ui-1', UI, 'start', undefined, ago(9));
+    ledger('ui-1', UI, 'claim', 'T-2', ago(9));
+    await claimTask(t.root, runId, 'T-2', UI);
+    beat('ui-1', UI, ago(3)); // the session died 3 minutes ago
+    await crash();
+    ledger('ex-2', EXEC, 'start');
+    ledger('ex-2', EXEC, 'claim', 'T-1');
+    await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+    const v = await nextTasks(t.root, runId, EXEC);
+    expect(v.running).toEqual([]);
+    expect(v.dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+
+  it('an agent with an entry within 90 s before the resume and after it stays alive', async () => {
+    ledger('ui-1', UI, 'start', undefined, ago(10));
+    ledger('ui-1', UI, 'claim', 'T-2', ago(10));
+    await claimTask(t.root, runId, 'T-2', UI);
+    beat('ui-1', UI, new Date(Date.now() - 60_000).toISOString());
+    await crash();
+    beat('ui-1', UI, new Date().toISOString());
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
+  });
+
+  it('an alive agent silent for 20 minutes then beating again is never ended (grace 30 minutes)', async () => {
+    ledger('ui-1', UI, 'start', undefined, ago(25));
+    ledger('ui-1', UI, 'claim', 'T-2', ago(25));
+    await claimTask(t.root, runId, 'T-2', UI, new Date(Date.now() - 25 * 60_000 + 1000));
+    beat('ui-1', UI, ago(24));
+    expect(LIVENESS_GRACE_MS).toBe(30 * 60_000);
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']); // 24 minutes of silence
+    beat('ui-1', UI, ago(0));
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
+  });
+
+  it('the orchestrator and the executor never expire by heartbeat; a resume still ends them', async () => {
+    await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
+    beat('ui-0', UI, ago(200)); // the run records heartbeats
+    ledger('ex-1', EXEC, 'start', undefined, ago(180));
+    ledger('ex-1', EXEC, 'claim', 'T-1', ago(180));
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    ledger('ex-2', EXEC, 'claim', 'T-1'); // three hours inside one foreground Agent call: still the holder
+    await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+    await crash();
+    ledger('ex-3', EXEC, 'claim', 'T-1');
+    await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+  });
+});
+
+describe('fix 3: batch is enforced at the dispatch; unknown execution keys are refused', () => {
+  it('batch refuses a refill while the wave is not reviewed, and allows the next wave after; continuous allows it', async () => {
+    for (const mode of ['batch', 'continuous'] as const) {
+      t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: mode });
+      runId = await startedRun(t.root);
+      for (const [id, agent] of [['T-2', UI], ['T-3', API], ['T-4', DB]] as const) await add(id, agent);
+      await dispatch('T-2', UI);
+      await dispatch('T-3', API); // the first wave's own dispatches pass
+      await claimTask(t.root, runId, 'T-2', UI);
+      await claimTask(t.root, runId, 'T-3', API);
+      await finish('T-3', API);
+      if (mode === 'batch') {
+        await expect(dispatch('T-4', DB)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('batch-wave-open') });
+        await finish('T-2', UI);
+        await expect(dispatch('T-4', DB)).rejects.toMatchObject({ message: expect.stringContaining('aegis task next') });
+        await reviewed('T-2', UI, 'passed');
+        await reviewed('T-3', API, 'passed');
+        await dispatch('T-4', DB);
+      } else {
+        await dispatch('T-4', DB);
+      }
+      t.cleanup();
+    }
+    t = makeAegisRoot();
+  });
+
+  it('a misspelled key under execution is refused by name', async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, execution: { dispatchmode: 'continuous' } }));
+    await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('aegis.config.json#execution has unknown key(s) "dispatchmode"') });
+  });
 });

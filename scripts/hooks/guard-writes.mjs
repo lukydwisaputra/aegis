@@ -2,7 +2,7 @@
 // H1 guard-writes (P0 spec §4.2): PreToolUse on Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task.
 // The hook payload arrives as JSON on stdin. Exit 2 with the reason on stderr denies the call; a warning goes to stdout
 // as {"systemMessage": …} with exit 0 (never a permissionDecision: the normal permission flow still applies).
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, openSync, readFileSync, readlinkSync, readSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -202,24 +202,48 @@ function fixFor(message) {
 
 /** At most one heartbeat ledger entry per qa-* instance in this window. */
 const HEARTBEAT_EVERY_MS = 30_000;
+/** How much of the ledger's end the throttle reads for this instance's latest heartbeat. */
+const HEARTBEAT_TAIL_BYTES = 64 * 1024;
 
 /**
- * Append `{kind: "heartbeat"}` for this instance to the active run's hook ledger, throttled by the mtime of a marker file
- * (hooks/heartbeat/<agent_id>). Best-effort: it never fails, delays or denies the tool call.
+ * Append `{kind: "heartbeat"}` for this instance to the active run's hook ledger, unless the ledger's last 64 KB already hold
+ * one of its heartbeats from the last 30 s. A heartbeat stamped in the future (the clock stepped back) counts as expired, and
+ * a heartbeat further back than the tail only costs one extra line; no marker file is kept. It fires only on the calls this
+ * hook's matcher covers (Write, Edit, MultiEdit, NotebookEdit, Bash, Agent, Task), never on Read, Grep, Glob, Skill or MCP
+ * calls. Best-effort: it never fails, delays or denies the tool call.
  */
 function heartbeat(runId) {
   try {
     if (!/^RUN-\d{8}-\d{3}$/.test(runId) || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId)) return;
-    const dir = join(RUNS, runId, "hooks", "heartbeat");
-    const marker = join(dir, agentId);
+    const file = join(RUNS, runId, "hooks", "agents.jsonl");
     const now = Date.now();
+    let tail = "";
     try {
-      if (now - statSync(marker).mtimeMs < HEARTBEAT_EVERY_MS) return;
+      const size = statSync(file).size;
+      const fd = openSync(file, "r");
+      try {
+        const len = Math.min(size, HEARTBEAT_TAIL_BYTES);
+        const buf = Buffer.alloc(len);
+        readSync(fd, buf, 0, len, size - len);
+        tail = buf.toString("utf-8");
+      } finally {
+        closeSync(fd);
+      }
     } catch {
-      // no marker yet: first heartbeat of this instance
+      // no ledger yet: first entry of the run
     }
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(marker, "");
+    const mine = `"agentId":${JSON.stringify(agentId)}`;
+    for (const line of tail.split("\n").reverse()) {
+      if (!line.includes('"kind":"heartbeat"') || !line.includes(mine)) continue;
+      let age;
+      try {
+        age = now - Date.parse(JSON.parse(line).ts);
+      } catch {
+        continue; // a torn line: keep looking
+      }
+      if (age >= 0 && age < HEARTBEAT_EVERY_MS) return;
+      break; // its latest heartbeat is older, or in the future: write a new one
+    }
     pg.appendLedger(ROOT, runId, { ts: new Date(now).toISOString(), agentId, agentType, kind: "heartbeat" });
   } catch {
     // liveness is best-effort; the guard decision never depends on it
@@ -247,7 +271,7 @@ try {
     ...(loaded.collectorRoot !== undefined ? { collectorRoot: canonical(loaded.collectorRoot) } : {}),
     ...(Array.isArray(loaded.nativeWorktrees) ? { nativeWorktrees: loaded.nativeWorktrees.map(canonical) } : {}),
   };
-  // Item 1 fix 2: a qa-* instance's tool call proves it is alive (liveness in @qa/run-state claim-holder.ts).
+  // Item 1 fix 2: a call of a qa-* instance this hook sees is a sign of life (liveness in @qa/run-state claim-holder.ts).
   if (isQa && typeof ctx.activeRunId === "string") heartbeat(ctx.activeRunId);
   const result = pg.decide(payload, ctx, {
     cliAllowed(who, command) {

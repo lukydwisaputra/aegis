@@ -53,18 +53,34 @@ export function claimHolderEntry(runLedger: LedgerEntry[], task: Task, agentType
 
 /**
  * How long a qa-* instance stays alive after its last ledger entry (start, claim, heartbeat, a blocked stop) in a run that
- * records heartbeats. H1 writes a heartbeat at most every 30 s while the instance makes tool calls, but one Bash call may run
- * up to 10 minutes (the 600000 ms ceiling) without any hook firing, plus the model's turn around it: 15 minutes covers that.
+ * records heartbeats, when no resume intervenes. H1 writes a heartbeat at most every 30 s, but only on a call its matcher
+ * covers (Write, Edit, MultiEdit, NotebookEdit, Bash, Agent, Task: Read, Grep, Glob, Skill and MCP calls fire no hook), and
+ * real agents that later completed were silent up to 49.7 minutes between such calls (2 of 1,824 over 30 minutes).
  */
-export const LIVENESS_GRACE_MS = 15 * 60_000;
+export const LIVENESS_GRACE_MS = 30 * 60_000;
 
 /**
- * Item 1 fix 2: when an instance has ended. A session that dies (crash, auth failure, killed terminal) fires no SubagentStop,
+ * A `run.resumed` ends every instance (heartbeat runs) whose latest entry at or before the resume is older than the resume by
+ * more than this. A survivor working across the resume has an entry at most one heartbeat interval (30 s) before it; a crashed
+ * one was silent from the crash to the resume.
+ */
+export const RESUME_FRESH_MS = 90_000;
+
+/**
+ * The agents that wait in one foreground Agent call for hours (the orchestrator for its phase agents; the executor before the
+ * continuous loop): silent for long stretches while alive, so they never expire by heartbeat. They end by their stop record or
+ * by the resume rule only. Nothing reads their liveness except the duplicate check on their own re-claim.
+ */
+export const NO_EXPIRY_AGENTS: ReadonlySet<string> = new Set(["qa-orchestrator", "qa-test-executor"]);
+
+/**
+ * Item 1 fix 2/3: when an instance has ended. A session that dies (crash, auth failure, killed terminal) fires no SubagentStop,
  * so its agents keep a `start` with no end entry forever; the synthetic ends added here (a `stop-unresolved` entry, never
  * written) say when they died.
  * - Heartbeat liveness: in a run whose ledger records heartbeats (H1), an instance first seen at or after the run's first
- *   heartbeat, or with a heartbeat of its own, is alive while its latest entry is within LIVENESS_GRACE_MS of `now`; a resume
- *   ends nothing, so an agent that kept working across /qa-resume stays alive.
+ *   heartbeat, or with a heartbeat of its own, ends at the first `run.resumed` its latest entry before it precedes by more than
+ *   RESUME_FRESH_MS (a crash then /qa-resume recovers at once), or LIVENESS_GRACE_MS after its latest entry, whichever comes
+ *   first; NO_EXPIRY_AGENTS end by the resume rule only. An entry after that end does not revive it.
  * - Fallback for runs and instances with no heartbeat data: every instance first seen before a `run.resumed` with no end by
  *   then is ended at that resume. A stop request alone ends nothing in either mode: the agents in flight may still be finishing.
  */
@@ -85,15 +101,29 @@ export function effectiveLedger(ledger: LedgerEntry[], resumes: readonly number[
     const since = Math.min(...times);
     const first = entries[times.indexOf(since)]!;
     const ended = endedAt(ledger, agentId, since);
+    const end = (at: number) => ends.push({ ts: new Date(at).toISOString(), agentId, agentType: first.agentType, kind: "stop-unresolved" });
     if (entries.some((e) => e.kind === "heartbeat") || since >= firstBeat) {
       if (ended !== null) continue;
-      const last = Math.max(...times);
-      if (now - last > LIVENESS_GRACE_MS) ends.push({ ts: new Date(last + LIVENESS_GRACE_MS).toISOString(), agentId, agentType: first.agentType, kind: "stop-unresolved" });
+      let at = Infinity;
+      for (const r of sortedResumes) {
+        if (r <= since) continue;
+        const before = times.filter((x) => x <= r);
+        if (r - Math.max(...before) > RESUME_FRESH_MS) {
+          at = r;
+          break;
+        }
+      }
+      if (!NO_EXPIRY_AGENTS.has(first.agentType)) {
+        // the latest entry before any resume end: a later one cannot revive an ended instance
+        const last = Math.max(...times.filter((x) => x <= at));
+        if (now - last > LIVENESS_GRACE_MS) at = Math.min(at, last + LIVENESS_GRACE_MS);
+      }
+      if (at !== Infinity) end(at);
       continue;
     }
     const resume = sortedResumes.find((r) => r > since);
     if (resume === undefined || (ended !== null && ended <= resume)) continue;
-    ends.push({ ts: new Date(resume).toISOString(), agentId, agentType: first.agentType, kind: "stop-unresolved" });
+    end(resume);
   }
   return ends.length === 0 ? ledger : [...ledger, ...ends];
 }

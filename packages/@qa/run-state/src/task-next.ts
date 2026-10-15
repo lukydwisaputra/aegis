@@ -408,11 +408,21 @@ export async function withDispatchReservation<T>(root: string, runId: string, fi
         throw new RunStateError("invalid-input", `already-running: task ${taskId} is held by a running ${c.entry.assignee}; wait for its release (aegis task next)`);
       case "resume":
         return append();
-      case "candidate":
+      case "candidate": {
+        // Fix 3 (m2): batch mode is enforced, not advisory. A refill needs a release first, and a released task is held, under
+        // review or reviewing until the whole wave returned and was reviewed; the first wave's own dispatches never see one.
+        const waveOpen = [...result.held, ...result.review, ...result.reviewing, ...result.redrive.filter((e) => e.inFlight === true)].map((e) => e.task);
+        if (result.mode === "batch" && waveOpen.length > 0) {
+          throw new RunStateError(
+            "invalid-input",
+            `batch-wave-open: aegis.config.json#execution.dispatchMode is batch and the current wave is not complete (${waveOpen.join(", ")} await their review); dispatch task ${taskId} when aegis task next offers it`
+          );
+        }
         if (result.freeSlots <= 0) {
           throw new RunStateError("cap-reached", `all ${result.cap} specialist slots are taken (running or dispatched and not yet claimed: ${busy}); dispatch task ${taskId} when aegis task next offers it`);
         }
         return append();
+      }
       default: {
         const why = c.entry.status === "done" && c.entry.reviewState === "none" ? "awaits its review: dispatch its SPV, not the specialist" : `is ${c.entry.status} (review state ${c.entry.reviewState}); no specialist dispatch`;
         throw new RunStateError("invalid-input", `task ${taskId} ${why}`);
