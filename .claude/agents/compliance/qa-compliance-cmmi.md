@@ -55,7 +55,7 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 ## Outputs
 
 - `runs/{runId}/reports/compliance/cmmi.{md,json}` — gap report. `runs/{runId}/reports/compliance/cmmi.json` is `{ "regulation": "cmmi", "practicesCovered": [<covered tags>], "gaps": [<one object per Partially or Not Implemented practice>], "maturityIndicator": "<highest fully achieved level, e.g. ML2>" }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
-- `CMMI-{ProcessArea}-{Practice}` tags on relevant artefacts
+- `CMMI-{ProcessArea}-{Practice}` tags on relevant artefacts: the process area in capitals and the practice as `SP` and a number, a dot and a number (for example CMMI-VV-SP2.1; CMMI-VV-SP2 is refused), and every gap tag is checked when the review event is appended
 
 The pre-gate lint refuses Gate 3 while a customer-facing file carries QA-process wording in context, an internal task id, or personal data that could be real (an NRIC, an email, a phone number, a person name), so you never write them; a finding is fixed in the source data and the file is rewritten, never argued with, and a phone number is written masked (`+65 9100 ****`).
 

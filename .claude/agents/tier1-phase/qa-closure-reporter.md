@@ -80,6 +80,8 @@ Do not invent new shapes for these figures. `gen-index.ts` carries compatibility
 
 ### closure.json: unavailable metrics
 
+`closure.json#metrics` carries all fourteen figures: designed (or totalTestCases), passed, failed, blocked, passRate, requirementsCoverage, testExecutionCoverage, automationCoverage, defectDensity, dre, escapeRate, reopenRate, mttdHours (or mttdMs) and mttrHours (or mttrMs). Each key is present (null when it cannot be computed), or the metric is named in `unavailableMetricValues` (for example "MTTR: no repair data recorded"); a missing rollup file listed in `unavailableMetrics` covers only the figures it computes (`coverage.json`: the counts, pass rate and both coverage percentages; `defect-trend.json`: density, escape rate, reopen rate, MTTD, MTTR; `effectiveness.json`: DRE and escape rate); automation coverage is always stated. The closure phase refuses a closure with a figure that is neither stated nor declared.
+
 `closure.json` always carries `unavailableMetrics`: the file names of the required metric files (Inputs) that did not exist when you drafted, `[]` when every one did.
 
 ```jsonc

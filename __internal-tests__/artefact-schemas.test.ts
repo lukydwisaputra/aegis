@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { ClosureFileSchema, AegisEventSchema } from '@qa/contracts';
+import { AegisEventSchema, CLOSURE_METRIC_KEYS, ClosureFileSchema, ComplianceTagSchema } from '@qa/contracts';
 import { appendChained, readLines, verifyChain } from '@qa/event-bus';
 import { addTask, assertEventConsistent, busPath, claimTask, completePhase, createRun, outputProblems, runDir, startPhase, submitWorkReport } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
@@ -90,6 +90,86 @@ describe('the closure file schema', () => {
 
   it('leaves every other field of the closure free', () => {
     expect(problems({ metrics: ALL, anything: { goes: [1, 2] }, summary: 'x' })).toBe('');
+  });
+});
+
+describe('closure file schema: rollup files, declaration shapes, non-object root (review of Task 2a)', () => {
+  it('coverage.json covers the counts and both coverage percentages, never the automation coverage', () => {
+    const m = without('designed', 'passed', 'failed', 'blocked', 'passRate', 'requirementsCoverage', 'testExecutionCoverage');
+    expect(problems({ metrics: m })).toMatch(/closure-metrics-missing/);
+    expect(problems({ metrics: m, unavailableMetrics: ['coverage.json'] })).toBe('');
+    expect(problems({ metrics: without('automationCoverage'), unavailableMetrics: ['coverage.json'] })).toMatch(/automationCoverage/);
+  });
+
+  it('defect-trend.json also covers defectDensity and escapeRate; the remedy names only files that cover the missing metric', () => {
+    expect(problems({ metrics: without('defectDensity', 'escapeRate'), unavailableMetrics: ['defect-trend.json'] })).toBe('');
+    const text = problems({ metrics: without('defectDensity', 'dre') });
+    expect(text).toMatch(/list that file in unavailableMetrics \(defect-trend\.json covers defectDensity; effectiveness\.json covers dre\)/);
+    expect(text).not.toMatch(/coverage\.json covers|cycle-time/);
+    // a metric no rollup computes has no file remedy at all
+    const auto = problems({ metrics: without('automationCoverage') });
+    expect(auto).toMatch(/automationCoverage \(?.*absent/);
+    expect(auto).not.toMatch(/rollup file/);
+    expect(problems({ metrics: without('designed') })).toMatch(/\(coverage\.json covers designed\)/);
+  });
+
+  it('an array of objects in unavailableMetricValues declares by the metric, label or name string of each entry', () => {
+    const m = without('mttdHours', 'mttrHours');
+    expect(problems({ metrics: m, unavailableMetricValues: [{ metric: 'MTTD', reason: 'no detection timestamps' }, { label: 'repair time (MTTR)', value: null }] })).toBe('');
+    expect(problems({ metrics: m, unavailableMetricValues: [{ name: 'MTTD' }, { name: 'flaky rate' }] })).toMatch(/mttrHours/);
+    expect(problems({ metrics: m, unavailableMetricValues: [{ name: 'MTTD' }, { name: 'flaky rate' }] })).not.toMatch(/mttdHours/);
+  });
+
+  it('a path in unavailableMetrics covers by its file name', () => {
+    expect(problems({ metrics: without('dre', 'escapeRate'), unavailableMetrics: ['reports/metrics/effectiveness.json'] })).toBe('');
+    expect(problems({ metrics: without('dre'), unavailableMetrics: ['runs\\x\\Effectiveness.JSON'] })).toBe('');
+    expect(problems({ metrics: without('dre'), unavailableMetrics: ['reports/metrics/flaky.json'] })).toMatch(/dre/);
+  });
+
+  it('a root that is not an object is refused with the rule id and the remedy, not bare schema text', () => {
+    for (const root of [[], null, 'closure', 7]) {
+      expect(problems(root)).toMatch(/closure-metrics-missing: closure\.json must be a JSON object with a metrics object/);
+    }
+  });
+
+  it('the barrier lifts a non-object root with closure-schema or its rule id', () => {
+    const t = makeAegisRoot();
+    return (async () => {
+      try {
+        const runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full', health: 'passed' }, 'owner')).runId;
+        writeRunFile(t.root, runId, 'reports/closure/closure.json', []);
+        expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([expect.stringMatching(/closure-metrics-missing: closure\.json must be a JSON object/)]);
+        fs.writeFileSync(path.join(t.root, 'aegis.config.json'), JSON.stringify({ parallelism: { maxSpecialists: 2 }, reportRules: { disable: ['env-probe', 'closure-metrics-missing'] } }));
+        expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([]);
+      } finally {
+        t.cleanup();
+      }
+    })();
+  });
+});
+
+describe('agent contracts state what the closure barrier and the append check enforce', () => {
+  const agent = (rel: string) => fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', rel), 'utf8');
+
+  it('the closure reporter names every required metric key, the undeclared-metric rule and the rollup file coverage', () => {
+    const text = agent('tier1-phase/qa-closure-reporter.md');
+    for (const keys of Object.values(CLOSURE_METRIC_KEYS)) expect(text).toContain(keys[0] as string);
+    expect(text).toMatch(/all fourteen figures/);
+    expect(text).toMatch(/unavailableMetricValues/);
+    expect(text).toMatch(/`coverage\.json`: the counts, pass rate and both coverage percentages; `defect-trend\.json`: density, escape rate, reopen rate, MTTD, MTTR; `effectiveness\.json`: DRE/);
+    expect(Object.keys(CLOSURE_METRIC_KEYS)).toHaveLength(14);
+  });
+
+  it('the ISTQB and CMMI agents give a tag example the tag schema accepts, and say it is checked at append', () => {
+    const istqb = agent('compliance/qa-compliance-istqb.md');
+    const cmmi = agent('compliance/qa-compliance-cmmi.md');
+    for (const [text, good, bad] of [[istqb, 'ISTQB-Foundation-4.2', 'ISTQB-Foundation-4'], [cmmi, 'CMMI-VV-SP2.1', 'CMMI-VV-SP2']] as const) {
+      expect(text).toContain(good);
+      expect(text).toContain(bad);
+      expect(ComplianceTagSchema.safeParse(good).success).toBe(true);
+      expect(ComplianceTagSchema.safeParse(bad).success).toBe(false);
+      expect(text).toMatch(/every gap tag is checked when the review event is appended/);
+    }
   });
 });
 

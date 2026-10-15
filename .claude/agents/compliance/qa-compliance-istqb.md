@@ -46,7 +46,7 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 ## Outputs
 
 - `runs/{runId}/reports/compliance/istqb.{md,json}` — gap report. `runs/{runId}/reports/compliance/istqb.json` is `{ "regulation": "istqb", "sectionsCovered": [<covered tags>], "gaps": [<one object per gap>], "highSeverityGapCount": <n> }`: the same key names as your `compliance.review-complete` event, whose `gaps` lists the gaps' tags. The closure reporter and the technical report read these keys.
-- `ISTQB-Foundation-{section}` tags added to TCs/defects as applicable
+- `ISTQB-Foundation-{section}` tags added to TCs/defects as applicable: the section has a number, a dot and a number (for example ISTQB-Foundation-4.2; ISTQB-Foundation-4 is refused), and every gap tag is checked when the review event is appended
 
 The pre-gate lint refuses Gate 3 while a customer-facing file carries QA-process wording in context, an internal task id, or personal data that could be real (an NRIC, an email, a phone number, a person name), so you never write them; a finding is fixed in the source data and the file is rewritten, never argued with, and a phone number is written masked (`+65 9100 ****`).
 
