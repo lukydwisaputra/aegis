@@ -20,6 +20,9 @@ const LISTED = 20;
 /** At most this many error ids are stamped into the stored work report. */
 const STAMPED = 50;
 const MESSAGE_MAX = 240;
+/** At most this many error findings are stamped into the stored work report with their message and masked line. */
+const STAMPED_FINDINGS = 20;
+const CONTEXT_MAX = 160;
 
 /** One finding as the submit result shows it: the rule id, where, and the short message (personal data already masked by the scan). */
 export interface SubmitLintNote {
@@ -27,6 +30,15 @@ export interface SubmitLintNote {
   file: string;
   line: number;
   message: string;
+}
+
+/** One error finding as the CLI stamps it into the stored work report (`lintFindings`): what the CLI needs to return the report with a review it builds itself. */
+export interface StampedFinding {
+  rule: string;
+  file: string;
+  line: number;
+  message: string;
+  context: string;
 }
 
 /** The lint of a report writer's files at submit: shown in the submit result, never a refusal. */
@@ -48,6 +60,18 @@ export interface SubmitLint {
  * link) are named. With no file named, the role table's run globs of the agent stand in.
  */
 export function submitLintFiles(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): string[] {
+  const named = namedRunFiles(root, runId, artifactsProduced).filter((f) => TEXT_FILE.test(f));
+  if (named.length > 0) return named;
+  const globs = (roleOf(agent)?.writes ?? []).filter((g) => g.startsWith("{run}/")).map((g) => g.slice("{run}/".length));
+  return runFiles(runDir(root, runId)).files.filter((f) => TEXT_FILE.test(f) && globs.some((g) => matchGlob(g, f))).sort();
+}
+
+/**
+ * Every run file (any type) a work report's artifactsProduced names, run-relative and sorted, resolved as submitLintFiles describes (an entry
+ * may be run-relative, carry the run prefix or `{run}/`, name a directory or a glob; anything outside the run or naming no file is ignored).
+ * No role-table fallback: an entry that names nothing names nothing.
+ */
+function namedRunFiles(root: string, runId: string, artifactsProduced: readonly string[]): string[] {
   const dir = runDir(root, runId);
   let all: string[] | null = null;
   const files = (): string[] => (all ??= runFiles(dir).files);
@@ -71,10 +95,7 @@ export function submitLintFiles(root: string, runId: string, agent: string, arti
     if (listed.includes(p)) out.add(p);
     else for (const f of listed) if (f.startsWith(`${p}/`)) out.add(f);
   }
-  const named = [...out].filter((f) => TEXT_FILE.test(f));
-  if (named.length > 0) return named.sort();
-  const globs = (roleOf(agent)?.writes ?? []).filter((g) => g.startsWith("{run}/")).map((g) => g.slice("{run}/".length));
-  return files().filter((f) => TEXT_FILE.test(f) && globs.some((g) => matchGlob(g, f))).sort();
+  return [...out].sort();
 }
 
 const note = (f: Finding): SubmitLintNote => ({
@@ -98,11 +119,18 @@ export function submitLintFindings(root: string, runId: string, agent: string, a
   return { filesScanned: scan.filesScanned, findings: [...kept, ...executiveFindings(root, runId)] };
 }
 
+/** The lint of one submission: the result to show, the error ids to stamp and the first error findings with their text, to stamp beside them. */
+export interface SubmitLintResult {
+  lint: SubmitLint;
+  lintErrors: string[];
+  findings: StampedFinding[];
+}
+
 /**
  * The lint of a submission by a report writer (SUBMIT_LINTED_AGENTS) in a full run, or null for any other agent and in a smoke run: the result to show and the error ids to
  * stamp into the stored work report (`<rule> <file>:<line>`, de-duplicated). Never throws: a lint that cannot run is reported as unavailable.
  */
-export function submitLint(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): { lint: SubmitLint; lintErrors: string[] } | null {
+export function submitLint(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): SubmitLintResult | null {
   if (!SUBMIT_LINTED_AGENTS.has(agent)) return null;
   // A smoke run has no gate the lint prepares for (no G3, no executive phase): nothing is linted or stamped.
   try {
@@ -114,13 +142,13 @@ export function submitLint(root: string, runId: string, agent: string, artifacts
   try {
     scan = submitLintFindings(root, runId, agent, artifactsProduced);
   } catch (e) {
-    return { lint: { errors: [], warnings: [], filesScanned: 0, unavailable: e instanceof Error ? e.message.slice(0, MESSAGE_MAX) : "the lint could not run" }, lintErrors: [] };
+    return { lint: { errors: [], warnings: [], filesScanned: 0, unavailable: e instanceof Error ? e.message.slice(0, MESSAGE_MAX) : "the lint could not run" }, lintErrors: [], findings: [] };
   }
   return packageLint(scan.findings, scan.filesScanned);
 }
 
 /** The result a submit shows and the error ids it stamps, from a list of findings. */
-function packageLint(findings: readonly Finding[], filesScanned: number): { lint: SubmitLint; lintErrors: string[] } {
+function packageLint(findings: readonly Finding[], filesScanned: number): SubmitLintResult {
   const errors = findings.filter((f) => f.severity === "error");
   const warnings = findings.filter((f) => f.severity !== "error");
   const omitted = { errors: Math.max(0, errors.length - LISTED), warnings: Math.max(0, warnings.length - LISTED) };
@@ -132,6 +160,11 @@ function packageLint(findings: readonly Finding[], filesScanned: number): { lint
       filesScanned,
     },
     lintErrors: [...new Set(errors.map((f) => `${f.rule} ${f.file}:${f.line}`))].slice(0, STAMPED),
+    findings: errors.slice(0, STAMPED_FINDINGS).map((f) => ({
+      rule: f.rule, file: f.file, line: f.line,
+      message: f.message.length > MESSAGE_MAX ? `${f.message.slice(0, MESSAGE_MAX - 3)}...` : f.message,
+      context: f.context.length > CONTEXT_MAX ? `${f.context.slice(0, CONTEXT_MAX - 3)}...` : f.context,
+    })),
   };
 }
 
@@ -146,7 +179,7 @@ export const SPEC_LINTED_AGENTS: ReadonlySet<string> = new Set([
  * note in parentheses): the spec rules over the files that resolve inside the tests directory. Null for any other agent, in a smoke run and
  * when the entries name no spec file. Stamped like the report writers' lint (the error ids), never a refusal; never throws.
  */
-export async function specSubmitLint(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): Promise<{ lint: SubmitLint; lintErrors: string[] } | null> {
+export async function specSubmitLint(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): Promise<SubmitLintResult | null> {
   if (!SPEC_LINTED_AGENTS.has(agent)) return null;
   try {
     if (readRun(root, runId).cycleType === "smoke") return null;
@@ -172,7 +205,7 @@ export async function specSubmitLint(root: string, runId: string, agent: string,
 }
 
 /** The two lints of one submission folded into one result: the errors and warnings of both, the error ids of both. */
-export function mergeSubmitLints(a: { lint: SubmitLint; lintErrors: string[] } | null, b: { lint: SubmitLint; lintErrors: string[] } | null): { lint: SubmitLint; lintErrors: string[] } | null {
+export function mergeSubmitLints(a: SubmitLintResult | null, b: SubmitLintResult | null): SubmitLintResult | null {
   if (a === null) return b;
   if (b === null) return a;
   const omitted = { errors: (a.lint.omitted?.errors ?? 0) + (b.lint.omitted?.errors ?? 0), warnings: (a.lint.omitted?.warnings ?? 0) + (b.lint.omitted?.warnings ?? 0) };
@@ -184,5 +217,6 @@ export function mergeSubmitLints(a: { lint: SubmitLint; lintErrors: string[] } |
       filesScanned: a.lint.filesScanned + b.lint.filesScanned,
     },
     lintErrors: [...new Set([...a.lintErrors, ...b.lintErrors])].slice(0, STAMPED),
+    findings: [...a.findings, ...b.findings].slice(0, STAMPED_FINDINGS),
   };
 }

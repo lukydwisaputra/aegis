@@ -72,6 +72,29 @@ export const ReviewRequestedChangesEventSchema = EventBase.extend({
   findingCount: z.number().int().positive(),
 });
 
+// A review the CLI decided itself at task release (no SPV was dispatched): a carry-forward attempt whose files are byte-identical to the
+// previous accepted attempt, or a work report the submit lint stamped with errors. Recorded by the CLI under the system reviewer identity.
+export const ReviewAutoAcceptedEventSchema = EventBase.extend({
+  type: z.literal("review.auto-accepted"),
+  target: z.object({ agent: z.string(), taskId: z.string() }),
+  reviewId: ReviewIdSchema,
+  attempt: z.number().int().positive(),
+  /** The previous accepted attempt whose files this attempt equals. */
+  baselineAttempt: z.number().int().positive(),
+  /** How many files were compared. */
+  files: z.number().int().positive(),
+});
+
+export const ReviewAutoReturnedEventSchema = EventBase.extend({
+  type: z.literal("review.auto-returned"),
+  target: z.object({ agent: z.string(), taskId: z.string() }),
+  reviewId: ReviewIdSchema,
+  attempt: z.number().int().positive(),
+  findingCount: z.number().int().positive(),
+  /** Requested-changes reviews of the current round, this one included. */
+  rejections: z.number().int().positive(),
+});
+
 // ─── Defect ───────────────────────────────────────────────────────────────────
 
 export const DefectOpenedEventSchema = EventBase.extend({
@@ -1892,6 +1915,8 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   ReviewPassedEventSchema,
   ReviewPassedWithNotesEventSchema,
   ReviewRequestedChangesEventSchema,
+  ReviewAutoAcceptedEventSchema,
+  ReviewAutoReturnedEventSchema,
   DefectOpenedEventSchema,
   DefectClosedEventSchema,
   DefectReopenedEventSchema,

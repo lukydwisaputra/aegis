@@ -73,7 +73,8 @@ async function executorLoopProblem(root: string, runId: string, task: Task, noRe
     ["running", [...v.running, ...v.dispatched]],
     ["to dispatch", v.dispatch],
     ["waiting for a slot", v.waiting],
-    ["awaiting their SPV", [...v.review, ...v.reviewing, ...v.held, ...v.redrive]],
+    ["awaiting their SPV", [...v.review, ...v.reviewing, ...v.held.filter((e) => e.corrective !== true), ...v.redrive]],
+    ["returned by the CLI, waiting for the next wave", v.held.filter((e) => e.corrective === true)],
     ["to re-release failed", v.failedRelease],
   ] as const;
   const state = parts.filter(([, xs]) => xs.length > 0).map(([label, xs]) => `${label}: ${xs.map((e) => e.task).join(", ")}`).join("; ");

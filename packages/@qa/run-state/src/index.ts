@@ -54,3 +54,5 @@ export * from "./carry-forward.js";
 export * from "./reissue-scope.js";
 export * from "./render/markdown.js";
 export * from "./render/artefacts.js";
+export * from "./result-digest.js";
+export * from "./auto-review.js";

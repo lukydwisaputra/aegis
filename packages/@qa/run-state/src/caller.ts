@@ -258,3 +258,17 @@ export function isSpecialist(agent: string): boolean {
 export function pairedSpv(agent: string): string {
   return roleOf(agent)?.spv ?? `${agent}-spv`;
 }
+
+/**
+ * The reviewer identity of a review the CLI decides itself at `aegis task release` (a carry-forward attempt whose files equal the previous
+ * accepted attempt's, a work report stamped with lint errors): no SPV is dispatched for it. It is deliberately not an identity an agent can
+ * hold: it is not "owner", does not match AGENT_ID (resolveCaller refuses it as AEGIS_AGENT) and does not end in "-spv" (aegis review submit
+ * requires an SPV caller whose name is the review's reviewer). reports/review/** is CLI-only for every agent (H1) and the review. event prefix is
+ * CLI-recorded, so the only writer of a review under this name, and of the events it emits, is decideReviewBySystem.
+ */
+export const SYSTEM_REVIEWER = "system-cli";
+
+/** Whether `reviewer` may stand behind a review of `agent`'s work: its paired SPV, or the CLI itself (SYSTEM_REVIEWER). */
+export function isDecidingReviewer(reviewer: string, agent: string): boolean {
+  return reviewer === pairedSpv(agent) || reviewer === SYSTEM_REVIEWER;
+}

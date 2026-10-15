@@ -210,8 +210,9 @@ function effectiveness(events: Ev[] | null, runDir: string, records: Map<string,
 
 /**
  * agent-reliability.json = { agents: { <agent>: { reviewPassRate, requestedChangesCount, meanTaskDurationMs, lessonAppendCount } } }.
- * reviewPassRate = (review.passed + review.passed-with-notes) / (those + review.requested-changes) as a percentage, 1 decimal, per
- * target agent; null for an agent with no review. requestedChangesCount = its review.requested-changes events. meanTaskDurationMs = mean of
+ * reviewPassRate = (review.passed + review.passed-with-notes + review.auto-accepted) / (those + review.requested-changes + review.auto-returned)
+ * as a percentage, 1 decimal, per target agent (the reviewed worker, whoever decided the review: its SPV or the CLI); null for an agent with no
+ * review. requestedChangesCount = its review.requested-changes and review.auto-returned events. meanTaskDurationMs = mean of
  * (task.released - the latest earlier task.claimed of the same task and agent), null when none. lessonAppendCount = its lesson.appended
  * events (aegis review submit pipes lessons without recording that event, so 0 means none recorded). noData: true without events.jsonl.
  */
@@ -221,8 +222,8 @@ function agentReliability(events: Ev[] | null): unknown {
   const claims = new Map<string, string>();
   for (const e of events ?? []) {
     const target = isPlain(e["target"]) ? (e["target"]["agent"] as string | undefined) : undefined;
-    if (e.type === "review.passed" || e.type === "review.passed-with-notes") { if (target !== undefined) get(target).pass++; }
-    else if (e.type === "review.requested-changes") { if (target !== undefined) get(target).changes++; }
+    if (e.type === "review.passed" || e.type === "review.passed-with-notes" || e.type === "review.auto-accepted") { if (target !== undefined) get(target).pass++; }
+    else if (e.type === "review.requested-changes" || e.type === "review.auto-returned") { if (target !== undefined) get(target).changes++; }
     else if (e.type === "task.claimed") claims.set(`${e["agent"]}|${e["taskId"]}`, e.ts);
     else if (e.type === "task.released") {
       const key = `${e["agent"]}|${e["taskId"]}`;

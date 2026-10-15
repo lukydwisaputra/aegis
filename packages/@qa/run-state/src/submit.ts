@@ -1,13 +1,14 @@
 import * as fs from "node:fs";
 import { join, relative } from "node:path";
-import { ReviewIdSchema, ReviewSchema, WORK_REPORT_KEYS, WorkReportIdSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
+import { ReviewIdSchema, ReviewSchema, WORK_REPORT_KEYS, WorkReportIdSchema, WorkReportSchema, type Review, type ReviewVerdict } from "@qa/contracts";
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
-import { createTaskmasterClient } from "@qa/taskmaster-client";
+import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { CARRY_FORWARD_PREFIX, carryForwardStamp, isCarryForwardSummary, latestDispatchCases, normalizeCarryForwardSummary, type CarryForwardStamp } from "./carry-forward.js";
 import { reissueCaseScope } from "./reissue-scope.js";
-import { AGENT_ID, assertCallerAllowed, pairedSpv } from "./caller.js";
+import { AGENT_ID, assertCallerAllowed, isDecidingReviewer, isSpecialist, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
+import { taskDigest } from "./result-digest.js";
 import { withSubmitLock } from "./locks.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
@@ -53,12 +54,12 @@ export interface ReviewResult extends SubmitResult {
 export const workDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "work");
 export const reviewDir = (root: string, runId: string): string => join(runDir(root, runId), "reports", "review");
 
-/** A passing review of `attempt` by the paired SPV of `agent`. */
+/** A passing review of `attempt` by the paired SPV of `agent`, or by the CLI itself (a carry-forward attempt it accepted: SYSTEM_REVIEWER). */
 export function reviewPassed(root: string, runId: string, agent: string, taskId: string, attempt: number): boolean {
   const file = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
   if (!fs.existsSync(file)) return false;
   const review = ReviewSchema.safeParse(loadJson(file));
-  return review.success && review.data.reviewer === pairedSpv(agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
+  return review.success && isDecidingReviewer(review.data.reviewer, agent) && (review.data.verdict === "passed" || review.data.verdict === "passed-with-notes");
 }
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException | null)?.code === "EEXIST";
@@ -80,7 +81,7 @@ export function attemptsIn(dir: string, agent: string, taskId: string): number[]
 }
 
 /** Atomic exclusive publish: full content is written to a temp file, then hard-linked into place (EEXIST if taken). */
-function publishJson(file: string, value: unknown): void {
+export function publishJson(file: string, value: unknown): void {
   atomicWrite(file, JSON.stringify(value, null, 2) + "\n", { exclusive: true });
 }
 
@@ -123,12 +124,12 @@ function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true
   throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, withIdFix(second.error.issues, kind) as never)}`);
 }
 
-/** `lintErrors` and `carryForward` are the CLI's stamps: ones the agent wrote are dropped before parsing, and the result says so. */
+/** `lintErrors`, `lintFindings`, `carryForward` and `resultDigest` are the CLI's stamps: ones the agent wrote are dropped before parsing, and the result says so. */
 function withoutStamps(raw: unknown): { value: unknown; dropped: string[] } {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { value: raw, dropped: [] };
-  const { lintErrors: _lint, carryForward: _carry, ...rest } = raw as Record<string, unknown>;
+  const { lintErrors: _lint, lintFindings: _findings, carryForward: _carry, resultDigest: _digest, ...rest } = raw as Record<string, unknown>;
   const has = (k: string) => Object.prototype.hasOwnProperty.call(raw, k);
-  const dropped = ["lintErrors", "carryForward"].filter(has);
+  const dropped = ["lintErrors", "lintFindings", "carryForward", "resultDigest"].filter(has);
   return dropped.length === 0 ? { value: raw, dropped } : { value: rest, dropped };
 }
 
@@ -161,7 +162,8 @@ function unknownKeys(raw: unknown): string[] {
 /**
  * Record a work report as the next attempt of the caller's claimed task. For a report writer (lint/submit-lint.ts) the files of its
  * artifactsProduced are linted before the write: the findings come back in `lint` and the error ids are stamped into the stored report as
- * `lintErrors`, so its SPV returns it without a deep review. The lint never refuses (a refused submit would leave the task unreleasable).
+ * `lintErrors` (and the first findings with their text as `lintFindings`): `aegis task release` then returns the report itself with a requested-changes
+ * review, no SPV is dispatched (auto-review.ts). The lint never refuses (a refused submit would leave the task unreleasable).
  * A fix and a new submit within the same claim is the next attempt; the review attaches to the highest attempt.
  * `text` is the report's content when the caller already read it from `file` (the CLI reads it once, to register it as typed input).
  */
@@ -172,6 +174,8 @@ export async function submitWorkReport(root: string, runId: string, file: string
   const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
   if (dropped.includes("lintErrors")) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
   if (dropped.includes("carryForward")) adjusted.push("carryForward: removed (the CLI stamps it from the case list in force and the task's dispatch)");
+  if (dropped.includes("lintFindings")) adjusted.push("lintFindings: removed (the CLI stamps it from the lint of your files)");
+  if (dropped.includes("resultDigest")) adjusted.push("resultDigest: removed (the CLI stamps it from the result files of your task's cases)");
   if (prefixed !== null) adjusted.push(prefixed);
   const droppedKeys = unknownKeys(raw);
   if (report.agent !== caller) {
@@ -189,10 +193,13 @@ export async function submitWorkReport(root: string, runId: string, file: string
     // Reads run files (and, for a specialist, the spec files it lists) only; never refuses.
     const linted = mergeSubmitLints(submitLint(root, runId, caller, report.artifactsProduced), specLint);
     const carry = isCarryForwardSummary(report.summary) ? carryStamp(root, runId, report.taskId) : null;
+    // The digest of the recorded results of the task's dispatched cases at this moment: the CLI compares a later carry-forward attempt with it.
+    const digest = isSpecialist(caller) ? taskDigest(root, runId, latestDispatchCases(root, runId, report.taskId)) : null;
     const stored = {
       ...report,
-      ...(linted !== null && linted.lintErrors.length > 0 ? { lintErrors: linted.lintErrors } : {}),
+      ...(linted !== null && linted.lintErrors.length > 0 ? { lintErrors: linted.lintErrors, lintFindings: linted.findings } : {}),
       ...(carry !== null ? { carryForward: carry } : {}),
+      ...(digest !== null ? { resultDigest: digest } : {}),
     };
 
     const dir = workDir(root, runId);
@@ -227,7 +234,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
 }
 
 /** Requested-changes reviews in the current round: attempts above the floor a gate rejection set (escalation retry keeps the round). */
-function rejectionsSoFar(dir: string, agent: string, taskId: string, floor: number): number {
+export function rejectionsSoFar(dir: string, agent: string, taskId: string, floor: number): number {
   return attemptsIn(dir, agent, taskId).filter((n) => n > floor).filter((n) => {
     const name = `${agent}.${taskId}.${n}.json`;
     let parsed;
@@ -299,13 +306,111 @@ async function escalateOnce(
   );
 }
 
+export interface SettleInput {
+  root: string;
+  runId: string;
+  agent: string;
+  taskId: string;
+  review: Review;
+  /** The run-relative path of the stored review (the evidence of a lesson). */
+  rel: string;
+  /** The stored review file: removed when its event cannot be recorded. */
+  out: string;
+  rejected: boolean;
+  /** Requested-changes reviews of the current round, this one included. */
+  rejections: number;
+  /** The task as it stands (done: a rejection reopens it). */
+  task: Pick<Task, "status"> | null;
+  client: ReturnType<typeof createTaskmasterClient>;
+  /** The identity recorded on the escalation events: the SPV for a review it submitted, the system reviewer for one the CLI decided. */
+  emittedBy: string;
+  now?: Date | undefined;
+  /** Appends the review's own event; a failure removes the stored review and is thrown. */
+  record: () => Promise<unknown>;
+}
+
+export interface SettleOutcome {
+  escalated: boolean;
+  reopened: boolean;
+  reopenError?: string;
+  lessons: LessonOutcome[];
+  warnings: string[];
+}
+
+/**
+ * What follows a stored review, for an SPV review and a review the CLI decided alike (one path, never two): the review's event (the stored file
+ * is removed when it cannot be recorded), then for a rejection the 3rd of the round escalates to the owner (exactly once) and any other reopens
+ * the task for the worker, then the single lesson-piping path (spec section 4.5), last: its outcome never fails the submission. The lesson id
+ * is assigned by agent-memory from the worker's name, never by the reviewer; an instruction that still cannot be written stays in the
+ * recorded review and is reported as a warning and as a lesson event instead of being dropped silently.
+ */
+export async function settleReview(i: SettleInput): Promise<SettleOutcome> {
+  const { root, runId, agent, taskId, review, rel, rejected, rejections, task, client, emittedBy, now } = i;
+  const ts = iso(now);
+  try {
+    await i.record();
+  } catch (e) {
+    fs.rmSync(i.out, { force: true });
+    throw e;
+  }
+
+  let escalated = false;
+  let reopened = false;
+  let reopenError: string | undefined;
+  if (rejected && rejections >= MAX_ATTEMPTS) {
+    escalated = await escalateOnce(root, runId, agent, taskId, rejections, emittedBy, now);
+  } else if (rejected && task?.status === "done") {
+    try {
+      await client.reopen(taskId);
+      reopened = true;
+    } catch (e) {
+      reopenError = (e as Error).message;
+    }
+  }
+
+  const trigger = rejected ? "spv-rejection" : "spv-pass-with-note";
+  const lessons: LessonOutcome[] = [];
+  const warnings: string[] = [];
+  for (const [index, instruction] of review.correctiveInstructions.entries()) {
+    let outcome: LessonOutcome;
+    try {
+      const r = await pipeCorrectiveInstruction(agent, instruction, trigger, [rel], root);
+      const detail = r as { error?: string; description?: string; lessonId?: string };
+      const error = detail.error ?? detail.description;
+      outcome = { outcome: r.outcome, ...(error !== undefined ? { error } : {}), ...(detail.lessonId !== undefined ? { lessonId: detail.lessonId } : {}) };
+    } catch (e) {
+      outcome = { outcome: "error", error: e instanceof Error ? e.message : String(e) };
+    }
+    lessons.push(outcome);
+    if (outcome.outcome === "appended" || outcome.outcome === "deduped") continue;
+    const why = outcome.error ?? outcome.outcome;
+    warnings.push(`corrective instruction ${index + 1} of ${review.correctiveInstructions.length} was not added to ${agent}'s lessons (${outcome.outcome}: ${why}); it stays in ${rel}`);
+    try {
+      await appendChained(
+        outcome.outcome === "conflict"
+          ? { type: "lesson.conflict-flagged", ts, agent, conflictDescription: why }
+          : { type: "lesson.schema-rejected", ts, agent, error: why, taskId, reviewPath: rel, instructionIndex: index },
+        busPath(root, runId),
+        { emittedBy, runId }
+      );
+    } catch (e) {
+      warnings.push(`the lesson event for instruction ${index + 1} could not be recorded: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons, warnings };
+}
+
 export async function submitReview(root: string, runId: string, file: string, caller: string, now?: Date, text?: string): Promise<ReviewResult> {
   assertCallerAllowed(caller, "review.submit");
   if (!caller.endsWith("-spv")) {
     throw new RunStateError("caller-forbidden", `only SPV agents submit reviews; "${caller}" is not an SPV`);
   }
-  const raw = loadJson(file, text);
+  const given = loadJson(file, text);
+  // `resultDigest` is the CLI's stamp on a passing review: one the SPV wrote is dropped, and the result says so.
+  const droppedDigest = given !== null && typeof given === "object" && !Array.isArray(given) && Object.prototype.hasOwnProperty.call(given, "resultDigest");
+  const raw = droppedDigest ? (({ resultDigest: _digest, ...rest }) => rest)(given as Record<string, unknown>) : given;
   const { data: review, trimmed, adjusted } = parseSubmission(ReviewSchema, raw, "review");
+  if (droppedDigest) adjusted.push("resultDigest: removed (the CLI stamps it when a review passes)");
   if (review.reviewer !== caller) {
     throw new RunStateError("invalid-input", `review reviewer "${review.reviewer}" does not match caller "${caller}"`);
   }
@@ -344,8 +449,10 @@ export async function submitReview(root: string, runId: string, file: string, ca
     const rejected = review.verdict === "requested-changes";
     const floor = supersededAttempt(readRun(root, runId), agent, taskId);
     const rejections = rejectionsSoFar(dir, agent, taskId, floor) + (rejected ? 1 : 0);
+    // The digest of the task's recorded files at the moment the attempt is accepted: a later carry-forward attempt is compared with it.
+    const digest = !rejected && isSpecialist(agent) ? taskDigest(root, runId, latestDispatchCases(root, runId, taskId)) : null;
     try {
-      publishJson(out, review);
+      publishJson(out, digest !== null ? { ...review, resultDigest: digest } : review);
     } catch (e) {
       if (!isExists(e)) throw e;
       const already = new RunStateError("invalid-input", `attempt ${attempt} of ${agent}/${taskId} is already reviewed`);
@@ -384,69 +491,14 @@ export async function submitReview(root: string, runId: string, file: string, ca
     const bus = busPath(root, runId);
     const ctx = { emittedBy: caller, runId };
     const target = { agent, taskId };
-    try {
-      if (review.verdict === "passed") {
-        await appendChained({ type: "review.passed", ts, target, reviewId: review.id }, bus, ctx);
-      } else if (review.verdict === "passed-with-notes") {
-        await appendChained({ type: "review.passed-with-notes", ts, target, reviewId: review.id, noteCount: review.findings.length }, bus, ctx);
-      } else {
-        await appendChained(
-          { type: "review.requested-changes", ts, target, reviewId: review.id, findingCount: Math.max(1, review.findings.length) },
-          bus,
-          ctx
-        );
-      }
-    } catch (e) {
-      fs.rmSync(out, { force: true });
-      throw e;
-    }
-
-    let escalated = false;
-    let reopened = false;
-    let reopenError: string | undefined;
-    if (rejected && rejections >= MAX_ATTEMPTS) {
-      escalated = await escalateOnce(root, runId, agent, taskId, rejections, caller, now);
-    } else if (rejected && task?.status === "done") {
-      try {
-        await client.reopen(taskId);
-        reopened = true;
-      } catch (e) {
-        reopenError = (e as Error).message;
-      }
-    }
-
-    // The single lesson-piping path (spec §4.5). Last: its outcome never fails the submission. The lesson id is assigned
-    // by agent-memory from the worker's name, never by the reviewer; an instruction that still cannot be written stays in
-    // the recorded review and is reported as a warning and as a lesson event instead of being dropped silently.
-    const trigger = rejected ? "spv-rejection" : "spv-pass-with-note";
-    const lessons: LessonOutcome[] = [];
-    const warnings: string[] = [];
-    for (const [index, instruction] of review.correctiveInstructions.entries()) {
-      let outcome: LessonOutcome;
-      try {
-        const r = await pipeCorrectiveInstruction(agent, instruction, trigger, [rel], root);
-        const detail = r as { error?: string; description?: string; lessonId?: string };
-        const error = detail.error ?? detail.description;
-        outcome = { outcome: r.outcome, ...(error !== undefined ? { error } : {}), ...(detail.lessonId !== undefined ? { lessonId: detail.lessonId } : {}) };
-      } catch (e) {
-        outcome = { outcome: "error", error: e instanceof Error ? e.message : String(e) };
-      }
-      lessons.push(outcome);
-      if (outcome.outcome === "appended" || outcome.outcome === "deduped") continue;
-      const why = outcome.error ?? outcome.outcome;
-      warnings.push(`corrective instruction ${index + 1} of ${review.correctiveInstructions.length} was not added to ${agent}'s lessons (${outcome.outcome}: ${why}); it stays in ${rel}`);
-      try {
-        await appendChained(
-          outcome.outcome === "conflict"
-            ? { type: "lesson.conflict-flagged", ts, agent, conflictDescription: why }
-            : { type: "lesson.schema-rejected", ts, agent, error: why, taskId, reviewPath: rel, instructionIndex: index },
-          busPath(root, runId),
-          { emittedBy: caller, runId }
-        );
-      } catch (e) {
-        warnings.push(`the lesson event for instruction ${index + 1} could not be recorded: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
+    const { escalated, reopened, reopenError, lessons, warnings } = await settleReview({
+      root, runId, agent, taskId, review, rel, out, rejected, rejections, task, client, emittedBy: caller, now,
+      record: () => {
+        if (review.verdict === "passed") return appendChained({ type: "review.passed", ts, target, reviewId: review.id }, bus, ctx);
+        if (review.verdict === "passed-with-notes") return appendChained({ type: "review.passed-with-notes", ts, target, reviewId: review.id, noteCount: review.findings.length }, bus, ctx);
+        return appendChained({ type: "review.requested-changes", ts, target, reviewId: review.id, findingCount: Math.max(1, review.findings.length) }, bus, ctx);
+      },
+    });
 
     return { path: rel, attempt, verdict: review.verdict, rejections, escalated, reopened, ...(reopenError !== undefined ? { reopenError } : {}), lessons, ...(warnings.length > 0 ? { warnings } : {}), ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}) };
   });

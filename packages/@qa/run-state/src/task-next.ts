@@ -1,14 +1,17 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { appendChained } from "@qa/event-bus";
 import { readRunLedger, type LedgerEntry } from "@qa/path-guard";
 import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
-import { assertCallerAllowed, isSpecialist, pairedSpv } from "./caller.js";
+import { ReviewSchema } from "@qa/contracts";
+import { assertCallerAllowed, isSpecialist, pairedSpv, SYSTEM_REVIEWER } from "./caller.js";
 import { claimHolderEntry, effectiveLedger, endedAt, holderGone, livenessFacts } from "./claim-holder.js";
 import { readDispatchMode, readSettings, type DispatchMode } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun } from "./run.js";
+import { submitLockHeld } from "./locks.js";
+import { reviewDir } from "./submit.js";
 import { readTaskList, type TaskListEntry } from "./task-list.js";
 import { iso, withFileLock } from "./util.js";
 
@@ -83,7 +86,7 @@ interface TaskEvents {
   dispatchedAt?: number;
   claimedAfterDispatch: boolean;
   releasedAt?: number;
-  /** The latest review.requested-changes of the task (the attempt a redrive re-reviews). */
+  /** The latest review.requested-changes or review.auto-returned of the task (the attempt a redrive re-reviews). */
   rejectedAt?: number;
 }
 
@@ -98,7 +101,7 @@ function scanEvents(root: string, runId: string): Scan {
   const resumes: number[] = [];
   const file = busPath(root, runId);
   if (!existsSync(file)) return { tasks, resumes };
-  const KINDS = ['"specialist.dispatched"', '"task.claimed"', '"task.released"', '"review.requested-changes"', '"run.resumed"'];
+  const KINDS = ['"specialist.dispatched"', '"task.claimed"', '"task.released"', '"review.requested-changes"', '"review.auto-returned"', '"run.resumed"'];
   for (const line of readFileSync(file, "utf-8").split("\n")) {
     if (!KINDS.some((k) => line.includes(k))) continue;
     let e: { type?: unknown; taskId?: unknown; ts?: unknown; target?: { taskId?: unknown } };
@@ -112,7 +115,10 @@ function scanEvents(root: string, runId: string): Scan {
       resumes.push(Date.parse(e.ts));
       continue;
     }
-    const taskId = e.type === "review.requested-changes" ? e.target?.taskId : e.taskId;
+    // A rejection is an SPV's review.requested-changes or the CLI's own review.auto-returned (a lint-stamped report returned at release): both
+    // name the task under target, and both date the rejection a redrive waits on. review.auto-accepted needs no read: the review file of the
+    // accepted attempt makes the task `passed`, so it is settled and never awaits an SPV.
+    const taskId = e.type === "review.requested-changes" || e.type === "review.auto-returned" ? e.target?.taskId : e.taskId;
     if (typeof taskId !== "string") continue;
     const rec = tasks.get(taskId) ?? { claimedAfterDispatch: false };
     if (e.type === "specialist.dispatched") {
@@ -122,12 +128,32 @@ function scanEvents(root: string, runId: string): Scan {
       if (rec.dispatchedAt !== undefined) rec.claimedAfterDispatch = true;
     } else if (e.type === "task.released") {
       rec.releasedAt = Date.parse(e.ts);
-    } else if (e.type === "review.requested-changes") {
+    } else if (e.type === "review.requested-changes" || e.type === "review.auto-returned") {
       rec.rejectedAt = Date.parse(e.ts);
     }
     tasks.set(taskId, rec);
   }
   return { tasks, resumes };
+}
+
+/** Whether the review of the task's latest attempt is the CLI's own (reviewer SYSTEM_REVIEWER), not an SPV's. */
+function returnedByCli(root: string, runId: string, t: TaskListEntry): boolean {
+  if (t.assignee === null || t.latestAttempt === 0) return false;
+  try {
+    const r = ReviewSchema.safeParse(JSON.parse(readFileSync(join(reviewDir(root, runId), `${t.assignee}.${t.id}.${t.latestAttempt}.json`), "utf-8")));
+    return r.success && r.data.reviewer === SYSTEM_REVIEWER;
+  } catch {
+    return false;
+  }
+}
+
+/** The modification time of the stored review of the task's latest attempt, 0 when there is none. */
+function reviewFileTime(root: string, runId: string, t: TaskListEntry): number {
+  try {
+    return statSync(join(reviewDir(root, runId), `${t.assignee}.${t.id}.${t.latestAttempt}.json`)).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 const isLive = (ledger: LedgerEntry[], e: LedgerEntry): boolean => endedAt(ledger, e.agentId, Date.parse(e.ts)) === null;
@@ -219,7 +245,12 @@ async function computeView(root: string, runId: string, phase: string | undefine
     runId, phase: scope ?? null, mode, cap, freeSlots, next: "wait", reason: null, blockedBy: null, specialistTasks: 0,
     running: [], dispatched: [], dispatch: [], waiting: [], review: [], reviewing: [], held: [], redrive: [], failedRelease: [], escalated: [], settled: [], recover: [],
   };
-  const candidates: NextEntry[] = [];
+  let candidates: NextEntry[] = [];
+  // Pending tasks whose latest review is the CLI's own return of a lint-stamped report (decided at the release, no SPV): they came back mid-wave.
+  const cliReturned = new Set<string>();
+  // Done tasks whose release (or a review submit) is in progress under the submit lock: the CLI may be deciding the review at this moment, so they are
+  // classified by the next poll, not this one (the release changes the view when it ends).
+  const releasing: string[] = [];
   const toReview: Classified[] = [];
   const redrive: Classified[] = [];
   const failed: Classified[] = [];
@@ -239,7 +270,11 @@ async function computeView(root: string, runId: string, phase: string | undefine
         problem: `${t.id} is in progress but the ${t.assignee} that claimed it has ended without releasing it (a stopped, crashed or resumed session)`,
         fix: `re-dispatch ${t.assignee} for ${t.id}: append specialist.dispatched for it, then the Agent call with a brief that says to skip the claim and continue with the work report and release. If the task should not be finished, its creator runs aegis task cancel --task ${t.id} --reason "<why>" (or the owner aegis task abandon --task ${t.id} --reason "<why>") and a new task is added for the work`,
       });
-    } else if (c.slot === "candidate") candidates.push(entry(c, t.reviewState === "requested-changes" ? { corrective: true } : {}));
+    } else if (c.slot === "candidate") {
+      candidates.push(entry(c, t.reviewState === "requested-changes" ? { corrective: true } : {}));
+      if (t.reviewState === "requested-changes" && returnedByCli(root, runId, t)) cliReturned.add(t.id);
+    }
+    else if (t.status === "done" && submitLockHeld(root, runId, t.assignee!, t.id)) releasing.push(t.id);
     else if (t.status === "done" && t.reviewState === "requested-changes") redrive.push(c);
     else if (t.status === "done") toReview.push(c);
     else if (t.status === "failed") failed.push(c);
@@ -252,10 +287,12 @@ async function computeView(root: string, runId: string, phase: string | undefine
     if (live !== undefined) taken.add(live.agentId);
     return live !== undefined;
   };
-  const byTime = (key: "releasedAt" | "rejectedAt") => (a: Classified, b: Classified) => (evs.get(a.entry.id)?.[key] ?? 0) - (evs.get(b.entry.id)?.[key] ?? 0);
+  // The moment a redrive's rejection was recorded: its event, or (a crash between the stored review and its event) the stored review's own time.
+  const rejectedAt = (c: Classified): number => evs.get(c.entry.id)?.rejectedAt ?? reviewFileTime(root, runId, c.entry);
+  const byTime = (key: "releasedAt" | "rejectedAt") => (a: Classified, b: Classified) => (key === "rejectedAt" ? rejectedAt(a) - rejectedAt(b) : (evs.get(a.entry.id)?.[key] ?? 0) - (evs.get(b.entry.id)?.[key] ?? 0));
   for (const c of redrive.sort(byTime("rejectedAt"))) {
     const spv = pairedSpv(c.entry.assignee!);
-    result.redrive.push(entry(c, { spv, attempt: c.entry.latestAttempt, ...(match(spv, evs.get(c.entry.id)?.rejectedAt ?? 0) ? { inFlight: true } : {}) }));
+    result.redrive.push(entry(c, { spv, attempt: c.entry.latestAttempt, ...(match(spv, rejectedAt(c)) ? { inFlight: true } : {}) }));
   }
   for (const c of toReview.sort(byTime("releasedAt"))) {
     const spv = pairedSpv(c.entry.assignee!);
@@ -283,8 +320,13 @@ async function computeView(root: string, runId: string, phase: string | undefine
       result.held.push(...result.review, ...result.redrive.filter((e) => e.inFlight !== true));
       result.review = [];
       result.redrive = result.redrive.filter((e) => e.inFlight === true);
+      // A task the CLI returned at its release has come back like a released one: no SPV waits for it, but offering it would refill a freed
+      // slot, so it waits in `held` (corrective) until the wave has returned, then it is offered with the next wave.
+      result.held.push(...candidates.filter((e) => cliReturned.has(e.task)));
+      candidates = candidates.filter((e) => !cliReturned.has(e.task));
     }
-    const awaitingSpv = result.held.length + result.review.length + result.reviewing.length + result.redrive.length > 0;
+    // A task still being released may need its SPV the moment the release ends (or may not): the next wave waits for the answer.
+    const awaitingSpv = result.held.length + result.review.length + result.reviewing.length + result.redrive.length + releasing.length > 0;
     if (awaitingSpv) result.waiting.push(...candidates);
     else {
       result.dispatch.push(...candidates.slice(0, freeSlots));
@@ -307,6 +349,9 @@ async function computeView(root: string, runId: string, phase: string | undefine
     result.next = "settled";
     if (inScope.length === 0) result.reason = "no specialist task exists in this phase: settled only when routing produced none (add every specialist task before the first task next)";
   } else result.next = "wait";
+  if (result.next === "wait" && result.reason === null && releasing.length > 0) {
+    result.reason = `${releasing.join(", ")}: its release is in progress and the CLI may decide its review itself; nothing to do for it yet, wait`;
+  }
   return { result, byId };
 }
 

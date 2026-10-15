@@ -150,21 +150,29 @@ function resolveRef(paths: Paths, ref: string): { ok: true; rel: string } | { ok
  * An unreadable configuration (a testsDir outside the target) names nothing.
  */
 export function specRefs(root: string, runId: string): SpecRefs {
+  let names: string[] = [];
+  try {
+    names = readdirSync(join(runDir(root, runId), "cases")).filter((n) => n.endsWith(".json")).sort();
+  } catch {
+    return { resolved: [], skipped: [], cases: new Map() };
+  }
+  return specRefsOfFiles(root, runId, names.map((n) => `cases/${n}`));
+}
+
+/**
+ * The spec files the given case files of the run (run-relative, `cases/{name}.json`: designs and result files) name, resolved as specRefs does.
+ * A file that is not a plain file, is too large or is not JSON names nothing. Reads run files and stats paths only.
+ */
+export function specRefsOfFiles(root: string, runId: string, rels: readonly string[]): SpecRefs {
   const none: SpecRefs = { resolved: [], skipped: [], cases: new Map() };
   const paths = readPaths(root);
   if (paths === null) return none;
   const dir = runDir(root, runId);
-  let names: string[] = [];
-  try {
-    names = readdirSync(join(dir, "cases")).filter((n) => n.endsWith(".json")).sort();
-  } catch {
-    return none;
-  }
   const resolved = new Set<string>();
   const skipped = new Map<string, SkippedReason>();
   const cases = new Map<string, Set<string>>();
-  for (const name of names) {
-    const rel = `cases/${name}`;
+  for (const rel of rels) {
+    const name = rel.replace(/^cases\//, "");
     if (!plainRunFile(dir, rel)) continue;
     let doc: unknown;
     try {
