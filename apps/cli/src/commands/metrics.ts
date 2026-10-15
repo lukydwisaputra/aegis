@@ -8,7 +8,7 @@ export function metricsCommand(): Command {
 
   metrics
     .command("all")
-    .description("Write every metric file (cycle-time, coverage, defect-trend, effectiveness, agent-reliability, flaky) and record the cycle events; run before Closure-draft and before Executive")
+    .description("Write every metric file (cycle-time, coverage, defect-trend, effectiveness, agent-reliability, flaky) and record the cycle events; aegis phase start runs it for Closure-draft, Closure-final and Executive; run it by hand to refresh")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
       action((o: { run?: string }) => {

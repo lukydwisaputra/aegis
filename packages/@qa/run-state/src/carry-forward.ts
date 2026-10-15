@@ -13,15 +13,30 @@ export interface CarryForwardStamp {
 
 // A summary that leads with the carry-forward words AND names an attempt, round or re-run of a task: the leads of the real reports are
 // "Carry-forward settlement ...", "No-op carry-forward ...", "3rd-round carry-forward re-verification ...", "Carry-forward reconciliation ...",
-// "Carry-forward no-op: ...", "Carry-forward under the owner's ... rejection", "Carried forward from attempt 1 ..." and "Carry-forward: <what stands>".
-// A lead followed by anything else is a statement ABOUT carry-forward ("Carry-forward is not applicable", "Carry-forward not used",
-// "Carry-forward-eligible cases ...", "Carry-forward of TC-...") and is left alone: it is not rewritten and not stamped.
+// "Carry-forward no-op: ...", "Carry-forward under the owner's ... rejection", "Carried forward from attempt 1 ..." and the colon form
+// "Carry-forward: <what stands>" (see COLON_TAIL). A lead followed by anything else is a statement ABOUT carry-forward ("Carry-forward is not
+// applicable", "Carry-forward not used", "Carry-forward-eligible cases ...", "Carry-forward of TC-...", "Carry-forward: not applicable ...",
+// "Carry-forward: none this round") and is left alone: it is not rewritten and not stamped.
+const WORDS = "^\\s*(?:(?:no-op|\\d+(?:st|nd|rd|th)-round)[ -])*carr(?:y|ied)[- ]forward(?![-\\w])";
 const LEAD = new RegExp(
-  "^\\s*(?:(?:no-op|\\d+(?:st|nd|rd|th)-round)[ -])*carr(?:y|ied)[- ]forward(?![-\\w])" +
-    "(?:(?:[ -](?:attempt|settlement|no-op|re-?verif\\w*|reconciliation))+|(?=[ -](?:under|from attempt)\\b)|(?=\\s*[:;]))" +
-    "\\s*[:;,.\\u2014-]*\\s*",
+  WORDS + "(?:(?:[ -](?:attempt|settlement|no-op|re-?verif\\w*|reconciliation))+|(?=[ -](?:under|from attempt)\\b))" + "\\s*[:;,.\\u2014-]*\\s*",
   "i"
 );
+// The bare colon or semicolon form ("Carry-forward: ..."): a lead only when the text after it says what stands or names the attempt, round or
+// re-run (COLON_TAIL) and does not say that carry-forward is not applicable, none or skipped (COLON_NEGATIVE).
+const COLON_LEAD = new RegExp(WORDS + "\\s*[:;]\\s*", "i");
+const COLON_TAIL = /\b(?:stands?|stood|unchanged|kept|keeps|results?|prior|previous|earlier|recorded|attempt|round|leg|re-?run|re-?ran|re-?verif\w*)\b/i;
+const COLON_NEGATIVE =
+  /^(?:not\b|n\/a\b|n\.a\b|na\b|none\b|nothing\b|no\b|nil\b|never\b|skipp)|\b(?:not applicable|n\/a|does not apply|doesn't apply|not used|not eligible|not carried|none carried|nothing carried|no cases)\b/i;
+
+function leadLength(summary: string): number | null {
+  const m = LEAD.exec(summary);
+  if (m !== null) return m[0].length;
+  const c = COLON_LEAD.exec(summary);
+  if (c === null) return null;
+  const tail = summary.slice(c[0].length);
+  return COLON_NEGATIVE.test(tail) || !COLON_TAIL.test(tail) ? null : c[0].length;
+}
 
 /**
  * The summary of a work report that leads with the carry-forward words, written to begin with the literal prefix; the result is `changed`
@@ -30,9 +45,9 @@ const LEAD = new RegExp(
  */
 export function normalizeCarryForwardSummary(summary: string): { summary: string; changed: boolean } {
   if (summary.startsWith(CARRY_FORWARD_PREFIX)) return { summary, changed: false };
-  const m = LEAD.exec(summary);
-  if (m === null) return { summary, changed: false };
-  const rest = summary.slice(m[0].length).trim();
+  const len = leadLength(summary);
+  if (len === null) return { summary, changed: false };
+  const rest = summary.slice(len).trim();
   return { summary: rest === "" ? CARRY_FORWARD_PREFIX : `${CARRY_FORWARD_PREFIX}: ${rest}`, changed: true };
 }
 

@@ -134,6 +134,9 @@ describe('the stamp', () => {
     'Carry-forward not used; re-ran every case of the task against the rebuilt app.',
     'Carry-forward-eligible cases were skipped; ran the rest of the login cases.',
     'Carry-forward of TC-AUTH-001 to TC-AUTH-004: the results stand unchanged.',
+    'Carry-forward: not applicable, all cases are on the list and were re-run.',
+    'Carry-forward: none this round.',
+    'Carry-forward: n/a; every case of the task re-ran against the rebuilt app.',
   ])('a statement about carry-forward is neither rewritten nor stamped: %s', async (summary) => {
     await reissued(['TC-AUTH-001']);
     await dispatched('T-execution-2', ['TC-AUTH-005']);
@@ -190,11 +193,17 @@ describe('the pure rules', () => {
       'Carry-forward settlement after the G2 rejection: x stands.', 'No-op carry-forward settlement (3rd G2 round): x stands.', 'No-op carry-forward: x stands.',
       'Carry-forward re-verification: x stands.', 'Carry-forward re-verify: x stands.', '3rd-round carry-forward re-verification of T-1: x stands.', 'Carry-forward reconciliation after G2: x stands.',
       'Carry-forward no-op: x stands.', "Carry-forward under the owner's Gate-2 rejection; x stands.", 'Carry-forward: prior-leg result stands.', 'Carried forward from attempt 1, no re-run: x stands.',
+      'carry-forward; the recorded results stand, nothing re-run.', 'Carry-forward : TC-A-001 keeps its recorded pass from the earlier round.', 'No-op carry-forward: prior result stands.',
     ]) expect({ lead, ...n(lead) }).toMatchObject({ changed: true, summary: expect.stringMatching(/^Carry-forward attempt: \S/) });
     // Everything else that merely starts with the words is left alone.
     for (const other of [
       'Carry-forward is not applicable: all cases re-ran.', 'Carry-forward not used; everything re-ran.', 'Carry-forward-eligible cases were skipped.', 'Carry-forward of TC-A-001: results stand.',
       'Carry-forwards are not used in this run.', 'Carry-forward logic was reviewed for T-1.',
+      // The colon forms: only a lead that says a result stands, or names an attempt, round or re-run of the task, is a carry-forward attempt.
+      'Carry-forward: not applicable, all cases are on the list.', 'Carry-forward: none this round.', 'Carry-forward: n/a.', 'Carry-forward: skipped, every case re-ran.',
+      'Carry-forward: nothing carried; the full set was re-run.', 'Carry-forward: no cases of this task qualify.', 'Carry-forward; not used this round, everything re-ran.',
+      'Carry-forward: does not apply, TC-A-001 is on the list and was re-run.', 'No-op carry-forward: not applicable.', 'Carry-forward: the case list is empty.',
+      'Carry-forward : none', 'Carry-forward: NOT APPLICABLE',
     ]) expect({ other, ...n(other) }).toEqual({ other, summary: other, changed: false });
     for (const plain of ['Scoped re-execution of TC-REG-018 only, a carry-forward was refused.', 'Ran the login flow.', '']) expect(n(plain)).toEqual({ summary: plain, changed: false });
   });

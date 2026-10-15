@@ -63,7 +63,7 @@ export interface RollupsWritten {
  * from the run's events and records (definitions in @qa/metrics rollups.ts and HANDBOOK 13) and replace them atomically in
  * reports/metrics/. Everything is computed before the first write, so a refusal (a malformed case-of-record declaration) writes nothing.
  * The owner writes; the defect manager may only --check (print, write nothing). coverage.json stays `aegis metrics coverage`; `aegis metrics all`
- * (the orchestrator's) writes all six files and records the cycle events.
+ * (run by aegis phase start, or by hand to refresh) writes all six files and records the cycle events.
  */
 export function writeRollups(root: string, runId: string, caller: string, opts: { check?: boolean } = {}): RollupsWritten {
   assertCallerAllowed(caller, "metrics.rollups");
