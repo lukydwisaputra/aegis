@@ -3,11 +3,32 @@ import type { ResolvedRuleLike } from "./text.js";
 
 export type ResolvedRule = ResolvedRuleLike;
 
+/** A file name or path: the last whitespace-free word ends in a file extension the run's evidence and notes use. */
+const FILE_NAME = /^(?:[^\s/]+\/)*[^\s/]*\.(?:png|jpe?g|gif|webp|svg|md|jsonl?|txt|log|har|zip|webm|mp4|pdf|html|ya?ml|csv)$/i;
+
+/**
+ * Whether the match is the leading part of a file name in a path (the evidence file `evidence/DEF-001-ATT-UI/T-explore-4-session1_shot.png`, the
+ * notes `reports/exploratory/T-explore-5-session1-notes.md`): the framework names an evidence or notes file after the task that took it, and
+ * nobody can change that, so a report may cite it as proof. The word around the match (up to whitespace, wrapping punctuation stripped) must end
+ * in a file extension and the id must begin the name (after a `/` or at the start of the word); an id an author joined to a name of their own
+ * ("stub-run-full-T-execution-31.json") and one in a sentence ("T-execution-3.") are prose.
+ */
+export function insideFileName(line: string, start: number, end: number): boolean {
+  let from = start;
+  while (from > 0 && !/\s/.test(line[from - 1]!)) from--;
+  let to = end;
+  while (to < line.length && !/\s/.test(line[to]!)) to++;
+  const lead = /^[("'`\[<*_]+/.exec(line.slice(from, to))?.[0].length ?? 0;
+  if (start !== from + lead && line[start - 1] !== "/") return false;
+  const word = line.slice(from, to).replace(/^[("'`\[<*_]+/, "").replace(/[)"'`\]>,;:!?*_.]+$/, "");
+  return FILE_NAME.test(word);
+}
+
 const QA_PROCESS = "this describes how the QA work was run, not the application: say what was tested, on which build, in which test window";
 
 /** The rules every project starts with, each from a real gate rejection (spec, "Item 1"). Patterns look at the words around the word. */
 function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
-  const rule = (id: string, pattern: string, message: string): ResolvedRule => ({ id, re: new RegExp(pattern, "i"), message, severity: "error" });
+  const rule = (id: string, pattern: string, message: string, skip?: ResolvedRule["skip"]): ResolvedRule => ({ id, re: new RegExp(pattern, "i"), message, severity: "error", ...(skip === undefined ? {} : { skip }) });
   const rules: ResolvedRule[] = [
     rule(
       "qa-cycle",
@@ -26,7 +47,7 @@ function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
     rule("qa-round", String.raw`\b(?:this|that)\s+round\b(?![\s-]trip)(?!-\w)|\bround\s+\d+\b(?![.,]\d)(?!-\w)`, `"round" for a QA pass: ${QA_PROCESS}`),
     rule("re-verified", String.raw`\bre-?verified\b`, `write "re-tested": "re-verified" is not the customer-facing word`),
     rule("report-history", String.raw`\b(?:prior|previous|earlier|first)\s+drafts?\b|\bsince\s+the\s+previous\s+version\b|\b(?:previous|earlier|prior)\s+(?:version|figure|count)s?\s+of\s+(?:this|the)\s+report\b`, "a customer report states the final facts only: leave out what an earlier draft or version said"),
-    rule("internal-task-id", String.raw`(?<![A-Za-z0-9])T-(?:\d{1,6}|[A-Za-z][A-Za-z0-9]{0,29}(?:-[A-Za-z][A-Za-z0-9]{0,29}){0,5}-\d{1,6}|GATE-G\d{1,3})\b`, "an internal task id: name the test case or the defect instead"),
+    rule("internal-task-id", String.raw`(?<![A-Za-z0-9])T-(?:\d{1,6}|[A-Za-z][A-Za-z0-9]{0,29}(?:-[A-Za-z][A-Za-z0-9]{0,29}){0,5}-\d{1,6}|GATE-G\d{1,3})\b`, "an internal task id: name the test case or the defect instead", insideFileName),
     rule(
       "gate-history",
       [

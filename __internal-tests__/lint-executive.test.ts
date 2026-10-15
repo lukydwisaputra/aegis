@@ -348,7 +348,7 @@ describe('replay over the final passed executive inputs (excerpts copied from th
     expect(executiveFindings(t.root, runId).filter((f) => f.rule === 'qa-cycle').map((f) => `${f.file}:${f.severity}`)).toEqual([`${DECK}:warning`]);
   });
 
-  it('R06 (predates the rules): the listed hits are errors: "endpoint(s)" in RISK-CMP-ERRPATH, "Blocker" in RISK-CMP-PROCESS-ML1 and in the deck', () => {
+  it('R06 (predates the rules): "endpoint(s)" in RISK-CMP-ERRPATH are errors; "Blocker" naming a severity (RISK-CMP-PROCESS-ML1, the deck) is not', () => {
     put(CLOSURE, closureWith(['RISK-CMP-ERRPATH', 'RISK-CMP-PROCESS-ML1']));
     put(RISKS, [
       { riskId: 'RISK-CMP-ERRPATH', plain: 'One attendance endpoint returns a server error instead of a clear client error for unknown IDs, and other endpoints were not checked, so how many behave the same way is unknown.' },
@@ -356,7 +356,7 @@ describe('replay over the final passed executive inputs (excerpts copied from th
     ]);
     put(DECK, { supportingInsights: [{ what: '24 application defects are open: 1 Blocker, 3 Critical, 9 Major, 8 Minor, 3 Trivial. The Blocker defect is that scanning in a genuine group member on their behalf is refused.' }] });
     const found = executiveFindings(t.root, runId).filter((f) => f.severity === 'error' && TIER.has(f.rule));
-    expect(found.map((f) => `${f.file} ${phrase(f)}`)).toEqual([`${DECK} Blocker`, `${RISKS} endpoint`, `${RISKS} endpoints`, `${RISKS} Blocker`]);
+    expect(found.map((f) => `${f.file} ${phrase(f)}`)).toEqual([`${RISKS} endpoint`, `${RISKS} endpoints`]);
   });
 });
 
