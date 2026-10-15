@@ -20,9 +20,11 @@ let t: TmpAegis;
  * `(--json '<fields>' | --json-file <path>)` to the event append usage (+23 for the agents that may append events): 6081 -> 6391. The fix round replaced the epoch example with the timestamp format and its date command (+29 for every qa-* agent): 6420.
  * Item 1 (continuous dispatch) added the task next usage to qa-test-executor's cheat-sheet only (+103: 5817 -> 5920); the largest
  * agent (qa-orchestrator, 6420) is unchanged.
+ * Item 7 (the metrics collector is retired): `reports/metrics/**` joined the CLI-only list (+20 for every qa-* agent) and the orchestrator gained the
+ * `metrics all` line (+70, the one agent that runs it): 6420 -> 6510 for the orchestrator, still the largest.
  */
 const BRAND_MAX = 767;
-const H4_LARGEST = 6420;
+const H4_LARGEST = 6510;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 
@@ -102,6 +104,15 @@ describe('H4 run context (spec §4.2)', () => {
     const text = runContextFor(t.root, 'qa-ui-specialist', 'a1')!;
     for (const g of CLI_ONLY_RUN_GLOBS) expect(text).toContain(g);
     expect(text).toContain('runs/.active');
+  });
+
+  it('item 7: the CLI-only list names reports/metrics/**, and only the orchestrator is told the metrics all command (+70 characters)', async () => {
+    await create();
+    expect(CLI_ONLY_RUN_GLOBS).toContain('reports/metrics/**');
+    const orch = runContextFor(t.root, 'qa-orchestrator', 'x')!;
+    expect(orch).toContain('  - `AEGIS_AGENT=qa-orchestrator pnpm aegis metrics all [--run <id>]`\n');
+    expect(orch).toContain('reports/metrics/**');
+    for (const agent of ['qa-defect-manager', 'qa-closure-reporter', 'qa-executive-reporter', 'qa-curator', 'qa-test-executor']) expect(runContextFor(t.root, agent, 'y')!).not.toContain('metrics all');
   });
 
   it('stays well under the 10,000-character additionalContext cap for every qa-* agent', async () => {

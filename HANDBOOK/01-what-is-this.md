@@ -67,7 +67,7 @@ The system uses a tiered agent hierarchy:
 - **Tier-2 specialists** — thirteen workers that execute concrete tasks: `qa-ui-specialist`, `qa-api-specialist`, `qa-unit-specialist`, `qa-performance-specialist`, `qa-security-specialist`, `qa-accessibility-specialist`, `qa-exploratory-specialist`, `qa-messaging-specialist`, `qa-web-explorer`, `qa-database-specialist`, `qa-realtime-specialist`, `qa-feature-flag-specialist`, `qa-responsive-specialist`. The first nine are routed by `testType`; `qa-unit-specialist`, `qa-accessibility-specialist`, `qa-messaging-specialist`, `qa-realtime-specialist`, and `qa-feature-flag-specialist` are additionally dispatched when a TC carries the matching `testTechnique` value.
 - **SPVs (Supervisors)** — reviewer agents that audit work produced by workers and return scored feedback: one per reviewed worker, except `qa-compliance-spv`, which reviews all six compliance agents
 - **Compliance agents** — six agents, one per regulation, running in parallel during the Compliance phase of a full cycle, for the regulations listed in `aegis.config.json#compliance`. GDPR and PDPA run only when the target profile shows personal data, and the phase is not-applicable when no listed regulation applies
-- **Cross-cutting agents** — three agents: the context scanner, the curator (self-improvement) and the metrics collector
+- **Cross-cutting agents** — two agents: the context scanner and the curator (self-improvement)
 
 ---
 

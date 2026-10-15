@@ -6,7 +6,7 @@ description: Reopen a phase after Gate 1 of a completed full run, and every phas
 # /qa-reissue
 
 ## Purpose
-Reopens a run that is already completed, from a phase after Gate 1 (Design through Curator) to the end. Use it when part of a finished cycle must run again: checks that could not run before and can now (reissue `execution`, optionally with `--cases`), or wrong executive artefacts (reissue `executive`). Only a completed run can be reissued, and only a full one: a smoke run is refused. The reissued phase and every later phase go back to pending, and every gate after the reissued phase (Gate 2 after Triage, Gate 3 after Closure-final) is reset: decided before, it needs a new owner decision once its phase completes again, and its earlier decisions stay as history. Planning and every earlier phase, Gate 1 and the event history stay exactly as they are. Reopening Planning or earlier, or phases of an open gate, is a gate rejection (`/qa-gate-decide`), not a reissue.
+Reopens a run that is already completed, from a phase after Gate 1 (Design through Curator) to the end. Use it when part of a finished cycle must run again: checks that could not run before and can now (reissue `execution`, optionally with `--cases`), or wrong executive artefacts (reissue `executive`). Only a completed run can be reissued, and only a full one: a smoke run is refused. The reissued phase and every later phase go back to pending, except the curator, which runs once per run: only `--phase=curator` reopens it, and a reissue of an earlier phase leaves its proposals and task as they are, so the reissued round is curated (its framework-defect proposals and lessons) only when the owner also runs `/qa-reissue --phase=curator`. Every gate after the reissued phase (Gate 2 after Triage, Gate 3 after Closure-final) is reset: decided before, it needs a new owner decision once its phase completes again, and its earlier decisions stay as history. Planning and every earlier phase, Gate 1 and the event history stay exactly as they are. Reopening Planning or earlier, or phases of an open gate, is a gate rejection (`/qa-gate-decide`), not a reissue.
 
 ## Usage
 ```
@@ -35,7 +35,7 @@ Reopens a run that is already completed, from a phase after Gate 1 (Design throu
 ```
 /qa-reissue --phase=execution --reason="Re-run the checks the test environment blocked" --cases=TC-ATT-002,TC-ATT-005
 ```
-Reopens Execution through Curator of the active run; the two cases run again, Gate 2 and Gate 3 are decided again, then the reporter regenerates the three PDFs.
+Reopens Execution through Executive of the active run (the curator is not run again); the two cases run again, Gate 2 and Gate 3 are decided again, then the reporter regenerates the three PDFs.
 
 ## Contract (machine-checked)
 

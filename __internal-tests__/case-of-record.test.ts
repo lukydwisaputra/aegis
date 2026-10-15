@@ -120,7 +120,7 @@ describe('aegis metrics coverage with a declaration', () => {
 
   it('writes caseOfRecord and observations into coverage.json', async () => {
     const runId = await seeded({ ...base, 'cases/TC-COMMS-007-result.json': API, 'cases/TC-COMMS-007-result-messaging.json': { ...STUB, caseOfRecord: true, caseOfRecordReason: 'Gate 2 condition 5' } });
-    const out = writeCoverage(t.root, runId, 'qa-metrics-collector');
+    const out = writeCoverage(t.root, runId, 'owner');
     expect(out.coverage.counts).toMatchObject({ passed: 2, partial: 0 });
     const onDisk = JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8'));
     expect(onDisk.caseOfRecord[0]).toMatchObject({ caseId: 'TC-COMMS-007', file: 'TC-COMMS-007-result-messaging.json' });
@@ -129,7 +129,7 @@ describe('aegis metrics coverage with a declaration', () => {
 
   it('turns two declarations into a refusal and writes no file', async () => {
     const runId = await seeded({ ...base, 'cases/TC-COMMS-007-result.json': { ...API, caseOfRecord: true, caseOfRecordReason: 'a' }, 'cases/TC-COMMS-007-result-messaging.json': { ...STUB, caseOfRecord: true, caseOfRecordReason: 'b' } });
-    expect(() => writeCoverage(t.root, runId, 'qa-metrics-collector')).toThrow(expect.objectContaining({ code: 'invalid-input', message: expect.stringMatching(/both declare/) }));
+    expect(() => writeCoverage(t.root, runId, 'owner')).toThrow(expect.objectContaining({ code: 'invalid-input', message: expect.stringMatching(/both declare/) }));
     expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'))).toBe(false);
   });
 });

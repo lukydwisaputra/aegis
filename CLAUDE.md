@@ -109,7 +109,7 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 | 2 — Specialists | 13 | Sonnet 5.5 | Domain work (UI, API, unit, security, perf, etc.) |
 | 3 — SPVs | 24 | Sonnet 5.5 | One per reviewed worker; `qa-compliance-spv` reviews the six compliance agents |
 | Compliance | 6 | Sonnet 5.5 | ISO25010, ISO5055, ISTQB, CMMI, GDPR, PDPA |
-| Cross-cutting | 3 | Sonnet 5.5 | context-scanner, metrics-collector, curator |
+| Cross-cutting | 2 | Sonnet 5.5 | context-scanner, curator |
 
 Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) are centralized in `.claude/model-policy.yaml` — **never hardcode a model or effort in an agent definition**. Use the `_qa-build-agents` skill to stamp model policy changes into all agent frontmatter.
 
@@ -132,7 +132,7 @@ Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) ar
 - **taskmaster-client** — task claim/release protocol with file-lock serialization
 - **run-state** — run lifecycle, task claims, submissions and integrity checks behind the `aegis` CLI
 - **alignment** — static alignment checker behind `pnpm aegis align`
-- **metrics** — token logger, cycle-time tracker and the coverage rollup (`aegis metrics coverage` writes `reports/metrics/coverage.json`); writes rollup JSON from `events.jsonl`
+- **metrics** — token logger, cycle-time tracker and every rollup: `aegis metrics all` (run by `aegis phase start` for Closure-draft and Executive; the orchestrator may refresh by hand) writes all six `reports/metrics/*.json` files from `events.jsonl` and the run's records; `aegis metrics coverage` writes only `coverage.json`
 - **eslint-plugin** — custom ESLint rules for QA code
 - **test-helpers** and **supabase** — QA helpers (HAR sanitising, evidence naming, factory cleanup; Supabase role JWTs, migrations, RLS checks) that `aegis helpers vendor` copies into the target's `tests/qa/support/`
 - **reporters** — PDF and Markdown report rendering
@@ -157,6 +157,7 @@ runs/{runId}/
   reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json, stage-executive.json (CLI-written, aegis lint run), and phase-{phase}.json: the warnings of a completed phase's barrier (CLI-written, aegis phase complete; removed when the phase is reopened), and spec-execution.json: the full list of spec lint findings behind an Execution refusal (CLI-written, aegis phase complete)
   reports/explore/      # Explore baseline.json and probe.json: page signatures and the reuse decision (CLI-written, aegis explore probe)
   reports/env/          # probe-execution.json and probe-g2.json: environment health and the build under test (CLI-written, aegis env probe)
+  reports/metrics/      # cycle-time, coverage, defect-trend, effectiveness, agent-reliability and flaky .json (CLI-written, aegis metrics all, written at the start of Closure-draft and of Executive, and by hand after a record correction)
   reports/.locks/       # submit and claim locks (CLI-owned)
   gates/gate-{N}-decision.json  # owner gate decisions (CLI-written)
   taskmaster/           # the run's task tree and claim locks (CLI-written)
@@ -226,7 +227,7 @@ this directory at `.claude/worktrees/<name>`, the only place the path-guard reco
 | `../tests/**` | WRITE by `qa-*` agents under `testsDir`, per their role row; never by the main thread |
 | `../playwright.config.ts` | WRITE by `qa-environment-engineer` only: the `qa-e2e` project entry (HANDBOOK/17 rule (b)); named exception |
 | `../.github/workflows/qa-*.yml` | WRITE by `/qa-ci-bootstrap` only (QA-owned workflow files); named exception |
-| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`, `cases/TC-*.md`, `scenarios/SCN-*.md`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
+| `aegis/runs/**` | WRITE by `qa-*` agents per their role row; CLI-only files (`events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `reports/metrics/`, `taskmaster/`, `intake/`, `hooks/`, `integrity/`, `messaging/`, `cases/TC-*.md`, `scenarios/SCN-*.md`) only through `pnpm aegis`; never by the main thread, except the legacy skill writes listed in `LEGACY_MAIN_THREAD_RUN_WRITES` (allowed with a warning until P0c/P3 rewrite those skills) |
 | `aegis/packages/**`, `aegis/apps/**`, `aegis/.claude/**` | Framework source: owner branch work only; agents are denied |
 | `aegis/agent-memory/**` | Written by `aegis review submit` (lesson piping) and `/qa-promote`; agents never write it directly |
 | `aegis/sandbox/**` | WRITE allowed (gitignored scratch for sandbox-first exploration; never committed) |

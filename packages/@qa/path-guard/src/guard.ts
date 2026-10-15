@@ -46,7 +46,7 @@ export type GuardResult =
   | { allow: true; claims: ClaimRef[]; warnings: LegacyWrite[] }
   | { allow: false; reason: string; claims: ClaimRef[]; warnings: LegacyWrite[] };
 
-/** Rollup-owned files (spec §5.1). CLI-only from P0c, when `aegis rollup` writes them (decision 5); not enforced yet. */
+/** Rollup-owned files (spec §5.1). reports/metrics/** is CLI-only (aegis metrics all, CLI_ONLY_RUN_GLOBS); the others are not enforced yet. */
 export const ROLLUP_OWNED_RUN_GLOBS: readonly string[] = ["execution-summary.json", "reports/metrics/**", "reports/closure/metrics.json"];
 
 /** Customer-facing run files (CLAUDE.md brand exposure rule). */
@@ -94,7 +94,7 @@ const DEPENDENCY_FILES: ReadonlySet<string> = new Set(["package.json", "pnpm-loc
  * or a shell variable whose name holds RUN ($RUN_DIR/messaging/, ${AEGIS_RUN}/messaging/). Any .md directly under cases/ or
  * scenarios/ counts: an unresolved name there (`cases/$ID.md`) may be a rendered TC-*.md / SCN-*.md, and no agent writes another .md there.
  */
-const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|lint|explore|env|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|runs\/[^/\s"']*\/messaging\/|\$\{?\w*RUN\w*\}?\/messaging\/|(^|\/)cases\/[^/\s"']*\.md\b|(^|\/)scenarios\/[^/\s"']*\.md\b|\.active\b|\.lock\b/;
+const DYNAMIC_CLI_ONLY = /events\.jsonl|run\.json|(^|\/)gates\/|reports\/(work|review|lint|explore|env|metrics|\.locks)\/|taskmaster\/|(^|\/)intake\/|(^|\/)hooks\/|(^|\/)integrity\/|runs\/[^/\s"']*\/messaging\/|\$\{?\w*RUN\w*\}?\/messaging\/|(^|\/)cases\/[^/\s"']*\.md\b|(^|\/)scenarios\/[^/\s"']*\.md\b|\.active\b|\.lock\b/;
 /** Commands that remove (or, for mv, move away) the paths they name. git-rm is git rm, git clean and git reset --hard. */
 const REMOVE_OPS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "git-rm", "git-mv", "git-clean-x"]);
 /** Git write targets: a directory among them stands for its whole subtree. */

@@ -42,7 +42,11 @@ describe('I5: the sign-off banner equals the recorded Gate 3 decision', () => {
 });
 
 const CLOSURE = `${AGENTS}/tier1-phase/qa-closure-reporter.md`;
-const COLLECTOR = `${AGENTS}/crosscutting/qa-metrics-collector.md`;
+/** The metric file definitions the retired collector agent carried: HANDBOOK/13, "Metric file definitions" (what aegis metrics all writes). */
+const metricDefs = (): string => {
+  const h = read('HANDBOOK/13-mechanics.md');
+  return h.slice(h.indexOf('**Metric file definitions**'), h.indexOf('## 13.11'));
+};
 
 describe('I3: requirements coverage is a pinned key end to end', () => {
   it('the closure key block carries metrics.requirementsCoverage, copied from coverage.json, null when unavailable', () => {
@@ -52,16 +56,16 @@ describe('I3: requirements coverage is a pinned key end to end', () => {
     expect(block).toMatch(/number 0–100 copied from `reports\/metrics\/coverage\.json#requirementsCoverage`, or null/);
   });
 
-  it('the collector pins the coverage.json keys', () => {
-    const text = read(COLLECTOR);
-    const cov = text.slice(text.indexOf('### Coverage'), text.indexOf('### Defect Metrics'));
+  it('the metric definitions pin the coverage.json keys', () => {
+    const text = metricDefs();
+    const cov = text.slice(text.indexOf('**Coverage.**'), text.indexOf('**Defect metrics'));
     expect(cov).toContain(
       'exactly `{ requirementsCoverage, testExecutionCoverage, codeCoverage, partialRequirements, counts, uncovered, descoped?, caseOfRecord?, observations?, noData? }`',
     );
     expect(cov).toMatch(/`counts` is `\{ designed, attempted, passed, failed, partial, blocked, skipped, unknown, notAttempted, outOfScope\? \}`/);
     expect(cov).toMatch(/Counts are computed by the command from the case files, never by hand/);
     expect(cov).toContain('`{ byCause: { environment, testingSide, requirementGap, notAttempted, other }, rows: [{ id, cause, via }] }`');
-    expect(cov).toContain('You never classify a row by hand');
+    expect(cov).toContain('No agent classifies a row by hand');
     expect(cov).toContain("the first match of the command's keyword table on the text of its result files");
     expect(cov).toContain("else on the origin text of that check's row in the closure's table of uncovered test cases");
     expect(cov).toContain('a `cause` written on a closure row is ignored');
@@ -85,18 +89,18 @@ describe('M2: the closure SPV maps each metric to its source file', () => {
 });
 
 describe('M3: zero defect.opened events are data', () => {
-  it('the collector writes defect-trend.json with zero counts, and noData only when the event log is unreadable or absent', () => {
-    const text = read(COLLECTOR);
-    const metrics = text.slice(text.indexOf('## Metrics to Collect'), text.indexOf('### Token Usage'));
+  it('defect-trend.json holds zero counts, and noData only when the event log is unreadable or absent', () => {
+    const text = metricDefs();
+    const metrics = text.slice(0, text.indexOf('**Token total'));
     expect(metrics).toMatch(/`defect-trend\.json` with no `defect\.opened` event is data, not an absence/);
-    const defects = text.slice(text.indexOf('### Defect Metrics'), text.indexOf('### Test Effectiveness'));
+    const defects = text.slice(text.indexOf('**Defect metrics'), text.indexOf('**Test effectiveness.**'));
     expect(defects).toMatch(/no `defect\.opened` event[^\n]*zero counts[^\n]*without `noData`/);
     expect(defects).toMatch(/`"noData": true` only when `events\.jsonl` is absent or unreadable/);
   });
 });
 
 describe('the metric files hold every key the closure SPV traces to them', () => {
-  const collector = read(`${AGENTS}/crosscutting/qa-metrics-collector.md`);
+  const collector = metricDefs();
   it('defect-trend.json carries defectDensity, escapeRate, reopenRate, MTTD and MTTR; effectiveness.json carries DRE', () => {
     expect(collector).toContain(
       'exactly `{ totalOpened, totalClosed, totalReopened, bySeverity, byPhaseIntroduced, defectDensity, reopenRate, escapeRate, mttdMs, mttrMs, openApplicationDefects?, fixed?, partiallyFixed?, reframed?, reportWithdrawn?, cannotVerify?, notFixed?, noData? }`',

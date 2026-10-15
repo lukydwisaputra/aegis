@@ -29,6 +29,8 @@ import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from
 import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { maskPath } from "./lint/mask.js";
+import { metricsFindings } from "./metrics-check.js";
+import { writeAllMetricsLocked } from "./metrics-coverage.js";
 import { dataFindings } from "./lint/data.js";
 import { recordSpecReport, specBlockMessage, specFindings } from "./lint/specs.js";
 import { designBlockMessage } from "./lint/design.js";
@@ -117,10 +119,29 @@ export function parsePhase(phase: string): PhaseId {
   return parsed.data;
 }
 
+/** A started phase: the new run state, and what the start itself did besides starting (the metric refresh of Closure-draft and Executive). */
+export interface PhaseStart {
+  state: RunState;
+  /** Plain-language notes, never a refusal: a metric refresh that did not happen says why and that the files were left as they were. */
+  warnings: string[];
+  /** The metric files this start wrote (run-relative), the phases it recorded a rollup for, and the cycle event it recorded; absent when the start refreshes nothing. */
+  metrics?: { written: string[]; phaseRollups: string[]; cycleComplete: { totalDurationMs: number; totalTokensUsed: number } | null };
+}
+
+/** The phases whose start refreshes the metric files first (full cycle): the closure reporter and the executive reporter read them. */
+export const METRICS_AT_START: ReadonlySet<PhaseId> = new Set<PhaseId>(["closure-draft", "executive"]);
+
+/** startPhase for callers that return RunState (the call sites of the tests): the state of startPhaseWithWarnings. */
 export async function startPhase(root: string, runId: string, phase: string, caller: string, now?: Date): Promise<RunState> {
+  return (await startPhaseWithWarnings(root, runId, phase, caller, now)).state;
+}
+
+export async function startPhaseWithWarnings(root: string, runId: string, phase: string, caller: string, now?: Date): Promise<PhaseStart> {
   assertCallerAllowed(caller, "phase.start");
   const id = parsePhase(phase);
-  return withRunLock(root, runId, async () => {
+  const warnings: string[] = [];
+  let metrics: PhaseStart["metrics"];
+  const state = await withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     if (state.stopRequested) throw new RunStateError("stop-requested", `run ${runId} has a stop request; no phase may start`);
     const step = nextStep(state);
@@ -143,6 +164,17 @@ export async function startPhase(root: string, runId: string, phase: string, cal
     if (readOnly !== null) {
       throw new RunStateError("env-blocked", `cannot start env-data: ${readOnly}; record it with aegis phase complete --phase env-data --not-applicable`);
     }
+    // Closure-draft and Executive read the metric files: write them now, in this process and before the phase is marked started (the
+    // cycle event needs Executive still pending). A refusal (a malformed case-of-record declaration) never refuses the start: the files stay
+    // as they were and the warning names the cause.
+    if (state.cycleType === "full" && METRICS_AT_START.has(id)) {
+      try {
+        const w = await writeAllMetricsLocked(root, runId, caller, now);
+        metrics = { written: w.written, phaseRollups: w.phaseRollups, cycleComplete: w.cycleComplete };
+      } catch (e) {
+        warnings.push(`the metric files were not refreshed and stay as they were (${(e as Error).message}); fix the cause and run aegis metrics all`);
+      }
+    }
     const ts = iso(now);
     // Explore keeps a carried-over discovery and the identity of the earlier Explore: the probe still has to verify it.
     const prev = id === "explore" ? state.phases[id] : undefined;
@@ -159,6 +191,7 @@ export async function startPhase(root: string, runId: string, phase: string, cal
     await commitRun(root, state, next, () => appendChained({ type: "run.phase.started", ts, runId, phase: id }, busPath(root, runId), { emittedBy: caller, runId }));
     return next;
   });
+  return { state, warnings, ...(metrics !== undefined ? { metrics } : {}) };
 }
 
 /** Why a phase may be skipped, computed from config and the target profile — never from caller text. */
@@ -209,6 +242,8 @@ export interface BarrierPrecomputed {
   executiveWarnings?: readonly Finding[];
   /** The spec lint findings (lint/specs.ts), for the Execution phase: parsing the spec files is async, so it runs before run.lock is taken. */
   specFindings?: readonly Finding[];
+  /** The metric check (metrics-check.ts), for the Closure-final phase: it recomputes the check counts from the case files, so it runs before run.lock is taken. */
+  metricsFindings?: readonly Finding[];
 }
 
 /** The errors of the executive stage, the executive barrier's lint (warnings never refuse). Reads run files only. */
@@ -319,6 +354,8 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       if (specErrors.length > 0) problems.push(specBlockMessage(specErrors));
       warnings?.push(...spec.filter((f) => f.severity === "warning"));
     }
+    // The metric files the closure and the reports state: a missing file or counts left from an earlier round are warnings, never a refusal.
+    if (phase === "closure-final") warnings?.push(...(pre.metricsFindings ?? metricsFindings(root, runId)));
     // The executive stage as a safety net: its errors (the deck, the plain risk sentences, the deliverable events) refuse the phase while
     // the reporter can still fix them; the reporter saw them in its submit result already.
     if (phase === "executive") {
@@ -443,9 +480,11 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
   // The spec lint of the Execution barrier parses every spec file the result files name: once, before run.lock is taken.
   const specs = id === "execution" && opts.notApplicable !== true ? await specFindings(root, runId) : [];
   if (id === "execution" && opts.notApplicable !== true) recordSpecReport(root, runId, specs);
+  // The metric check recomputes the check counts from the case files: once, before run.lock is taken.
+  const metrics = id === "closure-final" && opts.notApplicable !== true ? metricsFindings(root, runId) : [];
   const pre: BarrierPrecomputed = id === "executive" && opts.notApplicable !== true
     ? { executiveErrors: executive.filter((f) => f.severity === "error"), executiveWarnings: executive.filter((f) => f.severity === "warning") }
-    : id === "execution" ? { specFindings: specs } : {};
+    : id === "execution" ? { specFindings: specs } : id === "closure-final" ? { metricsFindings: metrics } : {};
   // What the barrier's own scans found as warnings (it scans anyway: nothing extra is read for them); kept only if this completion commits.
   const warnings: Finding[] = [];
 
@@ -535,10 +574,14 @@ export interface ReissueInput {
   now?: Date;
 }
 
-/** The phases a reissue of `phase` sends back to pending: it and every later phase of the cycle. */
+/**
+ * The phases a reissue of `phase` sends back to pending: it and every later phase of the cycle, except the curator. The curator runs once per
+ * run, so a reissue of an earlier phase leaves it completed (its proposals and its task stay as they are); only a reissue of `curator` itself
+ * reopens it, and then it is the one phase reopened.
+ */
 export function reissueRange(cycleType: CycleType, phase: PhaseId): PhaseId[] {
   const inCycle = new Set<PhaseId>(CYCLE_PHASES[cycleType]);
-  return PHASE_IDS.slice(PHASE_IDS.indexOf(phase)).filter((p) => inCycle.has(p));
+  return PHASE_IDS.slice(PHASE_IDS.indexOf(phase)).filter((p) => inCycle.has(p) && (p !== "curator" || phase === "curator"));
 }
 
 /** The gates a reissue of `phase` resets: every gate whose phase is the reissued phase or a later one. */

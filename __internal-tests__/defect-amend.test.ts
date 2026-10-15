@@ -77,7 +77,7 @@ describe('aegis defect amend', () => {
   });
 
   it('is callable by qa-defect-manager and the owner only', async () => {
-    for (const agent of ['qa-closure-reporter', 'qa-orchestrator', 'qa-test-executor', 'qa-defect-manager-spv', 'qa-metrics-collector'])
+    for (const agent of ['qa-closure-reporter', 'qa-orchestrator', 'qa-test-executor', 'qa-defect-manager-spv', 'qa-curator'])
       await expect(amend([{ path: 'retestVerdict.reason', value: 'x' }], 'r', agent)).rejects.toMatchObject({ code: 'caller-forbidden' });
     await expect(amend([{ path: 'retestVerdict.reason', value: 'Corrected by the owner.' }], 'owner note', 'owner')).resolves.toMatchObject({ defectId: ID });
     expect(OWNER_COMMANDS.has('defect.amend')).toBe(true);
