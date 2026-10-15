@@ -157,7 +157,7 @@ export function matchGlob(pattern: string, path: string): boolean {
  */
 export const CLI_ONLY_RUN_GLOBS: readonly string[] = [
   "events.jsonl", "run.json", "**/*.lock", "**/*.lock/**", "gates/**", "reports/work/**", "reports/review/**",
-  "reports/lint/**", "reports/explore/**", "reports/env/**", "reports/reuse/**", "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**", "messaging/**",
+  "reports/lint/**", "reports/explore/**", "reports/env/**", "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**", "messaging/**",
   // The Markdown view of a case and a scenario, rendered from their JSON by aegis cases render (the JSON stays the designer's).
   "cases/TC-*.md", "scenarios/SCN-*.md",
 ];

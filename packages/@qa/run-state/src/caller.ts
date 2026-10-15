@@ -51,7 +51,6 @@ export const CLI_COMMANDS = [
   "lint.run",
   "explore.probe",
   "env.probe",
-  "compliance.probe",
   "cases.render",
 ] as const;
 
@@ -88,8 +87,6 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "explore.probe",
   // The orchestrator probes the environment before Execution starts and before G2; the owner may run it too.
   "env.probe",
-  // The orchestrator decides at the start of Compliance whether the earlier round's reports are carried; the owner may run it too.
-  "compliance.probe",
   // The test designer renders the Markdown of its cases and scenarios; the orchestrator and the owner may run it too.
   "cases.render",
 ]);
@@ -158,7 +155,6 @@ export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly st
   "lint.run": ["qa-orchestrator"],
   "explore.probe": ["qa-orchestrator"],
   "env.probe": ["qa-orchestrator"],
-  "compliance.probe": ["qa-orchestrator"],
   "cases.render": ["qa-test-designer", "qa-orchestrator"],
 };
 
@@ -187,7 +183,7 @@ export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.
 // cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
 // recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2); the last two by
 // aegis defect amend and aegis rtm unlink (gap 5).
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered", "env.executed", "lint.completed", "explore.probed", "env.probed", "compliance.probed", "cases.rendered"]);
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered", "env.executed", "lint.completed", "explore.probed", "env.probed", "cases.rendered"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

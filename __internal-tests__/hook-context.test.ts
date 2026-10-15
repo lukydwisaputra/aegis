@@ -18,10 +18,9 @@ let t: TmpAegis;
  * the one qa-* agent that may run the lint (767 and 6081).
  * Task 3 added the schema-generated enums, time format and lesson id pattern to the usage notes line (+287 for every qa-* agent) and
  * `(--json '<fields>' | --json-file <path>)` to the event append usage (+23 for the agents that may append events): 6081 -> 6391. The fix round replaced the epoch example with the timestamp format and its date command (+29 for every qa-* agent): 6420.
- * The closure-flow change added the compliance probe command to the orchestrator's cheat-sheet (the only agent that may run it): +103, 6420 -> 6523.
  */
 const BRAND_MAX = 767;
-const H4_LARGEST = 6523;
+const H4_LARGEST = 6420;
 beforeEach(() => { t = makeAegisRoot(); });
 afterEach(() => t.cleanup());
 

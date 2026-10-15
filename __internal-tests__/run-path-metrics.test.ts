@@ -45,8 +45,8 @@ describe('the orchestrator runs the metrics collector in the foreground before C
     expect(resume).not.toMatch(/re-dispatches the metrics collector/);
   });
 
-  it('the closure reporter is dispatched only in Closure-final, and its brief says when the compliance reports are carried', () => {
-    expect(orch).toContain('A `qa-closure-reporter` is dispatched only in Closure-final, and its brief says when the compliance phase record in `aegis run status` shows `reusedFrom`');
+  it('the closure reporter is dispatched only in Closure-final', () => {
+    expect(orch).toContain('A `qa-closure-reporter` is dispatched only in Closure-final, never in Closure-draft.');
     expect(orch).not.toMatch(/draft pass|final pass/);
   });
 });
@@ -137,8 +137,6 @@ describe('Closure-final is the one closure pass, which folds in the compliance r
     const fold = closure.slice(closure.indexOf('5. **Fold in compliance.**'), closure.indexOf('6. **Submit, release, stop.**'));
     expect(fold).toContain('Expect one compliance report per relevant regulation');
     expect(fold).toContain('A missing report for a relevant regulation is a closure gap, not a pass.');
-    expect(fold).toContain('`reusedFrom`');
-    expect(fold).toContain('The compliance assessment dated 13 October 2026 still applies');
   });
 
   it('reads the compliance reports and no draft of its own, and is the Closure-final contract', () => {

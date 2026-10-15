@@ -30,7 +30,6 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "lint.run": ["lint.completed"],
   "explore.probe": ["explore.probed"],
   "env.probe": ["env.probed"],
-  "compliance.probe": ["compliance.probed", "run.phase.completed", "run.phase.not-applicable", "preflight.failed", "integrity.violation", "run.blocked"],
   "cases.render": ["cases.rendered"],
 };
 

@@ -139,11 +139,11 @@ The PDPA agent covers Singapore's Personal Data Protection Act 2012 (amended 202
 
 The sequence during a full run:
 
-1. Gate 2 is approved (and Closure-draft is done or not-applicable); the orchestrator starts Compliance and runs `aegis compliance probe`. When nothing the reviews read changed since the last completed Compliance round of the run, the CLI completes the phase with that round's reports and steps 2 to 4 are skipped (HANDBOOK/04, Compliance once)
-2. Otherwise the `qa-orchestrator` dispatches every compliance agent listed in `aegis.config.json#compliance` simultaneously, except `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data; the Compliance barrier names any relevant regulation that has no task
+1. Gate 2 is approved (and Closure-draft is done or not-applicable); the orchestrator starts Compliance
+2. The `qa-orchestrator` dispatches every compliance agent listed in `aegis.config.json#compliance` simultaneously, except `qa-compliance-gdpr` and `qa-compliance-pdpa` when the target profile shows no personal data; the Compliance barrier names any relevant regulation that has no task
 3. Each agent reads the test cases and RTM, annotates missing tags, and writes a compliance annotation file to `runs/<RUN-ID>/compliance/<framework>.json`
 4. The one shared compliance reviewer, `qa-compliance-spv`, reviews each compliance task on its own; the Compliance phase closes only after every compliance task has its review
-5. Closure-final, the one closure pass, folds the compliance reports into the compliance section of the closure report and says when they were carried over from an earlier round
+5. Closure-final, the one closure pass, folds the compliance reports into the compliance section of the closure report
 
 Total wall-clock time for compliance review: typically 3–8 minutes (depending on case count). The compliance agents run concurrently with each other.
 

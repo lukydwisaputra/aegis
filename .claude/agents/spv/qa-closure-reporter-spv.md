@@ -43,7 +43,6 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 6. **No ship/no-ship verdict.** Conclusion does not contain "ready to ship", "recommend release", "do not release", or equivalent directive. Findings + open questions are fine.
 7. **Brand-clean (Class B).** The MD-rendered closure report contains zero matches from `STAKEHOLDER_FORBIDDEN_PATTERNS`: no "Aegis", no agent names (qa-test-designer, qa-executor, etc.), no internal paths. Run the check via `grep -iE 'aegis|qa-test-designer|qa-executor|qa-defect-manager' reports/closure/closure.md`.
 8. **Lessons Learned quality.** At least 2 lessons learned entries that are specific (not "testing was good"). Generic lessons = passed-with-notes. Every lesson is about the application or the test process: a bullet about how the closure report itself was drafted or revised, review statistics or attempt counts anywhere in the customer-facing closure = requested-changes.
-9. **Carried compliance.** When `aegis run status` shows `reusedFrom` on the compliance phase record, `closure.json#complianceNote` states in one neutral sentence that the compliance assessment dated at that time still applies because what it covers has not changed, in plain business wording (no word about rounds, reuse or how the report was produced). Missing = requested-changes.
 
 ## Verdict
 
@@ -82,7 +81,7 @@ emits:
   - {event: review.passed-with-notes, via: "cli:review.submit"}
   - {event: review.requested-changes, via: "cli:review.submit"}
 awaits: []
-cli: [review.submit, run.status]
+cli: [review.submit]
 runs: [grep]
 dispatches: []
 config: []

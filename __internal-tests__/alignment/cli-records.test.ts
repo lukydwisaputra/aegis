@@ -59,7 +59,6 @@ const ENTRY: Record<string, string> = {
   'lint.run': 'lintRun',
   'explore.probe': 'exploreProbe',
   'env.probe': 'probeEnvironment',
-  'compliance.probe': 'probeCompliance',
   'cases.render': 'renderArtefacts',
 };
 
