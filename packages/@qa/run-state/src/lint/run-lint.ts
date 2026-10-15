@@ -10,6 +10,7 @@ import { scanPii } from "./pii.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
 import { hasLongLine, MAX_LINE, MAX_TEXT_BYTES, maskPath } from "./mask.js";
 import { scanBrand, scanTextsUnblanked, scanWithRules, type Finding, type ScanText, type Severity } from "./text.js";
+import { citationFindings } from "./citations.js";
 import { dataFindings, dataRuleGroup, type DataStage } from "./data.js";
 import { renderingSnapshot } from "../render/artefacts.js";
 
@@ -515,5 +516,7 @@ export function lintFindings(root: string, runId: string, gate?: "G2" | "G3"): {
   const shownSkipped = skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file));
   const shownFindings = findings.map((f) => ({ ...f, file: maskPath(f.file) })).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));
   const data = stage === undefined ? [] : dataFindings(root, runId, stage, disabled);
-  return { filesScanned, skipped: shownSkipped, findings: [...shownFindings, ...data] };
+  // Dangling citations of the closure and compliance files: at the G3 lint (and so the Closure-final barrier), a warning, never at Execution.
+  const citations = gate === "G3" && existsSync(dir) && !disabled.has("citation-dangling") ? citationFindings(root, runId) : [];
+  return { filesScanned, skipped: shownSkipped, findings: [...shownFindings, ...data, ...citations] };
 }
