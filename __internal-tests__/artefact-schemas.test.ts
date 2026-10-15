@@ -138,9 +138,9 @@ describe('closure file schema: rollup files, declaration shapes, non-object root
       try {
         const runId = (await createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full', health: 'passed' }, 'owner')).runId;
         writeRunFile(t.root, runId, 'reports/closure/closure.json', []);
-        expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([expect.stringMatching(/closure-metrics-missing: closure\.json must be a JSON object/)]);
+        expect(outputProblems(t.root, runId, 'closure-final')).toEqual([expect.stringMatching(/closure-metrics-missing: closure\.json must be a JSON object/)]);
         fs.writeFileSync(path.join(t.root, 'aegis.config.json'), JSON.stringify({ parallelism: { maxSpecialists: 2 }, reportRules: { disable: ['env-probe', 'closure-metrics-missing'] } }));
-        expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([]);
+        expect(outputProblems(t.root, runId, 'closure-final')).toEqual([]);
       } finally {
         t.cleanup();
       }
@@ -173,7 +173,7 @@ describe('agent contracts state what the closure barrier and the append check en
   });
 });
 
-describe('the schema is the barrier of closure-draft and closure-final, and reportRules.disable lifts it', () => {
+describe('the schema is the barrier of closure-final (the one closure phase), and reportRules.disable lifts it', () => {
   let t: TmpAegis;
   let runId: string;
   beforeEach(async () => {
@@ -185,7 +185,7 @@ describe('the schema is the barrier of closure-draft and closure-final, and repo
   const refusal = (re: RegExp) => ({ code: 'barrier', message: expect.stringMatching(re) });
   const GATES = { G1: { status: 'approved', decisions: 1 }, G2: { status: 'approved', decisions: 1 } };
 
-  it.each(['closure-draft', 'closure-final'])('%s refuses an invalid closure.json naming the keys and passes a valid one', async (phase) => {
+  it.each(['closure-final'])('%s refuses an invalid closure.json naming the keys and passes a valid one', async (phase) => {
     fastForward(t.root, runId, phase, GATES);
     await startPhase(t.root, runId, phase, ORCH);
     await workTask(t.root, runId, `T-${phase}-1`, 'qa-closure-reporter', 'qa-closure-reporter-spv');
@@ -196,33 +196,43 @@ describe('the schema is the barrier of closure-draft and closure-final, and repo
     expect((await completePhase(t.root, runId, phase, ORCH)).phases[phase as 'closure-draft']).toMatchObject({ status: 'completed' });
   });
 
-  it.each(['closure-draft', 'closure-final'])('%s: the closure refusal names the closure-schema exception; Closure-final does not tell the reporter to add metric keys', async (phase) => {
-    fastForward(t.root, runId, phase, GATES);
-    await startPhase(t.root, runId, phase, ORCH);
-    await workTask(t.root, runId, `T-${phase}-1`, 'qa-closure-reporter', 'qa-closure-reporter-spv');
-    if (phase === 'closure-final') await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');
+  it('closure-final: the closure refusal names the closure-schema exception and tells the reporter to state or declare each metric', async () => {
+    fastForward(t.root, runId, 'closure-final', GATES);
+    await startPhase(t.root, runId, 'closure-final', ORCH);
+    await workTask(t.root, runId, 'T-closure-final-1', 'qa-closure-reporter', 'qa-closure-reporter-spv');
+    await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');
     writeRunFile(t.root, runId, 'reports/closure/closure.json', { metrics: without('defectDensity', 'dre') });
-    const message = await completePhase(t.root, runId, phase, ORCH).then(() => '', (e: Error) => e.message);
+    const message = await completePhase(t.root, runId, 'closure-final', ORCH).then(() => '', (e: Error) => e.message);
     expect(message).toContain("reportRules.disable with closure-schema is the owner's recorded exception for a closure that predates this check");
-    if (phase === 'closure-final') {
-      expect(message).toContain('name each in unavailableMetricValues (the metrics stay as drafted at Closure-final)');
-      expect(message).not.toContain('state each');
-    } else {
-      expect(message).toContain('state each (null when it cannot be computed) or name it in unavailableMetricValues');
-    }
+    expect(message).toContain('state each (null when it cannot be computed) or name it in unavailableMetricValues');
+  });
+
+  it('closure-draft no longer lists the closure as an output: it completes with its corrections task alone, and is recorded not-applicable without one', async () => {
+    fastForward(t.root, runId, 'closure-draft', GATES);
+    expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([]);
+    expect((await completePhase(t.root, runId, 'closure-draft', ORCH, { notApplicable: true })).phases['closure-draft']).toMatchObject({
+      status: 'not-applicable', reason: expect.stringMatching(/written once, at Closure-final/),
+    });
+  });
+
+  it('closure-draft with a corrections task completes without any closure file', async () => {
+    fastForward(t.root, runId, 'closure-draft', GATES);
+    await startPhase(t.root, runId, 'closure-draft', ORCH);
+    await workTask(t.root, runId, 'T-closure-draft-1', 'qa-defect-manager', 'qa-defect-manager-spv');
+    expect((await completePhase(t.root, runId, 'closure-draft', ORCH)).phases['closure-draft']).toMatchObject({ status: 'completed' });
   });
 
   it('reportRules.disable with closure-schema lifts the whole check; a rule id lifts only that rule', async () => {
-    fastForward(t.root, runId, 'closure-draft', GATES);
+    fastForward(t.root, runId, 'closure-final', GATES);
     writeRunFile(t.root, runId, 'reports/closure/closure.json', { metrics: without('dre'), uncoveredByCause: {} });
-    expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([expect.stringMatching(/closure-forbidden-key.*closure-metrics-missing/)]);
+    expect(outputProblems(t.root, runId, 'closure-final')).toEqual([expect.stringMatching(/closure-forbidden-key.*closure-metrics-missing/)]);
     setDisable(['closure-forbidden-key']);
-    expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([expect.stringMatching(/closure-metrics-missing: dre/)]);
-    expect(outputProblems(t.root, runId, 'closure-draft')[0]).not.toMatch(/closure-forbidden-key/);
+    expect(outputProblems(t.root, runId, 'closure-final')).toEqual([expect.stringMatching(/closure-metrics-missing: dre/)]);
+    expect(outputProblems(t.root, runId, 'closure-final')[0]).not.toMatch(/closure-forbidden-key/);
     setDisable(['closure-metrics-missing']);
-    expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([expect.stringMatching(/closure-forbidden-key/)]);
+    expect(outputProblems(t.root, runId, 'closure-final')).toEqual([expect.stringMatching(/closure-forbidden-key/)]);
     setDisable(['closure-schema']);
-    expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([]);
+    expect(outputProblems(t.root, runId, 'closure-final')).toEqual([]);
     expect(outputProblems(t.root, runId, 'closure-final')).toEqual([]);
   });
 
@@ -230,7 +240,7 @@ describe('the schema is the barrier of closure-draft and closure-final, and repo
     setDisable(['closure-schema']);
     fs.mkdirSync(path.join(runDir(t.root, runId), 'reports', 'closure'), { recursive: true });
     fs.writeFileSync(path.join(runDir(t.root, runId), 'reports', 'closure', 'closure.json'), '{ nope');
-    expect(outputProblems(t.root, runId, 'closure-draft')).toEqual([expect.stringMatching(/not valid JSON/)]);
+    expect(outputProblems(t.root, runId, 'closure-final')).toEqual([expect.stringMatching(/not valid JSON/)]);
   });
 });
 

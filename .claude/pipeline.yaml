@@ -24,12 +24,12 @@ phases:
   - id: triage
     agents: [qa-defect-manager]
     gateAfter: G2
-  - id: closure-draft
-    agents: [qa-closure-reporter]
+  - id: closure-draft  # no reporter any more: the phase is not-applicable, or hosts the qa-defect-manager corrections a gate decision demands (listed under triage)
+    agents: []
   - id: compliance  # qa-compliance-* are crosscutting; the orchestrator places them "during Compliance"
     agents: []
-  - id: closure-final  # qa-closure-reporter final pass: listed once, under closure-draft
-    agents: []
+  - id: closure-final  # the one closure pass
+    agents: [qa-closure-reporter]
     gateAfter: G3
   - id: executive
     agents: [qa-executive-reporter]

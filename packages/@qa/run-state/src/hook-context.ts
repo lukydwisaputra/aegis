@@ -56,6 +56,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "lint.run": "lint run (--gate G2|G3 | --stage executive) [--run <id>]",
   "explore.probe": "explore probe [--baseline] [--run <id>]",
   "env.probe": "env probe --stage execution|g2 [--run <id>]",
+  "compliance.probe": "compliance probe [--force] [--run <id>]",
   "cases.render": "cases render [--run <id>]",
 };
 

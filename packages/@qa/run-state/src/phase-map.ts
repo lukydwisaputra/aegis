@@ -49,7 +49,7 @@ export const PHASE_OUTPUTS: Readonly<Partial<Record<PhaseId, readonly string[]>>
   design: ["rtm.json"],
   "env-data": ["env-setup-report.json"],
   execution: ["execution-summary.json"],
-  "closure-draft": [CLOSURE_OUTPUT],
+  // Closure-draft no longer writes the closure (it only hosts the corrections a gate decision demands); a run that wrote one there still reads.
   "closure-final": [CLOSURE_OUTPUT],
 };
 
@@ -66,7 +66,7 @@ export const OUTPUT_SCHEMAS: Readonly<Record<string, OutputSchema>> = {
   "dev-test-review.json": DevTestReviewSchema,
   "env-auth-report.json": EnvAuthBarrierSchema,
   "execution-summary.json": ExecutionSummaryCoreSchema,
-  // Applied at closure-draft and closure-final (both list the file in PHASE_OUTPUTS). reportRules.disable with closure-schema lifts it.
+  // Applied at closure-final (the one phase that lists the file in PHASE_OUTPUTS). reportRules.disable with closure-schema lifts it.
   [CLOSURE_OUTPUT]: ClosureFileSchema,
 };
 

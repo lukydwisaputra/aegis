@@ -231,10 +231,17 @@ e2e('full cycle: gates G1-G3, an escalation retry, a G2 rejection and its recove
   sim.ok('owner', 'gate', 'decide', '--gate', 'G2', '--decision', 'approved', '--note', 'ok now');
   expect(fs.readdirSync(path.join(sim.runDir, 'gates')).sort()).toEqual(['gate-1-decision.json', 'gate-2-decision.1.json', 'gate-2-decision.json']);
 
-  sim.phase('closure-draft', 'qa-closure-reporter', { 'reports/closure/closure.json': VALID_CLOSURE });
-  sim.phase('compliance', 'qa-compliance-iso25010', {}, 'T-compliance-iso25010-1');
+  // The closure is written once, at Closure-final: Closure-draft is not-applicable when no gate decision demands corrections.
+  expect(sim.ok(O, 'phase', 'complete', '--phase', 'closure-draft', '--not-applicable')).toMatchObject({ phases: { 'closure-draft': { status: 'not-applicable' } } });
+  sim.ok(O, 'phase', 'start', '--phase', 'compliance');
+  expect(sim.ok(O, 'compliance', 'probe')).toMatchObject({ decision: 'full', reason: expect.stringMatching(/no Compliance round of this run left a record/), carriedFrom: null });
+  sim.no('caller-forbidden', 'qa-compliance-iso25010', 'compliance', 'probe');
+  sim.work(O, 'T-compliance-iso25010-1', 'qa-compliance-iso25010');
+  sim.ok(O, 'phase', 'complete', '--phase', 'compliance');
+  expect(JSON.parse(fs.readFileSync(path.join(sim.runDir, 'reports', 'reuse', 'compliance.json'), 'utf8'))).toMatchObject({ version: 1, regulations: ['iso25010'] });
   sim.ok(O, 'phase', 'start', '--phase', 'closure-final');
   sim.work(O, 'T-closure-final-1', 'qa-closure-reporter');
+  sim.put('reports/closure/closure.json', VALID_CLOSURE);
   sim.gateTask(3, true);
   sim.ok(O, 'phase', 'complete', '--phase', 'closure-final');
   sim.no('out-of-order', O, 'run', 'complete');

@@ -553,6 +553,22 @@ export const ExploreProbedEventSchema = EventBase.extend({
   hints: z.array(z.string()),
 });
 
+/**
+ * `aegis compliance probe` compared what the compliance reviews read with the fingerprint of the last completed Compliance round and decided:
+ * reuse (the phase completes with the earlier reports) or full (the six reviews run). `fingerprint` is the current one; `carriedFrom` the
+ * completion time of the round whose reports are reused (null on full); `changed` the input groups that differ (empty on reuse).
+ */
+export const ComplianceProbedEventSchema = EventBase.extend({
+  type: z.literal("compliance.probed"),
+  agent: z.string(),
+  decision: z.enum(["reuse", "full"]),
+  reason: z.string().nullable(),
+  fingerprint: z.string(),
+  forced: z.boolean(),
+  carriedFrom: z.string().nullable(),
+  changed: z.array(z.string()),
+});
+
 /** `aegis env probe` checked the environment under test before Execution (stage execution) or before G2 (stage g2); the report is reports/env/probe-{stage}.json. */
 export const EnvProbedEventSchema = EventBase.extend({
   type: z.literal("env.probed"),
@@ -1946,6 +1962,7 @@ export const AegisEventUnionSchema = z.discriminatedUnion("type", [
   LintCompletedEventSchema,
   ExploreProbedEventSchema,
   EnvProbedEventSchema,
+  ComplianceProbedEventSchema,
   CasesRenderedEventSchema,
   DefectRecordAmendedEventSchema,
   ThresholdOverriddenEventSchema,

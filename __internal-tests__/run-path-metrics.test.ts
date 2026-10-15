@@ -29,9 +29,9 @@ describe('the orchestrator runs the metrics collector in the foreground before C
 
   it('states the foreground dispatch, the two positions and the wait', () => {
     expect(orch).toContain(
-      'Dispatch `qa-metrics-collector` in the foreground, in its on-demand mode, immediately before `aegis phase start --phase closure-draft` and again immediately before `aegis phase start --phase executive`, and wait for it to return before you start the phase (pass `run_in_background: false` on the Agent call).',
+      'Dispatch `qa-metrics-collector` in the foreground, in its on-demand mode, immediately before the first of `aegis phase start --phase closure-draft`, `--phase compliance` and `--phase closure-final` that you run after a Gate 2 or Gate 3 decision or a reissue, and again immediately before `aegis phase start --phase executive`, and wait for it to return before you start the phase (pass `run_in_background: false` on the Agent call).',
     );
-    expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| `qa-closure-reporter` \(draft pass\) \| Dispatch `qa-metrics-collector` in the foreground first/);
+    expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| none; `qa-defect-manager` only for corrections a gate decision demands \| The closure is written once, at Closure-final\. Dispatch `qa-metrics-collector` in the foreground first/);
     expect(orch).toMatch(/\| Executive \| `executive` \| `qa-executive-reporter` \| Starts only after Gate 3 is approved\. Dispatch `qa-metrics-collector` in the foreground first/);
   });
 
@@ -45,8 +45,9 @@ describe('the orchestrator runs the metrics collector in the foreground before C
     expect(resume).not.toMatch(/re-dispatches the metrics collector/);
   });
 
-  it('a closure-reporter brief names the pass', () => {
-    expect(orch).toContain('A `qa-closure-reporter` brief names the `pass`: `draft` in Closure-draft, `final` in Closure-final.');
+  it('the closure reporter is dispatched only in Closure-final, and its brief says when the compliance reports are carried', () => {
+    expect(orch).toContain('A `qa-closure-reporter` is dispatched only in Closure-final, and its brief says when the compliance phase record in `aegis run status` shows `reusedFrom`');
+    expect(orch).not.toMatch(/draft pass|final pass/);
   });
 });
 
@@ -72,7 +73,7 @@ describe('the metrics collector writes every metric file the closure reporter re
   it('it runs on demand in the foreground and never tails the event log', () => {
     expect(collector).not.toMatch(/\btails?\b/i);
     expect(collector).not.toMatch(/background/i);
-    expect(collector).toContain('immediately before Closure-draft and again immediately before Executive');
+    expect(collector).toContain('immediately before the first of Closure-draft, Compliance or Closure-final that starts after a gate decision, and again immediately before Executive');
     expect(collector).toContain('read `events.jsonl` from the beginning');
   });
 });
@@ -126,21 +127,24 @@ describe('the closure reporter never waits for a metric file', () => {
   });
 });
 
-describe('Closure-final is a final pass over the draft (AUD-004 partial)', () => {
+describe('Closure-final is the one closure pass, which folds in the compliance reports', () => {
   const closure = read(CLOSURE);
 
-  it('rewrites closure.json folding in the compliance reports and keeps the draft numbers', () => {
-    expect(closure).toContain('**Final pass (Closure-final).**');
-    expect(closure).toContain('rewrite `closure.json` and `closure.md`, folding in `reports/compliance/*`');
-    expect(closure).toContain("Keep the draft's numbers: `cycleDate`, `metrics`, `defectMetrics`, `unavailableMetrics`");
-    const finalPass = closure.slice(closure.indexOf('**Final pass (Closure-final).**'), closure.indexOf('6. **Submit, release, stop.**'));
-    expect(finalPass).toContain('Expect one compliance report per relevant regulation');
-    expect(finalPass).toContain('A missing report for a relevant regulation is a closure gap, not a pass.');
+  it('writes closure.json once from the current inputs and folds in the compliance reports', () => {
+    expect(closure).toContain('5. **Fold in compliance.**');
+    expect(closure).toContain('You write the closure once per round, in Closure-final, after Compliance');
+    expect(closure).not.toMatch(/draft pass|final pass|Keep the draft's numbers|your own draft/);
+    const fold = closure.slice(closure.indexOf('5. **Fold in compliance.**'), closure.indexOf('6. **Submit, release, stop.**'));
+    expect(fold).toContain('Expect one compliance report per relevant regulation');
+    expect(fold).toContain('A missing report for a relevant regulation is a closure gap, not a pass.');
+    expect(fold).toContain('`reusedFrom`');
+    expect(fold).toContain('carried over from the round completed on');
   });
 
-  it('reads its own draft and the compliance reports in the final pass', () => {
+  it('reads the compliance reports and no draft of its own, and is the Closure-final contract', () => {
     const reads = paths(contractOf(closure).reads);
-    expect(reads).toContain('{run}/reports/closure/closure.json');
+    expect(reads).not.toContain('{run}/reports/closure/closure.json');
     expect(reads).toContain('{run}/reports/compliance/*.json');
+    expect(closure).toMatch(/```yaml[\s\S]*\nphase: closure-final\n/);
   });
 });

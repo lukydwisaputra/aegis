@@ -130,7 +130,7 @@ const RUNNER_CONFIG_VAR = /^(npm|pnpm|yarn|bun)_config_/i;
 const REMOVERS: ReadonlySet<string> = new Set(["rm", "rmdir", "unlink", "mv", "shred", "truncate"]);
 /** Fixed CLI-only directories inside a run: a find starting at one of their ancestors reaches them (item 5). */
 const CLI_ONLY_RUN_DIRS: readonly string[] = [
-  "gates", "reports/work", "reports/review", "reports/lint", "reports/explore", "reports/env", "reports/.locks", "taskmaster", "intake", "hooks", "integrity", "messaging",
+  "gates", "reports/work", "reports/review", "reports/lint", "reports/explore", "reports/env", "reports/reuse", "reports/.locks", "taskmaster", "intake", "hooks", "integrity", "messaging",
   // They hold the rendered TC-*.md / SCN-*.md next to the JSON: a changing find from either reaches them.
   "cases", "scenarios",
 ];
@@ -281,7 +281,7 @@ function globReachesPrefix(pattern: string, path: string): boolean {
 
 /** Samples of every CLI-only place inside a run, for matching a glob against (rule c). */
 const CLI_ONLY_SAMPLES: readonly string[] = [
-  "events.jsonl", "run.json", "x.lock", "gates/x", "reports/work/x", "reports/review/x", "reports/lint/x", "reports/explore/x", "reports/env/x", "reports/.locks/x", "taskmaster/x",
+  "events.jsonl", "run.json", "x.lock", "gates/x", "reports/work/x", "reports/review/x", "reports/lint/x", "reports/explore/x", "reports/env/x", "reports/reuse/x", "reports/.locks/x", "taskmaster/x",
   "intake/x", "hooks/x", "integrity/x", "messaging/x", "cases/TC-X.md", "scenarios/SCN-X.md",
 ];
 

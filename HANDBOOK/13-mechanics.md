@@ -42,7 +42,7 @@ every `Agent` dispatch. Exit 2 denies the call with the reason.
 
 - A call that carries a non-empty `agent_id` (of any type) is a subagent's, and its `agent_type` names the caller; a
   call without one is the main thread (a `--agent` session included).
-- Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `taskmaster/`,
+- Run files the CLI owns — `events.jsonl`, `run.json`, `gates/`, `reports/work/`, `reports/review/`, `reports/lint/`, `reports/explore/`, `reports/env/`, `reports/reuse/` (the compliance probe's record of the last completed round), `taskmaster/`,
   `intake/`, `hooks/`, `integrity/`, the case and scenario Markdown (`cases/TC-*.md`, `scenarios/SCN-*.md`, rendered from their JSON by
   `aegis cases render`), lock files and the active-run pointer — are refused for every caller. A `find` with `-delete` or a changing
   `-exec` from `cases/` or `scenarios/` is refused for a subagent (the main thread's `find` is not checked), since it reaches that

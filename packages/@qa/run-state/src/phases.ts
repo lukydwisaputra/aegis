@@ -19,6 +19,7 @@ import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed, ORCHESTRATOR, pairedSpv } from "./caller.js";
 import { parseCaseIds } from "./cases.js";
 import { relevantRegulations, showsPersonalData } from "./compliance.js";
+import { recordComplianceRound } from "./compliance-reuse.js";
 import { readRunConfig, readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { executionProbeProblems, removeStaleProbeReports } from "./env-probe.js";
@@ -169,6 +170,11 @@ export function notApplicableReason(root: string, runId: string, phase: PhaseId)
     // The Scan snapshot, not the file: a later rewrite of the profile cannot force a skip (AUD-055).
     const relevant = relevantRegulations(configured, readRun(root, runId).phases.scan?.personalData);
     return relevant.length === 0 ? "no listed regulation applies: gdpr and pdpa need personal data (target-profile.json#hasPersonalData is false)" : null;
+  }
+  if (phase === "closure-draft") {
+    // The closure is written once, at Closure-final. Closure-draft stays in the phase list (old runs and their events name it) and hosts only
+    // the record corrections a gate decision demands; without any, the orchestrator records it not-applicable.
+    return "the closure report is written once, at Closure-final; this phase only hosts corrections a gate decision demands";
   }
   if (phase === "env-data") {
     // Nothing may be seeded on a read-only environment (spec §6.3; production is never mutated).
@@ -487,6 +493,8 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
     return { state: next };
   });
   if ("state" in outcome) {
+    // What a completed Compliance round read and produced, for the next round's probe (never throws).
+    if (id === "compliance" && opts.notApplicable !== true) await recordComplianceRound(root, runId, outcome.state.phases[id]?.completedAt);
     const report = recordPhaseWarnings(root, runId, id, warnings, outcome.state.phases[id]?.completedAt);
     return { state: outcome.state, warnings, ...(report !== undefined ? { warningsReport: report } : {}) };
   }
