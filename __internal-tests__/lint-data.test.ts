@@ -65,7 +65,7 @@ const defect = (id: string, extra: Record<string, unknown> = {}) => ({
   rootCause: { status: 'unknown', summary: null, evidence: [], fiveWhys: [] },
   originConfirmation: { ruledOut: ['test-setup/script error'], reproducedOnClean: true, evidenceRef: `evidence/${id}/repro.png` },
   resolution: { status: null, fixCommit: null, fixPr: null, fixedInVersion: null, verifiedBy: null, verifiedAt: null, regressionTestId: null },
-  evidence: { screenshots: [], videos: [], logs: [], har: [] },
+  evidence: { screenshots: [], videos: [], logs: [], har: [], stackTrace: 'TypeError: the save button never leaves the disabled state' },
   ...extra,
 });
 const verdict = (v: string) => ({ retestVerdict: { verdict: v, reason: 'Retested on the new build.' } });
@@ -203,6 +203,9 @@ describe('defect rules', () => {
       'defect-unreadable|warning|defects/DEF-001-AUTH-UI.json|DEF-001-AUTH-UI: riskId',
       // At most three field names, never a value.
       'defect-unreadable|warning|defects/DEF-002-AUTH-UI.json|DEF-002-AUTH-UI: summary, reporter, reportedAt, ...',
+      // The type and the evidence have their own rules (barrier-warnings.test.ts); the type is no longer a defect-unreadable field.
+      'defect-type-missing|warning|defects/DEF-002-AUTH-UI.json|DEF-002-AUTH-UI: defectType missing',
+      'defect-evidence-empty|warning|defects/DEF-002-AUTH-UI.json|DEF-002-AUTH-UI: no screenshot, video, log, HAR or stack trace',
       'defect-unreadable|warning|defects/DEF-003-AUTH-UI.json|DEF-003-AUTH-UI',
       'defect-origin-missing|error|defects/DEF-001-AUTH-UI.json|DEF-001-AUTH-UI: originConfirmation ruledOut missing',
       'defect-origin-missing|error|defects/DEF-002-AUTH-UI.json|DEF-002-AUTH-UI: originConfirmation ruledOut, evidenceRef missing',

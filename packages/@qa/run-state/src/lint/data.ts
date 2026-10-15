@@ -8,6 +8,7 @@ import { busPath, runDir } from "../paths.js";
 import { reissueCaseScope } from "../reissue-scope.js";
 import { readRun } from "../run.js";
 import { maskPath, maskPersonalData } from "./mask.js";
+import { plainRunPath } from "./plain-path.js";
 import type { Finding } from "./text.js";
 
 /**
@@ -20,7 +21,7 @@ import type { Finding } from "./text.js";
 export type DataStage = "execution" | "G2";
 
 /** The rule groups `reportRules.disable` may name: the owner's recorded project exception for a whole group. */
-export const DATA_RULE_GROUPS = ["blocked-qa-side", "defect-origin", "defect-counts", "env-probe"] as const;
+export const DATA_RULE_GROUPS = ["blocked-qa-side", "defect-origin", "defect-counts", "defect-fields", "env-probe"] as const;
 export type DataRuleGroup = (typeof DATA_RULE_GROUPS)[number];
 
 /** Every data rule id and its group. */
@@ -34,6 +35,10 @@ export const DATA_RULES: Readonly<Record<string, DataRuleGroup>> = {
   "defect-origin-missing": "defect-origin",
   "defect-origin-not-clean": "defect-origin",
   "defect-unreadable": "defect-origin",
+  "defect-title-length": "defect-fields",
+  "defect-type-missing": "defect-fields",
+  "defect-evidence-empty": "defect-fields",
+  "defect-evidence-path-missing": "defect-fields",
   "defect-counts-mismatch": "defect-counts",
   "defect-severity-mismatch": "defect-counts",
   "defect-rtm-mismatch": "defect-counts",
@@ -146,6 +151,11 @@ const NO_SUMMARY = "no defect management summary was recorded: record it with th
 const SEVERITY_MISMATCH = "the summary's severityBreakdown does not match the open defect records by severity (unclassified for a record with no severity)";
 const RTM_MISMATCH = "rtm.json#defectMap does not hold exactly the defect record ids: run aegis rtm sync-defects";
 
+const TITLE_LENGTH = "the defect title is 10 to 65 characters (Kaner): a longer title is cut in the lists, a shorter one says too little";
+const TYPE_MISSING = "name the defect type (IEEE 1044 classification) in defectType";
+const EVIDENCE_EMPTY = "an application defect cites proof: at least one screenshot, video, log, HAR file or stack trace under evidence";
+const EVIDENCE_PATH_MISSING = "every path under evidence names a file of this run (runs/{run}/evidence/...): attach the file, or correct the path; a note goes in another field";
+
 const COUNT_FIELDS = ["openApplicationDefects", "fixed", "partiallyFixed", "reframed", "reportWithdrawn", "cannotVerify", "notFixed"] as const;
 
 const isPlain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -158,7 +168,57 @@ interface DefectFiles {
   findings: Finding[];
 }
 
-function readDefects(dir: string): DefectFiles {
+/** The schema issues that have their own rule (defect-title-length, defect-type-missing): left out of defect-unreadable. */
+const OWN_RULE_FIELDS: ReadonlySet<string> = new Set(["title", "defectType"]);
+
+/** The title and type findings of a record whose schema parse failed on those fields (the record's own words are never quoted). */
+function titleTypeFindings(rel: string, id: string, record: Record<string, unknown>, issueFields: ReadonlySet<string>): Finding[] {
+  const out: Finding[] = [];
+  if (issueFields.has("title")) {
+    const t = record["title"];
+    const what = typeof t !== "string" ? (t === undefined ? "title missing" : "title is not text") : t.length > 65 ? `${t.length} characters (at most 65)` : `${t.length} characters (at least 10)`;
+    out.push(finding("defect-title-length", "warning", rel, TITLE_LENGTH, `${snippet(id)}: ${what}`));
+  }
+  if (issueFields.has("defectType")) {
+    out.push(finding("defect-type-missing", "warning", rel, TYPE_MISSING, `${snippet(id)}: defectType ${record["defectType"] === undefined || record["defectType"] === null ? "missing" : "not a defect type"}`));
+  }
+  return out;
+}
+
+const EVIDENCE_KINDS = ["screenshots", "videos", "logs", "har"] as const;
+/** The run prefix some evidence paths carry (runs/RUN-.../), of this run or of another one. */
+const RUN_PREFIX = /^runs\/RUN-[^/]+\//;
+
+/**
+ * The evidence of one defect record: none at all is defect-evidence-empty; a path that names nothing in the run folder is one
+ * defect-evidence-path-missing finding per record. A path is run-prefixed (runs/{run}/evidence/...) or run-relative; it is checked with
+ * plainRunPath, so a symbolic link, an absolute path or one with `..` is a miss and nothing outside the run is read. A path prefixed with
+ * another run's id belongs to that run (a carried defect): it is not read and not counted.
+ */
+function evidenceFindings(dir: string, runId: string, rel: string, id: string, record: Record<string, unknown>): Finding[] {
+  const ev = isPlain(record["evidence"]) ? record["evidence"] : {};
+  const entries: string[] = [];
+  for (const kind of EVIDENCE_KINDS) {
+    const list = ev[kind];
+    if (Array.isArray(list)) entries.push(...list.filter((p): p is string => typeof p === "string" && p.trim() !== ""));
+  }
+  if (entries.length === 0 && !(typeof ev["stackTrace"] === "string" && ev["stackTrace"].trim() !== "")) {
+    return [finding("defect-evidence-empty", "warning", rel, EVIDENCE_EMPTY, `${snippet(id)}: no screenshot, video, log, HAR or stack trace`)];
+  }
+  const own = `runs/${runId}/`;
+  const missing: string[] = [];
+  let checked = 0;
+  for (const entry of entries) {
+    if (RUN_PREFIX.test(entry) && !entry.startsWith(own)) continue;
+    checked++;
+    const inRun = entry.startsWith(own) ? entry.slice(own.length) : entry;
+    if (!plainRunPath(dir, inRun)) missing.push(inRun);
+  }
+  if (missing.length === 0) return [];
+  return [finding("defect-evidence-path-missing", "warning", rel, EVIDENCE_PATH_MISSING, `${snippet(id)}: ${missing.length} of ${checked} evidence paths not found, first ${snippet(missing[0]!)}`)];
+}
+
+function readDefects(dir: string, runId: string): DefectFiles {
   const defectsDir = join(dir, "defects");
   const out: DefectFiles = { records: [], unusable: new Set(), findings: [] };
   if (!existsSync(defectsDir)) return out;
@@ -181,9 +241,12 @@ function readDefects(dir: string): DefectFiles {
     out.records.push({ name, id, record });
     const parsed = DefectSchema.safeParse(record);
     if (!parsed.success) {
-      const fields = [...new Set(parsed.error.issues.map((i) => i.path.filter((p) => typeof p === "string").join(".") || "(record)"))];
-      out.findings.push(finding("defect-unreadable", "warning", rel, DEFECT_UNREADABLE, `${snippet(id)}: ${fields.slice(0, 3).join(", ")}${fields.length > 3 ? ", ..." : ""}`));
+      const issueFields = new Set(parsed.error.issues.map((i) => String(i.path[0] ?? "")));
+      const fields = [...new Set(parsed.error.issues.filter((i) => !OWN_RULE_FIELDS.has(String(i.path[0] ?? ""))).map((i) => i.path.filter((p) => typeof p === "string").join(".") || "(record)"))];
+      if (fields.length > 0) out.findings.push(finding("defect-unreadable", "warning", rel, DEFECT_UNREADABLE, `${snippet(id)}: ${fields.slice(0, 3).join(", ")}${fields.length > 3 ? ", ..." : ""}`));
+      out.findings.push(...titleTypeFindings(rel, id, record, issueFields));
     }
+    out.findings.push(...evidenceFindings(dir, runId, rel, id, record));
   }
   return out;
 }
@@ -318,11 +381,13 @@ export function dataFindings(root: string, runId: string, stage: DataStage, disa
   const on = (group: DataRuleGroup): boolean => !disabled.has(group);
   const out: Finding[] = [];
   if (on("blocked-qa-side")) out.push(...blockedFindings(dir, reissueCaseScope(root, runId, state)));
-  if (stage === "G2" && (on("defect-origin") || on("defect-counts"))) {
-    const files = readDefects(dir);
-    if (on("defect-origin")) out.push(...files.findings, ...originFindings(files));
+  if (stage === "G2" && (on("defect-origin") || on("defect-counts") || on("defect-fields"))) {
+    const files = readDefects(dir, runId);
+    // The record-level findings carry their own group (DATA_RULES), applied below.
+    out.push(...files.findings);
+    if (on("defect-origin")) out.push(...originFindings(files));
     if (on("defect-counts")) out.push(...countFindings(root, runId, dir, computeDefectRecordCounts(dir), files));
   }
   if (stage === "G2" && on("env-probe")) out.push(...probeFindings(root, runId));
-  return out.filter((f) => !disabled.has(f.rule));
+  return out.filter((f) => !disabled.has(f.rule) && !disabled.has(DATA_RULES[f.rule] ?? ""));
 }

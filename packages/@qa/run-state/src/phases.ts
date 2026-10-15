@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import {
   GATE_AFTER,
@@ -28,6 +28,7 @@ import { verifyRunIntegrity } from "./integrity.js";
 import { busPath, gateDecisionPath, runDir, taskmasterDir, writeActiveRun } from "./paths.js";
 import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
+import { maskPath } from "./lint/mask.js";
 import { dataFindings } from "./lint/data.js";
 import { executiveBlockMessage, executiveFindings } from "./lint/executive.js";
 import type { Finding } from "./lint/text.js";
@@ -36,7 +37,7 @@ import { CYCLE_PHASES, PHASES_WITHOUT_TASKS, ScanProfileSchema, SPV_NONE } from 
 import { blockRun, commitRun, readRun, supersededAttempt, withRunLock } from "./run.js";
 import { attemptsIn, reviewDir, reviewPassed, workDir } from "./submit.js";
 import { reopenPhaseTasks } from "./supersede.js";
-import { formatIssues, iso, loadJson } from "./util.js";
+import { atomicWrite, formatIssues, iso, loadJson } from "./util.js";
 
 export type NextStep =
   | { kind: "blocked"; causes: BlockCause[] }
@@ -202,13 +203,25 @@ export function gateTaskPassed(root: string, runId: string, state: RunState, gat
 export interface BarrierPrecomputed {
   /** The executive stage errors (lint/executive.ts), for the executive phase. */
   executiveErrors?: readonly Finding[];
+  /** Its warnings, which never refuse: they go to the barrier's warning channel when the phase completes. */
+  executiveWarnings?: readonly Finding[];
 }
 
 /** The errors of the executive stage, the executive barrier's lint (warnings never refuse). Reads run files only. */
 export const executiveStageErrors = (root: string, runId: string): Finding[] => executiveFindings(root, runId).filter((f) => f.severity === "error");
 
-/** Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. */
-export async function barrierProblems(root: string, runId: string, state: RunState, phase: PhaseId, pre: BarrierPrecomputed = {}): Promise<string[]> {
+/**
+ * Where the warnings a phase barrier saw are kept when the phase completes: reports/lint/phase-{id}.json (CLI-written, like the other lint
+ * reports). Written only after the completion committed; a phase with no warnings removes the file of an earlier round.
+ */
+export const phaseWarningsRel = (phase: PhaseId): string => `reports/lint/phase-${phase}.json`;
+
+/**
+ * Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. The warnings of the scans the
+ * barrier runs anyway (the data checks, the gate lint, the executive stage) are added to `warnings` when one is given: nothing is
+ * scanned for them, and a barrier that refuses leaves them for the next try.
+ */
+export async function barrierProblems(root: string, runId: string, state: RunState, phase: PhaseId, pre: BarrierPrecomputed = {}, warnings?: Finding[]): Promise<string[]> {
   const problems: string[] = [];
   // A task its dispatcher cancelled before anyone claimed it is not part of the phase (I6).
   const tasks = (await createTaskmasterClient(taskmasterDir(root, runId)).list()).filter((t) => t.phase === phase && t.status !== "cancelled");
@@ -271,14 +284,17 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
     }
     // The Blocked data checks while Execution is still active, where a specialist can still fix the result: no wording or personal-data rule here.
     if (phase === "execution") {
-      const data = dataFindings(root, runId, "execution", new Set(readRunConfig(root).reportRules.disable)).filter((f) => f.severity === "error");
+      const found = dataFindings(root, runId, "execution", new Set(readRunConfig(root).reportRules.disable));
+      const data = found.filter((f) => f.severity === "error");
       if (data.length > 0) problems.push(lintBlockMessage("G2", data, "execution"));
+      warnings?.push(...found.filter((f) => f.severity === "warning"));
     }
     // The executive stage as a safety net: its errors (the deck, the plain risk sentences, the deliverable events) refuse the phase while
     // the reporter can still fix them; the reporter saw them in its submit result already.
     if (phase === "executive") {
       const errors = pre.executiveErrors ?? executiveStageErrors(root, runId);
       if (errors.length > 0) problems.push(executiveBlockMessage(errors));
+      warnings?.push(...(pre.executiveWarnings ?? []));
     }
     for (const gate of GATE_IDS) {
       if (GATE_AFTER[gate] !== phase) continue;
@@ -295,6 +311,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
         const scan = lintFindings(root, runId, gate);
         const lint = scan.findings.filter((f) => f.severity === "error");
         if (lint.length > 0) problems.push(lintBlockMessage(gate, lint, "phase-complete", notScannedCount(scan.skipped)));
+        warnings?.push(...scan.findings.filter((f) => f.severity === "warning"));
       }
     }
   }
@@ -348,7 +365,41 @@ export interface CompletePhaseOptions {
   now?: Date;
 }
 
+/** A completed phase: the new run state, and the warnings its barrier saw (never a refusal; also in reports/lint/phase-{id}.json when there are any). */
+export interface PhaseCompletion {
+  state: RunState;
+  warnings: Finding[];
+  /** The run-relative report of the warnings; absent when there are none or the report could not be written. */
+  warningsReport?: string;
+}
+
+/** completePhase for callers that return RunState (the 145 call sites of the tests): the state of completePhaseWithWarnings. */
 export async function completePhase(root: string, runId: string, phase: string, caller: string, opts: CompletePhaseOptions = {}): Promise<RunState> {
+  return (await completePhaseWithWarnings(root, runId, phase, caller, opts)).state;
+}
+
+/**
+ * The warnings of the barrier as the phase completed, written to reports/lint/phase-{id}.json AFTER the completion committed (a refused
+ * completion writes nothing, a phase without warnings removes the file of an earlier round). Never throws: the phase is complete either way.
+ */
+function recordPhaseWarnings(root: string, runId: string, phase: PhaseId, warnings: readonly Finding[]): string | undefined {
+  const rel = phaseWarningsRel(phase);
+  const file = join(runDir(root, runId), rel);
+  try {
+    if (warnings.length === 0) {
+      rmSync(file, { force: true });
+      return undefined;
+    }
+    mkdirSync(join(runDir(root, runId), "reports", "lint"), { recursive: true });
+    const findings = warnings.map((f) => ({ ...f, file: maskPath(f.file) }));
+    atomicWrite(file, JSON.stringify({ runId, phase, warnings: findings.length, findings }, null, 2) + "\n");
+    return rel;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function completePhaseWithWarnings(root: string, runId: string, phase: string, caller: string, opts: CompletePhaseOptions = {}): Promise<PhaseCompletion> {
   assertCallerAllowed(caller, "phase.complete");
   const id = parsePhase(phase);
   // Spec §6.1 item 4. A failing verify records integrity.violation and blocks the run itself.
@@ -358,7 +409,12 @@ export async function completePhase(root: string, runId: string, phase: string, 
   // and the barrier passes (a refused completion hashes nothing); exploreIdentity never throws (nulls when unreadable).
   let identity = id === "explore" && opts.notApplicable !== true && (await completionLikely(root, runId, id)) ? exploreIdentity(root) : undefined;
   // The executive stage reads every executive input and the event log: once, before run.lock is taken.
-  const pre: BarrierPrecomputed = id === "executive" && opts.notApplicable !== true ? { executiveErrors: executiveStageErrors(root, runId) } : {};
+  const executive = id === "executive" && opts.notApplicable !== true ? executiveFindings(root, runId) : [];
+  const pre: BarrierPrecomputed = id === "executive" && opts.notApplicable !== true
+    ? { executiveErrors: executive.filter((f) => f.severity === "error"), executiveWarnings: executive.filter((f) => f.severity === "warning") }
+    : {};
+  // What the barrier's own scans found as warnings (it scans anyway: nothing extra is read for them); kept only if this completion commits.
+  const warnings: Finding[] = [];
 
   const outcome = await withRunLock(root, runId, async (): Promise<{ state: RunState } | { preflight: string }> => {
     const state = readRun(root, runId);
@@ -379,7 +435,8 @@ export async function completePhase(root: string, runId: string, phase: string, 
     if (step.kind !== "continue-phase" || step.phase !== id) {
       throw new RunStateError("out-of-order", `cannot complete ${id}: ${describeStep(step)}`);
     }
-    const problems = await barrierProblems(root, runId, state, id, pre);
+    warnings.length = 0;
+    const problems = await barrierProblems(root, runId, state, id, pre, warnings);
     if (problems.length > 0) throw new RunStateError("barrier", `phase ${id} cannot complete: ${problems.join("; ")}`);
     // The pre-check refused but the phase can complete now (the state changed in between): hash under the lock, rarely.
     if (id === "explore" && identity === undefined) identity = exploreIdentity(root);
@@ -396,7 +453,10 @@ export async function completePhase(root: string, runId: string, phase: string, 
     );
     return { state: next };
   });
-  if ("state" in outcome) return outcome.state;
+  if ("state" in outcome) {
+    const report = recordPhaseWarnings(root, runId, id, warnings);
+    return { state: outcome.state, warnings, ...(report !== undefined ? { warningsReport: report } : {}) };
+  }
 
   // Preflight failed: record it and block outside run.lock (blockRun takes run.lock itself).
   await appendChained({ type: "preflight.failed", ts: iso(opts.now), runId, reason: outcome.preflight }, busPath(root, runId), { emittedBy: caller, runId });
