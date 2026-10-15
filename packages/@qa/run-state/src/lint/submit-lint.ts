@@ -1,6 +1,6 @@
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { COMPLIANCE_REGULATIONS, complianceAgent } from "@qa/contracts";
-import { matchGlob, roleOf } from "@qa/path-guard";
+import { loadGuardContext, matchGlob, roleOf, roleWritable, ROLES, type RolePaths } from "@qa/path-guard";
 import { runDir } from "../paths.js";
 import { readRun } from "../run.js";
 import { executiveFindings } from "./executive.js";
@@ -138,7 +138,7 @@ function packageLint(findings: readonly Finding[], filesScanned: number): { lint
 /** The specialists whose spec files are linted at submit: every one that writes Playwright or test specs (the spec lint, lint/specs.ts). */
 export const SPEC_LINTED_AGENTS: ReadonlySet<string> = new Set([
   "qa-ui-specialist", "qa-responsive-specialist", "qa-accessibility-specialist", "qa-api-specialist", "qa-database-specialist", "qa-messaging-specialist",
-  "qa-realtime-specialist", "qa-feature-flag-specialist", "qa-unit-specialist",
+  "qa-realtime-specialist", "qa-feature-flag-specialist", "qa-unit-specialist", "qa-security-specialist",
 ]);
 
 /**
@@ -155,7 +155,20 @@ export async function specSubmitLint(root: string, runId: string, agent: string,
   }
   const files = specEntryFiles(root, artifactsProduced);
   if (files.length === 0) return null;
-  return packageLint(await specFindingsForEntries(root, runId, artifactsProduced), files.length);
+  const found = await specFindingsForEntries(root, runId, artifactsProduced);
+  // Only a spec this agent may edit is stamped against its report: a spec it merely ran (a viewport re-run of a UI spec) is shown as a warning
+  // that names its owner, and stays an error at the Execution barrier, where its own specialist fixes it.
+  let paths: RolePaths | null = null;
+  try {
+    const ctx = loadGuardContext(root);
+    paths = { aegisRoot: ctx.aegisRoot, targetRoot: ctx.targetRoot, testsDir: ctx.testsDir, runDir: runDir(root, runId) };
+  } catch {
+    // no paths: nothing can be shown as the agent's own, so nothing is stamped
+  }
+  const own = (f: Finding): boolean => paths !== null && roleWritable(agent, join(paths.targetRoot, f.file), paths);
+  const owner = (f: Finding): string => ROLES.find((r) => r.kind === "specialist" && r.agent !== agent && paths !== null && roleWritable(r.agent, join(paths.targetRoot, f.file), paths))?.agent ?? "its specialist";
+  const shaped = found.map((f): Finding => (f.severity === "error" && !own(f) ? { ...f, severity: "warning", context: `${f.context} (an error, but the spec belongs to ${owner(f)})` } : f));
+  return packageLint(shaped, files.length);
 }
 
 /** The two lints of one submission folded into one result: the errors and warnings of both, the error ids of both. */

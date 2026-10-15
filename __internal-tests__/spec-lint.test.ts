@@ -130,6 +130,57 @@ describe('spec-trivial-assertion', () => {
   });
 });
 
+describe('the two error rules are not sidestepped by another spelling', () => {
+  const api = (line: string) => `import { test, expect } from '@playwright/test';\ntest('t', async () => {\n  ${line};\n});\n`;
+  it.each(['expect.soft(true).toBe(true)', "expect(true, 'reached').toBe(true)", "expect.soft(1, 'one').toBe(1)"])('%s is a trivial assertion', async (line) => {
+    expect(ids(await lint(api(line), 'tests/qa/api/x.api.spec.ts'))).toContain('spec-trivial-assertion');
+  });
+  it.each(["const m = 'expect(true).toBe(true)';", "const m = `expect(true).toBe(true) and expect.soft(true).toBe(true)`;", '// expect.soft(true).toBe(true)', '/* expect(true, "x").toBe(true) */'])('the text in a string or a comment (%s) is not', async (line) => {
+    expect(ids(await lint(api(line), 'tests/qa/api/x.api.spec.ts'))).not.toContain('spec-trivial-assertion');
+  });
+  const ui = (imp: string, use: string) => `${imp}${POM}${SHOT}${use}\ntest.describe('d', () => {});\n`;
+  it('a namespace import that uses test, and a default import, of @playwright/test are raw test imports', async () => {
+    expect(ids(await lint(ui("import * as pw from '@playwright/test';\n", "pw.test('t', async ({ page }) => { await pw.expect(page).toHaveURL('/'); });")))).toContain('spec-fixture-import');
+    expect(ids(await lint(ui("import pwtest from '@playwright/test';\n", "pwtest('t', async ({ page }) => { await page.goto('/'); });")))).toContain('spec-fixture-import');
+  });
+  it('a namespace import that only uses expect or types, and the text of an import in a string, are not', async () => {
+    expect(ids(await lint(`import { test } from '../../fixtures/auth.fixture';\nimport * as pw from '@playwright/test';\n${POM}${SHOT}test('t', async ({ page }) => { await pw.expect(page).toHaveURL('/'); });\n`))).not.toContain('spec-fixture-import');
+    expect(ids(await lint(`${FIXTURE}${POM}${SHOT}const s = "import { test } from '@playwright/test'";\ntest('t', async ({ page }) => { await page.goto('/'); });\n`))).not.toContain('spec-fixture-import');
+  });
+});
+
+describe('one file never stops the lint of the others, and the bounds are said', () => {
+  const TRIVIAL = "import { test, expect } from '@playwright/test';\ntest('t', async () => {\n  expect(true).toBe(true);\n});\n";
+  it('a spec too deeply nested to walk gives one spec-unparsed warning and the other spec is still checked (20,000-term concatenation)', async () => {
+    spec('tests/qa/api/deep.api.spec.ts', `const s = ${Array(20000).fill("'a'").join(' + ')};\n`);
+    spec('tests/qa/api/b.api.spec.ts', TRIVIAL);
+    result('TC-AUTH-001', { specRef: 'tests/qa/api/deep.api.spec.ts' });
+    result('TC-AUTH-002', { specRef: 'tests/qa/api/b.api.spec.ts' });
+    const found = await specFindings(t.root, runId);
+    expect(found.map((f) => `${f.rule}|${f.severity}|${f.file}`).sort()).toEqual(['spec-trivial-assertion|error|tests/qa/api/b.api.spec.ts', 'spec-unparsed|warning|tests/qa/api/deep.api.spec.ts']);
+  });
+  it('a spec over 5 MB is not read (its size is read first) and says so; spec-unparsed is lifted by the group', async () => {
+    spec('tests/qa/api/big.api.spec.ts', `// ${'x'.repeat(5 * 1024 * 1024 + 10)}\n`);
+    result('TC-AUTH-001', { specRef: 'tests/qa/api/big.api.spec.ts' });
+    const found = await specFindings(t.root, runId);
+    expect(found.map((f) => f.rule)).toEqual(['spec-unparsed']);
+    expect(found[0]!.context).toContain('larger than 5 MB');
+    setRules({ disable: ['spec-checks'] });
+    expect(await specFindings(t.root, runId)).toEqual([]);
+  });
+  it('more spec files than the file bound: the first are checked and one warning says how many were left out', async () => {
+    for (let i = 0; i < 503; i++) {
+      const rel = `tests/qa/api/f${String(i).padStart(3, '0')}.api.spec.ts`;
+      spec(rel, "test('t', async () => {});\n");
+      put(`cases/TC-AUTH-${String(i + 1).padStart(3, '0')}-result.json`, { specRef: rel });
+    }
+    const found = await specFindings(t.root, runId);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ rule: 'spec-not-scanned', severity: 'warning' });
+    expect(found[0]!.context).toContain('3 of 503');
+  });
+});
+
 describe('spec-swallowed-cleanup', () => {
   const api = (body: string) => `import { test } from '@playwright/test';\n${body}`;
   it('a swallowed catch inside a cleanup hook or a finally block is reported', async () => {
@@ -299,7 +350,7 @@ describe('the findings and the owner exceptions', () => {
     expect(await specFindings(t.root, runId)).toEqual([]);
   });
   it('every rule id has a severity and joins the group', () => {
-    expect(Object.keys(SPEC_RULES).sort()).toEqual(['spec-afterEach-screenshot', 'spec-e2e-suffix', 'spec-fixture-import', 'spec-raw-page', 'spec-swallowed-cleanup', 'spec-trivial-assertion', 'spec-wait-for-timeout']);
+    expect(Object.keys(SPEC_RULES).sort()).toEqual(['spec-afterEach-screenshot', 'spec-e2e-suffix', 'spec-fixture-import', 'spec-not-scanned', 'spec-raw-page', 'spec-swallowed-cleanup', 'spec-trivial-assertion', 'spec-unparsed', 'spec-wait-for-timeout']);
   });
   it('a file that is not valid TypeScript gives no finding and no throw', async () => {
     expect(await lint('const = = ;\n', 'tests/qa/api/a.api.spec.ts')).toEqual([]);
@@ -364,6 +415,26 @@ describe('the Execution barrier', () => {
     const done = await completePhaseWithWarnings(t.root, runId, 'execution', ORCH);
     expect(done.state.phases['execution']!.status).toBe('completed');
     expect(done.warnings).toEqual([]);
+  });
+
+  it('the refusal lists the first 10 of the errors, names the report with all of them and the remedy of each rule that fired', async () => {
+    await executionActive();
+    for (let i = 0; i < 12; i++) {
+      spec(`tests/qa/api/t${i}.api.spec.ts`, TRIVIAL);
+      put(`cases/TC-ATT-${String(i + 1).padStart(3, '0')}-result.json`, { status: 'passed', specRef: `tests/qa/api/t${i}.api.spec.ts` });
+    }
+    spec('tests/qa/specs/login/ui.spec.ts', `${FIXTURE.replace('../../fixtures/auth.fixture', '@playwright/test')}${POM}${SHOT}test('t', async ({ page }) => {\n  await page.goto('/');\n});\n`);
+    put('cases/TC-ATT-099-result.json', { status: 'passed', specRef: 'tests/qa/specs/login/ui.spec.ts' });
+    const e = await refusal();
+    expect(e.message).toContain('13 spec check error(s)');
+    expect(e.message).toContain('; ...');
+    expect(e.message).toContain('reports/lint/spec-execution.json');
+    expect(e.message).toContain('spec-trivial-assertion: assert the behaviour');
+    expect(e.message).toContain('spec-fixture-import: import test and expect from the QA auth fixture');
+    expect(e.message).toContain('whose result file names each spec');
+    const report = JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports/lint/spec-execution.json'), 'utf8'));
+    expect(report).toMatchObject({ errors: 13 });
+    expect(report.findings).toHaveLength(13);
   });
 
   it('a warning rule (the sleep) never refuses: it goes to the barrier warning channel and its phase file', async () => {
@@ -438,6 +509,32 @@ describe('a specialist sees the spec lint when it submits; the errors are stampe
     expect(Object.keys(res.lint!.errors[0]!).sort()).toEqual(['file', 'line', 'message', 'rule']);
     expect(stored(res.path)['lintErrors']).toEqual(['spec-trivial-assertion tests/qa/specs/login/ui.spec.ts:5']);
     await releaseTask(t.root, runId, 'T-exec-1', 'done', UI);
+  });
+
+  it('a spec the specialist merely ran is not stamped against its report: the responsive specialist re-running a UI spec gets a warning naming the owner', async () => {
+    spec('tests/qa/specs/login/ui.spec.ts', `${FIXTURE}${POM}${SHOT}test('t', async ({ page }) => {\n  expect(true).toBe(true);\n});\n`);
+    spec('tests/qa/specs/login/responsive.spec.ts', `${FIXTURE}${POM}${SHOT}test('t', async ({ page }) => {\n  expect(1).toBe(1);\n});\n`);
+    await releaseTask(t.root, runId, 'T-exec-1', 'failed', UI).catch(() => undefined);
+    const RESP = 'qa-responsive-specialist';
+    await addTask(t.root, runId, { id: 'T-exec-2', title: 'resp', agent: RESP }, ORCH);
+    await claimTask(t.root, runId, 'T-exec-2', RESP);
+    const f = path.join(t.root, 'wr-resp.json');
+    fs.writeFileSync(f, JSON.stringify({ taskId: 'T-exec-2', agent: RESP, startedAt: TS, completedAt: TS, summary: 'Ran the viewport specs for the stamp test.', approach: 'Fixture-driven.', artifactsProduced: ['tests/qa/specs/login/ui.spec.ts (RUN)', 'tests/qa/specs/login/responsive.spec.ts'] }));
+    const res = await submitWorkReport(t.root, runId, f, RESP);
+    expect(res.lint!.errors.map((x) => x.file)).toEqual(['tests/qa/specs/login/responsive.spec.ts']);
+    expect(res.lint!.warnings.map((x) => x.rule)).toContain('spec-trivial-assertion');
+    expect(stored(res.path)['lintErrors']).toEqual(['spec-trivial-assertion tests/qa/specs/login/responsive.spec.ts:5']);
+  });
+
+  it('the security specialist is linted at submit', async () => {
+    const SEC = 'qa-security-specialist';
+    await addTask(t.root, runId, { id: 'T-exec-3', title: 'sec', agent: SEC }, ORCH);
+    await claimTask(t.root, runId, 'T-exec-3', SEC);
+    spec('tests/qa/security/a.security.spec.ts', "import { test, expect } from '@playwright/test';\ntest('t', async () => {\n  expect(true).toBe(true);\n});\n");
+    const f = path.join(t.root, 'wr-sec.json');
+    fs.writeFileSync(f, JSON.stringify({ taskId: 'T-exec-3', agent: SEC, startedAt: TS, completedAt: TS, summary: 'Wrote the security spec for the stamp test.', approach: 'Fixture-driven.', artifactsProduced: ['tests/qa/security/a.security.spec.ts'] }));
+    const res = await submitWorkReport(t.root, runId, f, SEC);
+    expect(stored(res.path)['lintErrors']).toEqual(['spec-trivial-assertion tests/qa/security/a.security.spec.ts:3']);
   });
 
   it('a report that lists no spec file is not linted, and a clean spec stamps nothing', async () => {

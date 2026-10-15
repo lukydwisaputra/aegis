@@ -30,7 +30,7 @@ import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { maskPath } from "./lint/mask.js";
 import { dataFindings } from "./lint/data.js";
-import { specBlockMessage, specFindings } from "./lint/specs.js";
+import { recordSpecReport, specBlockMessage, specFindings } from "./lint/specs.js";
 import { designBlockMessage } from "./lint/design.js";
 import { executiveBlockMessage, executiveFindings } from "./lint/executive.js";
 import type { Finding } from "./lint/text.js";
@@ -442,6 +442,7 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
   const executive = id === "executive" && opts.notApplicable !== true ? executiveFindings(root, runId) : [];
   // The spec lint of the Execution barrier parses every spec file the result files name: once, before run.lock is taken.
   const specs = id === "execution" && opts.notApplicable !== true ? await specFindings(root, runId) : [];
+  if (id === "execution" && opts.notApplicable !== true) recordSpecReport(root, runId, specs);
   const pre: BarrierPrecomputed = id === "executive" && opts.notApplicable !== true
     ? { executiveErrors: executive.filter((f) => f.severity === "error"), executiveWarnings: executive.filter((f) => f.severity === "warning") }
     : id === "execution" ? { specFindings: specs } : {};

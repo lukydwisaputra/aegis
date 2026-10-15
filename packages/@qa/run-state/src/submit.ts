@@ -179,13 +179,15 @@ export async function submitWorkReport(root: string, runId: string, file: string
   }
 
   assertSafeIds(report.agent, report.taskId);
+  // The spec files are parsed with the TypeScript compiler API: outside the submit lock, which a long synchronous parse would otherwise hold.
+  const specLint = await specSubmitLint(root, runId, caller, report.artifactsProduced);
   return withSubmitLock(root, runId, caller, report.taskId, async () => {
     const task = await createTaskmasterClient(taskmasterDir(root, runId)).get(report.taskId);
     if (task === null || task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${report.taskId} is not in progress under ${caller}`);
     }
     // Reads run files (and, for a specialist, the spec files it lists) only; never refuses.
-    const linted = mergeSubmitLints(submitLint(root, runId, caller, report.artifactsProduced), await specSubmitLint(root, runId, caller, report.artifactsProduced));
+    const linted = mergeSubmitLints(submitLint(root, runId, caller, report.artifactsProduced), specLint);
     const carry = isCarryForwardSummary(report.summary) ? carryStamp(root, runId, report.taskId) : null;
     const stored = {
       ...report,

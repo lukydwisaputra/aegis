@@ -23,7 +23,7 @@ You respect each test case's `viewportScope` field — a TC scoped to `"desktop"
 
 ## Browser Automation: MCP vs Playwright CLI — Routing Rule
 
-Your dominant goal is **executing a known script** via `@playwright/test` viewport projects. However, when a breakpoint defect is ambiguous — you need to visually confirm rendering at a specific viewport before asserting it in a spec — use MCP or CLI to inspect first:
+Your dominant goal is **executing a known script** via `@playwright/test` viewport projects. However, when a breakpoint defect is ambiguous — you need to visually confirm rendering at a specific viewport before asserting it in a spec — use MCP or CLI to inspect first: Specs under the specs folder import `test` and `expect` from the QA auth fixture of the tests directory, never `test` from `@playwright/test` (the spec lint refuses it).
 
 | Situation | Use |
 |---|---|

@@ -1,8 +1,9 @@
-import { lstatSync, readdirSync, readFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, isAbsolute, join, relative } from "node:path";
 import { loadGuardContext } from "@qa/path-guard";
 import { readRunConfig } from "../config.js";
 import { runDir } from "../paths.js";
+import { atomicWrite } from "../util.js";
 import { reissueCaseScope } from "../reissue-scope.js";
 import { readRun } from "../run.js";
 import { finding, isPlain, snippet } from "./data-util.js";
@@ -19,7 +20,8 @@ import type { Finding } from "./text.js";
  * file are counted as skipped and never read. The files are parsed with the TypeScript compiler API (a syntax tree, so a rule never fires
  * on a comment or a string), which is imported only here and only when there is a spec to read: every hook loads this package.
  *
- * Findings are data findings (file = the spec's path from the target root, line, ids and a short masked snippet, never a code line).
+ * Findings are data findings: the spec's path from the target root, the line, the rule id and a masked snippet of at most 60 characters of the
+ * source; they are written only to reports/lint/ and the CLI results, never to a customer-facing file.
  */
 
 /** The group `reportRules.disable` may name for every rule below. */
@@ -39,6 +41,9 @@ export const SPEC_RULES: Readonly<Record<string, Severity>> = {
   "spec-afterEach-screenshot": "warning",
   "spec-raw-page": "warning",
   "spec-e2e-suffix": "warning",
+  // A file the lint could not check (a parse failure, a depth or size bound), and files left out by the bounds: said, never silent.
+  "spec-unparsed": "warning",
+  "spec-not-scanned": "warning",
 };
 
 const MESSAGES: Readonly<Record<string, string>> = {
@@ -48,11 +53,17 @@ const MESSAGES: Readonly<Record<string, string>> = {
   "spec-swallowed-cleanup": "a cleanup that swallows its error hides a leak of test data: let it fail, or record the failure",
   "spec-afterEach-screenshot": "a UI spec captures a screenshot in an afterEach hook for every test, pass and fail (evidence for each case)",
   "spec-raw-page": "a UI spec drives the page through a Page Object, not with direct page calls",
+  "spec-unparsed": "this spec could not be checked (it failed to parse or exceeded a bound of the lint): the other spec files were checked",
+  "spec-not-scanned": "spec files were left out of the lint (a size, count or time bound): they are checked at the Execution barrier or in a later run",
   "spec-e2e-suffix": "an end-to-end journey case is written in a spec named for the journey (a file name carrying .e2e before the extension), and the Playwright test match must discover it",
 };
 
-/** At most this many spec files are read by one lint. */
+/** At most this many spec files are read by one lint, and at most this many bytes of them in total. */
 const MAX_SPEC_FILES = 500;
+const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
+/** The wall-clock budget of one lint, checked between files (a file is never interrupted: one is at most MAX_TEXT_BYTES). */
+export const BARRIER_BUDGET_MS = 20_000;
+export const SUBMIT_BUDGET_MS = 2_000;
 const MAX_REF_CHARS = 4000;
 const MAX_DEPTH = 8;
 const REF_KEYS: ReadonlySet<string> = new Set(["specRef", "specFile", "specFiles", "automatedTestRef"]);
@@ -157,9 +168,8 @@ export function specRefs(root: string, runId: string): SpecRefs {
     if (!plainRunFile(dir, rel)) continue;
     let doc: unknown;
     try {
-      const raw = readFileSync(join(dir, rel), "utf-8");
-      if (raw.length > MAX_TEXT_BYTES) continue;
-      doc = JSON.parse(raw);
+      if (lstatSync(join(dir, rel)).size > MAX_TEXT_BYTES) continue;
+      doc = JSON.parse(readFileSync(join(dir, rel), "utf-8"));
     } catch {
       continue;
     }
@@ -256,6 +266,8 @@ function specHits(ts: TS, sf: SourceFile, fixture: boolean, uiFolder: boolean): 
   let pomImported = false;
   const rawPage: Node[] = [];
   const rawTestImports: Node[] = [];
+  const namespaces = new Map<string, Node>();
+  const namespaceTest = new Set<string>();
   let first: Node | undefined;
 
   const visit = (n: Node): void => {
@@ -264,13 +276,20 @@ function specHits(ts: TS, sf: SourceFile, fixture: boolean, uiFolder: boolean): 
       const source = n.moduleSpecifier.text;
       if (POM_SOURCE.test(source) && n.importClause?.isTypeOnly !== true) pomImported = true;
       const bindings = n.importClause?.namedBindings;
-      if (source === "@playwright/test" && n.importClause?.isTypeOnly !== true && bindings !== undefined && ts.isNamedImports(bindings)) {
-        if (bindings.elements.some((e) => !e.isTypeOnly && (e.propertyName ?? e.name).text === "test")) rawTestImports.push(n);
+      if (source === "@playwright/test" && n.importClause?.isTypeOnly !== true) {
+        if (bindings !== undefined && ts.isNamedImports(bindings)) {
+          if (bindings.elements.some((e) => !e.isTypeOnly && (e.propertyName ?? e.name).text === "test")) rawTestImports.push(n);
+        } else if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
+          namespaces.set(bindings.name.text, n); // a namespace import is a raw test import when its test is used (below)
+        } else if (n.importClause?.name !== undefined) {
+          rawTestImports.push(n); // the default export of @playwright/test is test
+        }
       }
     }
     if (ts.isParameter(n) && ts.isObjectBindingPattern(n.name)) {
       if (n.name.elements.some((e) => /^(?:page|\w+Page)$/.test((e.propertyName ?? e.name).getText(sf)))) usesBrowser = true;
     }
+    if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && namespaces.has(n.expression.text) && n.name.text === "test") namespaceTest.add(n.expression.text);
     if (ts.isCallExpression(n)) {
       const name = calleeName(n);
       if (name === "goto") usesBrowser = true;
@@ -291,7 +310,10 @@ function specHits(ts: TS, sf: SourceFile, fixture: boolean, uiFolder: boolean): 
       if (ts.isPropertyAccessExpression(n.expression)) {
         const matcher = n.expression.name.text;
         const subject = n.expression.expression;
-        if (ts.isCallExpression(subject) && ts.isIdentifier(subject.expression) && subject.expression.text === "expect" && subject.arguments.length === 1) {
+        const isExpect = ts.isCallExpression(subject) && (
+          (ts.isIdentifier(subject.expression) && subject.expression.text === "expect") ||
+          (ts.isPropertyAccessExpression(subject.expression) && ts.isIdentifier(subject.expression.expression) && subject.expression.expression.text === "expect" && subject.expression.name.text === "soft"));
+        if (ts.isCallExpression(subject) && isExpect && subject.arguments.length >= 1) {
           const actual = subject.arguments[0]!;
           const arg = n.arguments[0];
           const trivial =
@@ -316,6 +338,7 @@ function specHits(ts: TS, sf: SourceFile, fixture: boolean, uiFolder: boolean): 
     ts.forEachChild(n, visit);
   };
   visit(sf);
+  for (const ns of namespaceTest) rawTestImports.push(namespaces.get(ns)!);
 
   if (usesBrowser && uiFolder) {
     if (fixture) for (const n of rawTestImports) add("spec-fixture-import", n, `import from ${text((n as import("typescript").ImportDeclaration).moduleSpecifier)}`);
@@ -349,45 +372,68 @@ const hasAuthFixture = (testsDir: string): boolean => {
   }
 };
 
-/** Parse and check each spec file (paths from the target root, already resolved). Never throws: an unreadable or unparseable file gives nothing. */
-async function lintFiles(root: string, runId: string, files: readonly string[], cases: ReadonlyMap<string, ReadonlySet<string>>, disabled: ReadonlySet<string>, scope: ReadonlySet<string> | null): Promise<Finding[]> {
+/** What one lint did: its findings, and how many files the bounds left out. */
+interface LintOptions {
+  budgetMs: number;
+}
+
+/**
+ * Parse and check each spec file (paths from the target root, already resolved). Never throws and one file never stops the others: a file that
+ * fails to parse or exceeds a bound gives one spec-unparsed warning, and a file over the size cap is not read (its size is read first). The
+ * lint stops at the file count, the total bytes and the wall-clock budget, and says how many files it left out (spec-not-scanned).
+ */
+async function lintFiles(
+  root: string, runId: string, files: readonly string[], cases: ReadonlyMap<string, ReadonlySet<string>>, disabled: ReadonlySet<string>,
+  scope: ReadonlySet<string> | null, opts: LintOptions,
+): Promise<Finding[]> {
   const paths = readPaths(root);
   if (paths === null || files.length === 0) return [];
   const ts = (await import("typescript")).default;
   const dir = runDir(root, runId);
   const fixture = hasAuthFixture(paths.testsDir);
   const out: Finding[] = [];
-  for (const file of files.slice(0, MAX_SPEC_FILES)) {
+  const started = Date.now();
+  let bytes = 0;
+  let left = 0;
+  const say = (rule: string, file: string, context: string): void => {
+    if (!disabled.has(rule)) out.push(finding(rule, SPEC_RULES[rule]!, file, MESSAGES[rule]!, context));
+  };
+  for (const [i, file] of files.entries()) {
+    if (i >= MAX_SPEC_FILES || bytes > MAX_TOTAL_BYTES || Date.now() - started > opts.budgetMs) {
+      left = files.length - i;
+      break;
+    }
     const underTests = relative(paths.testsDir, join(paths.targetRoot, file));
     if (!plainRunFile(paths.testsDir, underTests)) continue;
-    let code: string;
+    const abs = join(paths.testsDir, underTests);
     try {
-      code = readFileSync(join(paths.testsDir, underTests), "utf-8");
-    } catch {
-      continue;
-    }
-    if (code.length > MAX_TEXT_BYTES) continue;
-    const tcs = cases.get(file) ?? new Set<string>();
-    // A scoped reissue runs only its listed cases: a spec that only cases outside the list name keeps the state of an earlier round (a warning).
-    const carried = scope !== null && tcs.size > 0 && [...tcs].every((tc) => !scope.has(tc));
-    const severity = (rule: string): Severity => (carried ? "warning" : SPEC_RULES[rule]!);
-    const note = carried ? " (carried case, outside the reissued cases)" : "";
-    let sf: SourceFile;
-    try {
-      sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    } catch {
-      continue;
-    }
-    const hits = specHits(ts, sf, fixture, /^specs\//.test(underTests.replace(/\\/g, "/")));
-    if (!E2E_NAME.test(basename(file))) {
-      const e2e = [...tcs].sort().find((tc) => testTypesOf(dir, tc).some((t) => t.toLowerCase() === "e2e"));
-      if (e2e !== undefined) hits.push({ rule: "spec-e2e-suffix", line: 1, context: `${snippet(e2e)} is an E2E case` });
-    }
-    for (const h of hits) {
-      if (disabled.has(h.rule)) continue;
-      out.push({ ...finding(h.rule, severity(h.rule), file, MESSAGES[h.rule]!, h.context + note), line: h.line });
+      const size = lstatSync(abs).size;
+      if (size > MAX_TEXT_BYTES) {
+        say("spec-unparsed", file, "larger than 5 MB: not read");
+        continue;
+      }
+      bytes += size;
+      const code = readFileSync(abs, "utf-8");
+      const tcs = cases.get(file) ?? new Set<string>();
+      // A scoped reissue runs only its listed cases: a spec that only cases outside the list name keeps the state of an earlier round (a warning).
+      const carried = scope !== null && tcs.size > 0 && [...tcs].every((tc) => !scope.has(tc));
+      const severity = (rule: string): Severity => (carried ? "warning" : SPEC_RULES[rule]!);
+      const note = carried ? " (carried case, outside the reissued cases)" : "";
+      const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const hits = specHits(ts, sf, fixture, /^specs\//.test(underTests.replace(/\\/g, "/")));
+      if (!E2E_NAME.test(basename(file))) {
+        const e2e = [...tcs].sort().find((tc) => testTypesOf(dir, tc).some((t) => t.toLowerCase() === "e2e"));
+        if (e2e !== undefined) hits.push({ rule: "spec-e2e-suffix", line: 1, context: `${snippet(e2e)} is an E2E case` });
+      }
+      for (const h of hits) {
+        if (disabled.has(h.rule)) continue;
+        out.push({ ...finding(h.rule, severity(h.rule), file, MESSAGES[h.rule]!, h.context + note), line: h.line });
+      }
+    } catch (e) {
+      say("spec-unparsed", file, e instanceof RangeError ? "too deeply nested to walk" : "could not be parsed");
     }
   }
+  if (left > 0) say("spec-not-scanned", "tests", `${left} of ${files.length} spec file(s) left out by the file, size or time bound`);
   return out;
 }
 
@@ -408,7 +454,7 @@ export async function specFindings(root: string, runId: string): Promise<Finding
     const state = readRun(root, runId);
     if (state.cycleType !== "full") return [];
     const refs = specRefs(root, runId);
-    return await lintFiles(root, runId, refs.resolved, refs.cases, disabled, reissueCaseScope(root, runId, state));
+    return await lintFiles(root, runId, refs.resolved, refs.cases, disabled, reissueCaseScope(root, runId, state), { budgetMs: BARRIER_BUDGET_MS });
   } catch {
     return [];
   }
@@ -426,7 +472,7 @@ export async function specFindingsForEntries(root: string, runId: string, entrie
     if (disabled === null) return [];
     const state = readRun(root, runId);
     if (state.cycleType !== "full") return [];
-    return await lintFiles(root, runId, files, specRefs(root, runId).cases, disabled, null);
+    return await lintFiles(root, runId, files, specRefs(root, runId).cases, disabled, null, { budgetMs: SUBMIT_BUDGET_MS });
   } catch {
     return [];
   }
@@ -446,8 +492,39 @@ export function specEntryFiles(root: string, entries: readonly string[]): string
   return [...files].sort();
 }
 
-/** The refusal text of the Execution barrier for spec errors: the first findings as file:line rule and what fixes them. */
+/** The report of the Execution spec lint: every finding of the last attempt, written by the CLI when the barrier computes it. */
+export const SPEC_REPORT_REL = "reports/lint/spec-execution.json";
+
+const REMEDIES: Readonly<Record<string, string>> = {
+  "spec-trivial-assertion": "assert the behaviour under test instead of a literal against itself",
+  "spec-fixture-import": "import test and expect from the QA auth fixture of the tests directory, not from @playwright/test",
+};
+
+/**
+ * The refusal text of the Execution barrier for spec errors: the count, the first 10 as file:line rule, the path of the full report, and the
+ * remedy of each rule that fired. The correction task is one the barrier names (like a Blocked result): the orchestrator adds it for the
+ * specialist whose result file names the spec, and the executor's totals are rewritten after a re-run that changes a result.
+ */
 export function specBlockMessage(errors: readonly Pick<Finding, "file" | "line" | "rule">[]): string {
   const listed = errors.slice(0, 10).map((f) => `${f.file}:${f.line} ${f.rule}`).join("; ");
-  return `${errors.length} spec check error(s) in the specialists' spec files (${listed}${errors.length > 10 ? "; ..." : ""}). Add a correction task for the specialist that wrote each spec to the active Execution phase: it fixes the spec (a web-first wait for a fixed sleep, a real assertion for a trivial one) and runs it again; reportRules.disable with the group ${SPEC_RULE_GROUP} or one rule id is the owner's recorded exception`;
+  const fixes = [...new Set(errors.map((f) => f.rule))].map((r) => `${r}: ${REMEDIES[r] ?? "see the finding"}`).join("; ");
+  return `${errors.length} spec check error(s) in the specialists' spec files (${listed}${errors.length > 10 ? "; ..." : ""}; the full list is in ${SPEC_REPORT_REL}). Add a correction task for the specialist whose result file names each spec (its specialist field, or the role that may write the spec path) to the active Execution phase, dispatch it and its SPV, and once the corrections pass their reviews have qa-test-executor rewrite the totals of execution-summary.json when a re-run changed a result, then complete the phase again. Fixes: ${fixes}. reportRules.disable with the group ${SPEC_RULE_GROUP} or one rule id is the owner's recorded exception`;
+}
+
+/**
+ * Writes SPEC_REPORT_REL (every finding of this attempt) or removes it when there is none; never throws. Called by the CLI outside the run
+ * lock, so a refused completion still leaves the full list.
+ */
+export function recordSpecReport(root: string, runId: string, findings: readonly Finding[]): void {
+  const file = join(runDir(root, runId), SPEC_REPORT_REL);
+  try {
+    if (findings.length === 0) {
+      rmSync(file, { force: true });
+      return;
+    }
+    mkdirSync(join(runDir(root, runId), "reports", "lint"), { recursive: true });
+    atomicWrite(file, JSON.stringify({ runId, errors: findings.filter((f) => f.severity === "error").length, warnings: findings.filter((f) => f.severity !== "error").length, findings }, null, 2) + "\n");
+  } catch {
+    // the refusal text still lists the first findings
+  }
 }

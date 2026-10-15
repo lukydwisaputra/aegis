@@ -29,6 +29,8 @@ You review security test results and reports from `qa-security-specialist`. You 
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **All 4 tool categories executed.** Work report confirms: (a) DAST scan (OWASP ZAP), (b) SAST scan (Semgrep), (c) dependency/container scan (npm audit + Trivy), (d) secrets scan (Gitleaks). Missing any category = requested-changes.
 2. **Gitleaks `--redact` flag.** Gitleaks was run with `--redact` (confirmed in work report or command log). Without redact, raw secrets appear in the scan output. Missing `--redact` = requested-changes.
 3. **No unredacted secrets in evidence.** Spot-check any evidence files (logs, scan output) for common secret patterns: `AKIA` (AWS), `ghp_` (GitHub), `sk_live` (Stripe), `-----BEGIN` (PEM keys). Found unredacted secret = `requested-changes` with a blocker finding. Record the leak with `AEGIS_AGENT=qa-security-specialist-spv pnpm aegis event append --type secret.leak-detected --json '{"path":"<evidence file>","rule":"<pattern>","severity":{"code":"Sev1","name":"Blocker"}}'`. That event does not escalate by itself: the Sev1 reaches Triage as a `SEC` defect from the execution results; in a smoke cycle the Gate 2 auto-decide rejects while a Sev1 is open (`thresholds.yaml#smoke.openSev1Max`); in a full cycle the owner sees it at Gate 2.
