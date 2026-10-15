@@ -6,7 +6,7 @@ import { collectRunMetrics, computeRollups } from '@qa/metrics';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
   addTask, assertAppendableByAgent, busPath, CARRY_FORWARD_PREFIX, carryForwardAutoAccept, claimTask, freshAttempt, isDecidingReviewer, listTasks, lintReturnReview, readRun,
-  MAX_DIGEST_FILES, releaseTask, resolveCaller, reviewPassed, runDir, SYSTEM_REVIEWER, submitReview, submitWorkReport, taskDigest, taskmasterDir, writeRun, type CarryForwardFacts,
+  MAX_DIGEST_FILES, returnedNext, releaseTask, resolveCaller, reviewPassed, runDir, SYSTEM_REVIEWER, submitReview, submitWorkReport, taskDigest, taskmasterDir, writeRun, type CarryForwardFacts,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 import { ORCH, TS, writeRunFile } from './helpers/pipeline';
@@ -597,6 +597,16 @@ describe('a work report the submit lint stamped with errors is returned by the C
     expect(a2.sub.attempt).toBe(2);
     dirty();
     expect((await closureAttempt()).rel.autoReview).toMatchObject({ decided: 'returned', rejections: 3, escalated: true });
+  });
+
+  it('tells a returned specialist to stop (its executor loop re-dispatches it) and a returned phase agent that it may fix in its own session', () => {
+    const reopened = { escalated: false, reopened: true };
+    expect(returnedNext('qa-ui-specialist', 'T-execution-2', reopened)).toMatch(/^the task is reopened for a new attempt: stop now and do not claim it again here; your dispatcher re-dispatches you for T-execution-2 with these findings \(aegis task next offers it as a corrective dispatch\)/);
+    expect(returnedNext('qa-closure-reporter', 'T-closure-1', reopened)).toMatch(/^the task is reopened: claim it again \(aegis task claim --task T-closure-1\), fix every finding above, submit the work report again and release the task.*If you stop instead, your dispatcher re-dispatches you/);
+    for (const agent of ['qa-ui-specialist', 'qa-closure-reporter']) {
+      expect(returnedNext(agent, 'T-1', { escalated: true, reopened: false })).toMatch(/3rd return.*stop now and do not claim the task again/);
+      expect(returnedNext(agent, 'T-1', { escalated: false, reopened: false })).toMatch(/could not be reopened; tell your dispatcher/);
+    }
   });
 
   it('a report with lintErrors and no lintFindings (written before the stamp) is returned from the ids alone', async () => {

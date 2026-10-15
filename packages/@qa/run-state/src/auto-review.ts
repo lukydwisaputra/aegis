@@ -4,7 +4,7 @@ import { ReviewSchema, WorkReportSchema, type Review, type WorkReport } from "@q
 import { appendChained, readLines } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { isCarryForwardSummary, latestDispatchCases } from "./carry-forward.js";
-import { isDecidingReviewer, SYSTEM_REVIEWER } from "./caller.js";
+import { isDecidingReviewer, isSpecialist, SYSTEM_REVIEWER } from "./caller.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { readRun, supersededAttempt } from "./run.js";
 import { taskDigest, type ResultDigest } from "./result-digest.js";
@@ -241,6 +241,20 @@ export function lintReturnReview(agent: string, taskId: string, attempt: number,
 }
 
 /**
+ * What the returned worker does next, said in its release result. A specialist runs under the executor's loop (`aegis task next`), which offers the
+ * reopened task as a corrective dispatch: it stops and is re-dispatched with the findings, so no second instance is started beside it. Any other
+ * worker (a phase agent dispatched by the orchestrator, with no loop of its own to refill) may fix in its own session; the orchestrator re-checks the
+ * task list when it returns and re-dispatches the worker only if the task is still open.
+ */
+export function returnedNext(agent: string, taskId: string, settled: { escalated: boolean; reopened: boolean }): string {
+  if (settled.escalated) return "this was the 3rd return of the round: the owner decides through the escalation; stop now and do not claim the task again";
+  if (!settled.reopened) return "the review is recorded but the task could not be reopened; tell your dispatcher";
+  return isSpecialist(agent)
+    ? `the task is reopened for a new attempt: stop now and do not claim it again here; your dispatcher re-dispatches you for ${taskId} with these findings (aegis task next offers it as a corrective dispatch); no SPV reviews a report the lint returned`
+    : `the task is reopened: claim it again (aegis task claim --task ${taskId}), fix every finding above, submit the work report again and release the task; no SPV reviews a report the lint returned. If you stop instead, your dispatcher re-dispatches you with these findings`;
+}
+
+/**
  * Decide the review of the attempt `aegis task release --result done` just released, when the CLI can, without an SPV: a work report the submit
  * lint stamped with errors is returned (requested-changes: the same tail as an SPV rejection, settleReview), a carry-forward attempt that
  * carryForwardAutoAccept accepts passes. Both are stored as the review of the attempt under the reviewer SYSTEM_REVIEWER, so every reader that asks
@@ -309,11 +323,7 @@ export async function decideReviewBySystem(root: string, runId: string, agent: s
       ...(settled.reopenError !== undefined ? { reopenError: settled.reopenError } : {}),
       lessons: settled.lessons,
       ...(settled.warnings.length > 0 ? { warnings: settled.warnings } : {}),
-      next: settled.escalated
-        ? "this was the 3rd return of the round: the owner decides through the escalation; stop now and do not claim the task again"
-        : settled.reopened
-          ? `the task is reopened: claim it again (aegis task claim --task ${taskId}), fix every finding above, submit the work report again and release the task; no SPV reviews a report the lint returned`
-          : "the review is recorded but the task could not be reopened; tell your dispatcher",
+      next: returnedNext(agent, taskId, settled),
     };
   } catch (e) {
     const why = e instanceof Error ? e.message.slice(0, 160) : "error";
