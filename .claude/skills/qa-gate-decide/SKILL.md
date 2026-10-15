@@ -10,7 +10,7 @@ The only way a human gate is decided. A full cycle pauses at three gates — G1 
 
 ## Usage
 ```
-/qa-gate-decide --gate=<1|2|3> --decision=approved|approved-with-conditions|rejected --note="<text>" [--reopen-phase=<phase>] [--re-explore] [--run=RUN-...]
+/qa-gate-decide --gate=<1|2|3> --decision=approved|approved-with-conditions|rejected --note="<text>" [--reopen-phase=<phase>] [--re-explore] [--cases=TC-...,TC-...] [--run=RUN-...]
 ```
 
 ## Key flags
@@ -21,6 +21,7 @@ The only way a human gate is decided. A full cycle pauses at three gates — G1 
 | `--note` | *(required)* | The owner's words, recorded verbatim; conditions go here |
 | `--reopen-phase` | the gated phase | Rejected only: the phase the run returns to (for example `design` after a G2 rejection) |
 | `--re-explore` | off | With a rejection that reopens Explore: do not reuse the earlier discovery |
+| `--cases` | none | Rejected only: comma-separated test case ids a re-run may cover (the case scope); refused unless the rejection reopens Execution or an earlier phase, and for an unknown, malformed or descoped id. Without it a rejection lapses any earlier case scope |
 | `--run` | active run | Run to decide |
 
 ## Behaviour
@@ -28,7 +29,7 @@ Every command below takes `--run <id>` when the owner gave `--run`; without it t
 
 1. Run `AEGIS_AGENT=owner pnpm aegis run status [--run <id>]` and confirm the named gate is open. If it is not, print the run's `next` step and stop.
 2. Show the owner what the gate covers before recording anything: G1 the plan and risk register, G2 the triaged defects, G3 the closure report and residual risks.
-3. Run `AEGIS_AGENT=owner pnpm aegis gate decide --gate G<N> --decision <decision> --note "<note>" [--run <id>]` (plus `--reopen-phase <phase>` when rejected, and `--re-explore` when the owner gave it). The CLI writes the gate decision file, keeps any earlier decision as history, records `gate.decided` and sets the run back to running; a rejection resets the phases from the reopen phase onward. When a rejection reopens a phase before Explore (for example Requirements or Env-auth), the web explorer's earlier discovery is carried over only when the explorer's task finished done (a crawl that failed and was accepted with risk is reopened), and Explore re-checks the running app before reusing it; `--re-explore` (refused unless the rejection reopens Explore) explores again from scratch instead.
+3. Run `AEGIS_AGENT=owner pnpm aegis gate decide --gate G<N> --decision <decision> --note "<note>" [--run <id>]` (plus `--reopen-phase <phase>` when rejected, `--re-explore` and `--cases <ids>` when the owner gave them). The CLI writes the gate decision file, keeps any earlier decision as history, records `gate.decided` and sets the run back to running; a rejection resets the phases from the reopen phase onward. When a rejection reopens a phase before Explore (for example Requirements or Env-auth), the web explorer's earlier discovery is carried over only when the explorer's task finished done (a crawl that failed and was accepted with risk is reopened), and Explore re-checks the running app before reusing it; `--re-explore` (refused unless the rejection reopens Explore) explores again from scratch instead. `--cases` records the owner's case list in the decision and in `gate.decided`, and it stays the case scope until the next rejection without `--cases` or a completed run, also in a run that was never reissued; a G2 rejection needs `--reopen-phase execution` (or an earlier phase) with it, because the default phase, Triage, comes after Execution.
 4. Dispatch `qa-orchestrator` for the same run so it continues from its next step.
 5. Relay the orchestrator's status to the owner.
 

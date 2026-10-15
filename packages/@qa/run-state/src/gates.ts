@@ -19,6 +19,7 @@ import {
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
 import { assertCallerAllowed } from "./caller.js";
+import { parseCaseIds } from "./cases.js";
 import { removeStaleProbeReports } from "./env-probe.js";
 import { RunStateError } from "./errors.js";
 import { explorerAccepted, isExplorerTask } from "./explore/explorer.js";
@@ -104,6 +105,8 @@ export interface DecideGateInput {
   reopenPhase?: string;
   /** A rejection whose reopened phases include Explore: do not carry the web explorer's discovery over, explore again. */
   reExplore?: boolean;
+  /** A rejection that reopens Execution or an earlier phase: the cases a re-run may cover. Recorded in the decision and its event as the case scope. */
+  cases?: readonly string[];
   now?: Date;
 }
 
@@ -145,15 +148,33 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
         : `--re-explore needs a rejection that reopens explore; this one reopens ${reopened.join(", ")}`
     );
   }
+  // The case scope: refused before any write unless the rejection reopens Execution or an earlier phase (a scope means something only to
+  // Execution); ids are trimmed, deduplicated and checked against the run's case files.
+  let cases: string[] | undefined;
+  if (input.cases !== undefined) {
+    if (reopen === undefined) throw new RunStateError("invalid-input", "--cases is only valid with --decision rejected");
+    if (PHASE_IDS.indexOf(reopen) > PHASE_IDS.indexOf("execution")) {
+      throw new RunStateError(
+        "invalid-input",
+        `--cases needs a rejection that reopens execution or an earlier phase; this one reopens ${reopen}, after execution: add --reopen-phase execution (or an earlier phase), or leave --cases out`
+      );
+    }
+    cases = parseCaseIds(root, runId, input.cases);
+  }
   return withRunLock(root, runId, async () => {
     const state = readRun(root, runId);
     const record = state.gates[gate];
     if (record?.status !== "open") throw new RunStateError("out-of-order", `gate ${gate} is not open (${record?.status ?? "never opened"})`);
+    // A descoped case is out of scope: a re-run listing it would contradict the owner's descope.
+    const descopedListed = (cases ?? []).filter((id) => state.descoped?.some((d) => d.caseId === id));
+    if (descopedListed.length > 0) {
+      throw new RunStateError("invalid-input", `${descopedListed.map((id) => `${id} is descoped; it is out of scope`).join("; ")}: leave it out of --cases`);
+    }
     const ts = iso(input.now);
     const sequence = record.decisions + 1;
     const decision: GateDecision = {
       runId, gate, label: GATE_LABELS[gate], sequence, decision: input.decision, note: input.note.trim(),
-      ...(reopen !== undefined ? { reopenPhase: reopen } : {}), decidedBy: "owner", decidedAt: ts,
+      ...(reopen !== undefined ? { reopenPhase: reopen } : {}), ...(cases !== undefined ? { cases } : {}), decidedBy: "owner", decidedAt: ts,
     };
 
     // The web explorer's discovery is carried over when Explore is reopened only because an earlier phase was, and every explorer
@@ -190,7 +211,7 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
         {
           type: "gate.decided", ts, runId, gate, decision: input.decision, sequence, note: decision.note,
           ...(reopen !== undefined ? { reopenPhase: reopen } : {}), ...(input.reExplore === true ? { reExplore: true } : {}),
-          ...(carry ? { carried: true } : {}),
+          ...(carry ? { carried: true } : {}), ...(cases !== undefined ? { cases } : {}),
         },
         busPath(root, runId),
         { emittedBy: caller, runId }

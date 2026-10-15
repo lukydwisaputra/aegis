@@ -1790,6 +1790,9 @@ export const GateDecidedEventSchema = EventBase.extend({
   reExplore: z.boolean().optional(),
   // The rejection carried the web explorer's discovery over: Explore is pending and a probe verifies the discovery before reuse.
   carried: z.literal(true).optional(),
+  // A rejection decided with --cases: the cases a re-run may cover (the case scope). Optional: older lines carry none, and the id
+  // shapes and the case files are checked where the decision is recorded, never on read.
+  cases: z.array(z.string().min(1)).min(1).optional(),
 });
 
 export const GateAutoDecidedEventSchema = EventBase.extend({

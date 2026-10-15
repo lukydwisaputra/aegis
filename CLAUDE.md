@@ -63,7 +63,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 /qa-health                                  # system integrity check
 /qa-doctor                                  # interactive diagnostic
 /qa-gate-check --stage=staging              # promotion gate check
-/qa-gate-decide --gate=1 --decision=approved --note="..."    # decide an open human gate
+/qa-gate-decide --gate=1 --decision=approved --note="..."    # decide an open human gate (--cases=TC-... on a rejection keeps a case scope)
 /qa-escalation --task=T-... --decision=retry --reason="..."  # decide a 3x-rejected task
 /qa-triage                                  # re-evaluate open defects
 /qa-stop --reason="..."                     # clean abort

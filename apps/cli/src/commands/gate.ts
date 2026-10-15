@@ -23,9 +23,10 @@ export function gateCommand(): Command {
     .requiredOption("--note <text>", "the owner's note, recorded verbatim")
     .option("--reopen-phase <id>", "phase to return to (rejected only; default: the gated phase)")
     .option("--re-explore", "with a rejection that reopens Explore: do not reuse the earlier discovery, explore again")
+    .option("--cases <ids>", "comma-separated test case ids a re-run may cover, e.g. TC-AUTH-001,TC-AUTH-004 (rejected only; the rejection must reopen execution or an earlier phase)")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
-      action((o: { gate: string; decision: DecideGateInput["decision"]; note: string; reopenPhase?: string; reExplore?: boolean; run?: string }) => {
+      action((o: { gate: string; decision: DecideGateInput["decision"]; note: string; reopenPhase?: string; reExplore?: boolean; cases?: string; run?: string }) => {
         const ctx = context();
         return decideGate(
           ctx.root,
@@ -33,6 +34,7 @@ export function gateCommand(): Command {
           {
             gate: o.gate, decision: o.decision, note: o.note,
             ...(o.reopenPhase !== undefined ? { reopenPhase: o.reopenPhase } : {}), ...(o.reExplore === true ? { reExplore: true } : {}),
+            ...(o.cases !== undefined ? { cases: o.cases.split(",") } : {}),
           },
           ctx.caller
         );
