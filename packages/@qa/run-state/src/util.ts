@@ -7,9 +7,10 @@ export function iso(now?: Date): string {
   return (now ?? new Date()).toISOString();
 }
 
-export function loadJson(file: string): unknown {
+/** The JSON of `file`; `text` is the file's content when the caller already read it (standard input can be read once). */
+export function loadJson(file: string, text?: string): unknown {
   try {
-    return JSON.parse(readFileSync(file, "utf-8"));
+    return JSON.parse(text ?? readFileSync(file, "utf-8"));
   } catch (e) {
     throw new RunStateError("invalid-input", `cannot read ${file}: ${(e as Error).message}`);
   }

@@ -4,7 +4,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { appendChained, EventBusRefusal } from '@qa/event-bus';
 import { busPath } from '@qa/run-state';
-import { readJsonFile, type JsonFileIo } from '../apps/cli/src/commands/json-file';
+import { readBoundedFile, readJsonFile, type JsonFileIo } from '../apps/cli/src/commands/json-file';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 // `event append`: schema refusals read like the submit refusals (field path and limit), and the fields come from --json or --json-file.
@@ -195,6 +195,14 @@ describe('the --json-file reader takes standard input from fd 0, never by openin
     const endless: JsonFileIo = { open: () => { throw enxio; }, isDirectory: () => false, read: (_fd, buf, length) => { given += length; buf.fill(97, 0, length); return length; }, close: () => undefined };
     expect(() => readJsonFile('/dev/stdin', endless)).toThrow('--json-file /dev/stdin is larger than 1048576 bytes');
     expect(given).toBe(1024 * 1024 + 1);
+  });
+
+  it('readBoundedFile names its own option and limit, and reads no more than that limit + 1 byte', () => {
+    let given = 0;
+    const endless: JsonFileIo = { open: () => { throw enxio; }, isDirectory: () => false, read: (_fd, buf, length) => { given += length; buf.fill(97, 0, length); return length; }, close: () => undefined };
+    expect(() => readBoundedFile('/dev/stdin', { flag: '--file', maxBytes: 100, tooBigWhy: 'a report holds its fields only' }, endless)).toThrow('--file /dev/stdin is larger than 100 bytes: a report holds its fields only');
+    expect(given).toBe(101);
+    expect(() => readBoundedFile('/some/file.json', { flag: '--file' }, io([], [], []))).toThrow('--file /some/file.json cannot be read: ENXIO');
   });
 
   it('any other path is still opened (and closed), and a failed open names the path', () => {

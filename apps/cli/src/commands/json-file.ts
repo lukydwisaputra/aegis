@@ -27,13 +27,30 @@ function pause(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+/** What a bounded read of a caller-named file names in its refusals, and how much it may read. */
+export interface BoundedReadOptions {
+  /** The option the path came from, as the refusal names it (default --json-file). */
+  flag?: string;
+  /** The most the file may hold (default JSON_FILE_MAX_BYTES). */
+  maxBytes?: number;
+  /** The reason given after "is larger than N bytes" (default: an event holds its fields only). */
+  tooBigWhy?: string;
+}
+
 /**
  * The text of a --json-file: UTF-8 only, read through a descriptor in chunks and never past JSON_FILE_MAX_BYTES + 1 bytes, so a pipe,
  * standard input or a device (/dev/zero) costs no more than that. A missing file, a directory or a file that is not text is refused
  * with the path. The standard-input paths read fd 0 directly.
  */
 export function readJsonFile(file: string, io: JsonFileIo = NODE_IO): string {
-  const tooBig = new RunStateError("invalid-input", `--json-file ${file} is larger than ${JSON_FILE_MAX_BYTES} bytes: an event holds its fields only`);
+  return readBoundedFile(file, {}, io);
+}
+
+/** readJsonFile for any option that names a file: the same bounded, UTF-8-only read, with its own option name and limit in the refusals. */
+export function readBoundedFile(file: string, opts: BoundedReadOptions = {}, io: JsonFileIo = NODE_IO): string {
+  const flag = opts.flag ?? "--json-file";
+  const max = opts.maxBytes ?? JSON_FILE_MAX_BYTES;
+  const tooBig = new RunStateError("invalid-input", `${flag} ${file} is larger than ${max} bytes: ${opts.tooBigWhy ?? "an event holds its fields only"}`);
   const chunks: Buffer[] = [];
   let total = 0;
   let fd: number | undefined;
@@ -46,7 +63,7 @@ export function readJsonFile(file: string, io: JsonFileIo = NODE_IO): string {
     for (;;) {
       let n: number;
       try {
-        n = io.read(fd, buf, Math.min(buf.length, JSON_FILE_MAX_BYTES + 1 - total));
+        n = io.read(fd, buf, Math.min(buf.length, max + 1 - total));
       } catch (e) {
         const code = (e as NodeJS.ErrnoException).code;
         if (code === "EOF") break; // a closed pipe on some platforms
@@ -60,13 +77,13 @@ export function readJsonFile(file: string, io: JsonFileIo = NODE_IO): string {
       if (n === 0) break;
       chunks.push(Buffer.from(buf.subarray(0, n)));
       total += n;
-      if (total > JSON_FILE_MAX_BYTES) throw tooBig;
+      if (total > max) throw tooBig;
     }
   } catch (e) {
     if (e instanceof RunStateError) throw e;
     const code = (e as NodeJS.ErrnoException).code;
     const why = code === "ENOENT" ? "no such file" : code === "EISDIR" ? "not a file" : code === "EACCES" || code === "EPERM" ? "permission denied" : code === "EAGAIN" ? "no input is ready" : (code ?? "read error");
-    throw new RunStateError("invalid-input", `--json-file ${file} cannot be read: ${why}`);
+    throw new RunStateError("invalid-input", `${flag} ${file} cannot be read: ${why}`);
   } finally {
     // fd 0 belongs to the process: it is read, never closed
     if (fd !== undefined && fd !== 0) io.close(fd);
@@ -74,6 +91,6 @@ export function readJsonFile(file: string, io: JsonFileIo = NODE_IO): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
   } catch {
-    throw new RunStateError("invalid-input", `--json-file ${file} is not UTF-8 text`);
+    throw new RunStateError("invalid-input", `${flag} ${file} is not UTF-8 text`);
   }
 }
