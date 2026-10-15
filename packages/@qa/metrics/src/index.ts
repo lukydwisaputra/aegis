@@ -72,7 +72,7 @@ export interface CycleTimeReport {
 }
 
 /**
- * Written to runs/{runId}/reports/defect-trend.json by collectRunMetrics. `aegis metrics all` (reports/metrics/, the orchestrator's call) writes the same file as
+ * Written to runs/{runId}/reports/defect-trend.json by collectRunMetrics. `aegis metrics all` (reports/metrics/; run by aegis phase start at Closure-draft, Closure-final and Executive) writes the same file as
  * `{ totalOpened, totalClosed, totalReopened, ... }` plus the additive record-derived fields of DefectRecordCounts
  * (openApplicationDefects, fixed, partiallyFixed, reframed, reportWithdrawn, cannotVerify, notFixed; openApplicationDefects includes
  * the last three): `opened` and `totalOpened`
