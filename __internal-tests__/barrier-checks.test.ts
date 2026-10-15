@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { completePhase, completePhaseWithWarnings, createRun, dataFindings, executionTotalsMismatch, renderArtefacts, runDir, runJsonPath, startPhase } from '@qa/run-state';
+import { completePhase, completePhaseWithWarnings, createRun, dataFindings, designBlockMessage, executionTotalsMismatch, renderArtefacts, runDir, runJsonPath, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, workTask, writeRunFile } from './helpers/pipeline';
 
@@ -159,6 +159,30 @@ describe('the design checks', () => {
 interface Counts { passed: number; failed: number; partial: number; blocked: number; skipped: number }
 const REAL = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'real-execution-totals.json'), 'utf8')) as Record<'R12' | 'R06' | 'S05', { summary: Record<string, number>; barrierCounts: Counts; finalCounts: Counts }>;
 
+describe('the Design refusal text', () => {
+  const errors = [{ file: 'cases/TC-ATT-002.json', rule: 'design-manual-reason-missing', context: 'TC-ATT-002: manualReason, automationBlocker missing' }];
+  it('names the correction task for the test designer, whose own task is already done', () => {
+    const text = designBlockMessage(errors);
+    expect(text).toContain('correction task for qa-test-designer');
+    expect(text).toContain('aegis cases render');
+    expect(text).toContain('manualReason and automationBlocker');
+  });
+  it('in an automated-only scope it never asks for a manualReason: the case is re-designed as Automated', () => {
+    const text = designBlockMessage(errors, true);
+    expect(text).toContain('correction task for qa-test-designer');
+    expect(text).toContain('Automated');
+    expect(text).not.toMatch(/states manualReason|write a manualReason|add manualReason/);
+    expect(text).toContain('Not verified or Out of scope');
+  });
+  it('the barrier picks the wording from testing.manualBudgetPercent', async () => {
+    setConfig({ testing: { manualBudgetPercent: 0 } });
+    await designActive();
+    await finish({ 'TC-ATT-002': tc('TC-ATT-002', { requiresManual: true }) });
+    const err = await refusal();
+    expect(err.message).toContain('re-designs the case as Automated');
+  });
+});
+
 describe('execution-totals-mismatch', () => {
   async function executionActive(totals: Record<string, number>) {
     fastForward(t.root, runId, 'execution', { G1: { status: 'approved', decisions: 1 } });
@@ -191,6 +215,20 @@ describe('execution-totals-mismatch', () => {
     putJson('cases/TC-ATT-001-configured-api-result.json', { status: 'fail' });
     putJson('cases/TC-ATT-004-result.json', { status: 'fail' }); // a result whose case has no design file
     expect(mismatch()).toEqual([]);
+  });
+
+  it('a case with no result file is not a mismatch however the summary counts it: accepted with risk as blocked, not run as skipped (blocked 1 vs 0)', async () => {
+    await executionActive({ passed: 2, failed: 0, blocked: 1 });
+    results([{ status: 'pass' }, { status: 'pass' }]); // TC-ATT-003 has no result file
+    expect(mismatch()).toEqual([]);
+    putJson('execution-summary.json', { totals: { passed: 2, failed: 0, blocked: 0, skipped: 1 } });
+    expect(mismatch()).toEqual([]);
+    // Unaccounted for: the case is in no total at all.
+    putJson('execution-summary.json', { totals: { passed: 2, failed: 0, blocked: 0, skipped: 0 } });
+    expect(mismatch().map((f) => f.context)).toEqual(['not run or blocked 0 vs 1']);
+    // The true positive stays: a case counted failed while its result file says pass.
+    putJson('execution-summary.json', { totals: { passed: 1, failed: 1, blocked: 1 } });
+    expect(mismatch().map((f) => f.context)).toEqual(['passed 1 vs 2, failed 1 vs 0']);
   });
 
   it('R06: blocked 2 is one blocked plus one partial', async () => {
@@ -236,8 +274,8 @@ describe('execution-totals-mismatch', () => {
 
   it('replay of the three real runs at their Execution barrier state (counts copied into the fixture): no mismatch; the final files of R12 would differ because 11 cases were descoped after Triage', () => {
     for (const key of ['R12', 'R06', 'S05'] as const) {
-      expect({ run: key, diff: executionTotalsMismatch(REAL[key].summary, REAL[key].barrierCounts) }).toEqual({ run: key, diff: [] });
+      expect({ run: key, diff: executionTotalsMismatch(REAL[key].summary, REAL[key].barrierCounts as never) }).toEqual({ run: key, diff: [] });
     }
-    expect(executionTotalsMismatch(REAL.R12.summary, REAL.R12.finalCounts)).toEqual(['passed 97 vs 87', 'failed 16 vs 15']);
+    expect(executionTotalsMismatch(REAL.R12.summary, REAL.R12.finalCounts as never)).toEqual(['passed 97 vs 87', 'failed 16 vs 15']);
   });
 });

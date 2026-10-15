@@ -126,8 +126,23 @@ export function designFindings(root: string, runId: string): Finding[] {
   return out;
 }
 
-/** The refusal of the Design barrier for design errors: the first findings as file rule, and what fixes them. */
-export function designBlockMessage(errors: readonly Pick<Finding, "file" | "rule" | "context">[]): string {
+/**
+ * The refusal of the Design barrier for design errors: the first findings as file rule, and what fixes them. The test designer's own task
+ * is already done and reviewed, so the fix is a correction task for it. In an automated-only scope (testing.manualBudgetPercent 0) the
+ * designer never writes a manualReason (qa-test-designer.md): the case is re-designed as Automated.
+ */
+export function designBlockMessage(errors: readonly Pick<Finding, "file" | "rule" | "context">[], automatedOnly = false): string {
   const listed = errors.slice(0, 10).map((f) => `${f.file} ${f.rule} (${f.context})`).join("; ");
-  return `${errors.length} design check error(s): ${listed}${errors.length > 10 ? "; ..." : ""}. The test designer corrects each case JSON (a manual case states manualReason and automationBlocker; a coveredBy names an adequate developer test of dev-test-review.json, or the case is written as a QA script), then runs aegis cases render; reportRules.disable with the group design-checks is the owner's recorded exception`;
+  const manual = errors.some((f) => f.rule === "design-manual-reason-missing");
+  const weak = errors.some((f) => f.rule === "design-covered-by-weak");
+  const fixes: string[] = [];
+  if (manual) {
+    fixes.push(
+      automatedOnly
+        ? "the scope is automated testing only (testing.manualBudgetPercent 0), so no manual case is written and no manualReason: the designer re-designs the case as Automated with a script, or records the criterion in the RTM as Not verified or Out of scope"
+        : "a manual case states manualReason and automationBlocker (the criterion or the alternatives tried: mock, simulation, visual regression), or is re-designed as Automated",
+    );
+  }
+  if (weak) fixes.push("a coveredBy names an adequate developer test of dev-test-review.json, or the case is written as a QA script");
+  return `${errors.length} design check error(s): ${listed}${errors.length > 10 ? "; ..." : ""}. Add a correction task for qa-test-designer to the active Design phase (its earlier task is already done): it corrects each case JSON (${fixes.join("; ")}) and runs aegis cases render, then complete the phase again; reportRules.disable with the group design-checks is the owner's recorded exception`;
 }

@@ -218,6 +218,21 @@ export const executiveStageErrors = (root: string, runId: string): Finding[] => 
 export const phaseWarningsRel = (phase: PhaseId): string => `reports/lint/phase-${phase}.json`;
 
 /**
+ * Removes the warning files of the phases a reopen (a reissue or a gate rejection) sends back: they belong to the round that is over.
+ * Called where the probe reports are removed, after the reopen is recorded; never throws.
+ */
+export function removeStalePhaseWarnings(root: string, runId: string, reopened: readonly string[]): void {
+  for (const phase of reopened) {
+    if (!/^[a-z][a-z-]*$/.test(phase)) continue;
+    try {
+      rmSync(join(runDir(root, runId), phaseWarningsRel(phase as PhaseId)), { force: true });
+    } catch {
+      // a stale file is overwritten or removed when the phase completes again
+    }
+  }
+}
+
+/**
  * Every reason the phase barrier (spec §6.1 items 1, 2, 5, 6) refuses; empty when the phase may complete. The warnings of the scans the
  * barrier runs anyway (the data checks, the gate lint, the executive stage) are added to `warnings` when one is given: nothing is
  * scanned for them, and a barrier that refuses leaves them for the next try.
@@ -285,7 +300,7 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       // The design checks: a manual case without its reasons and a coveredBy on a weak developer test refuse; the rest are warnings.
       const found = dataFindings(root, runId, "design", new Set(readRunConfig(root).reportRules.disable));
       const errors = found.filter((f) => f.severity === "error");
-      if (errors.length > 0) problems.push(designBlockMessage(errors));
+      if (errors.length > 0) problems.push(designBlockMessage(errors, readRunConfig(root).manualBudgetPercent === 0));
       warnings?.push(...found.filter((f) => f.severity === "warning"));
     }
     // The Blocked data checks while Execution is still active, where a specialist can still fix the result: no wording or personal-data rule here.
@@ -388,7 +403,7 @@ export async function completePhase(root: string, runId: string, phase: string, 
  * The warnings of the barrier as the phase completed, written to reports/lint/phase-{id}.json AFTER the completion committed (a refused
  * completion writes nothing, a phase without warnings removes the file of an earlier round). Never throws: the phase is complete either way.
  */
-function recordPhaseWarnings(root: string, runId: string, phase: PhaseId, warnings: readonly Finding[]): string | undefined {
+function recordPhaseWarnings(root: string, runId: string, phase: PhaseId, warnings: readonly Finding[], completedAt: string | undefined): string | undefined {
   const rel = phaseWarningsRel(phase);
   const file = join(runDir(root, runId), rel);
   try {
@@ -398,7 +413,7 @@ function recordPhaseWarnings(root: string, runId: string, phase: PhaseId, warnin
     }
     mkdirSync(join(runDir(root, runId), "reports", "lint"), { recursive: true });
     const findings = warnings.map((f) => ({ ...f, file: maskPath(f.file) }));
-    atomicWrite(file, JSON.stringify({ runId, phase, warnings: findings.length, findings }, null, 2) + "\n");
+    atomicWrite(file, JSON.stringify({ runId, phase, ...(completedAt !== undefined ? { completedAt } : {}), warnings: findings.length, findings }, null, 2) + "\n");
     return rel;
   } catch {
     return undefined;
@@ -460,7 +475,7 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
     return { state: next };
   });
   if ("state" in outcome) {
-    const report = recordPhaseWarnings(root, runId, id, warnings);
+    const report = recordPhaseWarnings(root, runId, id, warnings, outcome.state.phases[id]?.completedAt);
     return { state: outcome.state, warnings, ...(report !== undefined ? { warningsReport: report } : {}) };
   }
 
@@ -618,6 +633,7 @@ export async function reissueRun(root: string, runId: string, input: ReissueInpu
       archiveResetDecisions(root, runId, reopenedGates);
       // An environment probe of the old round is not fresh for the new one (never throws).
       removeStaleProbeReports(root, runId, reopenedPhases);
+      removeStalePhaseWarnings(root, runId, reopenedPhases);
     }
     return next;
   });

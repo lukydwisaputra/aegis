@@ -26,7 +26,7 @@ import { BASELINE_REL, PROBE_REL } from "./explore/probe.js";
 import { verifyRunIntegrity } from "./integrity.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { busPath, gateDecisionPath, gatesDir, runDir, taskmasterDir } from "./paths.js";
-import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase } from "./phases.js";
+import { describeStep, gateTaskId, gateTaskPassed, nextStep, parsePhase, removeStalePhaseWarnings } from "./phases.js";
 import { CYCLE_PHASES } from "./phase-map.js";
 import { commitRun, readRun, withRunLock } from "./run.js";
 import { reopenPhaseTasks } from "./supersede.js";
@@ -211,6 +211,7 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
     // An environment probe belongs to the round it was taken in: the execution one goes when Execution reopens, the g2 one when Triage
     // does (always, for a G2 rejection). Removed only once the decision is recorded; a failure to remove never undoes it.
     removeStaleProbeReports(root, runId, reopened);
+    removeStalePhaseWarnings(root, runId, reopened);
     return decision;
   });
 }

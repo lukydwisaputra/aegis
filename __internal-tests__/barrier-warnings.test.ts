@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
-import { busPath, completePhase, completePhaseWithWarnings, createRun, dataFindings, lintFindings, readRun, runDir, startPhase, type Finding } from '@qa/run-state';
+import { busPath, completePhase, reissueRun, completePhaseWithWarnings, createRun, dataFindings, lintFindings, readRun, runDir, startPhase, type Finding } from '@qa/run-state';
 import { appendChained } from '@qa/event-bus';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, workTask } from './helpers/pipeline';
@@ -249,7 +249,7 @@ describe('the phase barrier warning channel', () => {
     expect(state).not.toHaveProperty('warnings');
     expect(readRun(t.root, runId).phases['triage']!.status).toBe('completed');
     const file = JSON.parse(fs.readFileSync(phaseFile(), 'utf8'));
-    expect(file).toMatchObject({ runId, phase: 'triage', warnings: 1 });
+    expect(file).toMatchObject({ runId, phase: 'triage', warnings: 1, completedAt: state.phases['triage']!.completedAt });
     expect(file.findings.map((f: Finding) => `${f.rule}|${f.severity}`)).toEqual(['defect-title-length|warning']);
     // The lint walk never lints its own report.
     expect(lintFindings(t.root, runId, 'G2').findings.some((f) => f.file.startsWith('reports/lint/'))).toBe(false);
@@ -294,6 +294,39 @@ describe('the phase barrier warning channel', () => {
     expect(done.warnings).toEqual([]);
   });
 
+  it('a reissue that reopens the phase removes its warning file; the files of the phases before it stay', async () => {
+    await driveToActiveTriage();
+    await consistent();
+    putDefect('DEF-001-AUTH-UI', { title: 'T'.repeat(71) });
+    await completePhase(t.root, runId, 'triage', ORCH);
+    put('reports/lint/phase-design.json', { phase: 'design' });
+    expect(fs.existsSync(phaseFile())).toBe(true);
+    // Leave the run the way aegis run complete does: every phase done, every gate approved.
+    const file = path.join(runDir(t.root, runId), 'run.json');
+    const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const id of Object.keys(s.phases)) s.phases[id] = { ...s.phases[id], status: 'completed' };
+    const approved = { status: 'approved', decisions: 1 };
+    fs.writeFileSync(file, JSON.stringify({ ...s, status: 'completed', gates: { G1: approved, G2: approved, G3: approved } }));
+    await reissueRun(t.root, runId, { phase: 'triage', reason: 'Retriage after a wording fix' }, 'owner');
+    expect(fs.existsSync(phaseFile())).toBe(false);
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'lint', 'phase-design.json'))).toBe(true);
+  });
+
+  (stale ? it.skip : it)('the phase complete output carries the count, the first 10 warnings and the path of the full file', async () => {
+    await driveToActiveTriage();
+    const ids = Array.from({ length: 12 }, (_, i) => `DEF-${String(i + 1).padStart(3, '0')}-AUTH-UI`);
+    for (const id of ids) putDefect(id, { title: 'T'.repeat(71) });
+    await summary({ totalOpened: 12, duplicates: 0, severityBreakdown: { Sev2: 12 }, openApplicationDefects: 12 });
+    put('rtm.json', { rows: [], defectMap: ids.map((defectId) => ({ defectId, requirementId: 'REQ-AUTH-01' })) });
+    const env = { ...process.env, AEGIS_AGENT: ORCH, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+    const r = spawnSync(process.execPath, [CLI, 'phase', 'complete', '--phase', 'triage', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
+    expect(r.status).toBe(0);
+    const out = JSON.parse(r.stdout);
+    expect(out.warnings).toHaveLength(10);
+    expect(out).toMatchObject({ warningsCount: 12, warningsReport: 'reports/lint/phase-triage.json' });
+    expect(JSON.parse(fs.readFileSync(phaseFile(), 'utf8')).findings).toHaveLength(12);
+  }, 60_000);
+
   (stale ? it.skip : it)('the phase complete command prints the state with warnings', async () => {
     await driveToActiveTriage();
     await consistent();
@@ -302,7 +335,7 @@ describe('the phase barrier warning channel', () => {
     const r = spawnSync(process.execPath, [CLI, 'phase', 'complete', '--phase', 'triage', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
     expect(r.status).toBe(0);
     const out = JSON.parse(r.stdout);
-    expect(out).toMatchObject({ runId, warnings: [{ rule: 'defect-title-length', severity: 'warning', file: 'defects/DEF-001-AUTH-UI.json' }] });
+    expect(out).toMatchObject({ runId, warningsCount: 1, warnings: [{ rule: 'defect-title-length', severity: 'warning', file: 'defects/DEF-001-AUTH-UI.json' }] });
     expect(out.phases.triage.status).toBe('completed');
     expect(fs.existsSync(phaseFile())).toBe(true);
   }, 60_000);

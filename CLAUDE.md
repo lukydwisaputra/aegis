@@ -154,7 +154,7 @@ runs/{runId}/
   reports/executive/    # executive deck and sign-off (brand-clean)
   reports/work/         # work reports, one per attempt (CLI-written)
   reports/review/       # SPV reviews (CLI-written)
-  reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json, and stage-executive.json (CLI-written, aegis lint run)
+  reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json, stage-executive.json (CLI-written, aegis lint run), and phase-{phase}.json: the warnings of a completed phase's barrier (CLI-written, aegis phase complete; removed when the phase is reopened)
   reports/explore/      # Explore baseline.json and probe.json: page signatures and the reuse decision (CLI-written, aegis explore probe)
   reports/env/          # probe-execution.json and probe-g2.json: environment health and the build under test (CLI-written, aegis env probe)
   reports/.locks/       # submit and claim locks (CLI-owned)

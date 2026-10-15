@@ -104,6 +104,22 @@ describe('case path citations', () => {
   });
 });
 
+describe('prose is not a citation', () => {
+  it('"test cases/scenarios", "pass/fail cases/results" and "use cases/edge conditions" name no case file; a name shaped like a case file is still checked', () => {
+    closure();
+    put('reports/compliance/istqb.json', {
+      a: 'The test cases/scenarios were reviewed',
+      b: 'Counted pass/fail cases/results per module',
+      c: 'Use cases/edge conditions were added.',
+      d: 'Also see cases/ and the cases/results.',
+    });
+    put('reports/compliance/cmmi.md', 'Plan: test cases/scenarios and use cases/edge conditions.\n');
+    expect(found()).toEqual([]);
+    put('reports/compliance/pdpa.json', { a: 'cases/TC-OTP-044 and cases/notes.md and cases/TC-OTP-045.json' });
+    expect(found().map((f) => f.context)).toEqual(['cases/TC-OTP-044', 'cases/notes.md', 'cases/TC-OTP-045.json']);
+  });
+});
+
 describe('where it runs', () => {
   beforeEach(() => {
     closure();

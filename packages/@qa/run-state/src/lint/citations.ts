@@ -11,7 +11,7 @@ import type { Finding } from "./text.js";
  * - An open question `OQ-n` must be an id of closure.json#openQuestions (checked only when the closure lists its questions: a closure that
  *   states only a count, as the older runs do, gives nothing to resolve against).
  * - A `cases/...` path must name a case file of this run (the path, or the path with `.json`), reached through no symbolic link. A glob
- *   (`*`), a path under another run's `runs/RUN-.../` prefix and a longer path that merely contains `cases/` (tests/qa/cases/...) are not
+ *   (`*`), a name that is not case-file shaped (TC-..., .json, .md: "test cases/scenarios" is prose), a path under another run's `runs/RUN-.../` prefix and a longer path that merely contains `cases/` (tests/qa/cases/...) are not
  *   citations of this run.
  * Reads the parsed string values of the JSON files (a key is never a citation) and the text of the Markdown files; one finding per file
  * and citation, with the id or the path as a short masked snippet. Reads only.
@@ -19,6 +19,8 @@ import type { Finding } from "./text.js";
 const DANGLING = "this citation names nothing in the run: cite an open question the closure lists, and a case file that exists, or remove it";
 
 const OQ = /\bOQ-\d+\b/g;
+/** A name that looks like a case file: TC-... or a .json/.md file. Prose such as "test cases/scenarios" is not a citation. */
+const CASE_NAME = /^(?:TC-[A-Z]{2,8}-\d+|.*\.(?:json|md)$)/;
 const CASE_PATH = /(?<![A-Za-z0-9_.\-/])(?:runs\/(RUN-[A-Za-z0-9-]+)\/)?cases\/([A-Za-z0-9_.\-/*]+)/g;
 
 function listFiles(dir: string, rel: string, ext: RegExp): string[] {
@@ -96,6 +98,7 @@ export function citationFindings(root: string, runId: string): Finding[] {
         if (m[1] !== undefined && m[1] !== runId) continue; // another run's case
         const path = m[2]!.replace(/[.,;:)\]]+$/, "");
         if (path === "" || path.includes("*") || path.endsWith("/")) continue;
+        if (!CASE_NAME.test(path.split("/").pop()!)) continue;
         const caseRel = `cases/${path}`;
         if (!plainRunPath(dir, caseRel) && !plainRunPath(dir, `${caseRel}.json`)) add(caseRel, snippet(caseRel));
       }

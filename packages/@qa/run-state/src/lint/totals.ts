@@ -10,21 +10,36 @@ const TOTALS_MISMATCH =
   "the totals of the execution summary differ from the case result files (recomputed by the metrics package from the cases at this point of the run): correct the summary, or the result file that disagrees, before the figures reach the reports";
 
 /**
- * The totals of the execution summary that differ from the recomputed check counts, as `field stated vs recomputed`. Compared: passed,
- * failed, skipped, and blocked against blocked plus partial (the summary has no partial figure; a partial check is not a pass). A figure the
- * summary does not state as a number is not compared, and neither are the counts the summary has no field for (unknown, the ruled counts).
+ * The totals of the execution summary that differ from the recomputed check counts, as `field stated vs recomputed`. Compared: passed and
+ * failed, and the rest. The summary has no field for a case with no result file (notAttempted): the executor counts an accepted-with-risk
+ * task as blocked and a case it did not run as skipped, so when some case has no result the blocked and skipped figures are compared as one
+ * sum (blocked + skipped against blocked + partial + skipped + notAttempted, reported as `not run or blocked`); with none, blocked is
+ * compared with blocked + partial and skipped with skipped. A figure the summary does not state as a number is not compared, and neither
+ * are the counts the summary has no field for (unknown, the ruled counts).
  */
-export function executionTotalsMismatch(totals: Record<string, unknown>, counts: Pick<CoverageCounts, "passed" | "failed" | "partial" | "blocked" | "skipped">): string[] {
-  const pairs: Array<[string, number]> = [
-    ["passed", counts.passed],
-    ["failed", counts.failed],
-    ["blocked", counts.blocked + counts.partial],
-    ["skipped", counts.skipped],
-  ];
+export function executionTotalsMismatch(
+  totals: Record<string, unknown>,
+  counts: Pick<CoverageCounts, "passed" | "failed" | "partial" | "blocked" | "skipped"> & { notAttempted?: number },
+): string[] {
   const out: string[] = [];
-  for (const [field, actual] of pairs) {
+  const check = (field: string, actual: number): void => {
     const stated = totals[field];
     if (typeof stated === "number" && stated !== actual) out.push(`${field} ${stated} vs ${actual}`);
+  };
+  check("passed", counts.passed);
+  check("failed", counts.failed);
+  const notRun = counts.notAttempted ?? 0;
+  if (notRun === 0) {
+    check("blocked", counts.blocked + counts.partial);
+    check("skipped", counts.skipped);
+  } else {
+    const blocked = totals["blocked"];
+    const skipped = totals["skipped"];
+    if (typeof blocked === "number" || typeof skipped === "number") {
+      const stated = (typeof blocked === "number" ? blocked : 0) + (typeof skipped === "number" ? skipped : 0);
+      const actual = counts.blocked + counts.partial + counts.skipped + notRun;
+      if (stated !== actual) out.push(`not run or blocked ${stated} vs ${actual}`);
+    }
   }
   return out;
 }
