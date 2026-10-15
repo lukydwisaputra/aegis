@@ -13,7 +13,8 @@ import { fastForward, ORCH, produceDeliverables, review, TS, VALID_CLOSURE, work
 const APPROVED = { status: 'approved', decisions: 1 };
 const G2_DECIDED = { status: 'approved-with-conditions', decisions: 2 };
 const EXEC = 'qa-executive-reporter';
-const EXECUTION_RANGE = ['execution', 'triage', 'closure-draft', 'compliance', 'closure-final', 'executive', 'curator'] as const;
+// The curator runs once per run (item 7): a reissue of an earlier phase never reopens it.
+const EXECUTION_RANGE = ['execution', 'triage', 'closure-draft', 'compliance', 'closure-final', 'executive'] as const;
 let t: TmpAegis;
 let runId: string;
 afterEach(() => t?.cleanup()); // the pure REISSUABLE_PHASES test never creates a root
@@ -91,23 +92,24 @@ describe('REISSUABLE_PHASES', () => {
 });
 
 describe('reissueRun after the last gate', () => {
-  it('reopens executive and curator: tasks reopened and superseded, gates untouched, one event, integrity ok', async () => {
+  it('reopens executive and leaves the completed curator alone: tasks reopened and superseded, gates untouched, one event, integrity ok', async () => {
     await completedRun();
     const before = readRun(t.root, runId);
     const state = await reissueRun(t.root, runId, { phase: 'executive', reason: 'Wording fix' }, 'owner');
-    expect(state).toMatchObject({ status: 'running', currentPhase: null, supersededAttempts: { 'T-executive-1': { [EXEC]: 1 }, 'T-curator-1': { 'qa-curator': 1 } } });
+    expect(state).toMatchObject({ status: 'running', currentPhase: null, supersededAttempts: { 'T-executive-1': { [EXEC]: 1 } } });
     expect(state.phases.executive).toEqual({ status: 'pending' });
-    expect(state.phases.curator).toEqual({ status: 'pending' });
+    expect(state.phases.curator).toEqual(before.phases.curator);
+    expect(state.phases.curator).toMatchObject({ status: 'completed' });
     expect(state.phases['closure-final']).toEqual(before.phases['closure-final']);
     expect(state.gates).toEqual(before.gates);
-    expect(state.reissue).toEqual({ phase: 'executive', reason: 'Wording fix', at: state.updatedAt, reopenedPhases: ['executive', 'curator'], reopenedGates: [] });
+    expect(state.reissue).toEqual({ phase: 'executive', reason: 'Wording fix', at: state.updatedAt, reopenedPhases: ['executive'], reopenedGates: [] });
     expect(nextStep(state)).toEqual({ kind: 'start-phase', phase: 'executive' });
     const reopened = await task('T-executive-1');
     expect(reopened).toMatchObject({ status: 'pending' });
     expect(reopened).not.toHaveProperty('claimedBy');
-    expect(await task('T-curator-1')).toMatchObject({ status: 'pending' });
+    expect(await task('T-curator-1')).toMatchObject({ status: 'done' });
     const last = events().pop()!;
-    expect(last).toMatchObject({ type: 'run.reissued', phase: 'executive', reason: 'Wording fix', reopenedPhases: ['executive', 'curator'], reopenedGates: [], emittedBy: 'owner' });
+    expect(last).toMatchObject({ type: 'run.reissued', phase: 'executive', reason: 'Wording fix', reopenedPhases: ['executive'], reopenedGates: [], emittedBy: 'owner' });
     expect(last).not.toHaveProperty('cases');
     expect(fs.readdirSync(gatesDir()).sort()).toEqual(['gate-1-decision.json', 'gate-2-decision.json', 'gate-3-decision.json']);
     expect(await verifyRunIntegrity(t.root, runId, 'owner')).toMatchObject({ ok: true });
@@ -129,11 +131,7 @@ describe('reissueRun after the last gate', () => {
     fs.writeFileSync(path.join(t.root, 'again-r.json'), JSON.stringify(review('qa-executive-reporter-spv', EXEC, 'T-executive-1', 'passed')));
     await submitReview(t.root, runId, path.join(t.root, 'again-r.json'), 'qa-executive-reporter-spv');
     await completePhase(t.root, runId, 'executive', ORCH);
-    // Curator was completed before the reissue; it is not reused.
-    expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'start-phase', phase: 'curator' });
-    await startPhase(t.root, runId, 'curator', ORCH);
-    await redo('T-curator-1', 'qa-curator', null, 2);
-    await completePhase(t.root, runId, 'curator', ORCH);
+    // The curator runs once per run: it stays completed, so the run completes right after Executive.
     expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'complete-run' });
     expect((await completeRun(t.root, runId, ORCH)).status).toBe('completed');
     expect(events().filter((e) => e.type === 'run.completed')).toHaveLength(2);
@@ -176,17 +174,18 @@ describe('reissueRun after the last gate', () => {
     await completePhase(t.root, runId, 'curator', ORCH);
     await completeRun(t.root, runId, ORCH);
     const second = await reissueRun(t.root, runId, { phase: 'executive', reason: 'Wording fix' }, 'owner');
-    expect(second.reissue).toEqual({ phase: 'executive', reason: 'Wording fix', at: second.updatedAt, reopenedPhases: ['executive', 'curator'], reopenedGates: [] });
+    expect(second.reissue).toEqual({ phase: 'executive', reason: 'Wording fix', at: second.updatedAt, reopenedPhases: ['executive'], reopenedGates: [] });
     expect(events().filter((e) => e.type === 'run.reissued').map((e) => e.phase)).toEqual(['curator', 'executive']);
   });
 });
 
 describe('reissueRun before the last gate', () => {
-  it('reissuing execution resets execution through curator, resets G2 and G3 with their decisions kept, leaves G1 and earlier phases alone', async () => {
+  it('reissuing execution resets execution through executive (the curator stays completed), resets G2 and G3 with their decisions kept, leaves G1 and earlier phases alone', async () => {
     await completedRun();
     const before = readRun(t.root, runId);
     const state = await reissueRun(t.root, runId, { phase: 'execution', reason: 'Run the blocked checks', cases: ['TC-AUTH-002', 'TC-AUTH-001', 'TC-AUTH-002'] }, 'owner');
     for (const p of EXECUTION_RANGE) expect(state.phases[p]).toEqual({ status: 'pending' });
+    expect(state.phases.curator).toEqual(before.phases.curator);
     for (const p of PHASE_IDS.slice(0, PHASE_IDS.indexOf('execution'))) expect(state.phases[p]).toEqual(before.phases[p]);
     expect(state.gates).toEqual({ G1: before.gates.G1, G2: { status: 'reset', decisions: 2 }, G3: { status: 'reset', decisions: 1 } });
     expect(state.reissue).toEqual({
@@ -242,7 +241,7 @@ describe('reissueRun before the last gate', () => {
     fs.appendFileSync(bus, '{"seq":99,"prevH');
     await expect(reissueRun(t.root, runId, { phase: 'execution', reason: 'Run the blocked checks' }, 'owner')).rejects.toThrow(/torn tail/);
     const after = readRun(t.root, runId);
-    expect(after).toMatchObject({ status: 'completed', supersededAttempts: { 'T-executive-1': { [EXEC]: 1 }, 'T-curator-1': { 'qa-curator': 1 } } });
+    expect(after).toMatchObject({ status: 'completed', supersededAttempts: { 'T-executive-1': { [EXEC]: 1 } } });
     expect(after.phases).toEqual(before.phases);
     expect(after.gates).toEqual(before.gates);
     expect(after).not.toHaveProperty('reissue');
@@ -253,11 +252,11 @@ describe('reissueRun before the last gate', () => {
     });
     expect(events().filter((e) => e.type === 'run.reissued')).toHaveLength(1);
     expect(await task('T-executive-1')).toMatchObject({ status: 'pending' });
-    expect(readRun(t.root, runId).supersededAttempts).toEqual({ 'T-executive-1': { [EXEC]: 1 }, 'T-curator-1': { 'qa-curator': 1 } });
+    expect(readRun(t.root, runId).supersededAttempts).toEqual({ 'T-executive-1': { [EXEC]: 1 } });
     expect(fs.readdirSync(gatesDir()).sort()).toEqual(['gate-1-decision.json', 'gate-2-decision.2.json', 'gate-3-decision.1.json']);
   });
 
-  it('walks the whole reissued cycle: every gate is opened and decided anew, then executive, curator and a second run.completed', async () => {
+  it('walks the whole reissued cycle: every gate is opened and decided anew, then executive (the curator stays completed) and a second run.completed', async () => {
     await completedRun();
     await reissueRun(t.root, runId, { phase: 'execution', reason: 'Run the blocked checks' }, 'owner');
     const step = () => nextStep(readRun(t.root, runId));
@@ -295,10 +294,9 @@ describe('reissueRun before the last gate', () => {
     await produceDeliverables(t.root, runId);
     await redo('T-executive-1', EXEC, 'qa-executive-reporter-spv', 2);
     await completePhase(t.root, runId, 'executive', ORCH);
-    await startPhase(t.root, runId, 'curator', ORCH);
-    await redo('T-curator-1', 'qa-curator', null, 2);
-    await completePhase(t.root, runId, 'curator', ORCH);
+    // The curator runs once per run: the reissue did not reopen it, so the run is complete right after Executive.
     expect(step()).toEqual({ kind: 'complete-run' });
+    expect(await task('T-curator-1')).toMatchObject({ status: 'done' });
     expect((await completeRun(t.root, runId, ORCH)).status).toBe('completed');
     expect(events().filter((e) => e.type === 'run.completed')).toHaveLength(2);
     expect(fs.readdirSync(gatesDir()).sort()).toEqual([
@@ -307,25 +305,27 @@ describe('reissueRun before the last gate', () => {
     expect(await verifyRunIntegrity(t.root, runId, 'owner')).toMatchObject({ ok: true });
   });
 
-  it('reissuing closure-final resets G3 only, and its range is closure-final, executive and curator', async () => {
+  it('reissuing closure-final resets G3 only, and its range is closure-final and executive (not the curator)', async () => {
     await completedRun();
     const before = readRun(t.root, runId);
     const state = await reissueRun(t.root, runId, { phase: 'closure-final', reason: 'Closure wording' }, 'owner');
     expect(state.gates).toEqual({ G1: before.gates.G1, G2: before.gates.G2, G3: { status: 'reset', decisions: 1 } });
-    expect(state.reissue).toMatchObject({ reopenedPhases: ['closure-final', 'executive', 'curator'], reopenedGates: ['G3'] });
-    for (const p of ['closure-final', 'executive', 'curator'] as const) expect(state.phases[p]).toEqual({ status: 'pending' });
+    expect(state.reissue).toMatchObject({ reopenedPhases: ['closure-final', 'executive'], reopenedGates: ['G3'] });
+    for (const p of ['closure-final', 'executive'] as const) expect(state.phases[p]).toEqual({ status: 'pending' });
+    expect(state.phases.curator).toEqual(before.phases.curator);
     expect(state.phases['closure-draft']).toEqual(before.phases['closure-draft']);
     expect(state.phases.compliance).toEqual(before.phases.compliance);
     expect(nextStep(state)).toEqual({ kind: 'start-phase', phase: 'closure-final' });
     expect(fs.readdirSync(gatesDir()).sort()).toEqual(['gate-1-decision.json', 'gate-2-decision.json', 'gate-3-decision.1.json']);
   });
 
-  it('reissuing design resets G2 and G3 (G1 untouched) and every phase from design through curator', async () => {
+  it('reissuing design resets G2 and G3 (G1 untouched) and every phase from design through executive (not the curator)', async () => {
     await completedRun();
     const before = readRun(t.root, runId);
     const state = await reissueRun(t.root, runId, { phase: 'design', reason: 'Redesign the cases' }, 'owner');
     expect(state.gates).toEqual({ G1: before.gates.G1, G2: { status: 'reset', decisions: 2 }, G3: { status: 'reset', decisions: 1 } });
-    expect(state.reissue).toMatchObject({ reopenedPhases: PHASE_IDS.slice(PHASE_IDS.indexOf('design')), reopenedGates: ['G2', 'G3'] });
+    expect(state.reissue).toMatchObject({ reopenedPhases: PHASE_IDS.slice(PHASE_IDS.indexOf('design')).filter((p) => p !== 'curator'), reopenedGates: ['G2', 'G3'] });
+    expect(state.phases.curator).toEqual(before.phases.curator);
     expect(state.phases.planning).toEqual(before.phases.planning);
     expect(state.phases.design).toEqual({ status: 'pending' });
     expect(nextStep(state)).toEqual({ kind: 'start-phase', phase: 'design' });

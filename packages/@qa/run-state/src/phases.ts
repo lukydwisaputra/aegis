@@ -535,10 +535,14 @@ export interface ReissueInput {
   now?: Date;
 }
 
-/** The phases a reissue of `phase` sends back to pending: it and every later phase of the cycle. */
+/**
+ * The phases a reissue of `phase` sends back to pending: it and every later phase of the cycle, except the curator. The curator runs once per
+ * run, so a reissue of an earlier phase leaves it completed (its proposals and its task stay as they are); only a reissue of `curator` itself
+ * reopens it, and then it is the one phase reopened.
+ */
 export function reissueRange(cycleType: CycleType, phase: PhaseId): PhaseId[] {
   const inCycle = new Set<PhaseId>(CYCLE_PHASES[cycleType]);
-  return PHASE_IDS.slice(PHASE_IDS.indexOf(phase)).filter((p) => inCycle.has(p));
+  return PHASE_IDS.slice(PHASE_IDS.indexOf(phase)).filter((p) => inCycle.has(p) && (p !== "curator" || phase === "curator"));
 }
 
 /** The gates a reissue of `phase` resets: every gate whose phase is the reissued phase or a later one. */
