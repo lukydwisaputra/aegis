@@ -62,7 +62,7 @@ describe('cycle-time.json', () => {
   it('has one entry per pass of a phase, the phase agent, and durations from start to completion', () => {
     expect(ct.phases.map((p: any) => [p.phase, p.agentName, p.durationMs])).toEqual([
       ['intake', 'qa-orchestrator', 60_000], ['execution', 'qa-test-executor', 28 * 60_000], ['triage', 'qa-defect-manager', 9 * 60_000],
-      ['execution', 'qa-test-executor', 9 * 60_000], ['closure-draft', 'qa-closure-reporter', undefined],
+      ['execution', 'qa-test-executor', 9 * 60_000], ['closure-draft', 'qa-defect-manager', undefined],
     ]);
     expect(ct.phases[4]).not.toHaveProperty('completedAt');
   });

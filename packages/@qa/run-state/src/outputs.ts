@@ -21,14 +21,9 @@ function checkOutput(root: string, file: string, rel: string, schema: OutputSche
   const issues = rel === CLOSURE_OUTPUT ? withoutDisabledRules(root, parsed.error?.issues ?? []) : (parsed.error?.issues ?? []);
   if (issues.length === 0) return { value };
   const closure = rel === CLOSURE_OUTPUT;
-  // Closure-final keeps the metrics as drafted (the reporter's instructions), so adding a null key is not a remedy there.
-  const shaped = closure && phase === "closure-final" ? issues.map((i) => ({ ...i, message: i.message.replace(ADD_KEY_REMEDY, "name each in unavailableMetricValues (the metrics stay as drafted at Closure-final)") })) : issues;
   const exception = closure ? "; reportRules.disable with closure-schema is the owner's recorded exception for a closure that predates this check" : "";
-  return { problem: `output ${rel} is invalid: ${formatIssues(shaped)}${exception}` };
+  return { problem: `output ${rel} is invalid: ${formatIssues(issues)}${exception}` };
 }
-
-/** The remedy text of the closure-metrics-missing issue that Closure-final cannot take (see CLOSURE_METRICS_MISSING in contracts). */
-const ADD_KEY_REMEDY = "state each (null when it cannot be computed) or name it in unavailableMetricValues";
 
 /**
  * The closure file's issues the owner has not turned off: reportRules.disable with closure-schema lifts the whole check (a run in

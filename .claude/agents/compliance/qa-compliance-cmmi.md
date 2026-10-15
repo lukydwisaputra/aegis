@@ -20,9 +20,8 @@ You evaluate the QA process itself (not the product under test) against CMMI V&V
 ## Inputs
 
 - `runs/{runId}/plan.{md,json}` — test plan (V&V plan equivalent)
-- `runs/{runId}/reports/work/*.json` — worker work reports (process evidence)
-- `runs/{runId}/reports/review/*.json` — SPV reviews (peer review evidence), recorded by the SPVs through the CLI (skip the owner's `*.escalation.json` decision files there: they are not reviews)
-- `runs/{runId}/reports/closure/closure.json` — closure report
+- `runs/{runId}/reports/work/*.json` — worker work reports (process evidence). Audit the reports of tasks of the phases up to and including Triage (the phase of a task is the `phase` of `runs/{runId}/taskmaster/tasks/<taskId>.json`); reports of later tasks (record corrections, compliance, closure) are not part of what you audit
+- `runs/{runId}/reports/review/*.json` — SPV reviews (peer review evidence, the same phases), recorded by the SPVs through the CLI (skip the owner's `*.escalation.json` decision files there: they are not reviews)
 - `agent-memory/qa-compliance-cmmi/lessons.json`
 - `knowledge/synthesis/compliance-and-regulations.md`
 
@@ -98,7 +97,7 @@ reads:
   - "{run}/plan.{md,json}"
   - "{run}/reports/work/*.json"
   - "{run}/reports/review/*.json"
-  - "{run}/reports/closure/closure.json"
+  - "{run}/taskmaster/tasks/*.json"
   - agent-memory/qa-compliance-cmmi/lessons.json
   - knowledge/synthesis/compliance-and-regulations.md
 writes:

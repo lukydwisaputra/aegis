@@ -21,7 +21,7 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 
 - `runs/{runId}/plan.{md,json}` — test plan
 - `runs/{runId}/cases/*.json` — test cases
-- `runs/{runId}/reports/closure/closure.json` — closure report
+- `runs/{runId}/execution-summary.json` — what ran and its totals (the closure report is written after you and is never an input)
 - `runs/{runId}/rtm.json`
 - `knowledge/synthesis/compliance-and-regulations.md`
 - `agent-memory/qa-compliance-istqb/lessons.md`
@@ -37,11 +37,11 @@ You evaluate the QA cycle against ISTQB Foundation Level 4.0 (CTFL) syllabus. Yo
 
 ## Process
 
-1. **Terminology audit.** Check plan + closure report for ISTQB-aligned terminology. "Bug" used instead of "defect"? "Test case" vs "test procedure" vs "test script" confused? Flag misuses.
+1. **Terminology audit.** Check the plan, the test cases and the defect records for ISTQB-aligned terminology. "Bug" used instead of "defect"? "Test case" vs "test procedure" vs "test script" confused? Flag misuses.
 2. **Test levels coverage.** Verify all applicable levels have TC coverage. Unit, integration (API), system (E2E), and acceptance (UAT/smoke) should all appear in the RTM.
 3. **Technique application accuracy.** For each test technique declared in the plan, verify it was applied per ISTQB definition (e.g., BVA = testing min, max, and just inside/outside boundaries — not just "two values per field").
 4. **Process conformance.** Test plan has: entry criteria, exit criteria, suspension criteria, and a test completion report section.
-5. **Coverage measurement.** Requirements coverage and test execution coverage are computed and documented in the closure report.
+5. **Coverage measurement.** Requirements coverage and test execution coverage are measurable: the RTM links each requirement to its cases and the execution summary states what ran. Flag a requirement with no case and a coverage figure the plan sets but the records cannot support.
 
 ## Outputs
 
@@ -88,7 +88,7 @@ reviewedBy: qa-compliance-spv
 reads:
   - "{run}/plan.{md,json}"
   - "{run}/cases/*.json"
-  - "{run}/reports/closure/closure.json"
+  - "{run}/execution-summary.json"
   - "{run}/rtm.json"
   - knowledge/synthesis/compliance-and-regulations.md
   - agent-memory/qa-compliance-istqb/lessons.md

@@ -24,15 +24,16 @@ function requiredMetricFiles(): string[] {
   return [...new Set(names)];
 }
 
-describe('the CLI refreshes the metric files at the start of Closure-draft and Executive (item 7: no agent is dispatched)', () => {
+describe('the CLI refreshes the metric files at the start of Closure-draft, Closure-final and Executive (item 7: no agent is dispatched)', () => {
   const orch = read(ORCH);
 
-  it('states that phase start writes the files at Closure-draft and Executive, no agent or task, and aegis metrics all as the manual refresh', () => {
-    expect(orch).toContain("`aegis phase start --phase closure-draft` and `aegis phase start --phase executive` (full cycle) first recompute every figure from the run's records");
+  it('states that phase start writes the files at Closure-draft, Closure-final and Executive, no agent or task, and aegis metrics all as the manual refresh', () => {
+    expect(orch).toContain("`aegis phase start --phase closure-draft`, `aegis phase start --phase closure-final` and `aegis phase start --phase executive` (full cycle) first recompute every figure from the run's records");
     expect(orch).toContain('(nothing is dispatched or spawned)');
     expect(orch).toContain('`AEGIS_AGENT=qa-orchestrator pnpm aegis metrics all` is for a manual refresh only');
     expect(orch).toContain('No task is added and no SPV reviews it.');
-    expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| `qa-closure-reporter` \(draft pass\) \| The CLI refreshes the metric files at the start/);
+    expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| none; `qa-defect-manager` only for corrections a gate decision demands \| The closure is written once, at Closure-final\. The CLI refreshes the metric files at the start/);
+    expect(orch).toMatch(/\| Closure-final \| `closure-final` \| `qa-closure-reporter` \| The one closure pass: every section, the compliance reports folded in\. Followed by Gate 3\. The CLI refreshes the metric files at the start/);
     expect(orch).toMatch(/\| Executive \| `executive` \| `qa-executive-reporter` \| Starts only after Gate 3 is approved\. The CLI refreshes the metric files at the start/);
     expect(orch).not.toContain('qa-metrics-collector');
   });
@@ -53,8 +54,9 @@ describe('the CLI refreshes the metric files at the start of Closure-draft and E
     expect(resume).not.toMatch(/re-dispatches the metrics collector/);
   });
 
-  it('a closure-reporter brief names the pass', () => {
-    expect(orch).toContain('A `qa-closure-reporter` brief names the `pass`: `draft` in Closure-draft, `final` in Closure-final.');
+  it('the closure reporter is dispatched only in Closure-final', () => {
+    expect(orch).toContain('A `qa-closure-reporter` is dispatched only in Closure-final, never in Closure-draft.');
+    expect(orch).not.toMatch(/draft pass|final pass/);
   });
 });
 
@@ -134,21 +136,22 @@ describe('the closure reporter never waits for a metric file', () => {
   });
 });
 
-describe('Closure-final is a final pass over the draft (AUD-004 partial)', () => {
+describe('Closure-final is the one closure pass, which folds in the compliance reports', () => {
   const closure = read(CLOSURE);
 
-  it('rewrites closure.json folding in the compliance reports and keeps the draft numbers', () => {
-    expect(closure).toContain('**Final pass (Closure-final).**');
-    expect(closure).toContain('rewrite `closure.json` and `closure.md`, folding in `reports/compliance/*`');
-    expect(closure).toContain("Keep the draft's numbers: `cycleDate`, `metrics`, `defectMetrics`, `unavailableMetrics`");
-    const finalPass = closure.slice(closure.indexOf('**Final pass (Closure-final).**'), closure.indexOf('6. **Submit, release, stop.**'));
-    expect(finalPass).toContain('Expect one compliance report per relevant regulation');
-    expect(finalPass).toContain('A missing report for a relevant regulation is a closure gap, not a pass.');
+  it('writes closure.json once from the current inputs and folds in the compliance reports', () => {
+    expect(closure).toContain('5. **Fold in compliance.**');
+    expect(closure).toContain('You write the closure once per round, in Closure-final, after Compliance');
+    expect(closure).not.toMatch(/draft pass|final pass|Keep the draft's numbers|your own draft/);
+    const fold = closure.slice(closure.indexOf('5. **Fold in compliance.**'), closure.indexOf('6. **Submit, release, stop.**'));
+    expect(fold).toContain('Expect one compliance report per relevant regulation');
+    expect(fold).toContain('A missing report for a relevant regulation is a closure gap, not a pass.');
   });
 
-  it('reads its own draft and the compliance reports in the final pass', () => {
+  it('reads the compliance reports and no draft of its own, and is the Closure-final contract', () => {
     const reads = paths(contractOf(closure).reads);
-    expect(reads).toContain('{run}/reports/closure/closure.json');
+    expect(reads).not.toContain('{run}/reports/closure/closure.json');
     expect(reads).toContain('{run}/reports/compliance/*.json');
+    expect(closure).toMatch(/```yaml[\s\S]*\nphase: closure-final\n/);
   });
 });

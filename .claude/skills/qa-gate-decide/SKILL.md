@@ -19,7 +19,7 @@ The only way a human gate is decided. A full cycle pauses at three gates — G1 
 | `--gate` | *(required)* | Gate number or id: `1`/`G1`, `2`/`G2`, `3`/`G3` |
 | `--decision` | *(required)* | `approved`, `approved-with-conditions` or `rejected` |
 | `--note` | *(required)* | The owner's words, recorded verbatim; conditions go here |
-| `--reopen-phase` | the gated phase | Rejected only: the phase the run returns to (for example `design` after a G2 rejection) |
+| `--reopen-phase` | the gated phase | Rejected only: the phase the run returns to (for example `design` after a G2 rejection). A G3 rejection that demands record corrections returns to `closure-draft` (it hosts the corrections; Compliance then runs again from the corrected records); one that asks for different compliance findings returns to `compliance`; one that only asks for another closure wording returns to `closure-final`, which keeps the compliance reports as they are |
 | `--re-explore` | off | With a rejection that reopens Explore: do not reuse the earlier discovery |
 | `--cases` | none | Rejected only: comma-separated test case ids a re-run may cover (the case scope); refused at G1 and at G3, unless the rejection reopens Execution or an earlier phase, when the run has no case designs yet, and for an unknown, malformed or descoped id. Without it a rejection lapses any earlier case scope |
 | `--run` | active run | Run to decide |
