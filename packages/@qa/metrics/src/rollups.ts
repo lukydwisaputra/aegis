@@ -34,11 +34,11 @@ const mean = (xs: readonly number[]): number | null => (xs.length === 0 ? null :
 const ms = (ts: string): number => new Date(ts).getTime();
 const isPlain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
-/** The agent that works each phase (.claude/pipeline.yaml); a phase with no phase agent is the orchestrator's (it dispatches the rest). */
+/** The agent that works each phase (.claude/pipeline.yaml); a phase with no phase agent is the orchestrator's (it dispatches the rest). Closure-draft hosts only the record corrections a gate decision demands, which are the defect manager's. */
 const PHASE_AGENT: Readonly<Record<string, string>> = {
   intake: "qa-orchestrator", scan: "qa-context-scanner", "dev-test-review": "qa-dev-test-reviewer", requirements: "qa-requirements-analyst",
   "env-auth": "qa-environment-engineer", explore: "qa-web-explorer", planning: "qa-test-planner", design: "qa-test-designer",
-  "env-data": "qa-environment-engineer", execution: "qa-test-executor", triage: "qa-defect-manager", "closure-draft": "qa-closure-reporter",
+  "env-data": "qa-environment-engineer", execution: "qa-test-executor", triage: "qa-defect-manager", "closure-draft": "qa-defect-manager",
   compliance: "qa-orchestrator", "closure-final": "qa-closure-reporter", executive: "qa-executive-reporter", curator: "qa-curator",
 };
 

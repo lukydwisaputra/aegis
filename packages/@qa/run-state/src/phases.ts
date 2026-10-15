@@ -119,7 +119,7 @@ export function parsePhase(phase: string): PhaseId {
   return parsed.data;
 }
 
-/** A started phase: the new run state, and what the start itself did besides starting (the metric refresh of Closure-draft and Executive). */
+/** A started phase: the new run state, and what the start itself did besides starting (the metric refresh of Closure-draft, Closure-final and Executive). */
 export interface PhaseStart {
   state: RunState;
   /** Plain-language notes, never a refusal: a metric refresh that did not happen says why and that the files were left as they were. */
@@ -129,7 +129,7 @@ export interface PhaseStart {
 }
 
 /** The phases whose start refreshes the metric files first (full cycle): the closure reporter and the executive reporter read them. */
-export const METRICS_AT_START: ReadonlySet<PhaseId> = new Set<PhaseId>(["closure-draft", "executive"]);
+export const METRICS_AT_START: ReadonlySet<PhaseId> = new Set<PhaseId>(["closure-draft", "closure-final", "executive"]);
 
 /** startPhase for callers that return RunState (the call sites of the tests): the state of startPhaseWithWarnings. */
 export async function startPhase(root: string, runId: string, phase: string, caller: string, now?: Date): Promise<RunState> {
@@ -164,7 +164,7 @@ export async function startPhaseWithWarnings(root: string, runId: string, phase:
     if (readOnly !== null) {
       throw new RunStateError("env-blocked", `cannot start env-data: ${readOnly}; record it with aegis phase complete --phase env-data --not-applicable`);
     }
-    // Closure-draft and Executive read the metric files: write them now, in this process and before the phase is marked started (the
+    // Closure-draft, Closure-final (the one closure pass, which also covers a Closure-draft recorded not-applicable) and Executive read the metric files: write them now, in this process and before the phase is marked started (the
     // cycle event needs Executive still pending). A refusal (a malformed case-of-record declaration) never refuses the start: the files stay
     // as they were and the warning names the cause.
     if (state.cycleType === "full" && METRICS_AT_START.has(id)) {
@@ -202,6 +202,23 @@ export function notApplicableReason(root: string, runId: string, phase: PhaseId)
     // The Scan snapshot, not the file: a later rewrite of the profile cannot force a skip (AUD-055).
     const relevant = relevantRegulations(configured, readRun(root, runId).phases.scan?.personalData);
     return relevant.length === 0 ? "no listed regulation applies: gdpr and pdpa need personal data (target-profile.json#hasPersonalData is false)" : null;
+  }
+  if (phase === "closure-draft") {
+    // The closure is written once, at Closure-final. Closure-draft stays in the phase list (old runs and their events name it) and hosts only
+    // the record corrections a gate decision demands; without any, the orchestrator records it not-applicable. The owner who reopened it on
+    // purpose (a Gate 3 rejection with --reopen-phase closure-draft, a reissue of it) asked for the corrections: not-applicable is refused then.
+    // A condition in free text (approved-with-conditions) has no machine-readable demand: that stays the orchestrator's prose rule.
+    const state = readRun(root, runId);
+    if (state.reissue?.phase === "closure-draft") return null;
+    let rejectedToDraft = false;
+    try {
+      const g3 = loadJson(gateDecisionPath(root, runId, "G3")) as { decision?: unknown; reopenPhase?: unknown } | null;
+      rejectedToDraft = g3?.decision === "rejected" && g3.reopenPhase === "closure-draft";
+    } catch {
+      // no decision file: nothing was demanded
+    }
+    if (rejectedToDraft) return null;
+    return "the closure report is written once, at Closure-final; this phase only hosts corrections a gate decision demands";
   }
   if (phase === "env-data") {
     // Nothing may be seeded on a read-only environment (spec §6.3; production is never mutated).

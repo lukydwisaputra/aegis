@@ -23,7 +23,7 @@ flowchart TD
     end
 
     subgraph CrossCutting["Cross-Cutting (on demand)"]
-        MetricsCollector(["aegis metrics all<br/>CLI, at the start of Closure-draft and Executive, writes reports/metrics/"])
+        MetricsCollector(["aegis metrics all<br/>CLI, at the start of Closure-draft, Closure-final and Executive, writes reports/metrics/"])
         Curator(["qa-curator<br/>once, after Executive"])
     end
 
@@ -98,7 +98,7 @@ flowchart TD
     end
 
     %% Orchestrator start + metrics
-    Orchestrator -->|phase start of Closure-draft and Executive| MetricsCollector
+    Orchestrator -->|phase start of Closure-draft, Closure-final and Executive| MetricsCollector
     MetricsCollector -->|writes every rollup| MetricsFiles
 
     %% Discovery (two-event barrier)
@@ -202,7 +202,7 @@ flowchart TD
 4. **Sandbox flow**: exploratory scratch → `sandbox/{date}-{slug}/`. At session end: covered observations → `reports/exploratory/`; suspected defects → `runs/{runId}/defect-candidates/` + `runs/{runId}/evidence/exploratory/`; then the specialist removes the sandbox.
 5. **Closure**: `qa-defect-manager` (triages scripted + EXP-type defects) → **Gate 2** → compliance (parallel) + `qa-closure-reporter` (reads `reports/metrics/`, writes `reports/closure/closure.{md,json}`) → **Gate 3** → `qa-executive-reporter` (PDFs in `reports/executive/`).
 6. **SPV loop**: every worker claims its task, submits a work report and releases the task through the CLI; its dispatcher (orchestrator for Tier-1, test-executor for Tier-2) dispatches the paired SPV, which submits its verdict with `aegis review submit`. The CLI appends a lesson on any non-pass verdict and escalates the third rejection.
-7. **Metrics**: `aegis phase start` for Closure-draft and again for Executive runs `aegis metrics all` itself (CLI code, no agent, no spawned process; the orchestrator runs it by hand only to refresh after a record correction). Each call reads `events.jsonl` from the beginning and writes every rollup to `reports/metrics/`, so closure-reporter reads them with no wait; a file still missing is recorded in `closure.json#unavailableMetrics`.
+7. **Metrics**: `aegis phase start` for Closure-draft, for Closure-final and again for Executive runs `aegis metrics all` itself (CLI code, no agent, no spawned process; the orchestrator runs it by hand only to refresh after a record correction made once the closure reporter has started). Each call reads `events.jsonl` from the beginning and writes every rollup to `reports/metrics/`, so closure-reporter reads them with no wait; a file still missing is recorded in `closure.json#unavailableMetrics`.
 8. **Self-improvement**: `qa-curator` runs once per run, in the Curator phase after Executive (a reissue does not run it again), and writes proposals to `pending-promotions/`.
 
 ## Regenerating the SVG

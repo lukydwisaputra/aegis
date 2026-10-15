@@ -26,8 +26,9 @@ export const ScanProfileSchema = TargetProfileSchema.superRefine((p, ctx) => {
   }
 });
 
-// Every phase except Intake needs at least one released task before it can complete.
-export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake"]);
+// Every phase except Intake and Closure-draft needs at least one released task before it can complete. Closure-draft hosts only the record
+// corrections a gate decision demands, so a started one with nothing to correct completes without a task (never stuck).
+export const PHASES_WITHOUT_TASKS: ReadonlySet<PhaseId> = new Set<PhaseId>(["intake", "closure-draft"]);
 
 /** What the barrier needs from an output schema: zod's safeParse, without run-state depending on zod. */
 export interface OutputSchema {
@@ -49,7 +50,7 @@ export const PHASE_OUTPUTS: Readonly<Partial<Record<PhaseId, readonly string[]>>
   design: ["rtm.json"],
   "env-data": ["env-setup-report.json"],
   execution: ["execution-summary.json"],
-  "closure-draft": [CLOSURE_OUTPUT],
+  // Closure-draft no longer writes the closure (it only hosts the corrections a gate decision demands); a run that wrote one there still reads.
   "closure-final": [CLOSURE_OUTPUT],
 };
 
@@ -66,7 +67,7 @@ export const OUTPUT_SCHEMAS: Readonly<Record<string, OutputSchema>> = {
   "dev-test-review.json": DevTestReviewSchema,
   "env-auth-report.json": EnvAuthBarrierSchema,
   "execution-summary.json": ExecutionSummaryCoreSchema,
-  // Applied at closure-draft and closure-final (both list the file in PHASE_OUTPUTS). reportRules.disable with closure-schema lifts it.
+  // Applied at closure-final (the one phase that lists the file in PHASE_OUTPUTS). reportRules.disable with closure-schema lifts it.
   [CLOSURE_OUTPUT]: ClosureFileSchema,
 };
 

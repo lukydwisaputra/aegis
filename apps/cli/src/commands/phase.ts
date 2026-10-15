@@ -8,12 +8,12 @@ const WARNINGS_SHOWN = 10;
 export function phaseCommand(): Command {
   const phase = new Command("phase").description("Start and complete pipeline phases (orchestrator only)");
   phase.command("start")
-    .description("Start the next phase in the canonical order; Closure-draft and Executive first refresh the metric files (aegis metrics all)")
+    .description("Start the next phase in the canonical order; Closure-draft, Closure-final and Executive first refresh the metric files (aegis metrics all)")
     .requiredOption("--phase <id>", "phase id, e.g. scan")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(action(async (o: { phase: string; run?: string }) => {
       const ctx = context();
-      // The run state, plus (Closure-draft and Executive of a full cycle) what the metric refresh wrote, or a warning that it did not happen.
+      // The run state, plus (Closure-draft, Closure-final and Executive of a full cycle) what the metric refresh wrote, or a warning that it did not happen.
       const started = await startPhaseWithWarnings(ctx.root, runIdFor(ctx, o.run), o.phase, ctx.caller);
       return { ...started.state, ...(started.metrics !== undefined ? { metrics: started.metrics } : {}), ...(started.warnings.length > 0 ? { warnings: started.warnings } : {}) };
     }));
