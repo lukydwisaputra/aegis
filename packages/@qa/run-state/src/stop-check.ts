@@ -49,8 +49,18 @@ const EXECUTOR = "qa-test-executor";
  * while specialists still run. During an escalation, a stop request or a block it may return once nothing it dispatched is in
  * flight (its task stays claimed, as its prose says). Null lets this task through.
  */
-async function executorLoopProblem(root: string, runId: string, task: Task, noReport: string, now?: Date): Promise<string | null> {
-  const v = await readNextTasks(root, runId, task.phase, now);
+async function executorLoopProblem(root: string, runId: string, task: Task, noReport: string, out: StopVerdict, now?: Date): Promise<string | null> {
+  let v;
+  try {
+    v = await readNextTasks(root, runId, task.phase, now);
+  } catch (e) {
+    // Fix 5 (m1): a bad aegis.config.json#execution never traps the executor; the stop is let through and says why.
+    if (e instanceof RunStateError && /aegis\.config\.json/.test(e.message)) {
+      out.warnings.push(`executor loop guard off: ${e.message.split("\n")[0]}; stop allowed (the owner fixes aegis.config.json)`);
+      return null;
+    }
+    throw e;
+  }
   const phase = v.phase ?? task.phase ?? "execution";
   const wait = `AEGIS_AGENT=${EXECUTOR} pnpm aegis task next --phase ${phase} --wait 540`;
   const inFlight = inFlightOf(v);
@@ -81,7 +91,7 @@ async function workerProblem(root: string, runId: string, input: StopInput, runL
     const noReport = `task ${taskId} is still claimed by you and has no work report from this claim: submit it (AEGIS_AGENT=${agent} pnpm aegis work-report submit --file /dev/stdin), then release it (aegis task release --task ${taskId} --result done|failed) before you stop`;
     if (freshAttempt(root, runId, agent, taskId) === null) {
       if (agent !== EXECUTOR) return noReport;
-      const loop = await executorLoopProblem(root, runId, task, noReport, input.now);
+      const loop = await executorLoopProblem(root, runId, task, noReport, out, input.now);
       if (loop === null) continue;
       return loop;
     }

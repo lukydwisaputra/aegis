@@ -7,7 +7,7 @@ import { appendChained } from '@qa/event-bus';
 import { appendLedger, readLedger } from '@qa/path-guard';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, appendSpecialistDispatched, createRun, LIVENESS_GRACE_MS, readSettings, RESUME_FRESH_DISPATCHER_MS, RESUME_FRESH_MS, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
+  addTask, appendSpecialistDispatched, createRun, LIVENESS_GRACE_MS, readSettings, RESUME_FRESH_MS, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
   releaseTask, requestStop, resumeRun, reviewDir, submitReview, submitWorkReport, taskmasterDir, waitNextTasks,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
@@ -197,12 +197,13 @@ describe('the dispatch reservation (aegis event append --type specialist.dispatc
 
   it('lets exactly two of four simultaneous dispatches take the two slots', async () => {
     const results = await Promise.allSettled([dispatch('T-2', UI), dispatch('T-3', API), dispatch('T-4', DB), dispatch('T-5', SEC)]);
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
-    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-    // fix 4: the verdict is the offer, so a task beyond the offer is refused not-offered when it comes first, cap-reached after
-    expect(rejected).toHaveLength(2);
-    for (const r of rejected) expect(['cap-reached', 'invalid-input']).toContain(r.reason.code);
-    expect(events('specialist.dispatched')).toHaveLength(2);
+    // The verdict is the offer (T-2 and T-3, the first two by id), so exactly those two win, in any order of arrival. A task
+    // beyond the offer is refused `cap-reached` once both slots are reserved, or `not-offered` when it arrives before they are.
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled', 'rejected', 'rejected']);
+    for (const r of results.slice(2) as PromiseRejectedResult[]) {
+      expect(r.reason.code === 'cap-reached' || (r.reason.code === 'invalid-input' && /^not-offered/.test(r.reason.message))).toBe(true);
+    }
+    expect(events('specialist.dispatched').map((e) => e.taskId).sort()).toEqual(['T-2', 'T-3']);
   });
 
   it('a reservation lapses after the grace period when no instance of the specialist started, and is consumed by the claim', async () => {
@@ -583,7 +584,7 @@ describe('fix 2: execution.dispatchMode (absent: batch)', () => {
     fs.writeFileSync(file, JSON.stringify({ ...config, execution: { dispatchMode: 'fast' } }));
     await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('aegis.config.json#execution.dispatchMode must be "batch" (the default) or "continuous"') });
     await add('T-2', UI);
-    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('execution.dispatchMode') });
+    await claimTask(t.root, runId, 'T-2', UI); // a claim never reads the mode (fix 5)
     fs.writeFileSync(file, JSON.stringify({ ...config, execution: 'continuous' }));
     await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ message: expect.stringContaining('aegis.config.json#execution must be an object') });
     fs.writeFileSync(file, JSON.stringify({ ...config, execution: {} }));
@@ -858,25 +859,45 @@ describe('fix 4: liveness by session at a resume, by time only as the fallback; 
     expect(v.dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
   });
 
-  it('an agent inside a long Bash call across a resume of its own session stays alive', async () => {
-    await holdT2('ui-1', 'S1', 5); // 5 minutes into one call: the 90 s fallback would end it
+  it('a SAME-session crash then resume (every real resume so far) ends the ghost executor and the ghost specialist at once', async () => {
+    await holdT1('ex-1', 'S1', 6); // died 6 minutes before the owner resumed in the same session (--continue keeps the id)
+    await holdT2('ui-1', 'S1', 6);
+    await resumeBy('S1');
+    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+    const v = await nextTasks(t.root, runId, EXEC);
+    expect(v.running).toEqual([]);
+    expect(v.dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+
+  it('a live specialist with an entry 20 s before a same-session resume stays running', async () => {
+    await holdT2('ui-1', 'S1', 20 / 60);
     await resumeBy('S1');
     expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
   });
 
-  it('the executor inside task next --wait 540 across a resume of its own session stays alive', async () => {
-    await holdT1('ex-1', 'S1', 9);
+  it('a specialist inside a long Bash call across a same-session resume IS ended; its later work report and release are still accepted', async () => {
+    await holdT2('ui-1', 'S1', 5);
     await resumeBy('S1');
-    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+    expect((await nextTasks(t.root, runId, EXEC)).dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+    entry('ui-1', UI, 'heartbeat', new Date(), { session: 'S1' }); // it was alive after all: a later entry does not revive it
+    expect((await nextTasks(t.root, runId, EXEC)).running).toEqual([]);
+    await submitWorkReport(t.root, runId, tmp(workReport(UI, 'T-2')), UI);
+    await releaseTask(t.root, runId, 'T-2', 'done', UI);
+    expect((await nextTasks(t.root, runId, EXEC)).review).toEqual([expect.objectContaining({ task: 'T-2' })]);
   });
 
-  it('fallback without session data: 11 minutes for the executor, 90 seconds for the others', async () => {
-    expect(RESUME_FRESH_DISPATCHER_MS).toBe(11 * 60_000);
+  it('the executor is ended at every resume, also inside task next --wait 540 of the same session: the new orchestrator supersedes it', async () => {
+    await holdT1('ex-1', 'S1', 1);
+    await resumeBy('S1');
+    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+  });
+
+  it('without session data: the executor is ended at the resume, a specialist silent 100 s is ended', async () => {
     expect(RESUME_FRESH_MS).toBe(90_000);
-    await holdT1('ex-1', undefined, 9); // 9 minutes in --wait: kept
-    await holdT2('ui-1', undefined, 100 / 60); // 100 s: ended
+    await holdT1('ex-1', undefined, 0.2);
+    await holdT2('ui-1', undefined, 100 / 60);
     await resumeBy(undefined);
-    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+    await expect(reclaimT1('ex-2')).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
     expect((await nextTasks(t.root, runId, EXEC)).dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
   });
 
@@ -914,15 +935,21 @@ describe('fix 4: liveness by session at a resume, by time only as the fallback; 
   });
 });
 
-describe('fix 4: the dispatch check accepts exactly what task next offers (state-generated, batch and continuous)', () => {
-  type State = 'none' | 'running' | 'released' | 'reviewing' | 'redrive' | 'redriving' | 'resume' | 'escalated';
-  const STATES: State[] = ['none', 'running', 'released', 'reviewing', 'redrive', 'redriving', 'resume', 'escalated'];
-  const SECOND: State[] = ['none', 'running', 'released', 'resume'];
+describe('fix 5: offer and dispatch verdict against an independent oracle of the documented rules (state-generated)', () => {
+  type State = 'none' | 'running' | 'released' | 'reviewing' | 'redrive' | 'redriving' | 'resume' | 'reserved' | 'corrective' | 'escalated' | 'other-phase';
+  const FIRST: State[] = ['none', 'running', 'released', 'reviewing', 'redrive', 'redriving', 'resume', 'reserved', 'corrective'];
+  const SECOND: State[] = ['none', 'running', 'released', 'reserved', 'escalated'];
   const rawDispatch = (id: string, agent: string) =>
     appendChained({ type: 'specialist.dispatched', ts: new Date().toISOString(), runId, specialistName: agent, taskId: id, tcIds: [], environment: 'development', reserved: true } as never, busPath(t.root, runId), { emittedBy: EXEC, runId });
   async function put(id: string, agent: string, state: State) {
     if (state === 'none') return;
+    if (state === 'other-phase') {
+      const file = path.join(taskmasterDir(t.root, runId), 'tasks', `${id}.json`);
+      fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), phase: 'scan' }));
+      return;
+    }
     await rawDispatch(id, agent);
+    if (state === 'reserved') return;
     if (state === 'resume') {
       ledger(`${id}-a`, agent, 'start');
       ledger(`${id}-a`, agent, 'claim', id);
@@ -939,6 +966,10 @@ describe('fix 4: the dispatch check accepts exactly what task next offers (state
       return;
     }
     await releaseTask(t.root, runId, id, 'done', agent);
+    if (state === 'corrective') {
+      await reviewed(id, agent, 'requested-changes'); // reopened: a pending candidate that carries its corrective instruction
+      return;
+    }
     if (state === 'reviewing') ledger(`${id}-spv`, `${agent}-spv`, 'start', undefined, later(1000).toISOString());
     if (state === 'redrive' || state === 'redriving') {
       const rv = review(`${agent}-spv`, agent, id, 'requested-changes');
@@ -949,48 +980,87 @@ describe('fix 4: the dispatch check accepts exactly what task next offers (state
     }
   }
 
-  it('offer == verdict for every combination', async () => {
+  /**
+   * The documented rules, written independently of the production view (HANDBOOK/13 aegis task next):
+   * - blocked (a stop request or an open escalation): nothing is offered;
+   * - a slot is taken by every claimed (running or to-resume) and every reserved specialist task of the run, any phase;
+   * - a `resume` task is always offered; other tasks are candidates when pending (never claimed, or reopened);
+   * - continuous: the first `free` candidates of the task's phase, in id order;
+   * - batch: the same, but none while a task of that phase awaits its SPV (released, under review, or a redrive).
+   */
+  function oracle(mode: 'batch' | 'continuous', cap: number, stopped: boolean, states: Record<string, State>, subject: string): boolean {
+    const escalated = Object.values(states).includes('escalated');
+    if (stopped || escalated) return false;
+    const occupied = Object.values(states).filter((x) => x === 'running' || x === 'resume' || x === 'reserved').length;
+    const free = Math.max(0, cap - occupied);
+    if (states[subject] === 'resume') return true;
+    const phaseOf = (id: string) => (states[id] === 'other-phase' ? 'scan' : 'intake');
+    const candidate = (x: State) => x === 'none' || x === 'corrective' || x === 'other-phase';
+    if (!candidate(states[subject]!)) return false;
+    const scope = Object.keys(states).filter((id) => phaseOf(id) === phaseOf(subject)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+    const awaiting = scope.some((id) => ['released', 'reviewing', 'redrive', 'redriving'].includes(states[id]!));
+    if (mode === 'batch' && awaiting) return false;
+    return scope.filter((id) => candidate(states[id]!)).indexOf(subject) < free;
+  }
+
+  it('task next offers, and the dispatch check accepts, exactly what the oracle says, over 180 scenarios', async () => {
     const mismatches: string[] = [];
+    const seen = { yes: 0, no: 0 };
     let scenarios = 0;
-    const seen = { offered: 0, withheld: 0 };
     for (const mode of ['batch', 'continuous'] as const) {
-      for (const a of STATES) {
-        for (const b of SECOND) {
-          t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: mode });
-          runId = await startedRun(t.root);
-          for (const [id, agent] of [['T-2', UI], ['T-3', API], ['T-4', DB], ['T-5', SEC]] as const) await add(id, agent);
-          await put('T-3', API, b); // an escalation blocks the run, so the first task's state is set last
-          await put('T-2', UI, a);
-          const now = later(5000);
-          const v = await nextTasks(t.root, runId, EXEC, { now });
-          const subjects: Array<[string, string]> = [['T-4', DB], ['T-5', SEC]];
-          if (a === 'resume') subjects.push(['T-2', UI]);
-          if (b === 'resume') subjects.push(['T-3', API]);
-          for (const [id, agent] of subjects) {
-            const copy = fs.mkdtempSync(path.join(path.dirname(t.root), 'aegis-copy-'));
-            fs.cpSync(t.root, copy, { recursive: true });
-            let accepted = true;
-            try {
-              await appendSpecialistDispatched(copy, runId, { specialistName: agent, taskId: id, tcIds: [], environment: 'development' }, EXEC, now);
-            } catch {
-              accepted = false;
+      for (const cap of [1, 3]) {
+        for (const a of FIRST) {
+          for (const b of SECOND) {
+            scenarios++;
+            const otherPhase = scenarios % 2 === 1;
+            const stopped = scenarios % 7 === 0 && b !== 'escalated';
+            t = makeAegisRoot({ maxSpecialists: 5, dispatchMode: mode });
+            runId = await startedRun(t.root);
+            const agents: Record<string, string> = { 'T-2': UI, 'T-3': API, 'T-4': DB, 'T-5': SEC, 'T-6': 'qa-unit-specialist' };
+            for (const [id, agent] of Object.entries(agents)) await add(id, agent);
+            const states: Record<string, State> = { 'T-2': a, 'T-3': b, 'T-4': otherPhase ? 'other-phase' : 'none', 'T-5': 'none', 'T-6': 'none' };
+            await put('T-4', DB, states['T-4']!);
+            await put('T-2', UI, a);
+            await put('T-3', API, b);
+            // the scenario's cap applies from now on (a cap lowered under the tasks already held is one of the states)
+            const cfgFile = path.join(t.root, 'aegis.config.json');
+            const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+            fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, parallelism: { maxSpecialists: cap } }));
+            if (stopped) await requestStop(t.root, runId, 'owner stop', 'owner');
+            const now = later(5000);
+            const offers = {
+              intake: (await nextTasks(t.root, runId, EXEC, { now, phase: 'intake' })).dispatch.map((e) => e.task),
+              scan: (await nextTasks(t.root, runId, EXEC, { now, phase: 'scan' })).dispatch.map((e) => e.task),
+            };
+            for (const id of Object.keys(states)) {
+              if (!['none', 'corrective', 'other-phase', 'resume'].includes(states[id]!)) continue;
+              const expected = oracle(mode, cap, stopped, states, id);
+              const offered = offers[states[id] === 'other-phase' ? 'scan' : 'intake'].includes(id);
+              const copy = fs.mkdtempSync(path.join(path.dirname(t.root), 'aegis-copy-'));
+              fs.cpSync(t.root, copy, { recursive: true });
+              let accepted = true;
+              try {
+                await appendSpecialistDispatched(copy, runId, { specialistName: agents[id]!, taskId: id, tcIds: [], environment: 'development' }, EXEC, now);
+              } catch {
+                accepted = false;
+              }
+              fs.rmSync(copy, { recursive: true, force: true });
+              seen[expected ? 'yes' : 'no']++;
+              if (offered !== expected || accepted !== expected) {
+                mismatches.push(`${mode} cap=${cap} stopped=${stopped} T-2=${a} T-3=${b} T-4=${states['T-4']} ${id}: oracle=${expected} offered=${offered} accepted=${accepted}`);
+              }
             }
-            fs.rmSync(copy, { recursive: true, force: true });
-            const offered = v.dispatch.some((e) => e.task === id);
-            seen[offered ? 'offered' : 'withheld']++;
-            if (offered !== accepted) mismatches.push(`${mode} T-2=${a} T-3=${b} ${id}: offered=${offered} accepted=${accepted}`);
+            t.cleanup();
           }
-          scenarios++;
-          t.cleanup();
         }
       }
     }
     t = makeAegisRoot();
-    expect(scenarios).toBe(2 * STATES.length * SECOND.length);
-    expect(seen.offered).toBeGreaterThan(20); // both verdicts are exercised
-    expect(seen.withheld).toBeGreaterThan(20);
+    expect(scenarios).toBe(2 * 2 * FIRST.length * SECOND.length);
+    expect(seen.yes).toBeGreaterThan(50);
+    expect(seen.no).toBeGreaterThan(50);
     expect(mismatches).toEqual([]);
-  }, 300_000);
+  }, 600_000);
 });
 
 describe('fix 4: the hooks record the session; the throttle reads a ledger over 64 KB', () => {
@@ -1035,7 +1105,7 @@ describe('fix 4: the hooks record the session; the throttle reads a ledger over 
 });
 
 describe('fix 4: execution is validated where it is used, never by unrelated paths', () => {
-  it('a typo mid-run refuses task next, a specialist claim and run create, but not readSettings or a non-specialist claim', async () => {
+  it('a typo mid-run refuses task next and run create, but not readSettings or any claim', async () => {
     t = makeAegisRoot({ maxSpecialists: 2 });
     runId = await startedRun(t.root);
     await add('T-2', UI);
@@ -1046,7 +1116,24 @@ describe('fix 4: execution is validated where it is used, never by unrelated pat
     expect(readSettings(t.root).maxSpecialists).toBe(2); // env exec and the seed check read only this
     await claimTask(t.root, runId, 'T-3', 'qa-environment-engineer');
     await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ message: expect.stringContaining('unknown key(s) "dispatchmode"') });
-    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('aegis.config.json#execution') });
+    await claimTask(t.root, runId, 'T-2', UI); // fix 5 (m2): a claim never needs the mode
     await expect(createRun(t.root, { environment: 'development', modules: ['AUTH'], cycleType: 'full' }, 'owner')).rejects.toMatchObject({ message: expect.stringContaining('aegis.config.json#execution') });
+  });
+});
+
+describe('fix 5: the stop hook says when a bad execution setting turns the executor loop guard off', () => {
+  it('lets the executor stop with a warning naming the setting, never traps it', async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
+    ledger('ex-1', EXEC, 'claim', 'T-1');
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    await add('T-2', UI);
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, execution: { dispatchMode: 'fast' } }));
+    const v = await checkSubagentStop(t.root, { agentId: 'ex-1', agentType: EXEC });
+    expect(v.block).toBe(false);
+    expect(v.warnings.join('\n')).toMatch(/executor loop guard off: aegis\.config\.json#execution\.dispatchMode must be/);
   });
 });

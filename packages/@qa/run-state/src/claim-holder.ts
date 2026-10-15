@@ -60,14 +60,11 @@ export function claimHolderEntry(runLedger: LedgerEntry[], task: Task, agentType
 export const LIVENESS_GRACE_MS = 30 * 60_000;
 
 /**
- * Fallback only (no session on the instance or on the resume): a `run.resumed` ends an instance of a heartbeat run whose latest
- * entry at or before the resume is older than this. A survivor working across the resume has an entry at most one heartbeat
- * interval (30 s) before it, unless it is inside one long call.
+ * At a `run.resumed`, an agent other than the orchestrator and the executor, of the resuming session (or with no session data),
+ * is ended when its latest entry at or before the resume is older than this. A live agent between calls has an entry at most
+ * one heartbeat interval (30 s) before it; one inside a single long call is ended too (see effectiveLedger).
  */
 export const RESUME_FRESH_MS = 90_000;
-
-/** The same fallback for NO_EXPIRY_AGENTS, which wait in one call for up to ~10 minutes (a Bash call, `task next --wait 540`). */
-export const RESUME_FRESH_DISPATCHER_MS = 11 * 60_000;
 
 /** How long before a `run.resumed` the H1 `run-resume` entry that names its session may be (the resume command runs right after H1). */
 const RESUME_SESSION_WINDOW_MS = 10 * 60_000;
@@ -75,7 +72,7 @@ const RESUME_SESSION_WINDOW_MS = 10 * 60_000;
 /**
  * The agents that wait in one foreground Agent call for hours (the orchestrator for its phase agents; the executor before the
  * continuous loop): silent for long stretches while alive, so they never expire by heartbeat. They end by their stop record or
- * by a resume. Nothing reads their liveness except the duplicate check on their own re-claim.
+ * at the next `run.resumed`, unconditionally: /qa-resume hands the run to a new orchestrator, which dispatches a new executor.
  */
 export const NO_EXPIRY_AGENTS: ReadonlySet<string> = new Set(["qa-orchestrator", "qa-test-executor"]);
 
@@ -89,12 +86,15 @@ export interface LivenessFacts {
  * Item 1 fixes 2-4: when an instance has ended. A session that dies (crash, auth failure, killed terminal) fires no
  * SubagentStop, so its agents keep a `start` with no end entry forever; the synthetic ends added here (a `stop-unresolved`
  * entry, never written) say when they died.
- * - A resume. Every hook entry carries the Claude Code session of its call, and H1 records the session that runs
- *   `aegis run resume` (a `run-resume` entry). At a `run.resumed` whose session is known, an instance of ANOTHER session is
- *   ended (a dead session's agents are dead by construction) and an instance of the SAME session is not (it is alive, or has
- *   its stop record). Without session data on either side the fallback is by time: in a heartbeat run an instance whose
- *   latest entry before the resume is older than RESUME_FRESH_MS (RESUME_FRESH_DISPATCHER_MS for NO_EXPIRY_AGENTS) is ended;
- *   in a run with no heartbeat data every instance first seen before the resume is ended. A resume end is permanent.
+ * - A resume. A `run.resumed` means the owner restarted orchestration (/qa-resume hands the run to a new orchestrator), so at
+ *   every resume: (a) every orchestrator and executor instance first seen before it is ended, unconditionally (superseded);
+ *   (b) any other instance is ended when its session differs from the resuming one (H4 and H1 stamp each entry with its Claude
+ *   Code session; H1 records the session that runs `aegis run resume`), or, in the same session or without session data,
+ *   when its latest entry at or before the resume is older than RESUME_FRESH_MS (90 s). A same-session crash and resume, the
+ *   case of every real resume so far (`--continue` keeps the session id), therefore ends the dead agents at once; an agent
+ *   inside one long call at that moment is ended too, as the owner's explicit restart (its later work report and release are
+ *   still accepted: the CLI checks the claiming agent type, not the instance). In a run with no heartbeat data every instance
+ *   first seen before the resume is ended. A resume end is permanent: a later entry never revives it.
  * - Expiry (heartbeat runs; never for NO_EXPIRY_AGENTS): an instance silent for LIVENESS_GRACE_MS is ended at its latest entry
  *   plus the grace. A later entry (a beat after a long stall) revives it only if nobody took its task over meanwhile: no
  *   accepted `specialist.dispatched` and no claim by another instance for a task it claimed, between the expiry and that entry.
@@ -140,9 +140,9 @@ export function effectiveLedger(ledger: LedgerEntry[], facts: LivenessFacts | re
       if (r <= since || (ended !== null && ended <= r)) continue;
       const resumer = sessionOf(r);
       let endsHere: boolean;
-      if (resumer !== undefined && session !== undefined) endsHere = session !== resumer;
-      else if (heartbeatRun) endsHere = r - Math.max(...times.filter((x) => x <= r)) > (dispatcher ? RESUME_FRESH_DISPATCHER_MS : RESUME_FRESH_MS);
-      else endsHere = true;
+      if (dispatcher || !heartbeatRun) endsHere = true;
+      else if (resumer !== undefined && session !== undefined && session !== resumer) endsHere = true;
+      else endsHere = r - Math.max(...times.filter((x) => x <= r)) > RESUME_FRESH_MS;
       if (endsHere) {
         at = r;
         break;

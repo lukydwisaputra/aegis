@@ -173,11 +173,11 @@ interface View {
   byId: Map<string, Classified>;
 }
 
-async function computeView(root: string, runId: string, phase: string | undefined, now: number): Promise<View> {
+async function computeView(root: string, runId: string, phase: string | undefined, now: number, modeOverride?: DispatchMode): Promise<View> {
   const state = readRun(root, runId);
   const scope = phase ?? state.currentPhase ?? undefined;
   const { maxSpecialists: cap } = readSettings(root);
-  const mode = readDispatchMode(root);
+  const mode = modeOverride ?? readDispatchMode(root);
   const all = (await readTaskList(root, runId)).tasks.filter((t) => t.assignee !== null && isSpecialist(t.assignee));
   const dir = taskmasterDir(root, runId);
   const raws = new Map((existsSync(join(dir, "tasks")) ? await createTaskmasterClient(dir).list() : []).map((t) => [t.id, t]));
@@ -317,7 +317,8 @@ export function inFlightOf(r: TaskNextResult): string[] {
 
 /** The task ids whose live reservation holds a specialist slot (the claim cap counts them, the claimer's own excepted). */
 export async function reservedTasks(root: string, runId: string, now?: Date): Promise<string[]> {
-  const { byId } = await computeView(root, runId, undefined, (now ?? new Date()).getTime());
+  // Fix 5 (m2): the reservations do not depend on the dispatch mode, so a claim never reads (or refuses on) aegis.config.json#execution.
+  const { byId } = await computeView(root, runId, undefined, (now ?? new Date()).getTime(), "continuous");
   return [...byId.values()].filter((c) => c.slot === "dispatched" && c.entry.status === "pending").map((c) => c.entry.id);
 }
 
