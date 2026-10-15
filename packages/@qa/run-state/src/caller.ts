@@ -22,6 +22,7 @@ export const CLI_COMMANDS = [
   "task.cancel",
   "task.abandon",
   "task.list",
+  "task.next",
   "work-report.submit",
   "review.submit",
   "integrity.verify",
@@ -66,6 +67,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   "run.descope",
   "task.abandon",
   "task.list",
+  // Read-only: the executor's loop view (aegis task next); the owner may read it too.
+  "task.next",
   "integrity.verify",
   "integrity.repair-tail",
   "gate.decide",
@@ -156,6 +159,8 @@ export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly st
   "explore.probe": ["qa-orchestrator"],
   "env.probe": ["qa-orchestrator"],
   "cases.render": ["qa-test-designer", "qa-orchestrator"],
+  // The continuous dispatch loop of Execution: only the executor dispatches specialists from it.
+  "task.next": ["qa-test-executor"],
 };
 
 export function assertCallerAllowed(caller: string, command: CliCommand): void {

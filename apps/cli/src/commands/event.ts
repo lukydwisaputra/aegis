@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { appendChained, EventBusRefusal } from "@qa/event-bus";
 import { AegisEventSchema } from "@qa/contracts";
-import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, readRunConfig, RunStateError, trimOverlong } from "@qa/run-state";
+import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, readRunConfig, RunStateError, trimOverlong, withDispatchReservation } from "@qa/run-state";
 import { action, addTypedInput, context, runIdFor } from "./_io.js";
 import { readJsonFile } from "./json-file.js";
 
@@ -66,7 +66,9 @@ export function eventCommand(): Command {
         const cut = parsed.success ? null : trimOverlong(event, parsed.error.issues as never, exact);
         if (cut !== null && cut.trimmed.length > 0) event = cut.value as Record<string, unknown>;
         try {
-          const recorded = await appendChained(event, busPath(ctx.root, runId), { emittedBy: ctx.caller, runId });
+          const write = () => appendChained(event, busPath(ctx.root, runId), { emittedBy: ctx.caller, runId });
+          // A specialist dispatch reserves a slot for its task: refused when the task is reserved or running, or the cap is full.
+          const recorded = o.type === "specialist.dispatched" ? await withDispatchReservation(ctx.root, runId, event, undefined, write) : await write();
           return cut !== null && cut.trimmed.length > 0 ? { ...recorded, trimmed: cut.trimmed } : recorded;
         } catch (e) {
           if (e instanceof EventBusRefusal) throw new RunStateError("invalid-input", e.message);

@@ -27,6 +27,7 @@ export const CLI_USAGE: Readonly<Record<CliCommand, string>> = {
   "task.cancel": "task cancel --task <id> --reason <text> [--run <id>]",
   "task.abandon": "task abandon --task <id> --reason <text> [--run <id>]",
   "task.list": "task list [--phase <id>] [--run <id>]",
+  "task.next": "task next [--phase <id>] [--wait <seconds>] [--run <id>]",
   "work-report.submit": "work-report submit --file /dev/stdin [--run <id>]",
   "review.submit": "review submit --file /dev/stdin [--run <id>]",
   "integrity.verify": "integrity verify [--run <id>]",

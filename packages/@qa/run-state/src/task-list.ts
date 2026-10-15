@@ -65,6 +65,11 @@ function reviewStateOf(root: string, runId: string, agent: string, taskId: strin
  */
 export async function listTasks(root: string, runId: string, caller: string, phase?: string): Promise<TaskListResult> {
   assertCallerAllowed(caller, "task.list");
+  return readTaskList(root, runId, phase);
+}
+
+/** listTasks without the caller check, for the CLI's own read-only views (aegis task next, the H2 stop check). */
+export async function readTaskList(root: string, runId: string, phase?: string): Promise<TaskListResult> {
   if (phase !== undefined && !PhaseIdSchema.safeParse(phase).success) {
     throw new RunStateError("invalid-input", `--phase "${phase}" is not a phase id`);
   }

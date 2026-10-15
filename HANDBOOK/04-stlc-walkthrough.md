@@ -172,7 +172,7 @@ This keeps state clean between runs and is the single biggest source of flake re
 
 **Results location.** Execution writes a run-level summary to `runs/<RUN-ID>/execution-summary.{md,json}`, and per-test-case evidence (screenshots, video, traces) to `runs/<RUN-ID>/evidence/{TC-ID}/`. (The old `runs/<RUN-ID>/results/` and `artifacts/evidence/` paths are gone.)
 
-**Per-worker SPV dispatch.** After each specialist submits its work report (`aegis work-report submit`, stored under `reports/work/`), `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`). The SPV records its verdict with `aegis review submit`; the CLI stores the review and pipes any corrective instructions into the worker's lessons. The dispatcher never reads the review file to write lessons and never calls `pipeCorrectiveInstruction()`; SPVs never write lessons themselves. See §4.10.
+**Per-worker SPV dispatch.** After each specialist submits its work report (`aegis work-report submit`, stored under `reports/work/`), `qa-test-executor` (the Tier-2 dispatcher) dispatches the paired SPV (`qa-{name}-spv`) at once, while the other specialists still run, and refills the freed specialist slot from `aegis task next` in the same pass: no specialist waits for a batch to finish, and SPVs take no specialist slot. The SPV records its verdict with `aegis review submit`; the CLI stores the review and pipes any corrective instructions into the worker's lessons. The dispatcher never reads the review file to write lessons and never calls `pipeCorrectiveInstruction()`; SPVs never write lessons themselves. See §4.10.
 
 When `TC-AUTH-031` ran, the SSO redirect landed on `/` instead of `/dashboard`. The test failed. `qa-defect-manager` was triggered automatically.
 

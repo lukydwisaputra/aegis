@@ -116,7 +116,7 @@ Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) ar
 ### Execution flow
 
 1. Orchestrator dispatches Tier-1 phase agents sequentially.
-2. `qa-test-executor` fans out to at most `parallelism.maxSpecialists` concurrent Tier-2 specialists, one task per dispatch.
+2. `qa-test-executor` fans out to at most `parallelism.maxSpecialists` concurrent Tier-2 specialists, one task per dispatch, in the background: it refills a slot as soon as a specialist releases and runs that specialist's SPV alongside the rest (SPVs take no slot), reading the loop from `aegis task next`. The `specialist.dispatched` append reserves the slot (the CLI refuses a double or over-cap dispatch) and `aegis task claim` stays the hard cap.
 3. Every worker claims its task, submits its work report and releases the task through the aegis CLI (`aegis task claim`, `aegis work-report submit`, `aegis task release`). Its SPV then submits a verdict with `aegis review submit`, which pipes any `CorrectiveInstruction` into the worker's lessons and escalates the third rejection to the owner.
 4. Agents record their events with `aegis event append`, which hash-chains them into `runs/{runId}/events.jsonl` (the only crash-recovery source of truth) through `@qa/event-bus`. Nothing writes that file directly.
 5. Three locked human gates pause every full cycle: G1 Plan approval (after Planning), G2 Defect triage (after Triage), G3 Closure (after Closure-final). They cannot be disabled. The owner decides each with `/qa-gate-decide`; the CLI writes `gates/gate-{N}-decision.json`. `/qa-smoke` has no human gate — its G2 is auto-decided from `thresholds.yaml#smoke`.

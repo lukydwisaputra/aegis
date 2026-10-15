@@ -81,7 +81,7 @@ AEGIS_AGENT=qa-orchestrator pnpm aegis run status
    | Planning | `planning` | `qa-test-planner` | Followed by Gate 1. |
    | Design | `design` | `qa-test-designer` | |
    | Env-data | `env-data` | `qa-environment-engineer` (scope=data) | Factories and seed data for the approved cases. |
-   | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs; you never dispatch a specialist in Execution, except for a correction task the Execution barrier names (a Blocked result or a spec check error; step 3, Blocked correction in Execution or Triage). |
+   | Execution | `execution` | `qa-test-executor` | The executor dispatches the Tier-2 specialists and their SPVs continuously: it refills a specialist slot as soon as one frees and reviews each specialist as soon as it finishes, reading its loop from the CLI. You dispatch the executor itself in the foreground and wait for it, as every dispatch of yours; you never dispatch a specialist in Execution, except for a correction task the Execution barrier names (a Blocked result or a spec check error; step 3, Blocked correction in Execution or Triage). |
    | Triage | `triage` | `qa-defect-manager` | Followed by Gate 2. |
    | Closure-draft | `closure-draft` | `qa-closure-reporter` (draft pass) | Dispatch `qa-metrics-collector` in the foreground first (Metrics below). |
    | Compliance | `compliance` | `qa-compliance-*` from `aegis.config.json#compliance` | GDPR and PDPA only when the target profile shows personal data. Not-applicable when no listed regulation applies. |

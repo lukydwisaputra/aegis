@@ -18,6 +18,8 @@ let t: TmpAegis;
  * the one qa-* agent that may run the lint (767 and 6081).
  * Task 3 added the schema-generated enums, time format and lesson id pattern to the usage notes line (+287 for every qa-* agent) and
  * `(--json '<fields>' | --json-file <path>)` to the event append usage (+23 for the agents that may append events): 6081 -> 6391. The fix round replaced the epoch example with the timestamp format and its date command (+29 for every qa-* agent): 6420.
+ * Item 1 (continuous dispatch) added the task next usage to qa-test-executor's cheat-sheet only (+103: 5817 -> 5920); the largest
+ * agent (qa-orchestrator, 6420) is unchanged.
  */
 const BRAND_MAX = 767;
 const H4_LARGEST = 6420;
@@ -72,6 +74,14 @@ describe('H4 run context (spec §4.2)', () => {
       expect(text).not.toContain('run reissue');
       expect(text).not.toContain('run descope');
     }
+  });
+
+  it('gives task next to the executor alone (item 1: +103 characters for qa-test-executor, measured 5817 -> 5920 at the 38-character root)', async () => {
+    await create();
+    const line = '`AEGIS_AGENT=qa-test-executor pnpm aegis task next [--phase <id>] [--wait <seconds>] [--run <id>]`';
+    expect(runContextFor(t.root, 'qa-test-executor', 'x')).toContain(line);
+    expect(`  - ${line}\n`.length).toBe(103);
+    for (const agent of qaAgentNames().filter((a) => a !== 'qa-test-executor')) expect(runContextFor(t.root, agent)).not.toContain('task next');
   });
 
   it('CLI_USAGE covers every CLI command', () => {

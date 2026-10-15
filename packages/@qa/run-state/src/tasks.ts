@@ -2,9 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, TaskRefSchema, specialistShortName, type EnvironmentSpecialistConfig, type RunState } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy, roleOf } from "@qa/path-guard";
+import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy, readRunLedger, roleOf } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
+import { claimHolderEntry, endedAt } from "./claim-holder.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
@@ -205,6 +206,24 @@ function assertAssignee(task: Task, caller: string): void {
   }
 }
 
+/**
+ * Item 1 (continuous dispatch): a second live instance of the same agent claiming a task a live instance holds is a duplicate
+ * dispatch, not a resumed worker. H1 logs every claim attempt in the hook ledger before the CLI runs, so the latest ledger claim
+ * of this task by this agent type is the caller's; when the claim holder (claimHolderEntry, as H2 judges it) is another instance
+ * that has not ended, the caller is refused. Without ledger entries the answer stays already-claimed.
+ */
+function assertNotDuplicate(root: string, runId: string, task: Task, caller: string): void {
+  const ledger = readRunLedger(root, runId);
+  const holder = claimHolderEntry(ledger, task, caller);
+  const latest = ledger.filter((e) => e.kind === "claim" && e.taskId === task.id && e.agentType === caller).pop();
+  if (holder === null || latest === undefined || latest.agentId === holder.agentId) return;
+  if (endedAt(ledger, holder.agentId, Date.parse(holder.ts)) !== null) return;
+  throw new RunStateError(
+    "invalid-input",
+    `duplicate-dispatch: task ${task.id} is held by another running ${caller}; stop now without doing the work and tell your dispatcher the task was dispatched twice`
+  );
+}
+
 export async function claimTask(root: string, runId: string, taskId: string, caller: string, now?: Date): Promise<Task> {
   assertCallerAllowed(caller, "task.claim");
   assertTaskId(taskId);
@@ -221,6 +240,7 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
       assertRunAcceptsWork(readRun(root, runId), current.phase);
       // A resumed worker already holds this task: say so before the env and cap checks, which would count its own claim.
       if (current.status === "in-progress" && current.claimedBy === caller) {
+        assertNotDuplicate(root, runId, current, caller);
         throw new RunStateError("invalid-input", `already-claimed: task ${taskId} is in progress and held by ${caller}; continue the work without claiming it again`);
       }
       if (isSpecialist(caller)) {
