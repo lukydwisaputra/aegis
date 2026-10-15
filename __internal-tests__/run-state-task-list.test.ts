@@ -64,7 +64,7 @@ describe('listTasks', () => {
     expect(list.tasks.map((x) => x.id)).toEqual(['T-intake-2', 'T-intake-10']);
     expect(list.tasks[0]).toEqual({
       id: 'T-intake-2', title: `${UI}: TC-AUTH-001`, phase: 'intake', assignee: UI, status: 'pending',
-      claimedBy: null, createdBy: EXEC, latestAttempt: 0, reviewState: 'none', escalationDecision: null,
+      claimedBy: null, createdBy: EXEC, createdAt: expect.stringMatching(/Z$/), latestAttempt: 0, reviewState: 'none', escalationDecision: null,
     });
   });
 

@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { abandonTask, addTask, cancelTask, claimTask, listTasks, releaseTask, RunStateError } from "@qa/run-state";
+import { abandonTask, addTask, cancelTask, claimTask, listTasks, MAX_WAIT_SECONDS, nextTasks, releaseTask, RunStateError, waitNextTasks } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 interface TaskRef {
@@ -98,6 +98,22 @@ export function taskCommand(): Command {
       action((o: { phase?: string; run?: string }) => {
         const ctx = context();
         return listTasks(ctx.root, runIdFor(ctx, o.run), ctx.caller, o.phase);
+      })
+    );
+
+  task.command("next")
+    .description("The executor's loop view of a phase: free specialist slots, what to dispatch, what awaits its SPV, and next (act, wait, blocked, settled); read-only")
+    .option("--phase <id>", "the phase (default: the phase in progress)")
+    .option("--wait <seconds>", `when next is wait, return as soon as it changes, or after this many seconds (at most ${MAX_WAIT_SECONDS})`)
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(
+      action((o: { phase?: string; wait?: string; run?: string }) => {
+        const ctx = context();
+        const runId = runIdFor(ctx, o.run);
+        if (o.wait === undefined) return nextTasks(ctx.root, runId, ctx.caller, { ...(o.phase !== undefined ? { phase: o.phase } : {}) });
+        const seconds = Number(o.wait);
+        if (!Number.isFinite(seconds)) throw new RunStateError("invalid-input", `--wait takes a number of seconds (at most ${MAX_WAIT_SECONDS})`);
+        return waitNextTasks(ctx.root, runId, ctx.caller, { ...(o.phase !== undefined ? { phase: o.phase } : {}), waitSeconds: seconds });
       })
     );
 

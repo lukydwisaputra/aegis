@@ -22,6 +22,7 @@ export interface Task {
   phase?: string; // pipeline phase, set by aegis task add; read by the phase barrier
   assignee?: string; // the only agent that may claim it (aegis task add --agent)
   createdBy?: string; // the dispatcher that added it; the only caller that may cancel it
+  createdAt?: string; // when aegis task add created it (absent on tasks of earlier runs)
   status: TaskStatus;
   claimedBy?: string;
   claimedAt?: string;

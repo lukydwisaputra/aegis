@@ -6,11 +6,13 @@ import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy, roleOf } from
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { decideReviewBySystem, type AutoReviewResult } from "./auto-review.js";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
+import { claimHolderEntry, endedAt, holderGone, readEffectiveLedger, resumeTimes } from "./claim-holder.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun, supersededAttempt, withRunLock } from "./run.js";
+import { reservedTasks } from "./task-next.js";
 import { attemptsIn, escalationFile, escalationMarker, openEscalation, reviewDir, workDir } from "./submit.js";
 import { iso, withFileLock } from "./util.js";
 
@@ -146,6 +148,7 @@ export async function addTask(root: string, runId: string, input: AddTaskInput, 
         phase: state.currentPhase!,
         assignee: input.agent,
         createdBy: caller,
+        createdAt: iso(),
         ...(input.description !== undefined ? { description: input.description } : {}),
       });
     } catch (e) {
@@ -206,6 +209,25 @@ function assertAssignee(task: Task, caller: string): void {
   }
 }
 
+/**
+ * Item 1 (continuous dispatch): a second live instance of the same agent claiming a task a live instance holds is a duplicate
+ * dispatch, not a resumed worker. H1 logs every claim attempt in the hook ledger before the CLI runs, so the latest ledger claim
+ * of this task by this agent type is the caller's; when the claim holder (claimHolderEntry, as H2 judges it) is another instance
+ * that has not ended, the caller is refused. Without ledger entries the answer stays already-claimed.
+ */
+function assertNotDuplicate(root: string, runId: string, task: Task, caller: string, now?: Date): void {
+  // Fix round 1 (M1): instances a resume left behind are ended, so the claim of a crashed holder passes to the new instance.
+  const ledger = readEffectiveLedger(root, runId, now);
+  const holder = claimHolderEntry(ledger, task, caller);
+  const latest = ledger.filter((e) => e.kind === "claim" && e.taskId === task.id && e.agentType === caller).pop();
+  if (holder === null || latest === undefined || latest.agentId === holder.agentId) return;
+  if (endedAt(ledger, holder.agentId, Date.parse(holder.ts)) !== null) return;
+  throw new RunStateError(
+    "invalid-input",
+    `duplicate-dispatch: task ${task.id} is held by another running ${caller}; stop now without doing the work and tell your dispatcher the task was dispatched twice`
+  );
+}
+
 export async function claimTask(root: string, runId: string, taskId: string, caller: string, now?: Date): Promise<Task> {
   assertCallerAllowed(caller, "task.claim");
   assertTaskId(taskId);
@@ -222,6 +244,7 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
       assertRunAcceptsWork(readRun(root, runId), current.phase);
       // A resumed worker already holds this task: say so before the env and cap checks, which would count its own claim.
       if (current.status === "in-progress" && current.claimedBy === caller) {
+        assertNotDuplicate(root, runId, current, caller, now);
         throw new RunStateError("invalid-input", `already-claimed: task ${taskId} is in progress and held by ${caller}; continue the work without claiming it again`);
       }
       if (isSpecialist(caller)) {
@@ -230,10 +253,13 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
         const running = (await c.list({ status: "in-progress" })).filter(
           (t) => t.claimedBy !== undefined && isSpecialist(t.claimedBy)
         );
-        if (running.length >= maxSpecialists) {
+        // Fix round 1 (minor 3): a live dispatch reservation of another task holds its slot, so a claim without a dispatch cannot
+        // take it; the claimer's own reservation is the slot it is taking.
+        const reserved = (await reservedTasks(root, runId, now)).filter((id) => id !== taskId);
+        if (running.length + reserved.length >= maxSpecialists) {
           throw new RunStateError(
             "cap-reached",
-            `${running.length}/${maxSpecialists} specialists already running (aegis.config.json#parallelism.maxSpecialists)`
+            `${running.length}/${maxSpecialists} specialists already running${reserved.length > 0 ? ` and ${reserved.length} slot(s) reserved by a dispatch (${reserved.join(", ")})` : ""} (aegis.config.json#parallelism.maxSpecialists)`
           );
         }
       } else {
@@ -274,19 +300,27 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
         throw new RunStateError("caller-forbidden", `task ${taskId} was added by ${before.createdBy ?? "an unknown caller"}; only that dispatcher may cancel it`);
       }
       if (GATE_TASK_ID.test(taskId)) throw new RunStateError("invalid-input", `${taskId} is a gate task; it cannot be cancelled`);
+      // Fix round 1 (M1): an in-progress task whose holder has ended (a crashed or resumed session) and that holds no work report
+      // awaiting review may be withdrawn by its creator too; the owner's task abandon stays open for it as before.
+      const dead =
+        before.status === "in-progress" &&
+        before.assignee !== undefined &&
+        holderGone(readEffectiveLedger(root, runId, now), resumeTimes(busPath(root, runId)), before, before.assignee) === true &&
+        freshAttempt(root, runId, before.assignee, taskId) === null;
       const claimed = before.assignee !== undefined && attemptsIn(workDir(root, runId), before.assignee, taskId).length > 0;
-      if (before.status !== "pending" || before.claimedBy !== undefined || claimed) {
+      if (!dead && (before.status !== "pending" || before.claimedBy !== undefined || claimed)) {
         throw new RunStateError("invalid-input", `task ${taskId} is ${before.status}${claimed ? " and was claimed before" : ""}; only a never-claimed pending task can be cancelled. A task that was claimed is finished through its worker (the worker releases it), or by the owner with task abandon; to redo the work add a new task`);
       }
       try {
-        await c.cancel(taskId, why);
+        if (dead) await c.abandon(taskId, why);
+        else await c.cancel(taskId, why);
       } catch (e) {
-        if (e instanceof ClaimError) throw new RunStateError("invalid-input", `task ${taskId} changed meanwhile; only a never-claimed pending task can be cancelled`);
+        if (e instanceof ClaimError) throw new RunStateError("invalid-input", `task ${taskId} changed meanwhile; only a never-claimed pending task, or an in-progress one whose holder has ended, can be cancelled`);
         throw e;
       }
       await appendOrRollback(c, before, "cancelled", () =>
         appendChained(
-          { type: "task.cancelled", ts: iso(now), runId, taskId, agent: before.assignee ?? caller, reason: why },
+          { type: "task.cancelled", ts: iso(now), runId, taskId, agent: before.assignee ?? caller, reason: dead ? `its holder ended: ${why}` : why },
           busPath(root, runId),
           { emittedBy: caller, runId }
         )

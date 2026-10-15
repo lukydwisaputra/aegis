@@ -25,6 +25,8 @@ export interface TaskListEntry {
   status: TaskStatus;
   claimedBy: string | null;
   createdBy: string | null;
+  /** When aegis task add created it; null for a task of an earlier run. */
+  createdAt: string | null;
   latestAttempt: number;
   reviewState: TaskReviewState;
   /** The owner's escalation decision on the latest attempt, with its reason (an accept-with-risk reason goes into the summary). */
@@ -65,6 +67,11 @@ function reviewStateOf(root: string, runId: string, agent: string, taskId: strin
  */
 export async function listTasks(root: string, runId: string, caller: string, phase?: string): Promise<TaskListResult> {
   assertCallerAllowed(caller, "task.list");
+  return readTaskList(root, runId, phase);
+}
+
+/** listTasks without the caller check, for the CLI's own read-only views (aegis task next, the H2 stop check). */
+export async function readTaskList(root: string, runId: string, phase?: string): Promise<TaskListResult> {
   if (phase !== undefined && !PhaseIdSchema.safeParse(phase).success) {
     throw new RunStateError("invalid-input", `--phase "${phase}" is not a phase id`);
   }
@@ -88,6 +95,7 @@ export async function listTasks(root: string, runId: string, caller: string, pha
         status: t.status,
         claimedBy: t.claimedBy ?? null,
         createdBy: t.createdBy ?? null,
+        createdAt: t.createdAt ?? null,
         latestAttempt: latest,
         reviewState: agent === undefined ? "none" : reviewStateOf(root, runId, agent, t.id, latest, superseded, decision),
         escalationDecision: decision,

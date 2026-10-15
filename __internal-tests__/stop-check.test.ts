@@ -115,10 +115,10 @@ describe('H2 for workers (spec §4.2)', () => {
 
 describe('m5: H2 acts only on a claim the CLI actually granted to this instance', () => {
   it('a ledger claim whose CLI claim was refused neither blocks nor releases', async () => {
-    // a2 holds T-1; a1 then tries the same task: H1 logs a1's claim, the CLI refuses it (already claimed).
+    // a2 holds T-1; a1 then tries the same task: H1 logs a1's claim, the CLI refuses it (a duplicate of the live holder, item 1).
     await claimAs('a2', 'T-1');
     ledger('a1', UI, 'claim', 'T-1');
-    await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/already-claimed/);
+    await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/duplicate-dispatch/);
     // Without a report a1 is not held by a2's open task …
     expect(await stop('a1', UI)).toMatchObject({ block: false, released: [] });
     // … and with a2's fresh report a1 does not release a2's task on a2's behalf.
@@ -158,7 +158,8 @@ describe('fix-1 m1: a resumed worker inherits the claim of an instance that has 
   it('a live parallel duplicate never inherits: the holder has not stopped', async () => {
     await claimAs('a1', 'T-1');
     ledger('a3', UI, 'claim', 'T-1', later(1_000));
-    await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/already-claimed/);
+    // item 1: the CLI refuses the live duplicate outright (before: already-claimed, continue)
+    await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/duplicate-dispatch/);
     expect(await stop('a3', UI)).toMatchObject({ block: false, released: [] });
     await submitWorkReport(t.root, runId, json('wr.json', workReport(UI, 'T-1')), UI);
     expect(await stop('a3', UI)).toMatchObject({ block: false, released: [] });

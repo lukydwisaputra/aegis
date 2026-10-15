@@ -800,6 +800,8 @@ export const SpecialistDispatchedEventSchema = EventBase.extend({
   tcIds: z.array(TestCaseIdSchema).default([]),
   environment: z.string(),
   brief: DispatchBriefSchema.optional(),
+  // Stamped by aegis event append once the dispatch reservation passed (continuous dispatch); absent on events of the earlier protocol.
+  reserved: z.literal(true).optional(),
 });
 
 export const SpecialistFailedEventSchema = EventBase.extend({

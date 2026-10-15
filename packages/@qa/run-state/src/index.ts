@@ -5,6 +5,8 @@ export * from "./caller.js";
 export * from "./run.js";
 export * from "./tasks.js";
 export * from "./task-list.js";
+export * from "./task-next.js";
+export * from "./claim-holder.js";
 export * from "./submit.js";
 export { cutToFit, trimOverlong, type TrimmedField } from "./util.js";
 export * from "./integrity.js";
