@@ -127,14 +127,13 @@ The compliance agents run in parallel during the Compliance phase of a full cycl
 
 ### 6.8 Cross-Cutting Agents
 
-Cross-cutting agents operate across the whole run. `qa-context-scanner` and `qa-metrics-collector` are read-only-tier utilities; the Discovery and curation agents run at specific phases:
+Cross-cutting agents operate across the whole run. `qa-context-scanner` is a read-only-tier utility; the Discovery and curation agents run at specific phases (the metric files are written by `aegis metrics all`, not by an agent):
 
 | Agent | Role |
 |---|---|
 | `qa-context-scanner` | Static source analysis → `target-profile.json#sourceInventory` |
 | `qa-web-explorer` | Observation-driven crawl, route/auth matrix (Discovery) |
-| `qa-metrics-collector` | Sole owner of `reports/metrics/*` (coverage, trend, cost) |
-| `qa-curator` | Reviews accumulated lessons for promotion |
+| `qa-curator` | Reviews accumulated lessons for promotion, once per run after Executive |
 
 Agents read the knowledge corpus directly: each agent's `knowledge_refs` frontmatter lists the `knowledge/synthesis/*.md` topics it reads.
 

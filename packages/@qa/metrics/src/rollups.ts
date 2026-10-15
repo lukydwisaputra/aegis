@@ -5,13 +5,13 @@ import { computeDefectRecordCounts } from "./defect-records.js";
 
 /**
  * The five metric rollups other than coverage.json, computed in code from events.jsonl and the case, result and defect records, with the
- * definitions of .claude/agents/crosscutting/qa-metrics-collector.md copied into the comments below. Where that prose was ambiguous the
+ * definitions of the retired qa-metrics-collector agent (agent-graveyard/qa-metrics-collector.md, now HANDBOOK/13 "Metric file definitions") copied into the comments below. Where that prose was ambiguous the
  * STRICTER reading was taken; each is listed in HANDBOOK/13 ("Metric rollups"). Nothing here is ever 0 for "unknown": a figure that cannot
  * be computed is null, and an input that was missing is named in `missingInputs`.
  */
 
 export interface RollupFiles {
-  "cycle-time.json": unknown;
+  "cycle-time.json": CycleTimeFile;
   "defect-trend.json": unknown;
   "effectiveness.json": unknown;
   "agent-reliability.json": unknown;
@@ -26,7 +26,7 @@ export interface RollupResult {
   notes: string[];
 }
 
-type Ev = { type: string; ts: string; [k: string]: unknown };
+export type Ev = { type: string; ts: string; [k: string]: unknown };
 
 const SEVERITIES = ["Sev1", "Sev2", "Sev3", "Sev4", "Sev5"] as const;
 const round = (n: number, places: number): number => Math.round(n * 10 ** places) / 10 ** places;
@@ -42,7 +42,7 @@ const PHASE_AGENT: Readonly<Record<string, string>> = {
   compliance: "qa-orchestrator", "closure-final": "qa-closure-reporter", executive: "qa-executive-reporter", curator: "qa-curator",
 };
 
-function readEvents(runDir: string, missing: string[], notes: string[]): Ev[] | null {
+export function readRunEvents(runDir: string, missing: string[], notes: string[]): Ev[] | null {
   const file = join(runDir, "events.jsonl");
   let text: string;
   try {
@@ -85,8 +85,11 @@ function readDir<T>(dir: string, pick: (name: string) => boolean, read: (file: s
  * waiting included, so it is not the sum of the durations. bottleneckPhase = the phase with the longest durationMs. With no completed pass the
  * file is { phases: [], totalWallClockMs: 0, bottleneckPhase: null, noData: true }.
  */
-function cycleTime(events: Ev[] | null): unknown {
-  const passes: Array<{ phase: string; startedAt: string; completedAt?: string; durationMs?: number; agentName: string }> = [];
+export interface CycleTimePass { phase: string; startedAt: string; completedAt?: string; durationMs?: number; agentName: string }
+export interface CycleTimeFile { phases: CycleTimePass[]; totalWallClockMs: number; bottleneckPhase: string | null; noData?: true }
+
+export function cycleTimeRollup(events: Ev[] | null): CycleTimeFile {
+  const passes: CycleTimePass[] = [];
   for (const e of events ?? []) {
     const phase = e["phase"];
     if (typeof phase !== "string") continue;
@@ -302,7 +305,7 @@ function flakyTests(runDir: string, missing: string[]): unknown {
 export function computeRollups(runDir: string): RollupResult {
   const missingInputs: string[] = [];
   const notes: string[] = [];
-  const events = readEvents(runDir, missingInputs, notes);
+  const events = readRunEvents(runDir, missingInputs, notes);
   const descoped = descopedCases(runDir);
   const checks = existsSync(join(runDir, "cases")) ? scanChecks(runDir, descoped) : null;
   if (checks === null) missingInputs.push("cases/");
@@ -316,7 +319,7 @@ export function computeRollups(runDir: string): RollupResult {
   const records = recordList === null ? null : new Map(recordList.map((r) => [typeof (r.value as { id?: unknown }).id === "string" ? ((r.value as { id: string }).id) : r.name.replace(/\.json$/, ""), r.value as DefectRecord]));
   return {
     files: {
-      "cycle-time.json": cycleTime(events),
+      "cycle-time.json": cycleTimeRollup(events),
       "defect-trend.json": defectTrend(events, designed, records, runDir),
       "effectiveness.json": effectiveness(events, runDir, records, executed),
       "agent-reliability.json": agentReliability(events),

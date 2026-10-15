@@ -1,10 +1,21 @@
 import { Command } from "commander";
-import { readDefectCounts, writeCoverage, writeRollups } from "@qa/run-state";
+import { readDefectCounts, writeAllMetrics, writeCoverage, writeRollups } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
 
 /** Per-run metric rollups computed by code from the run's records. */
 export function metricsCommand(): Command {
   const metrics = new Command("metrics").description("Per-run metric rollups computed from the run's records");
+
+  metrics
+    .command("all")
+    .description("Write every metric file (cycle-time, coverage, defect-trend, effectiveness, agent-reliability, flaky) and record the cycle events; run before Closure-draft and before Executive")
+    .option("--run <id>", "run id (defaults to the active run)")
+    .action(
+      action((o: { run?: string }) => {
+        const ctx = context();
+        return writeAllMetrics(ctx.root, runIdFor(ctx, o.run), ctx.caller);
+      })
+    );
 
   metrics
     .command("coverage")

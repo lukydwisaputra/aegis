@@ -98,7 +98,6 @@ assignments:
   read-only:
     # Cross-cutting read-only agents
     - qa-context-scanner
-    - qa-metrics-collector
 
 # qa-* agents start without CLAUDE.md (frontmatter `omitClaudeMd: true`, pinned by the agent-frontmatter test):
 # they get their rules from the SubagentStart hook (H4, the rules core in hook-context.ts).
@@ -118,7 +117,7 @@ ingestion:
   audit:           claude-sonnet-5-5           # Optional quality spot-check
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Cost tier rates (USD per 1M tokens) — used by qa-metrics-collector.
+# Cost tier rates (USD per 1M tokens) — used by the metrics code.
 # Updated when Anthropic changes pricing. Source: Anthropic pricing page.
 # ─────────────────────────────────────────────────────────────────────────────
 tokenRates:

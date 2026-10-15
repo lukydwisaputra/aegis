@@ -47,12 +47,14 @@ describe('DevOps docs (AUD-046)', () => {
 });
 
 // Retired by owner decision 2026-10-02 (spec §4.1); each retirement task appends its agents.
-const RETIRED: Array<{ name: string; aud: string }> = [
+const RETIRED: Array<{ name: string; aud: string; date?: string; reason?: string }> = [
   ...DEVOPS.map((name) => ({ name, aud: 'AUD-046' })),
   { name: 'qa-knowledge-librarian', aud: 'AUD-047' },
   { name: 'qa-event-bus', aud: 'AUD-048' },
   { name: 'qa-ui-designer', aud: 'AUD-050' },
   { name: 'qa-ui-designer-spv', aud: 'AUD-050' },
+  // Item 7 of the token and time trim (2026-10-15): the collector only ran aegis metrics all, so the orchestrator runs it.
+  { name: 'qa-metrics-collector', aud: 'item 7', date: '2026-10-15', reason: 'Item 7 of the token and time trim: .+' },
 ];
 
 /** Frontmatter names of every agent file under .claude/agents/. */
@@ -67,14 +69,14 @@ function agentNames(): string[] {
 }
 
 describe('retired agents (spec §4.1)', () => {
-  it.each(RETIRED)('$name lives only in agent-graveyard/, with retiredAt and reason', ({ name, aud }) => {
+  it.each(RETIRED)('$name lives only in agent-graveyard/, with retiredAt and reason', ({ name, aud, date, reason }) => {
     expect(agentNames()).not.toContain(name);
     const fm = /^---\n([\s\S]*?)\n---\n/.exec(read(`agent-graveyard/${name}.md`))![1]!;
     expect(fm).toMatch(new RegExp(`^name: ${name}$`, 'm'));
     expect(fm.match(/^retiredAt: /gm)).toEqual(['retiredAt: ']);
     expect(fm.match(/^reason: /gm)).toEqual(['reason: ']);
-    expect(fm).toMatch(/^retiredAt: 2026-10-02$/m);
-    expect(fm).toMatch(new RegExp(`^reason: "${aud}, owner decision 2026-10-02: .+"$`, 'm'));
+    expect(fm).toMatch(new RegExp(`^retiredAt: ${date ?? '2026-10-02'}$`, 'm'));
+    expect(fm).toMatch(new RegExp(`^reason: "${reason ?? `${aud}, owner decision 2026-10-02: .+`}"$`, 'm'));
   });
 
   it('no doc in the DOC-REF scope and no .claude/** file names a retired agent', () => {

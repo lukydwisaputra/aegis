@@ -4,6 +4,11 @@ import { SEVERITY_MAP } from '@qa/contracts';
 
 const ROOT = path.join(__dirname, '..');
 const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8');
+/** The metric file definitions the retired collector agent carried: HANDBOOK/13, "Metric file definitions" (what aegis metrics all writes). */
+const metricDefs = (): string => {
+  const h = read('HANDBOOK/13-mechanics.md');
+  return h.slice(h.indexOf('**Metric file definitions**'), h.indexOf('## 13.11'));
+};
 const REPORTER = '.claude/agents/tier1-phase/qa-executive-reporter.md';
 const SPV = '.claude/agents/spv/qa-executive-reporter-spv.md';
 const body = (md: string): string => md.slice(0, md.indexOf('## Contract (machine-checked)'));
@@ -396,16 +401,16 @@ describe('counts and pass rate: review fixes', () => {
     expect(check13).toContain('(environment, testingSide, requirementGap, notAttempted, and other named "other" when above zero)');
   });
 
-  it('executed and attempted are related in the reporter and in the collector', () => {
+  it('executed and attempted are related in the reporter and in the metric definitions', () => {
     const source = wording.slice(wording.indexOf('**Source of truth for counts.**'));
     expect(source).toContain(EXECUTED);
-    const collector = read('.claude/agents/crosscutting/qa-metrics-collector.md');
+    const collector = metricDefs();
     const counts = collector.slice(collector.indexOf('- **Counts**'), collector.indexOf('Rollup: percentage per type.'));
     expect(counts).toContain(EXECUTED);
   });
 
-  it('the collector says no-op counts as a pass', () => {
-    const collector = read('.claude/agents/crosscutting/qa-metrics-collector.md');
+  it('the metric definitions say no-op counts as a pass', () => {
+    const collector = metricDefs();
     const exec = collector.slice(collector.indexOf('- **Test execution coverage**'), collector.indexOf('- **Code coverage**'));
     expect(exec).toContain('A TC is passed only when every one of its outcomes is a pass or a `no-op` (`no-op` counts as a pass, as in the `passed` count)');
   });

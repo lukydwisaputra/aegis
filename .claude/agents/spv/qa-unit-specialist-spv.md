@@ -21,6 +21,7 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 
 - `runs/{runId}/reports/work/qa-unit-specialist*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/reports/unit-coverage-gaps.json` — reported coverage gap findings
+- `runs/{runId}/reports/unit-coverage.json` — the coverage figures the worker reported, when it wrote the file (the CLI's metrics step reads them into the coverage rollup)
 - Net-new QA unit test files (`tests/qa/unit/**/*.test.ts` only)
 - Developer unit test files (read-only reference, wherever `target-profile.json.unitTestStyle` says they live) — used only to confirm they were not touched
 - `runs/{runId}/cases/{TC-ID}.json` and `runs/{runId}/cases/{TC-ID}-result.json` — the test cases and their results, for developer-covered TCs
@@ -43,13 +44,14 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 9. **Developer-covered TCs.** For a TC with `coveredBy` in its `traceability`, the developer test it names was run read-only — unchanged, not copied, and no QA script written for the TC — with `CI=true`, no snapshot update and no coverage flag, its runner output and reports under `runs/{runId}/evidence/{TC-ID}/`; that evidence holds the target's `git -C <target> status --porcelain -- . ':!<repo dir>' ':!<QA tests dir>'` before and after (this repo's directory and the QA tests directory left out), with no change; a test whose config would build or start the target in place was not run and the TC is `skipped` with a note beginning `dev-covered:` and the reason (never Blocked); and `runs/{runId}/cases/{TC-ID}-result.json` cites the `coveredBy` ref. A duplicate script, a result without the ref, or any change in the target = requested-changes.
 10. **Blocked cause.** Every Blocked result in the work carries `blockedCause`: `product-dependency` with `blockedDependency` naming the real product dependency that exists now (exactly, never a generic word such as api, service or data), or `requirement-gap`. A Blocked result whose cause is on the QA side (a spec error, auth, missing test or seed data, a missing factory env name or credential, a budget, the harness, an environment fault), or with no valid cause, = requested-changes: the fault is fixed and the case run, never recorded as Blocked.
 11. **Skipped reason.** A `skipped` result names a QA-side limit no fix inside the run removes: a developer-covered test whose config would build the target in place (a note beginning `dev-covered:`) or a production run that cannot seed or change data (`production is read-only`). Anything fixable (missing seed data, auth, a budget, fixtures, the harness) is fixed and the case run; such a skip, or one with no reason, = requested-changes.
+12. **Coverage figures file.** When the worker wrote `reports/unit-coverage.json`, its `statements`, `branches`, `functions` and `lines` are percentages and its `basis` names the command and the whole QA unit-test scope, not one dispatch's tests alone. A figure outside 0 to 100, or a `basis` that names only part of the scope, = passed-with-notes.
 
 **Carry-forward attempt (scoped re-execution).** A work report whose summary begins "Carry-forward attempt" carries a `carryForward` stamp that the CLI wrote (the worker cannot): `eligible` and a `reason`. With `eligible: true` (a case list is in force and the task holds none of its cases), check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes. With `eligible: false` (no case list is in force because a rejection without cases or a completed run lapsed it, or the task holds listed cases that had to be re-run) the shortcut does not apply: review the report with the full checklist above, and never return it only for being a carry-forward attempt. A genuine carry-forward under a lapsed list passes when the full checklist holds for the cases the report actually ran (none, for a pure carry-forward), each result file it names exists and is unchanged, and it states which earlier attempt the carried result comes from; checklist items about work the report did not do are not applicable, never a reason to return it. With `eligible: null` (the CLI could not tell, for example no dispatch names the task's cases) or no stamp, decide it as before: the shortcut applies when `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, or the latest `gate.decided` with decision rejected carries `cases`, the case list has not lapsed (the event log holds no later `gate.decided` with decision rejected and no `cases`, and no `run.completed`, after it), and the task holds none of the listed cases.
 
 ## Verdict
 
 - `passed` — all checks pass
-- `passed-with-notes` — snapshot-only tests, large inline objects; emit CorrectiveInstruction
+- `passed-with-notes` — snapshot-only tests, large inline objects, a coverage figures file with a bad figure or a partial basis; emit CorrectiveInstruction
 - `requested-changes` — implementation testing, mocking the SUT, any write/edit in the target project outside `tests/qa/unit/`, a final test with no matching `sandbox.explored` event / sandbox artifact, a committed test with zero assertions; block
 
 ## Submitting Your Verdict
@@ -72,6 +74,7 @@ reviews: [qa-unit-specialist]
 reads:
   - "{run}/reports/work/qa-unit-specialist*.json"
   - "{run}/reports/unit-coverage-gaps.json"
+  - "{run}/reports/unit-coverage.json"
   - "{tests}/qa/unit/**"
   - "{tests}/qa/factories/**"
   - "{run}/target-profile.json"

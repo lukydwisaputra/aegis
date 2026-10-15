@@ -75,7 +75,7 @@ describe('run.reissue command registry', () => {
     expect(OWNER_COMMANDS.has('run.reissue')).toBe(true);
     expect(OWNER_ONLY.has('run.reissue')).toBe(true);
     expect(() => assertCallerAllowed('owner', 'run.reissue')).not.toThrow();
-    for (const agent of ['qa-orchestrator', 'qa-executive-reporter', 'qa-metrics-collector']) {
+    for (const agent of ['qa-orchestrator', 'qa-executive-reporter', 'qa-defect-manager']) {
       expect(() => assertCallerAllowed(agent, 'run.reissue')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
     }
   });

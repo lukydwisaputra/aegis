@@ -81,7 +81,7 @@ export function runCommand(): Command {
     .command("reissue")
     .description("Reopen a phase after Gate 1 of a completed full run and every phase after it (owner only); gates in that range need a new decision; the run becomes the active run")
     .option("--run <id>", "run id (defaults to the active run)")
-    .requiredOption("--phase <id>", "phase to reissue: a phase after Gate 1's phase (design through curator)")
+    .requiredOption("--phase <id>", "phase to reissue: a phase after Gate 1's phase (design through curator); reopens it and every later phase except the curator, which runs once per run")
     .requiredOption("--reason <text>", "why the phase is reissued; the reports may quote it")
     .option("--cases <ids>", "comma-separated test case ids a reissued Execution re-runs, e.g. TC-AUTH-001,TC-AUTH-004")
     .action(

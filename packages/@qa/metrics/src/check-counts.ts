@@ -17,9 +17,9 @@ export interface ResolvedCheckCounts {
 }
 
 /**
- * The one place the technical report and the sign-off decide their check counts. The counts object of the collector's coverage.json is
- * computed from the case files and wins. A coverage.json without complete counts (written before counts existed, or never written) is
- * recomputed here from the case files, read-only, by the function the collector command runs. A coverage.json that says
+ * The one place the technical report and the sign-off decide their check counts. The counts object of coverage.json (written by aegis metrics
+ * all) is computed from the case files and wins. A coverage.json without complete counts (written before counts existed, or never written) is
+ * recomputed here from the case files, read-only, by the function the metrics command runs. A coverage.json that says
  * `"noData": true` means not available, whatever the case files hold. A malformed case-of-record declaration throws CaseOfRecordError:
  * the caller turns it into its own refusal.
  */

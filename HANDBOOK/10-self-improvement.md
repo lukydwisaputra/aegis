@@ -76,7 +76,7 @@ Routine successes do not trigger appends. The lessons file is not a diary.
 
 ## 10.5 Curator's end-of-cycle review
 
-`qa-curator` runs after Gate 3. It reads `events.jsonl`, SPV reviews, defect outcomes, and gate decisions, then identifies patterns to promote:
+`qa-curator` runs once per run, in the Curator phase after Executive (a reissue of an earlier phase does not run it again). It reads `events.jsonl`, SPV reviews, defect outcomes, and gate decisions, then identifies patterns to promote:
 
 | Pattern type | Action |
 |-------------|--------|

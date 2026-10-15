@@ -376,9 +376,9 @@ describe('writeCoverage and aegis metrics coverage', () => {
     return runId;
   }
 
-  it('writes reports/metrics/coverage.json for the owner and for qa-metrics-collector', async () => {
+  it('writes reports/metrics/coverage.json for the owner', async () => {
     const runId = await seeded();
-    for (const caller of ['owner', 'qa-metrics-collector']) {
+    for (const caller of ['owner']) {
       const out = writeCoverage(t.root, runId, caller);
       expect(out.path).toBe('reports/metrics/coverage.json');
       expect(JSON.parse(fs.readFileSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'), 'utf8'))).toEqual(out.coverage);
@@ -393,24 +393,26 @@ describe('writeCoverage and aegis metrics coverage', () => {
   it('refuses every other agent and leaves no file', async () => {
     const runId = await seeded();
     expect(() => writeCoverage(t.root, runId, 'qa-ui-specialist')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
+    expect(() => writeCoverage(t.root, runId, 'qa-orchestrator')).toThrow(/run only by the owner \(agents run metrics all\)/);
     expect(() => assertCallerAllowed('qa-closure-reporter', 'metrics.coverage')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
     expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'))).toBe(false);
   });
 
-  it('the collector is told the command in its run context; the orchestrator is not', async () => {
+  it('no agent is told the coverage command in its run context: the orchestrator is told metrics all, which runs it', async () => {
     await seeded();
-    expect(runContextFor(t.root, 'qa-metrics-collector', 'm1')).toContain('`AEGIS_AGENT=qa-metrics-collector pnpm aegis metrics coverage [--run <id>]`');
     expect(runContextFor(t.root, 'qa-orchestrator', 'o1')).not.toContain('metrics coverage');
+    expect(runContextFor(t.root, 'qa-orchestrator', 'o2')).toContain('`AEGIS_AGENT=qa-orchestrator pnpm aegis metrics all [--run <id>]`');
   });
 
-  (stale ? it.skip : it)('the built CLI runs it for the collector and refuses another agent with exit 2', async () => {
+  (stale ? it.skip : it)('the built CLI runs it for the owner and refuses an agent with exit 2', async () => {
     const runId = await seeded();
     const aegis = (agent: string) => {
       const env = { ...process.env, AEGIS_AGENT: agent, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
       const r = spawnSync(process.execPath, [CLI, 'metrics', 'coverage', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
       return { status: r.status, out: r.stdout ? JSON.parse(r.stdout) : null, err: r.stderr ? JSON.parse(r.stderr) : null };
     };
-    expect(aegis('qa-metrics-collector')).toMatchObject({ status: 0, out: { path: 'reports/metrics/coverage.json', coverage: { requirementsCoverage: 75 } } });
+    expect(aegis('owner')).toMatchObject({ status: 0, out: { path: 'reports/metrics/coverage.json', coverage: { requirementsCoverage: 75 } } });
+    expect(aegis('qa-orchestrator')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
     expect(aegis('qa-ui-specialist')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
   }, 60_000);
 });

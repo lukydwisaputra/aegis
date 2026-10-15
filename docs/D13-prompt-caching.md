@@ -39,7 +39,7 @@ Implications for the orchestrator:
 - Long idle periods (gate waits, human review) will cold-start the next invocation
 - `/qa-resume` after a human gate always incurs a cache miss on the first resumed invocation
 
-The `qa-metrics-collector` tracks `cacheHitRate` per agent per run. A rate below 40% on long runs suggests the parallelism budget or gate waits are breaking the cache window.
+The run's metrics track `cacheHitRate` per agent per run. A rate below 40% on long runs suggests the parallelism budget or gate waits are breaking the cache window.
 
 ---
 
@@ -71,7 +71,7 @@ Cache usage is reported in `response.usage.cache_read_input_tokens` and `cache_c
 
 ## Cost accounting
 
-The `qa-metrics-collector` computes per-run cache savings:
+The run's metrics compute per-run cache savings:
 
 ```
 saved_tokens = cache_read_input_tokens (across all invocations)

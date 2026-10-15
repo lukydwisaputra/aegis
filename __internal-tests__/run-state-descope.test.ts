@@ -86,7 +86,7 @@ describe('descopeRun', () => {
 
   it('is owner-only', () => {
     expect(() => assertCallerAllowed('owner', 'run.descope')).not.toThrow();
-    for (const agent of ['qa-orchestrator', 'qa-test-executor', 'qa-metrics-collector']) {
+    for (const agent of ['qa-orchestrator', 'qa-test-executor', 'qa-defect-manager']) {
       expect(() => assertCallerAllowed(agent, 'run.descope')).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
     }
   });
