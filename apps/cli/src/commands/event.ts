@@ -66,6 +66,8 @@ export function eventCommand(): Command {
         const cut = parsed.success ? null : trimOverlong(event, parsed.error.issues as never, exact);
         if (cut !== null && cut.trimmed.length > 0) event = cut.value as Record<string, unknown>;
         try {
+          // The reservation stamp is the CLI's: one the caller wrote is replaced by the result of the check below.
+          if (o.type === "specialist.dispatched") event = { ...event, reserved: true };
           const write = () => appendChained(event, busPath(ctx.root, runId), { emittedBy: ctx.caller, runId });
           // A specialist dispatch reserves a slot for its task: refused when the task is reserved or running, or the cap is full.
           const recorded = o.type === "specialist.dispatched" ? await withDispatchReservation(ctx.root, runId, event, undefined, write) : await write();

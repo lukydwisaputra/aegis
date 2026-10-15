@@ -1,4 +1,6 @@
-import type { LedgerEntry } from "@qa/path-guard";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { readRunLedger, type LedgerEntry } from "@qa/path-guard";
 import type { Task } from "@qa/taskmaster-client";
 
 /** An instance has ended (H2 let it stop, or gave up blocking it) at or after `since`. */
@@ -47,4 +49,62 @@ export function claimHolderEntry(runLedger: LedgerEntry[], task: Task, agentType
     if (successor === null || ts >= Date.parse(successor.ts)) successor = e;
   }
   return successor ?? holder;
+}
+
+/**
+ * Fix round 1 (M1): a session that dies (crash, auth failure, killed terminal) fires no SubagentStop, so its agents keep a
+ * `start` with no end in the hook ledger forever. A resume is the "the previous session's agents are gone" signal: every
+ * instance first seen before a `run.resumed` with no end entry by then is given an end at that resume (a `stop-unresolved`
+ * entry, synthetic, never written). A stop request alone ends nothing: the agents in flight may still be finishing.
+ */
+export function effectiveLedger(ledger: LedgerEntry[], resumes: readonly number[]): LedgerEntry[] {
+  if (resumes.length === 0) return ledger;
+  const first = new Map<string, LedgerEntry>();
+  for (const e of ledger) {
+    const seen = first.get(e.agentId);
+    if (seen === undefined || Date.parse(e.ts) < Date.parse(seen.ts)) first.set(e.agentId, e);
+  }
+  const ends: LedgerEntry[] = [];
+  for (const [agentId, e] of first) {
+    const since = Date.parse(e.ts);
+    const resume = [...resumes].sort((a, b) => a - b).find((r) => r > since);
+    if (resume === undefined) continue;
+    const ended = endedAt(ledger, agentId, since);
+    if (ended !== null && ended <= resume) continue;
+    ends.push({ ts: new Date(resume).toISOString(), agentId, agentType: e.agentType, kind: "stop-unresolved" });
+  }
+  return ends.length === 0 ? ledger : [...ledger, ...ends];
+}
+
+/** The times of the run's `run.resumed` events, from the event log (a line scan; unreadable lines are skipped). */
+export function resumeTimes(busFile: string): number[] {
+  if (!existsSync(busFile)) return [];
+  const out: number[] = [];
+  for (const line of readFileSync(busFile, "utf-8").split("\n")) {
+    if (!line.includes('"run.resumed"')) continue;
+    try {
+      const e = JSON.parse(line) as { type?: unknown; ts?: unknown };
+      if (e.type === "run.resumed" && typeof e.ts === "string") out.push(Date.parse(e.ts));
+    } catch {
+      /* skipped */
+    }
+  }
+  return out;
+}
+
+/** The run's hook ledger with the ends a resume implies (effectiveLedger). */
+export function readEffectiveLedger(root: string, runId: string): LedgerEntry[] {
+  return effectiveLedger(readRunLedger(root, runId), resumeTimes(join(root, "runs", runId, "events.jsonl")));
+}
+
+/**
+ * Whether the claim of an in-progress task is held by an instance that has ended: its holder ended, or (no ledger claim names
+ * a holder) the claim was taken before the run's latest resume. Null when the task is not in progress.
+ */
+export function holderGone(ledger: LedgerEntry[], resumes: readonly number[], task: Task, agentType: string): boolean | null {
+  if (task.status !== "in-progress") return null;
+  const holder = claimHolderEntry(ledger, task, agentType);
+  if (holder !== null) return endedAt(ledger, holder.agentId, Date.parse(holder.ts)) !== null;
+  const claimedAt = task.claimedAt === undefined ? NaN : Date.parse(task.claimedAt);
+  return !Number.isNaN(claimedAt) && resumes.some((r) => r > claimedAt);
 }

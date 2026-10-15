@@ -2,14 +2,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { ReviewSchema } from "@qa/contracts";
 import { appendChained } from "@qa/event-bus";
-import { appendLedger, readRunLedger, roleOf, type LedgerEntry } from "@qa/path-guard";
+import { appendLedger, roleOf, type LedgerEntry } from "@qa/path-guard";
 import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { AGENT_ID, pairedSpv } from "./caller.js";
-import { claimHolder } from "./claim-holder.js";
+import { claimHolder, readEffectiveLedger } from "./claim-holder.js";
 import { RunStateError } from "./errors.js";
 import { busPath, readActiveRun, taskmasterDir } from "./paths.js";
 import { reviewDir, workDir } from "./submit.js";
-import { readNextTasks } from "./task-next.js";
+import { inFlightOf, readNextTasks } from "./task-next.js";
 import { freshAttempt, releaseTask } from "./tasks.js";
 import { transcriptUsage } from "./token-usage.js";
 import { iso } from "./util.js";
@@ -53,7 +53,7 @@ async function executorLoopProblem(root: string, runId: string, task: Task, noRe
   const v = await readNextTasks(root, runId, task.phase);
   const phase = v.phase ?? task.phase ?? "execution";
   const wait = `AEGIS_AGENT=${EXECUTOR} pnpm aegis task next --phase ${phase} --wait 540`;
-  const inFlight = [...v.running, ...v.dispatched, ...v.reviewing].map((e) => e.task);
+  const inFlight = inFlightOf(v);
   if (v.next === "blocked") {
     if (inFlight.length === 0) return null;
     return `the loop is blocked (${v.blockedBy}) but ${inFlight.join(", ")} are still in flight: dispatch nothing, wait until they finish (${wait}), then return to your dispatcher with task ${task.id} still claimed`;
@@ -195,7 +195,8 @@ export async function checkSubagentStop(root: string, input: StopInput): Promise
   const runId = readActiveRun(root);
   if (runId === null) return out;
   const role = roleOf(input.agentType);
-  const runLedger = readRunLedger(root, runId);
+  // Fix round 1 (M1): instances a resume left behind count as ended, as in aegis task next and task claim.
+  const runLedger = readEffectiveLedger(root, runId);
   const own = runLedger.filter((e) => e.agentId === input.agentId);
   let problem: string | null = null;
   if (role?.kind === "spv") {

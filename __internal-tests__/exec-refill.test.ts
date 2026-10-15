@@ -1,12 +1,14 @@
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { readLines } from '@qa/event-bus';
+import { appendChained } from '@qa/event-bus';
 import { appendLedger } from '@qa/path-guard';
+import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, appendSpecialistDispatched, assertCallerAllowed, busPath, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, nextTasks, releaseTask,
-  requestStop, submitReview, submitWorkReport, waitNextTasks,
+  addTask, appendSpecialistDispatched, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
+  releaseTask, requestStop, resumeRun, reviewDir, submitReview, submitWorkReport, taskmasterDir, waitNextTasks,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 import { review, workReport } from './helpers/pipeline';
@@ -201,7 +203,7 @@ describe('the dispatch reservation (aegis event append --type specialist.dispatc
     await dispatch('T-3', API);
     await expect(dispatch('T-4', DB, later(DISPATCH_GRACE_MS - 1000))).rejects.toMatchObject({ code: 'cap-reached' });
     await dispatch('T-4', DB, later(DISPATCH_GRACE_MS + 1000)); // T-2 and T-3 lapsed: no instance started
-    await claimTask(t.root, runId, 'T-4', DB);
+    await claimTask(t.root, runId, 'T-4', DB, later(DISPATCH_GRACE_MS + 1500));
     const v = await nextTasks(t.root, runId, EXEC, { now: later(DISPATCH_GRACE_MS + 2000) });
     expect(ids(v.running)).toEqual(['T-4']);
     expect(ids(v.dispatch)).toEqual(['T-2']);
@@ -344,11 +346,218 @@ describe('the prose follows the continuous loop', () => {
 
   it('an escalation still stops every dispatch, and the executor waits for what is in flight before it returns', () => {
     expect(executor).toContain('After either escalation (`next` is `blocked`), stop dispatching — no specialist and no SPV.');
-    expect(executor).toContain('wait with `aegis task next --phase execution --wait 540` until nothing you dispatched is `running`, `dispatched` or `reviewing`');
+    expect(executor).toContain('wait with `aegis task next --phase execution --wait 540` until nothing you dispatched is in flight');
+    expect(executor).not.toContain('completion notification also ends the wait');
+    expect(executor).toContain('Add every specialist task before the first `aegis task next`');
+    expect(executor).toContain('it appends `specialist.dispatched` first and makes the `Agent` call with the enriched brief only once the event is recorded');
   });
 
   it('the executor SPV checks the dispatch order and that the summary waited; the orchestrator still waits for the executor', () => {
     expect(read('.claude/agents/spv/qa-test-executor-spv.md')).toContain('14. **Continuous dispatch.**');
     expect(read('.claude/agents/orchestrator/qa-orchestrator.md')).toContain('You dispatch the executor itself in the foreground and wait for it, as every dispatch of yours;');
   });
+});
+
+// ─── Fix round 1 ──────────────────────────────────────────────────────────────
+
+const crash = async () => {
+  // a session dies: no SubagentStop, so no end entry; the owner stops and resumes the run
+  await requestStop(t.root, runId, 'the session died', 'owner');
+  await resumeRun(t.root, runId, 'owner');
+};
+
+describe('fix 1 M1: agents a dead session left behind are ended at the resume', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+    await add('T-3', API);
+  });
+
+  it('a reservation held by phantom instances is released by the resume: re-dispatch works and nothing stays reserved', async () => {
+    await dispatch('T-2', UI);
+    ledger('ui-1', UI, 'start');
+    ledger('ui-2', UI, 'start'); // started, never stopped
+    await crash();
+    let v = await nextTasks(t.root, runId, EXEC);
+    expect(ids(v.dispatch)).toContain('T-2');
+    expect(v.dispatched).toEqual([]);
+    await dispatch('T-2', UI); // not already-dispatched
+    v = await nextTasks(t.root, runId, EXEC, { now: later(DISPATCH_GRACE_MS + 60_000) }); // no instance started: released after the grace
+    expect(ids(v.dispatch)).toContain('T-2');
+  });
+
+  it('a reservation is tied to the first instance of its type that starts after it; a later unrelated instance never holds it', async () => {
+    await dispatch('T-2', UI);
+    ledger('ui-1', UI, 'start', undefined, later(1000).toISOString());
+    ledger('ui-1', UI, 'stopped', undefined, later(2000).toISOString()); // returned without claiming (cap-reached, crash)
+    ledger('ui-9', UI, 'start', undefined, later(3000).toISOString()); // another UI agent, for something else
+    const v = await nextTasks(t.root, runId, EXEC, { now: later(4000) });
+    expect(ids(v.dispatch)).toContain('T-2');
+  });
+
+  it('an in-progress task whose holder died is offered as resume with its fix, a new instance may claim it, and its creator may cancel it', async () => {
+    await dispatch('T-2', UI);
+    ledger('ui-1', UI, 'start');
+    ledger('ui-1', UI, 'claim', 'T-2');
+    await claimTask(t.root, runId, 'T-2', UI);
+    await crash();
+    const v = await nextTasks(t.root, runId, EXEC);
+    expect(v.running).toEqual([]);
+    expect(v.dispatch.filter((e) => e.resume === true)).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+    expect(v.recover).toEqual([expect.objectContaining({ task: 'T-2', fix: expect.stringContaining('re-dispatch qa-ui-specialist for T-2') })]);
+    expect(v.recover[0]!.fix).toContain('aegis task cancel --task T-2');
+    await dispatch('T-2', UI);
+    ledger('ui-5', UI, 'start');
+    ledger('ui-5', UI, 'claim', 'T-2');
+    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+    await crash(); // ui-5 dies too
+    const c = await cancelTask(t.root, runId, 'T-2', 'the work moves to a new task', EXEC);
+    expect(c.status).toBe('cancelled');
+    expect(events('task.cancelled')).toEqual([expect.objectContaining({ taskId: 'T-2', reason: expect.stringContaining('its holder ended') })]);
+  });
+
+  it('a live holder still blocks cancel and is still running', async () => {
+    ledger('ui-1', UI, 'start');
+    ledger('ui-1', UI, 'claim', 'T-2');
+    await claimTask(t.root, runId, 'T-2', UI);
+    await expect(cancelTask(t.root, runId, 'T-2', 'no', EXEC)).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
+  });
+
+  it('the executor re-dispatched after a crash takes its own task back (already-claimed, never duplicate-dispatch)', async () => {
+    await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
+    ledger('ex-1', EXEC, 'start');
+    ledger('ex-1', EXEC, 'claim', 'T-1');
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    await crash();
+    ledger('ex-2', EXEC, 'start');
+    ledger('ex-2', EXEC, 'claim', 'T-1');
+    await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
+  });
+
+  it('a stop request alone ends nothing: the running specialist stays running', async () => {
+    ledger('ui-1', UI, 'start');
+    ledger('ui-1', UI, 'claim', 'T-2');
+    await claimTask(t.root, runId, 'T-2', UI);
+    await requestStop(t.root, runId, 'owner stop', 'owner');
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']);
+  });
+});
+
+describe('fix 1 M2: --wait returns early only when something is actionable', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+  });
+
+  it('a stop requested while a specialist runs: --wait blocks until the timeout, and returns on the release', async () => {
+    await dispatch('T-2', UI);
+    await claimTask(t.root, runId, 'T-2', UI);
+    await requestStop(t.root, runId, 'owner stop', 'owner');
+    let start = Date.now();
+    let v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.6, pollMs: 50 });
+    expect(Date.now() - start).toBeGreaterThanOrEqual(550);
+    expect(v).toMatchObject({ next: 'blocked', changed: false, reason: expect.stringContaining('wait for what is in flight (T-2)') });
+    start = Date.now();
+    const waiting = waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 });
+    setTimeout(() => void finish('T-2', UI), 200);
+    v = await waiting;
+    expect(v).toMatchObject({ next: 'blocked', changed: true });
+    expect(Date.now() - start).toBeLessThan(10_000);
+  });
+
+  it('blocked with nothing in flight returns at once with the reason', async () => {
+    await requestStop(t.root, runId, 'owner stop', 'owner');
+    const start = Date.now();
+    const v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 });
+    expect(Date.now() - start).toBeLessThan(2000);
+    expect(v.reason).toContain('nothing dispatched is in flight');
+  });
+
+  it('a redrive is actionable until its SPV starts, then in flight: --wait no longer returns at once', async () => {
+    await dispatch('T-2', UI);
+    await claimTask(t.root, runId, 'T-2', UI);
+    await finish('T-2', UI);
+    // the rejection was recorded but its reopen failed: a requested-changes review file on a done task
+    const rv = review(`${UI}-spv`, UI, 'T-2', 'requested-changes');
+    fs.mkdirSync(reviewDir(t.root, runId), { recursive: true });
+    fs.writeFileSync(path.join(reviewDir(t.root, runId), `${UI}.T-2.1.json`), JSON.stringify({ ...rv, id: 'RV-qa-ui-specialist-spv-T-2', target: { agent: UI, taskId: 'T-2', workReportId: 'WR-T-2' } }));
+    await appendChained({ type: 'review.requested-changes', ts: new Date().toISOString(), runId, target: { agent: UI, taskId: 'T-2' }, reviewId: 'RV-qa-ui-specialist-spv-T-2', findingCount: 1 } as never, busPath(t.root, runId), { emittedBy: `${UI}-spv`, runId });
+    let v = await nextTasks(t.root, runId, EXEC);
+    expect(v).toMatchObject({ next: 'act', redrive: [expect.objectContaining({ task: 'T-2', spv: `${UI}-spv` })] });
+    ledger('spv-1', `${UI}-spv`, 'start', undefined, later(500).toISOString());
+    v = await nextTasks(t.root, runId, EXEC, { now: later(1000) });
+    expect(v).toMatchObject({ next: 'wait', redrive: [expect.objectContaining({ task: 'T-2', inFlight: true })] });
+    const start = Date.now();
+    expect(await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.4, pollMs: 50 })).toMatchObject({ next: 'wait', changed: false });
+    expect(Date.now() - start).toBeGreaterThanOrEqual(350);
+  });
+
+  it('a failed release with no escalation is actionable until its assignee starts again, then in flight', async () => {
+    await dispatch('T-2', UI);
+    await claimTask(t.root, runId, 'T-2', UI);
+    await submitWorkReport(t.root, runId, tmp(workReport(UI, 'T-2')), UI);
+    await createTaskmasterClient(taskmasterDir(t.root, runId)).release('T-2', 'failed'); // the crash came before the escalation
+    await appendChained({ type: 'task.released', ts: new Date().toISOString(), runId, taskId: 'T-2', agent: UI, result: 'failed' } as never, busPath(t.root, runId), { emittedBy: UI, runId });
+    let v = await nextTasks(t.root, runId, EXEC);
+    expect(v).toMatchObject({ next: 'act', failedRelease: [expect.objectContaining({ task: 'T-2' })] });
+    ledger('ui-2', UI, 'start', undefined, later(500).toISOString());
+    v = await nextTasks(t.root, runId, EXEC, { now: later(1000) });
+    expect(v).toMatchObject({ next: 'wait', failedRelease: [expect.objectContaining({ task: 'T-2', inFlight: true })] });
+  });
+});
+
+describe('fix 1 minors', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 1 });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+    await add('T-3', API);
+  });
+
+  it('the claim cap counts the reservations of other tasks; the reserved specialist takes its own slot', async () => {
+    await dispatch('T-2', UI);
+    await expect(claimTask(t.root, runId, 'T-3', API)).rejects.toMatchObject({ code: 'cap-reached', message: expect.stringContaining('reserved by a dispatch (T-2)') });
+    await claimTask(t.root, runId, 'T-2', UI);
+  });
+
+  it('settled with no specialist task says why; task add records createdAt; the CLI stamps reserved', async () => {
+    t.cleanup();
+    t = makeAegisRoot({ maxSpecialists: 1 });
+    runId = await startedRun(t.root);
+    expect(await nextTasks(t.root, runId, EXEC)).toMatchObject({ next: 'settled', specialistTasks: 0, reason: expect.stringContaining('no specialist task exists') });
+    await add('T-2', UI);
+    expect((await listTasks(t.root, runId, EXEC)).tasks[0]!.createdAt).toMatch(/Z$/);
+    await dispatch('T-2', UI);
+    expect(events('specialist.dispatched')[0]).toMatchObject({ reserved: true });
+  });
+
+  it('H2: a blocked loop with a specialist in flight keeps the executor waiting', async () => {
+    await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
+    ledger('ex-1', EXEC, 'claim', 'T-1');
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    await dispatch('T-2', UI);
+    await claimTask(t.root, runId, 'T-2', UI);
+    await requestStop(t.root, runId, 'owner stop', 'owner');
+    const v = await checkSubagentStop(t.root, { agentId: 'ex-1', agentType: EXEC });
+    expect(v.block).toBe(true);
+    expect(v.reason).toContain('T-2 are still in flight');
+  });
+
+  (cliStale ? it.skip : it)('a dispatch and a claim of another task racing for the last slot in separate processes: exactly one wins', async () => {
+    const env = { ...process.env, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+    const run = (agent: string, args: string[]) =>
+      new Promise<{ code: number | null; err: string }>((resolve) => {
+        const child = spawn(process.execPath, [CLI, ...args], { cwd: t.root, env: { ...env, AEGIS_AGENT: agent } });
+        let err = '';
+        child.stderr.on('data', (d) => (err += String(d)));
+        child.on('close', (code) => resolve({ code, err }));
+      });
+    const fields = JSON.stringify({ specialistName: UI, taskId: 'T-2', tcIds: [], environment: 'development' });
+    const [d, c] = await Promise.all([run(EXEC, ['event', 'append', '--type', 'specialist.dispatched', '--json', fields]), run(API, ['task', 'claim', '--task', 'T-3'])]);
+    expect([d.code, c.code].sort()).toEqual([0, 2]);
+    expect(d.err + c.err).toContain('cap-reached');
+  }, 60_000);
 });

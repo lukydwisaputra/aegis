@@ -25,6 +25,8 @@ export interface TaskListEntry {
   status: TaskStatus;
   claimedBy: string | null;
   createdBy: string | null;
+  /** When aegis task add created it; null for a task of an earlier run. */
+  createdAt: string | null;
   latestAttempt: number;
   reviewState: TaskReviewState;
   /** The owner's escalation decision on the latest attempt, with its reason (an accept-with-risk reason goes into the summary). */
@@ -93,6 +95,7 @@ export async function readTaskList(root: string, runId: string, phase?: string):
         status: t.status,
         claimedBy: t.claimedBy ?? null,
         createdBy: t.createdBy ?? null,
+        createdAt: t.createdAt ?? null,
         latestAttempt: latest,
         reviewState: agent === undefined ? "none" : reviewStateOf(root, runId, agent, t.id, latest, superseded, decision),
         escalationDecision: decision,

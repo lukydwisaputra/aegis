@@ -4,7 +4,7 @@ import { appendChained } from "@qa/event-bus";
 import { readRunLedger, type LedgerEntry } from "@qa/path-guard";
 import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { assertCallerAllowed, isSpecialist, pairedSpv } from "./caller.js";
-import { claimHolderEntry, endedAt } from "./claim-holder.js";
+import { claimHolderEntry, effectiveLedger, endedAt, holderGone } from "./claim-holder.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { busPath, taskmasterDir } from "./paths.js";
@@ -37,6 +37,16 @@ export interface NextEntry {
   attempt?: number;
   /** dispatched: when the reservation was made. */
   since?: string;
+  /** redrive, failedRelease: an agent dispatched for it is still at work; not actionable until it ends. */
+  inFlight?: boolean;
+}
+
+/** A task the loop cannot finish on its own, with the exact command that clears it. */
+export interface RecoverEntry {
+  task: string;
+  agent: string;
+  problem: string;
+  fix: string;
 }
 
 export interface TaskNextResult {
@@ -46,8 +56,12 @@ export interface TaskNextResult {
   /** Specialist slots neither claimed nor reserved, over the whole run (the claim cap counts the whole run too). */
   freeSlots: number;
   next: NextAction;
+  /** Why `next` is what it is, when that needs saying (blocked, or settled with no specialist task). */
+  reason: string | null;
   /** Why the loop is blocked, when it is. */
   blockedBy: string | null;
+  /** The specialist tasks of the phase (settled with 0 means routing produced none). */
+  specialistTasks: number;
   running: NextEntry[];
   dispatched: NextEntry[];
   dispatch: NextEntry[];
@@ -58,29 +72,45 @@ export interface TaskNextResult {
   failedRelease: NextEntry[];
   escalated: NextEntry[];
   settled: string[];
+  recover: RecoverEntry[];
 }
 
 interface TaskEvents {
   dispatchedAt?: number;
   claimedAfterDispatch: boolean;
   releasedAt?: number;
+  /** The latest review.requested-changes of the task (the attempt a redrive re-reviews). */
+  rejectedAt?: number;
 }
 
-/** The latest dispatch of each task, whether a claim followed it, and its latest release, from the event log. */
-function scanEvents(root: string, runId: string): Map<string, TaskEvents> {
-  const out = new Map<string, TaskEvents>();
+interface Scan {
+  tasks: Map<string, TaskEvents>;
+  resumes: number[];
+}
+
+/** The latest dispatch of each task, whether a claim followed it, its latest release and rejection, and the resumes. */
+function scanEvents(root: string, runId: string): Scan {
+  const tasks = new Map<string, TaskEvents>();
+  const resumes: number[] = [];
   const file = busPath(root, runId);
-  if (!existsSync(file)) return out;
+  if (!existsSync(file)) return { tasks, resumes };
+  const KINDS = ['"specialist.dispatched"', '"task.claimed"', '"task.released"', '"review.requested-changes"', '"run.resumed"'];
   for (const line of readFileSync(file, "utf-8").split("\n")) {
-    if (!line.includes('"specialist.dispatched"') && !line.includes('"task.claimed"') && !line.includes('"task.released"')) continue;
-    let e: { type?: unknown; taskId?: unknown; ts?: unknown };
+    if (!KINDS.some((k) => line.includes(k))) continue;
+    let e: { type?: unknown; taskId?: unknown; ts?: unknown; target?: { taskId?: unknown } };
     try {
       e = JSON.parse(line) as typeof e;
     } catch {
       continue;
     }
-    if (typeof e.taskId !== "string" || typeof e.ts !== "string") continue;
-    const rec = out.get(e.taskId) ?? { claimedAfterDispatch: false };
+    if (typeof e.ts !== "string") continue;
+    if (e.type === "run.resumed") {
+      resumes.push(Date.parse(e.ts));
+      continue;
+    }
+    const taskId = e.type === "review.requested-changes" ? e.target?.taskId : e.taskId;
+    if (typeof taskId !== "string") continue;
+    const rec = tasks.get(taskId) ?? { claimedAfterDispatch: false };
     if (e.type === "specialist.dispatched") {
       rec.dispatchedAt = Date.parse(e.ts);
       rec.claimedAfterDispatch = false;
@@ -88,15 +118,41 @@ function scanEvents(root: string, runId: string): Map<string, TaskEvents> {
       if (rec.dispatchedAt !== undefined) rec.claimedAfterDispatch = true;
     } else if (e.type === "task.released") {
       rec.releasedAt = Date.parse(e.ts);
+    } else if (e.type === "review.requested-changes") {
+      rec.rejectedAt = Date.parse(e.ts);
     }
-    out.set(e.taskId, rec);
+    tasks.set(taskId, rec);
   }
-  return out;
+  return { tasks, resumes };
 }
+
+const isLive = (ledger: LedgerEntry[], e: LedgerEntry): boolean => endedAt(ledger, e.agentId, Date.parse(e.ts)) === null;
 
 /** Instances of `agentType` that started at or after `since` and have not ended, oldest first. */
 function liveSince(ledger: LedgerEntry[], agentType: string, since: number): LedgerEntry[] {
-  return ledger.filter((e) => e.kind === "start" && e.agentType === agentType && Date.parse(e.ts) >= since && endedAt(ledger, e.agentId, Date.parse(e.ts)) === null);
+  return ledger
+    .filter((e) => e.kind === "start" && e.agentType === agentType && Date.parse(e.ts) >= since && isLive(ledger, e))
+    .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+}
+
+/**
+ * Fix round 1 (M1): each open dispatch is tied to the FIRST instance of its specialist that started within the grace window after
+ * it (oldest dispatch first, one instance per dispatch), so an unrelated or phantom instance never holds it. The reservation lives
+ * while that instance lives; with no instance started, until the grace window ends.
+ */
+function reservations(open: Array<{ id: string; agent: string; at: number }>, ledger: LedgerEntry[], now: number): Map<string, number> {
+  const live = new Map<string, number>();
+  const bound = new Set<string>();
+  for (const d of [...open].sort((a, b) => a.at - b.at)) {
+    const instance = ledger
+      .filter((e) => e.kind === "start" && e.agentType === d.agent && !bound.has(e.agentId) && Date.parse(e.ts) >= d.at && Date.parse(e.ts) <= d.at + DISPATCH_GRACE_MS)
+      .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))[0];
+    if (instance !== undefined) {
+      bound.add(instance.agentId);
+      if (isLive(ledger, instance)) live.set(d.id, d.at);
+    } else if (now - d.at < DISPATCH_GRACE_MS) live.set(d.id, d.at);
+  }
+  return live;
 }
 
 type Slot = "running" | "dispatched" | "candidate" | "resume" | "other";
@@ -106,29 +162,6 @@ interface Classified {
   raw: Task | undefined;
   slot: Slot;
   since?: number;
-}
-
-/** Where one specialist task stands for the slot count: claimed and live, reserved, offered, resumable, or none of these. */
-function classify(entry: TaskListEntry, raw: Task | undefined, evs: Map<string, TaskEvents>, ledger: LedgerEntry[], now: number): Classified {
-  const agent = entry.assignee!;
-  const rec = evs.get(entry.id);
-  const reservedSince = (after: number): number | null => {
-    if (rec?.dispatchedAt === undefined || rec.dispatchedAt < after || rec.claimedAfterDispatch) return null;
-    if (now - rec.dispatchedAt < DISPATCH_GRACE_MS || liveSince(ledger, agent, rec.dispatchedAt).length > 0) return rec.dispatchedAt;
-    return null;
-  };
-  if (entry.status === "pending" && entry.reviewState !== "escalated") {
-    const at = reservedSince(-Infinity);
-    return at === null ? { entry, raw, slot: "candidate" } : { entry, raw, slot: "dispatched", since: at };
-  }
-  if (entry.status === "in-progress") {
-    const holder = raw === undefined ? null : claimHolderEntry(ledger, raw, agent);
-    const ended = holder === null ? null : endedAt(ledger, holder.agentId, Date.parse(holder.ts));
-    if (ended === null) return { entry, raw, slot: "running" };
-    const at = reservedSince(ended);
-    return at === null ? { entry, raw, slot: "resume" } : { entry, raw, slot: "dispatched", since: at };
-  }
-  return { entry, raw, slot: "other" };
 }
 
 interface View {
@@ -143,9 +176,34 @@ async function computeView(root: string, runId: string, phase: string | undefine
   const all = (await readTaskList(root, runId)).tasks.filter((t) => t.assignee !== null && isSpecialist(t.assignee));
   const dir = taskmasterDir(root, runId);
   const raws = new Map((existsSync(join(dir, "tasks")) ? await createTaskmasterClient(dir).list() : []).map((t) => [t.id, t]));
-  const evs = scanEvents(root, runId);
-  const ledger = readRunLedger(root, runId);
-  const byId = new Map(all.map((t) => [t.id, classify(t, raws.get(t.id), evs, ledger, now)]));
+  const { tasks: evs, resumes } = scanEvents(root, runId);
+  const ledger = effectiveLedger(readRunLedger(root, runId), resumes);
+
+  // Where each task stands; an in-progress task's holder decides between running and resume (a dead holder never runs).
+  const gone = new Map<string, number>();
+  const open: Array<{ id: string; agent: string; at: number }> = [];
+  for (const t of all) {
+    const raw = raws.get(t.id);
+    if (t.status === "in-progress" && raw !== undefined && holderGone(ledger, resumes, raw, t.assignee!) === true) {
+      const holder = claimHolderEntry(ledger, raw, t.assignee!);
+      gone.set(t.id, holder === null ? Math.max(...resumes.filter((r) => r > Date.parse(raw.claimedAt ?? "0"))) : endedAt(ledger, holder.agentId, Date.parse(holder.ts))!);
+    }
+    const rec = evs.get(t.id);
+    if (rec?.dispatchedAt === undefined || rec.claimedAfterDispatch) continue;
+    if (t.status === "pending" || (gone.has(t.id) && rec.dispatchedAt >= gone.get(t.id)!)) open.push({ id: t.id, agent: t.assignee!, at: rec.dispatchedAt });
+  }
+  const reserved = reservations(open, ledger, now);
+  const byId = new Map<string, Classified>();
+  for (const t of all) {
+    const raw = raws.get(t.id);
+    const at = reserved.get(t.id);
+    let c: Classified;
+    if (t.status === "pending" && t.reviewState !== "escalated") c = at === undefined ? { entry: t, raw, slot: "candidate" } : { entry: t, raw, slot: "dispatched", since: at };
+    else if (t.status === "in-progress" && gone.has(t.id)) c = at === undefined ? { entry: t, raw, slot: "resume" } : { entry: t, raw, slot: "dispatched", since: at };
+    else if (t.status === "in-progress") c = { entry: t, raw, slot: "running" };
+    else c = { entry: t, raw, slot: "other" };
+    byId.set(t.id, c);
+  }
 
   // The claim cap counts every in-progress specialist task of the run; a live reservation holds a slot until its claim.
   const occupied = [...byId.values()].filter((c) => c.slot === "running" || c.slot === "resume" || c.slot === "dispatched").length;
@@ -153,50 +211,83 @@ async function computeView(root: string, runId: string, phase: string | undefine
 
   const entry = (c: Classified, extra: Partial<NextEntry> = {}): NextEntry => ({ task: c.entry.id, agent: c.entry.assignee!, title: c.entry.title, ...extra });
   const result: TaskNextResult = {
-    runId, phase: scope ?? null, cap, freeSlots, next: "wait", blockedBy: null,
-    running: [], dispatched: [], dispatch: [], waiting: [], review: [], reviewing: [], redrive: [], failedRelease: [], escalated: [], settled: [],
+    runId, phase: scope ?? null, cap, freeSlots, next: "wait", reason: null, blockedBy: null, specialistTasks: 0,
+    running: [], dispatched: [], dispatch: [], waiting: [], review: [], reviewing: [], redrive: [], failedRelease: [], escalated: [], settled: [], recover: [],
   };
   const candidates: NextEntry[] = [];
   const toReview: Classified[] = [];
+  const redrive: Classified[] = [];
+  const failed: Classified[] = [];
   const inScope = [...byId.values()].filter((c) => scope === undefined || c.entry.phase === scope);
+  result.specialistTasks = inScope.length;
   for (const c of inScope) {
     const t = c.entry;
     if (t.status === "cancelled" || t.reviewState === "passed" || t.reviewState === "accepted-with-risk") result.settled.push(t.id);
     else if (t.reviewState === "escalated") result.escalated.push(entry(c));
     else if (c.slot === "running") result.running.push(entry(c));
-    else if (c.slot === "dispatched") result.dispatched.push(entry(c, { since: new Date(c.since!).toISOString(), ...(c.entry.status === "in-progress" ? { resume: true } : {}) }));
-    else if (c.slot === "resume") result.dispatch.push(entry(c, { resume: true }));
-    else if (c.slot === "candidate") candidates.push(entry(c, t.reviewState === "requested-changes" ? { corrective: true } : {}));
-    else if (t.status === "done" && t.reviewState === "requested-changes") result.redrive.push(entry(c, { spv: pairedSpv(t.assignee!), attempt: t.latestAttempt }));
+    else if (c.slot === "dispatched") result.dispatched.push(entry(c, { since: new Date(c.since!).toISOString(), ...(t.status === "in-progress" ? { resume: true } : {}) }));
+    else if (c.slot === "resume") {
+      result.dispatch.push(entry(c, { resume: true }));
+      result.recover.push({
+        task: t.id,
+        agent: t.assignee!,
+        problem: `${t.id} is in progress but the ${t.assignee} that claimed it has ended without releasing it (a stopped, crashed or resumed session)`,
+        fix: `re-dispatch ${t.assignee} for ${t.id}: append specialist.dispatched for it, then the Agent call with a brief that says to skip the claim and continue with the work report and release. If the task should not be finished, its creator runs aegis task cancel --task ${t.id} --reason "<why>" (or the owner aegis task abandon --task ${t.id} --reason "<why>") and a new task is added for the work`,
+      });
+    } else if (c.slot === "candidate") candidates.push(entry(c, t.reviewState === "requested-changes" ? { corrective: true } : {}));
+    else if (t.status === "done" && t.reviewState === "requested-changes") redrive.push(c);
     else if (t.status === "done") toReview.push(c);
-    else if (t.status === "failed") result.failedRelease.push(entry(c));
+    else if (t.status === "failed") failed.push(c);
   }
   result.dispatch.push(...candidates.slice(0, freeSlots));
   result.waiting.push(...candidates.slice(freeSlots));
 
-  // An SPV instance started after a release reviews it: matched oldest release first, one instance per task.
+  // An instance started after the moment that made the entry (a release, a rejection, a failed release) works on it: matched oldest
+  // first, one instance per entry. A matched review is `reviewing`; a matched redrive or failed release is `inFlight`.
   const taken = new Set<string>();
-  toReview.sort((a, b) => (evs.get(a.entry.id)?.releasedAt ?? 0) - (evs.get(b.entry.id)?.releasedAt ?? 0));
-  for (const c of toReview) {
+  const match = (agent: string, since: number): boolean => {
+    const live = liveSince(ledger, agent, since).find((e) => !taken.has(e.agentId));
+    if (live !== undefined) taken.add(live.agentId);
+    return live !== undefined;
+  };
+  const byTime = (key: "releasedAt" | "rejectedAt") => (a: Classified, b: Classified) => (evs.get(a.entry.id)?.[key] ?? 0) - (evs.get(b.entry.id)?.[key] ?? 0);
+  for (const c of redrive.sort(byTime("rejectedAt"))) {
     const spv = pairedSpv(c.entry.assignee!);
-    const released = evs.get(c.entry.id)?.releasedAt ?? 0;
-    const live = liveSince(ledger, spv, released).find((e) => !taken.has(e.agentId));
+    result.redrive.push(entry(c, { spv, attempt: c.entry.latestAttempt, ...(match(spv, evs.get(c.entry.id)?.rejectedAt ?? 0) ? { inFlight: true } : {}) }));
+  }
+  for (const c of toReview.sort(byTime("releasedAt"))) {
+    const spv = pairedSpv(c.entry.assignee!);
     const e = entry(c, { spv, attempt: c.entry.latestAttempt });
-    if (live === undefined) result.review.push(e);
-    else {
-      taken.add(live.agentId);
-      result.reviewing.push(e);
-    }
+    (match(spv, evs.get(c.entry.id)?.releasedAt ?? 0) ? result.reviewing : result.review).push(e);
+  }
+  for (const c of failed.sort(byTime("releasedAt"))) {
+    result.failedRelease.push(entry(c, match(c.entry.assignee!, evs.get(c.entry.id)?.releasedAt ?? 0) ? { inFlight: true } : {}));
   }
 
   if (state.stopRequested) result.blockedBy = "a stop is requested";
   else if (state.status !== "running") result.blockedBy = `the run is ${state.status}`;
   else if (result.escalated.length > 0) result.blockedBy = `an escalation is open (${result.escalated.map((e) => e.task).join(", ")}): the owner decides it with /qa-escalation`;
-  if (result.blockedBy !== null) result.next = "blocked";
-  else if (result.dispatch.length + result.review.length + result.redrive.length + result.failedRelease.length > 0) result.next = "act";
-  else if (result.settled.length === inScope.length) result.next = "settled";
-  else result.next = "wait";
+  const actionable = result.dispatch.length + result.review.length + result.redrive.filter((e) => e.inFlight !== true).length + result.failedRelease.filter((e) => e.inFlight !== true).length;
+  if (result.blockedBy !== null) {
+    result.next = "blocked";
+    result.reason = inFlightOf(result).length === 0 ? `${result.blockedBy}; nothing dispatched is in flight: return to your dispatcher` : `${result.blockedBy}; wait for what is in flight (${inFlightOf(result).join(", ")})`;
+  } else if (actionable > 0) result.next = "act";
+  else if (result.settled.length === inScope.length) {
+    result.next = "settled";
+    if (inScope.length === 0) result.reason = "no specialist task exists in this phase: settled only when routing produced none (add every specialist task before the first task next)";
+  } else result.next = "wait";
   return { result, byId };
+}
+
+/** The tasks a dispatched agent is still working on: running, reserved, under review, or a redrive or failed release in flight. */
+export function inFlightOf(r: TaskNextResult): string[] {
+  return [...r.running, ...r.dispatched, ...r.reviewing, ...r.redrive.filter((e) => e.inFlight === true), ...r.failedRelease.filter((e) => e.inFlight === true)].map((e) => e.task);
+}
+
+/** The task ids whose live reservation holds a specialist slot (the claim cap counts them, the claimer's own excepted). */
+export async function reservedTasks(root: string, runId: string, now?: Date): Promise<string[]> {
+  const { byId } = await computeView(root, runId, undefined, (now ?? new Date()).getTime());
+  return [...byId.values()].filter((c) => c.slot === "dispatched" && c.entry.status === "pending").map((c) => c.entry.id);
 }
 
 /**
@@ -214,11 +305,22 @@ export async function readNextTasks(root: string, runId: string, phase?: string,
 }
 
 const fingerprint = (r: TaskNextResult): string =>
-  JSON.stringify([r.next, r.freeSlots, r.blockedBy, ...(["running", "dispatched", "dispatch", "waiting", "review", "reviewing", "redrive", "failedRelease", "escalated"] as const).map((k) => r[k].map((e) => `${e.task}:${e.resume === true}`)), r.settled]);
+  JSON.stringify([
+    r.next, r.freeSlots, r.blockedBy,
+    ...(["running", "dispatched", "dispatch", "waiting", "review", "reviewing", "redrive", "failedRelease", "escalated"] as const).map((k) =>
+      r[k].map((e) => `${e.task}:${e.resume === true}:${e.inFlight === true}`)
+    ),
+    r.settled,
+  ]);
+
+/** Something to do now: a dispatch, an SPV, a resume, a redrive or failed release nobody works on, the summary, or a blocked loop with nothing in flight. */
+const actionableNow = (r: TaskNextResult): boolean => r.next === "act" || r.next === "settled" || (r.next === "blocked" && inFlightOf(r).length === 0);
 
 /**
- * aegis task next --wait: the same view, returned at once when `next` is not `wait`, otherwise as soon as it changes (a claim,
- * a release, a review, a reopen, a reservation lapsing) or after `waitSeconds`. Polls the files in this process; spawns nothing.
+ * aegis task next --wait: the same view, returned at once only when something is actionable now (actionableNow). Otherwise (next is
+ * wait, or blocked while a dispatched agent is still in flight) it returns as soon as the view changes (a claim, a release, a
+ * review, a reopen, an agent ending, a reservation lapsing) or after `waitSeconds`. Polls the files in this process, holds no lock
+ * and spawns nothing.
  */
 export async function waitNextTasks(
   root: string,
@@ -231,7 +333,7 @@ export async function waitNextTasks(
     throw new RunStateError("invalid-input", `--wait takes a number of seconds above 0 and at most ${MAX_WAIT_SECONDS}`);
   }
   const first = (await computeView(root, runId, opts.phase, Date.now())).result;
-  if (first.next !== "wait") return { ...first, changed: false };
+  if (actionableNow(first)) return { ...first, changed: false };
   const seen = fingerprint(first);
   const until = Date.now() + opts.waitSeconds * 1000;
   const poll = opts.pollMs ?? 2000;
@@ -300,6 +402,6 @@ export async function withDispatchReservation<T>(root: string, runId: string, fi
 export async function appendSpecialistDispatched(root: string, runId: string, fields: DispatchedFields, caller: string, now?: Date): Promise<unknown> {
   assertCallerAllowed(caller, "event.append");
   return withDispatchReservation(root, runId, fields, now, () =>
-    appendChained({ runId, ...fields, type: "specialist.dispatched", ts: iso(now) } as never, busPath(root, runId), { emittedBy: caller, runId })
+    appendChained({ runId, ...fields, type: "specialist.dispatched", ts: iso(now), reserved: true } as never, busPath(root, runId), { emittedBy: caller, runId })
   );
 }
