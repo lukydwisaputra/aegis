@@ -43,6 +43,8 @@ export interface ProbeOptions {
   budgetMs?: number;
   /** How long a fetcher's close() may take before the call goes on without it (default 10 s). */
   closeMs?: number;
+  /** The clock that measures the budget (default Date.now). A test drives it so no budget decision depends on how fast the machine ran the identity hashing. */
+  nowMs?: () => number;
 }
 
 export interface ProbeResult {
@@ -241,17 +243,23 @@ export async function settleWithin<T>(work: Promise<T>, ms: number): Promise<{ d
 }
 
 /** The visit loop's share of the budget: what the identity hashing before it left over. */
-const budgetLeft = (opts: ProbeOptions, startedAt: number): number => Math.max(0, (opts.budgetMs ?? PROBE_BUDGET_MS) - (Date.now() - startedAt));
+const budgetLeft = (opts: ProbeOptions, startedAt: number): number => Math.max(0, (opts.budgetMs ?? PROBE_BUDGET_MS) - ((opts.nowMs ?? Date.now)() - startedAt));
 
 /**
  * Builds the fetcher and visits `pages` one at a time within `budgetMs`: each visit is raced against the budget left, and every page
  * not visited in time is an error observation. A throwing visit is an error observation too. The fetcher is closed exactly once,
  * whatever happens; a factory that throws, or does not answer within the budget, gives the redacted reason instead.
  */
-async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budgetMs: number, closeMs: number): Promise<{ observed: Observed[] } | { error: string }> {
+async function visitAll(
+  factory: FetcherFactory,
+  pages: readonly PageRef[],
+  budgetMs: number,
+  closeMs: number,
+  nowMs: () => number
+): Promise<{ observed: Observed[] } | { error: string }> {
   // No budget left (the identity hashing spent it): no browser is started and no page is observed.
   if (budgetMs <= 0) return { observed: pages.map((page) => ({ ...page, error: BUDGET_ERROR })) };
-  const deadline = Date.now() + budgetMs;
+  const deadline = nowMs() + budgetMs;
   let fetcher: PageFetcher;
   const starting = Promise.resolve().then(factory);
   try {
@@ -268,7 +276,7 @@ async function visitAll(factory: FetcherFactory, pages: readonly PageRef[], budg
   const observed: Observed[] = [];
   try {
     for (const page of pages) {
-      const left = deadline - Date.now();
+      const left = deadline - nowMs();
       if (left <= 0) {
         observed.push({ ...page, error: BUDGET_ERROR });
         continue;
@@ -326,7 +334,7 @@ export async function takeBaseline(root: string, runId: string, caller: string, 
   assertCallerAllowed(caller, "explore.probe");
   const before = readRun(root, runId);
   await assertBaselineAllowed(root, runId, before);
-  const startedAt = Date.now();
+  const startedAt = (opts.nowMs ?? Date.now)();
   const identity = exploreIdentity(root); // synchronous hashing: outside run.lock, inside the time budget
   const setting = probeSetting(root, runId, before.environment);
   let unavailable = setting.unavailable;
@@ -349,7 +357,7 @@ export async function takeBaseline(root: string, runId: string, caller: string, 
   const signatures: PageSignature[] = [];
   const unobserved: NonNullable<Baseline["unobserved"]> = [];
   if (unavailable === null && pages.length > 0) {
-    const visited = await visitAll(factory, pages, budgetLeft(opts, startedAt), opts.closeMs ?? CLOSE_MS);
+    const visited = await visitAll(factory, pages, budgetLeft(opts, startedAt), opts.closeMs ?? CLOSE_MS, opts.nowMs ?? Date.now);
     if ("error" in visited) unavailable = `the page fetcher could not start: ${visited.error}`;
     else {
       for (const o of visited.observed) {
@@ -428,7 +436,7 @@ export async function probeExplore(root: string, runId: string, caller: string, 
     rmSync(join(runDir(root, runId), PROBE_REL), { force: true });
     return state;
   });
-  const startedAt = Date.now();
+  const startedAt = (opts.nowMs ?? Date.now)();
   const identity = exploreIdentity(root); // synchronous hashing: outside run.lock, inside the time budget
   const read = readBaseline(root, runId);
   const baseline = "baseline" in read ? read.baseline : null;
@@ -442,7 +450,7 @@ export async function probeExplore(root: string, runId: string, caller: string, 
       reason = `the logged-in roles changed since the baseline (then: ${roleText(baseline.roles)}; now: ${roleText(now.roles)})`;
     } else if (now.discoveryConfigHash !== baseline.discoveryConfigHash) reason = "the discovery settings in aegis.config.json changed since the baseline";
     else {
-      const visited = await visitAll(factory, baseline.pages.map((p) => ({ role: p.role, url: p.url })), budgetLeft(opts, startedAt), opts.closeMs ?? CLOSE_MS);
+      const visited = await visitAll(factory, baseline.pages.map((p) => ({ role: p.role, url: p.url })), budgetLeft(opts, startedAt), opts.closeMs ?? CLOSE_MS, opts.nowMs ?? Date.now);
       if ("error" in visited) reason = `the page fetcher could not start: ${visited.error}`;
       else observed = visited.observed;
     }

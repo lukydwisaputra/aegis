@@ -70,6 +70,17 @@ const raw = (p: PageRef, over: Partial<RawPage> = {}): RawPage => ({
   role: p.role, url: p.url, finalPath: p.url, status: 200, title: `Page ${p.url}`, h1: 'Heading', testids: ['nav', 'row-1'], consoleErrors: [], ...over,
 });
 
+/**
+ * The clock of the probe's time budget, driven by the test instead of the wall clock: the budget starts before the identity hashing (git
+ * calls), so a loaded machine could spend a real 800 ms budget before the first page. Time passes only when `advance` is called.
+ */
+function budgetClock() {
+  let ms = 0;
+  return { nowMs: () => ms, advance: (by: number) => { ms += by; } };
+}
+/** The budget the visit loop races each page against is real timer time; a hanging page waits for it, so it stays small. */
+const HANG_BUDGET_MS = 200;
+
 type Behaviour = RawObservation | 'throw' | 'hang';
 interface Fake {
   factory: jest.Mock<Promise<PageFetcher>, []>;
@@ -77,12 +88,15 @@ interface Fake {
   close: jest.Mock<Promise<void>, []>;
 }
 /** A fetcher answering from `overrides` (keyed role + url), otherwise with the unchanged page. */
-function fake(overrides: Record<string, Behaviour> = {}): Fake {
+function fake(overrides: Record<string, Behaviour> = {}, onHang: () => void = () => undefined): Fake {
   const close = jest.fn(async () => undefined);
   const visit = jest.fn(async (p: PageRef): Promise<RawObservation> => {
     const o = overrides[`${p.role} ${p.url}`];
     if (o === 'throw') throw new Error('page crashed at http://localhost:5173/secret?token=abc');
-    if (o === 'hang') return new Promise<RawObservation>(() => undefined);
+    if (o === 'hang') {
+      onHang(); // the time the page spends hanging passes on the test's clock
+      return new Promise<RawObservation>(() => undefined);
+    }
     return o ?? raw(p);
   });
   const factory = jest.fn(async () => ({ visit, close }));
@@ -308,12 +322,11 @@ describe('probeExplore', () => {
     expect(readJson('reports/explore/probe.json').changedPages).toEqual([{ role: 'volunteer', url: '/events' }]);
   });
 
-  it('a fetcher that never resolves: the call returns within the budget (use budgetMs: 800), unvisited pages are failed with the time-budget reason, the decision is partial or full and carried is removed', async () => {
+  it('a fetcher that never resolves: the call returns within the budget (use budgetMs: 200), unvisited pages are failed with the time-budget reason, the decision is partial or full and carried is removed', async () => {
     await carriedWithBaseline();
-    const f = fake({ 'volunteer /events': 'hang' });
-    const started = Date.now();
-    const r = await probeExplore(root(), runId, ORCH, f.factory, { budgetMs: 800 });
-    expect(Date.now() - started).toBeLessThan(5_000);
+    const clock = budgetClock();
+    const f = fake({ 'volunteer /events': 'hang' }, () => clock.advance(HANG_BUDGET_MS));
+    const r = await probeExplore(root(), runId, ORCH, f.factory, { budgetMs: HANG_BUDGET_MS, nowMs: clock.nowMs }); // a call that did not return would fail by the jest timeout
     expect(f.close).toHaveBeenCalledTimes(1);
     expect(f.visit).toHaveBeenCalledTimes(2); // /home, then /events hangs until the budget is spent
     expect(r.diff.same).toBe(1);
@@ -405,7 +418,9 @@ describe('probeExplore', () => {
 
   it('a baseline cut off by its time budget is never reused: the pages it did not reach count as failed', async () => {
     await setup();
-    const b = await takeBaseline(root(), runId, ORCH, fake({ 'volunteer /events': 'hang' }).factory, { budgetMs: 800 });
+    const clock = budgetClock();
+    const hanging = fake({ 'volunteer /events': 'hang' }, () => clock.advance(HANG_BUDGET_MS));
+    const b = await takeBaseline(root(), runId, ORCH, hanging.factory, { budgetMs: HANG_BUDGET_MS, nowMs: clock.nowMs });
     expect(b).toMatchObject({ pages: 1, unobserved: 3 });
     expect(readJson('reports/explore/baseline.json').unobserved).toEqual(PAGES.slice(1).map((p) => ({ ...p, error: 'not observed (time budget)' })));
     carry();
@@ -414,6 +429,15 @@ describe('probeExplore', () => {
     expect(r.decision).toBe('full'); // 3 of 4
     expect(r.diff).toMatchObject({ same: 1, total: 4 });
     expect(r.diff.failed.map((x) => x.error)).toEqual(Array(3).fill('not observed at baseline: not observed (time budget)'));
+  });
+
+  it('a budget the identity hashing spent (the clock moved before the visit loop): no fetcher is built and every page is unobserved, however slow the machine', async () => {
+    await setup();
+    let reads = 0;
+    const slowIdentity = () => (reads++ === 0 ? 0 : 900); // the call started at 0 ms; its first later reading is 900 ms, over the 800 ms budget
+    const f = fake();
+    expect(await takeBaseline(root(), runId, ORCH, f.factory, { budgetMs: 800, nowMs: slowIdentity })).toMatchObject({ pages: 0, unobserved: 4, unavailable: null });
+    expect(f.factory).not.toHaveBeenCalled();
   });
 
   it('a baseline written without the unobserved list reads as none', async () => {
@@ -457,9 +481,7 @@ describe('probeExplore', () => {
   it('a factory that never answers: full once the time budget is spent', async () => {
     await carriedWithBaseline();
     const factory = jest.fn(() => new Promise<PageFetcher>(() => undefined));
-    const started = Date.now();
-    const r = await probeExplore(root(), runId, ORCH, factory, { budgetMs: 800 });
-    expect(Date.now() - started).toBeLessThan(5_000);
+    const r = await probeExplore(root(), runId, ORCH, factory, { budgetMs: HANG_BUDGET_MS, nowMs: budgetClock().nowMs });
     expect(r).toMatchObject({ decision: 'full', reason: expect.stringContaining('did not start within the time budget'), reopened: ['T-explore-1'] });
     expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
   });
@@ -468,9 +490,7 @@ describe('probeExplore', () => {
     await carriedWithBaseline();
     const f = fake();
     f.close.mockImplementation(() => new Promise<void>(() => undefined));
-    const started = Date.now();
-    const r = await probeExplore(root(), runId, ORCH, f.factory, { closeMs: 100 });
-    expect(Date.now() - started).toBeLessThan(5_000);
+    const r = await probeExplore(root(), runId, ORCH, f.factory, { closeMs: 100 }); // a call that did not return would fail by the jest timeout
     expect(f.close).toHaveBeenCalledTimes(1);
     expect(r.decision).toBe('reuse');
     expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();

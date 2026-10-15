@@ -228,12 +228,21 @@ describe('env exec when the audit cannot be written, and when it is stopped', ()
   });
 
   it('does not wait for a grandchild that keeps the output pipes open: the runner exiting ends the run after the drain limit', async () => {
-    const code = `require('child_process').spawn('sleep', ['6'], { stdio: ['ignore', 'inherit', 'inherit'] }).unref(); console.log('runner done')`;
-    const started = Date.now();
-    const r = await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
-    expect(r).toMatchObject({ exitCode: 0, auditRecorded: true });
-    expect(Date.now() - started).toBeLessThan(5_000);
-  }, 15_000);
+    // The grandchild outlives the runner by far and writes its pid; the run having returned while that pid is still alive proves it was not
+    // waited for (no wall-clock bound: a loaded machine slows the runner, not the proof).
+    const pidFile = path.join(t.root, 'grandchild.pid');
+    const code = `const c = require('child_process').spawn('sleep', ['60'], { stdio: ['ignore', 'inherit', 'inherit'] }); c.unref(); require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(c.pid)); console.log('runner done')`;
+    let pid = 0;
+    try {
+      const r = await execWithEnv(t.root, runId, AGENT, [process.execPath, '-e', code]);
+      expect(r).toMatchObject({ exitCode: 0, auditRecorded: true });
+      pid = Number(fs.readFileSync(pidFile, 'utf8'));
+      expect(pid).toBeGreaterThan(0);
+      expect(() => process.kill(pid, 0)).not.toThrow(); // still running: the run did not wait for it
+    } finally {
+      if (pid > 0) try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+    }
+  }, 30_000);
 
   it('removes its signal listeners when the runner exits', async () => {
     const before = process.listeners('SIGTERM').length;

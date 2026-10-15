@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -153,10 +154,60 @@ test('fails closed for subagents when the packages are not built, and stays open
   }
 });
 
-test('stays fast: the median of 9 calls is under 250 ms (spec §10 target: 50 ms; Node start is ~50 ms)', () => {
-  const times = Array.from({ length: 9 }, () => guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'x.txt'), content: 'x' }, agent_type: 'qa-ui-specialist', agent_id: 'a1' }).ms).sort((a, b) => a - b);
-  console.log(`guard-writes median ${times[4]} ms`);
-  expect(times[4]!).toBeLessThan(250);
+/** Every repo file the hook loads: the dist entries guard-writes.mjs imports, and what those import, followed through relative and @qa/* specifiers. */
+function hookModuleGraph(): string[] {
+  const seen = new Set<string>();
+  const entry = (rel: string) => path.join(REPO, rel);
+  const visit = (file: string): void => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+      const spec = m[1]!;
+      if (spec.startsWith('.')) visit(path.resolve(path.dirname(file), spec));
+      else if (spec.startsWith('@qa/')) visit(entry(path.join('packages', spec, 'dist', 'index.js')));
+    }
+  };
+  visit(entry('packages/@qa/path-guard/dist/index.js'));
+  visit(entry('packages/@qa/run-state/dist/caller.js'));
+  return [...seen].map((f) => path.relative(REPO, f));
+}
+
+// Spec §10 asks the hook to be fast (target 50 ms; Node start alone is ~50 ms). A wall-clock bound in ms fails on a loaded machine, so the
+// regression it exists for is pinned by what the hook loads (the plan's "H1 imports the full run-state index, ~50 ms"), which does not vary.
+test('stays fast: the hook loads only path-guard, contracts and the run-state caller, never the full run-state index, the bus or the taskmaster client', () => {
+  const files = hookModuleGraph();
+  expect(files).toEqual(expect.arrayContaining(['packages/@qa/path-guard/dist/index.js', 'packages/@qa/run-state/dist/caller.js']));
+  const allowed = (f: string) => /^packages\/@qa\/(contracts|path-guard)\/dist\//.test(f) || /^packages\/@qa\/run-state\/dist\/(caller|errors)\.js$/.test(f);
+  expect(files.filter((f) => !allowed(f))).toEqual([]);
+});
+
+// The wall-clock side is relative: the hook's median against the median of a bare `node -e ""` taken in the same breath, so the machine's
+// load scales both. The bound is generous (the hook alone is a few times a bare start) and the check retries; it catches a hook that
+// became pathological (a hang-and-timeout, a scan of the tree), not a few tens of milliseconds, which the module-graph test above covers.
+test('stays fast: the hook median is a small multiple of a bare node start taken under the same load', () => {
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+  const bareMs = () => {
+    const t0 = process.hrtime.bigint();
+    spawnSync(process.execPath, ['-e', ''], { stdio: 'ignore' });
+    return Number(process.hrtime.bigint() - t0) / 1e6;
+  };
+  const input = () => guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'x.txt'), content: 'x' }, agent_type: 'qa-ui-specialist', agent_id: 'a1' });
+  const ratios: number[] = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const bare: number[] = [];
+    const hook: number[] = [];
+    for (let i = 0; i < 9; i++) {
+      bare.push(bareMs());
+      const r = input();
+      expect(r.status).toBe(0);
+      hook.push(r.ms);
+    }
+    ratios.push(median(hook) / median(bare));
+    if (ratios[attempt]! < 10) break;
+  }
+  console.log(`guard-writes median / bare node median: ${ratios.map((r) => r.toFixed(1)).join(', ')}`);
+  expect(Math.min(...ratios)).toBeLessThan(10);
 });
 
 // ─── Controller rulings (Task 9) ──────────────────────────────────────────────
