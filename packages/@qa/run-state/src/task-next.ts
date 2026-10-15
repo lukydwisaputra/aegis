@@ -319,7 +319,7 @@ const actionableNow = (r: TaskNextResult): boolean => r.next === "act" || r.next
 /**
  * aegis task next --wait: the same view, returned at once only when something is actionable now (actionableNow). Otherwise (next is
  * wait, or blocked while a dispatched agent is still in flight) it returns as soon as the view changes (a claim, a release, a
- * review, a reopen, an agent ending, a reservation lapsing) or after `waitSeconds`. Polls the files in this process, holds no lock
+ * review, a reopen, an agent ending, a reservation lapsing) or after `waitSeconds` (`timedOut`). Polls the files in this process, holds no lock
  * and spawns nothing.
  */
 export async function waitNextTasks(
@@ -327,22 +327,22 @@ export async function waitNextTasks(
   runId: string,
   caller: string,
   opts: { phase?: string; waitSeconds: number; pollMs?: number }
-): Promise<TaskNextResult & { changed: boolean }> {
+): Promise<TaskNextResult & { changed: boolean; timedOut: boolean }> {
   assertCallerAllowed(caller, "task.next");
   if (!(opts.waitSeconds > 0) || opts.waitSeconds > MAX_WAIT_SECONDS) {
     throw new RunStateError("invalid-input", `--wait takes a number of seconds above 0 and at most ${MAX_WAIT_SECONDS}`);
   }
   const first = (await computeView(root, runId, opts.phase, Date.now())).result;
-  if (actionableNow(first)) return { ...first, changed: false };
+  if (actionableNow(first)) return { ...first, changed: false, timedOut: false };
   const seen = fingerprint(first);
   const until = Date.now() + opts.waitSeconds * 1000;
   const poll = opts.pollMs ?? 2000;
   for (;;) {
     const left = until - Date.now();
-    if (left <= 0) return { ...(await computeView(root, runId, opts.phase, Date.now())).result, changed: false };
+    if (left <= 0) return { ...(await computeView(root, runId, opts.phase, Date.now())).result, changed: false, timedOut: true };
     await new Promise((r) => setTimeout(r, Math.min(poll, left)));
     const now = (await computeView(root, runId, opts.phase, Date.now())).result;
-    if (fingerprint(now) !== seen) return { ...now, changed: true };
+    if (fingerprint(now) !== seen) return { ...now, changed: true, timedOut: false };
   }
 }
 

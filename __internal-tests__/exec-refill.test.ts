@@ -47,6 +47,12 @@ const reviewed = (id: string, agent: string, verdict: 'passed' | 'requested-chan
 const ids = (xs: Array<{ task: string }>) => xs.map((x) => x.task);
 const events = (type: string) => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l)).filter((e) => e.type === type);
 const later = (ms: number) => new Date(Date.now() + ms);
+/**
+ * Run `fn` after `ms`, as a promise the test awaits (with Promise.all beside the wait it races). A bare `setTimeout(() => void fn())`
+ * let a release outlive its test: the wait returned on the task-file change, the test ended, afterEach removed the root, and the
+ * release's final read ran on into the next test ("task T-2 not found").
+ */
+const afterDelay = (ms: number, fn: () => Promise<unknown>) => new Promise((r) => setTimeout(r, ms)).then(fn);
 
 describe('aegis task next: the loop view', () => {
   beforeEach(async () => {
@@ -151,28 +157,26 @@ describe('aegis task next: the loop view', () => {
   });
 
   it('--wait returns at once when there is something to do, and as soon as the view changes otherwise', async () => {
-    const start = Date.now();
-    expect((await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 })).next).toBe('act');
-    expect(Date.now() - start).toBeLessThan(5000);
+    // a 30-second wait that returns without timing out returned at once: no wall-clock bound needed
+    expect(await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 })).toMatchObject({ next: 'act', changed: false, timedOut: false });
 
     await dispatch('T-2', UI);
     await dispatch('T-3', API);
     await claimTask(t.root, runId, 'T-2', UI);
     await claimTask(t.root, runId, 'T-3', API);
-    const waiting = waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 });
-    setTimeout(() => void finish('T-2', UI), 300);
-    const v = await waiting;
-    expect(v).toMatchObject({ next: 'act', changed: true });
-    expect(ids(v.review)).toEqual(['T-2']);
-    expect(Date.now() - start).toBeLessThan(10_000);
-  });
+    const [v] = await Promise.all([waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 }), afterDelay(300, () => finish('T-2', UI))]);
+    expect(v).toMatchObject({ changed: true, timedOut: false });
+    const after = await nextTasks(t.root, runId, EXEC); // the release has completed: read the settled view
+    expect(after.next).toBe('act');
+    expect(ids(after.review)).toEqual(['T-2']);
+  }, 60_000);
 
   it('--wait gives up after its time with the same view', async () => {
     await dispatch('T-2', UI);
     await dispatch('T-3', API);
     const v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.3, pollMs: 50 });
-    expect(v).toMatchObject({ next: 'wait', changed: false });
-  });
+    expect(v).toMatchObject({ next: 'wait', changed: false, timedOut: true });
+  }, 60_000);
 });
 
 describe('the dispatch reservation (aegis event append --type specialist.dispatched)', () => {
@@ -456,23 +460,16 @@ describe('fix 1 M2: --wait returns early only when something is actionable', () 
     await dispatch('T-2', UI);
     await claimTask(t.root, runId, 'T-2', UI);
     await requestStop(t.root, runId, 'owner stop', 'owner');
-    let start = Date.now();
-    let v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.6, pollMs: 50 });
-    expect(Date.now() - start).toBeGreaterThanOrEqual(550);
-    expect(v).toMatchObject({ next: 'blocked', changed: false, reason: expect.stringContaining('wait for what is in flight (T-2)') });
-    start = Date.now();
-    const waiting = waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 });
-    setTimeout(() => void finish('T-2', UI), 200);
-    v = await waiting;
-    expect(v).toMatchObject({ next: 'blocked', changed: true });
-    expect(Date.now() - start).toBeLessThan(10_000);
-  });
+    const v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.6, pollMs: 50 });
+    expect(v).toMatchObject({ next: 'blocked', changed: false, timedOut: true, reason: expect.stringContaining('wait for what is in flight (T-2)') });
+    const [w] = await Promise.all([waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 }), afterDelay(200, () => finish('T-2', UI))]);
+    expect(w).toMatchObject({ next: 'blocked', changed: true, timedOut: false });
+  }, 60_000);
 
   it('blocked with nothing in flight returns at once with the reason', async () => {
     await requestStop(t.root, runId, 'owner stop', 'owner');
-    const start = Date.now();
     const v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 });
-    expect(Date.now() - start).toBeLessThan(2000);
+    expect(v).toMatchObject({ next: 'blocked', changed: false, timedOut: false });
     expect(v.reason).toContain('nothing dispatched is in flight');
   });
 
@@ -490,10 +487,8 @@ describe('fix 1 M2: --wait returns early only when something is actionable', () 
     ledger('spv-1', `${UI}-spv`, 'start', undefined, later(500).toISOString());
     v = await nextTasks(t.root, runId, EXEC, { now: later(1000) });
     expect(v).toMatchObject({ next: 'wait', redrive: [expect.objectContaining({ task: 'T-2', inFlight: true })] });
-    const start = Date.now();
-    expect(await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.4, pollMs: 50 })).toMatchObject({ next: 'wait', changed: false });
-    expect(Date.now() - start).toBeGreaterThanOrEqual(350);
-  });
+    expect(await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.4, pollMs: 50 })).toMatchObject({ next: 'wait', changed: false, timedOut: true });
+  }, 60_000);
 
   it('a failed release with no escalation is actionable until its assignee starts again, then in flight', async () => {
     await dispatch('T-2', UI);
