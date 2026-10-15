@@ -309,6 +309,129 @@ export const ClosureMetricsSchema = z.object({
 });
 export type ClosureMetrics = z.infer<typeof ClosureMetricsSchema>;
 
+// ─── Closure file (reports/closure/closure.json) ─────────────────────────────
+
+/**
+ * The metrics a closure states and the keys each appears under in the real closures (an alias counts as the metric). A key under any
+ * alias with any value, null included, is a stated metric; an ABSENT one must be declared as unavailable (CLOSURE_METRIC_LABELS) or
+ * covered by a rollup file named in `unavailableMetrics` (CLOSURE_FILE_COVERS). Measured on three real closures; ClosureMetricsSchema,
+ * which wants every figure as a number, fails all three and is not used.
+ */
+export const CLOSURE_METRIC_KEYS: Readonly<Record<string, readonly string[]>> = {
+  designed: ["designed", "totalTestCases"],
+  passed: ["passed"],
+  failed: ["failed"],
+  blocked: ["blocked"],
+  passRate: ["passRate"],
+  requirementsCoverage: ["requirementsCoverage"],
+  testExecutionCoverage: ["testExecutionCoverage"],
+  automationCoverage: ["automationCoverage"],
+  defectDensity: ["defectDensity"],
+  dre: ["dre", "defectRemovalEfficiency"],
+  escapeRate: ["escapeRate", "defectEscapeRate"],
+  reopenRate: ["reopenRate"],
+  mttd: ["mttdHours", "mttdMs", "mttd"],
+  mttr: ["mttrHours", "mttrMs", "mttr"],
+};
+
+/** How an unavailable metric is named in `unavailableMetricValues` (object keys or array strings) or `unavailableMetricsNote`. */
+export const CLOSURE_METRIC_LABELS: Readonly<Record<string, RegExp>> = {
+  designed: /designed|total test cases?/i,
+  passed: /passed/i,
+  failed: /failed/i,
+  blocked: /blocked/i,
+  passRate: /pass[ -]?rate/i,
+  requirementsCoverage: /requirements?[ -]?coverage/i,
+  testExecutionCoverage: /execution[ -]?coverage/i,
+  automationCoverage: /automation[ -]?coverage/i,
+  defectDensity: /defect[ -]?density/i,
+  dre: /\bdre\b|removal[ -]?efficiency/i,
+  escapeRate: /escape/i,
+  reopenRate: /reopen/i,
+  mttd: /mttd|time to detect|detection/i,
+  mttr: /mttr|repair|time to (?:resolve|fix)|resolution time/i,
+};
+
+/**
+ * The metrics a rollup file covers: that file listed in `unavailableMetrics` declares them unavailable. Judged from what the rollup
+ * computes (packages/@qa/metrics): coverage.json holds the check counts and both coverage percentages (the pass rate follows from the
+ * counts); defect-trend.json holds density, reopen rate, escape rate, MTTD and MTTR; effectiveness.json holds DRE. The automation
+ * coverage comes from the case files, no rollup, so no file covers it.
+ */
+export const CLOSURE_FILE_COVERS: Readonly<Record<string, readonly string[]>> = {
+  "coverage.json": ["designed", "passed", "failed", "blocked", "passRate", "requirementsCoverage", "testExecutionCoverage"],
+  "defect-trend.json": ["defectDensity", "reopenRate", "escapeRate", "mttd", "mttr"],
+  "effectiveness.json": ["dre", "escapeRate"],
+};
+
+/** Top-level keys a closure never carries, with where the figure lives instead. */
+export const CLOSURE_FORBIDDEN_KEYS: Readonly<Record<string, string>> = {
+  uncoveredByCause: "the split of uncovered checks by cause is computed into reports/metrics/coverage.json (uncovered.byCause); the closure lists uncoveredTestCases with a recorded origin each",
+};
+
+/**
+ * The texts that declare a metric unavailable: keys of an object, strings of an array (for an array of objects, the keys and string
+ * values of each entry: {metric: "MTTD", reason: ...}), or a plain string.
+ */
+function declaredTexts(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.flatMap((v) => (typeof v === "string" ? [v] : v !== null && typeof v === "object" ? [...Object.keys(v), ...Object.values(v).filter((x): x is string => typeof x === "string")] : []));
+  }
+  if (value !== null && typeof value === "object") return Object.keys(value);
+  return [];
+}
+
+/** The last path segment, lower case: "reports/metrics/Effectiveness.json" is effectiveness.json. */
+const baseName = (file: string): string => (file.split(/[\\/]/).pop() ?? file).toLowerCase();
+
+/**
+ * The closure file: every metric stated or declared unavailable, and no forbidden top-level key. The rest of the document is free.
+ * Each issue message begins with its rule id (closure-metrics-missing, closure-forbidden-key) so reportRules.disable can name it.
+ */
+export const ClosureFileSchema = z.unknown().superRefine((closure, ctx) => {
+  if (closure === null || typeof closure !== "object" || Array.isArray(closure)) {
+    ctx.addIssue({ code: "custom", path: [], message: "closure-metrics-missing: closure.json must be a JSON object with a metrics object that states each closure figure" });
+    return;
+  }
+  const doc = closure as Record<string, unknown>;
+  for (const [key, where] of Object.entries(CLOSURE_FORBIDDEN_KEYS)) {
+    if (Object.prototype.hasOwnProperty.call(doc, key)) {
+      ctx.addIssue({ code: "custom", path: [key], message: `closure-forbidden-key: ${key} is not a closure field; ${where}` });
+    }
+  }
+  const metrics = doc["metrics"];
+  if (metrics === null || typeof metrics !== "object" || Array.isArray(metrics)) {
+    ctx.addIssue({ code: "custom", path: ["metrics"], message: "closure-metrics-missing: metrics must be an object with the closure figures" });
+    return;
+  }
+  const present = metrics as Record<string, unknown>;
+  const texts = [...declaredTexts(doc["unavailableMetricValues"]), ...declaredTexts(doc["unavailableMetricsNote"])];
+  const files = new Set(declaredTexts(doc["unavailableMetrics"]).map(baseName));
+  const missing: string[] = [];
+  const names: string[] = [];
+  for (const [metric, keys] of Object.entries(CLOSURE_METRIC_KEYS)) {
+    if (keys.some((k) => Object.prototype.hasOwnProperty.call(present, k))) continue;
+    const label = CLOSURE_METRIC_LABELS[metric] as RegExp;
+    if (texts.some((t) => label.test(t))) continue;
+    if (Object.entries(CLOSURE_FILE_COVERS).some(([file, covers]) => covers.includes(metric) && files.has(file))) continue;
+    missing.push(metric);
+    names.push(keys.length > 1 ? `${keys[0]} (or ${keys.slice(1).join(", ")})` : (keys[0] as string));
+  }
+  if (missing.length === 0) return;
+  // The rollup-file remedy names, per file, only the missing metrics that file really covers.
+  const byFile = Object.entries(CLOSURE_FILE_COVERS)
+    .map(([file, covers]) => ({ file, hit: missing.filter((m) => covers.includes(m)) }))
+    .filter((f) => f.hit.length > 0)
+    .map((f) => `${f.file} covers ${f.hit.join(", ")}`);
+  const remedy = byFile.length > 0 ? `; or, when its rollup file is missing, list that file in unavailableMetrics (${byFile.join("; ")})` : "";
+  ctx.addIssue({
+    code: "custom",
+    path: ["metrics"],
+    message: `closure-metrics-missing: ${names.join("; ")} absent from metrics and not declared unavailable; state each (null when it cannot be computed) or name it in unavailableMetricValues${remedy}`,
+  });
+});
+
 // ─── Uncovered checks ────────────────────────────────────────────────────────
 
 /** Why a check gave no verdict. Computed into coverage.json (uncovered) from the result files; no document supplies it. */

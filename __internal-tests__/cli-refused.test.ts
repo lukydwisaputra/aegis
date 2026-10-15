@@ -180,8 +180,11 @@ describe('the built CLI records refusals without changing them', () => {
   ctest('an agent invalid-input refusal: exit 2, the usual envelope, one cli.refused line', () => {
     const r = aegis('qa-ui-specialist', 'event', 'append', '--type', 'discovery.step-complete', '--json', 'not json');
     expect(r.status).toBe(2);
-    expect(r.stderr).toBe(JSON.stringify({ error: 'invalid-input', message: '--json is not valid JSON' }) + '\n');
-    expect(refused()).toEqual([expect.objectContaining({ command: 'event.append', code: 'invalid-input', caller: 'qa-ui-specialist', message: '--json is not valid JSON' })]);
+    const message = JSON.parse(r.stderr).message as string;
+    expect(message).toMatch(/^--json is not valid JSON: give one JSON object/);
+    expect(message).toContain('--json-file <path>');
+    // the fix text is CLI vocabulary: it is recorded whole, and `not json` (typed) is not in it
+    expect(refused()).toEqual([expect.objectContaining({ command: 'event.append', code: 'invalid-input', caller: 'qa-ui-specialist', message })]);
   }, 60_000);
 
   ctest('a parse error from an agent is recorded under the command it named', () => {
@@ -292,9 +295,10 @@ describe('the built CLI records refusals without changing them', () => {
     expect(bytesOf()).not.toContain('hunter2xyz');
     expect(refused()).toHaveLength(1);
     const message = refused()[0]!['message'] as string;
-    expect(message).toContain('"code": "invalid_enum_value"');
-    expect(message).toContain('"expected": "string"');
-    expect(message).toContain('"received": "<value>"');
+    // the field and the allowed values are schema words; the value the caller typed is not in the message at all
+    expect(message).toContain('step: must be one of scan, explore');
+    expect(message).toContain('artifact: required');
+    expect(message).not.toContain('hunter');
   }, 60_000);
 
   // A schema-valid report whose agent slot is echoed ("work report agent ... does not match caller"). The `x" ` prefix
@@ -341,6 +345,49 @@ describe('the built CLI records refusals without changing them', () => {
     expect(refused()).toHaveLength(1);
     expect(refused()[0]!['message']).toMatch(/undeclared field/);
     expect(bytesOf()).not.toContain('hunterkeyxyz');
+  }, 60_000);
+
+  ctest('a DECLARED event field name stays readable in the recorded refusal; an undeclared typed key is still dropped, in the same call', () => {
+    const json = JSON.stringify({ component: 'cli', symptom: 'the command answered nothing at all', evidence: ['e'], hunterkeyabc: 1 });
+    expect(aegis('qa-ui-specialist', 'event', 'append', '--type', 'framework.defect-suspected', '--json', json).status).toBe(2);
+    expect(aegis('qa-ui-specialist', 'event', 'append', '--type', 'framework.defect-suspected', '--json', JSON.stringify({ component: 'x'.repeat(250), symptom: 'the command answered nothing at all', evidence: ['e'] })).status).toBe(2);
+    const [undeclared, declared] = refused();
+    expect(undeclared!['message']).toMatch(/undeclared field/);
+    expect(bytesOf()).not.toContain('hunterkeyabc');
+    expect(declared!['message']).toContain('component: longer than 200 characters (got 250)');
+    expect(bytesOf()).not.toContain('xxxxxxxx');
+  }, 60_000);
+
+  // --json-file and /dev/stdin carry the same typed input as --json: what a refusal echoes of it is subtracted from the recorded message.
+  const appendFromFile = (type: string, body: string, via: 'stdin' | 'file') => {
+    const args = ['event', 'append', '--type', type];
+    const env = { ...process.env, AEGIS_AGENT: 'qa-ui-specialist', AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+    if (via === 'file') {
+      const f = path.join(t.root, 'typed-input.json');
+      fs.writeFileSync(f, body);
+      return spawnSync(process.execPath, [CLI, ...args, '--json-file', f], { cwd: t.root, encoding: 'utf-8', env });
+    }
+    return spawnSync(process.execPath, [CLI, ...args, '--json-file', '/dev/stdin'], { cwd: t.root, encoding: 'utf-8', env, input: body });
+  };
+
+  ctest.each(['stdin', 'file'] as const)('--json-file (%s): a personal-data gap refused by the tag check is recorded as <value>, not as typed', (via) => {
+    const body = JSON.stringify({ regulation: 'pdpa', sectionsCovered: ['PDPA-Sec24'], gaps: ['NRIC S1234567D of Tan Ah Kow shown'] });
+    expect(appendFromFile('compliance.review-complete', body, via).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/compliance-tag-invalid: gaps carry 1 tag\(s\) that match no tag format: <value>\./);
+    expect(bytesOf()).not.toMatch(/S1234567D|Tan Ah Kow/);
+  }, 60_000);
+
+  ctest.each(['stdin', 'file'] as const)('--json-file (%s): an undeclared key is redacted, a declared field name stays', (via) => {
+    const body = JSON.stringify({ component: 'cli', symptom: 'the command answered nothing at all', evidence: ['e'], 'jane.doe@acme.example': 1 });
+    expect(appendFromFile('framework.defect-suspected', body, via).status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/undeclared field/);
+    expect(bytesOf()).not.toContain('jane.doe');
+    const over = JSON.stringify({ component: 'x'.repeat(250), symptom: 'the command answered nothing at all', evidence: ['e'] });
+    expect(appendFromFile('framework.defect-suspected', over, via).status).toBe(2);
+    expect(refused()[1]!['message']).toContain('component: longer than 200 characters (got 250)');
+    expect(bytesOf()).not.toContain('xxxxxxxx');
   }, 60_000);
 
   ctest('a --file path that resolves to another spelling is not recorded', () => {

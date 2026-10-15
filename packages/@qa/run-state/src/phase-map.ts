@@ -1,4 +1,5 @@
 import {
+  ClosureFileSchema,
   DefectCandidateSchema,
   DevTestReviewSchema,
   EnvAuthReportSchema,
@@ -33,6 +34,9 @@ export interface OutputSchema {
   safeParse(value: unknown): { success: boolean; error?: { issues: Array<{ path: Array<string | number>; message: string }> } };
 }
 
+/** The closure file, the one output the closure-schema escape hatch (reportRules.disable) applies to. */
+export const CLOSURE_OUTPUT = "reports/closure/closure.json";
+
 // Required outputs (run-relative) per phase, checked by `aegis phase complete` (spec §6.1 item 6).
 // P0c adds its rollup-owned outputs together with its agent edits.
 export const PHASE_OUTPUTS: Readonly<Partial<Record<PhaseId, readonly string[]>>> = {
@@ -45,8 +49,8 @@ export const PHASE_OUTPUTS: Readonly<Partial<Record<PhaseId, readonly string[]>>
   design: ["rtm.json"],
   "env-data": ["env-setup-report.json"],
   execution: ["execution-summary.json"],
-  "closure-draft": ["reports/closure/closure.json"],
-  "closure-final": ["reports/closure/closure.json"],
+  "closure-draft": [CLOSURE_OUTPUT],
+  "closure-final": [CLOSURE_OUTPUT],
 };
 
 // A FAILED env-auth report is well-formed, but the scope could not complete: the worker releases `failed` and the
@@ -62,6 +66,8 @@ export const OUTPUT_SCHEMAS: Readonly<Record<string, OutputSchema>> = {
   "dev-test-review.json": DevTestReviewSchema,
   "env-auth-report.json": EnvAuthBarrierSchema,
   "execution-summary.json": ExecutionSummaryCoreSchema,
+  // Applied at closure-draft and closure-final (both list the file in PHASE_OUTPUTS). reportRules.disable with closure-schema lifts it.
+  [CLOSURE_OUTPUT]: ClosureFileSchema,
 };
 
 /** A directory of same-kind outputs: each file matching `file` validates against `schema`, and at least `min` exist. */

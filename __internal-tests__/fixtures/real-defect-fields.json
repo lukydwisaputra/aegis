@@ -1,0 +1,1212 @@
+{
+ "R12": {
+  "runId": "RUN-20261012-002",
+  "defects": [
+   {
+    "id": "DEF-001-ADMIN-UI",
+    "titleLength": 58,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-AUTH-UI",
+    "titleLength": 60,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-COMMS-UI",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-PART-EXP",
+    "titleLength": 60,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 10,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-VOL-EXP",
+    "titleLength": 59,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 10,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-ADMIN-UI",
+    "titleLength": 63,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 10,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-ATT-API",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 11,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-COMMS-UI",
+    "titleLength": 57,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 6,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-ENG-EXP",
+    "titleLength": 63,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 10,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-MIG-DATA",
+    "titleLength": 63,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-ADMIN-UI",
+    "titleLength": 41,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-ATT-API",
+    "titleLength": 62,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 10,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-AUTH-API",
+    "titleLength": 65,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 12,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-REG-SEC",
+    "titleLength": 62,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 8,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-RPT-EXP",
+    "titleLength": 64,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ADMIN-EXP",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 7,
+     "videos": 0,
+     "logs": 16,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ATT-API",
+    "titleLength": 59,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 11,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-AUTH-EXP",
+    "titleLength": 57,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-COMMS-EXP",
+    "titleLength": 59,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ENG-API",
+    "titleLength": 52,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 10,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-ADMIN-EXP",
+    "titleLength": 62,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 7,
+     "videos": 0,
+     "logs": 9,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-COMMS-EXP",
+    "titleLength": 58,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 6,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-REG-UI",
+    "titleLength": 57,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 9,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-006-COMMS-API",
+    "titleLength": 62,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 8,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-007-REG-UI",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-007-RPT-API",
+    "titleLength": 63,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 8,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-008-REG-UI",
+    "titleLength": 61,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 9,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-010-REG-UI",
+    "titleLength": 64,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-012-REG-A11Y",
+    "titleLength": 62,
+    "defectType": "Standards",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": false
+    }
+   }
+  ]
+ },
+ "R06": {
+  "runId": "RUN-20261006-001",
+  "defects": [
+   {
+    "id": "DEF-001-ADMIN-UI",
+    "titleLength": 58,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 48,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-ATT-UI",
+    "titleLength": 59,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 21,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-AUTH-UI",
+    "titleLength": 60,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-COMMS-UI",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-ENG-UI",
+    "titleLength": 56,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 6,
+     "videos": 0,
+     "logs": 23,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-VOL-EXP",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 11,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-ADMIN-UI",
+    "titleLength": 63,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 26,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-ATT-API",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-COMMS-UI",
+    "titleLength": 57,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-ENG-EXP",
+    "titleLength": 63,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-MIG-DATA",
+    "titleLength": 63,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-REG-SEC",
+    "titleLength": 57,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": true
+    }
+   },
+   {
+    "id": "DEF-002-RPT-EXP",
+    "titleLength": 61,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-VOL-UI",
+    "titleLength": 50,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 20,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-ADMIN-UI",
+    "titleLength": 41,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 31,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-ATT-API",
+    "titleLength": 62,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-AUTH-API",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-COMMS-EXP",
+    "titleLength": 61,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-ENG-EXP",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-REG-SEC",
+    "titleLength": 56,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-RPT-EXP",
+    "titleLength": 62,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ADMIN-EXP",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ATT-API",
+    "titleLength": 59,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-AUTH-UI",
+    "titleLength": 62,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 35,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-COMMS-EXP",
+    "titleLength": 55,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ENG-API",
+    "titleLength": 59,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-REG-UI",
+    "titleLength": 58,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-ADMIN-EXP",
+    "titleLength": 61,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-REG-UI",
+    "titleLength": 57,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-RPT-EXP",
+    "titleLength": 65,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-006-RPT-EXP",
+    "titleLength": 62,
+    "defectType": "Description",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 4,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-007-REG-UI",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-007-RPT-API",
+    "titleLength": 52,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-008-REG-UI",
+    "titleLength": 61,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-009-REG-UI",
+    "titleLength": 58,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-010-REG-UI",
+    "titleLength": 52,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   }
+  ]
+ },
+ "S05": {
+  "runId": "RUN-20261005-002",
+  "defects": [
+   {
+    "id": "DEF-001-BLWL-EXP",
+    "titleLength": 63,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-COMMHUB-UI",
+    "titleLength": 64,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-LOCMGT-EXP",
+    "titleLength": 62,
+    "defectType": "Interface",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-NOKREL-UI",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-OTP-UI",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-PDPA-UI",
+    "titleLength": 64,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-PERMQR-UI",
+    "titleLength": 60,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 9,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-PPL-EXP",
+    "titleLength": 53,
+    "defectType": "Syntax",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-RESSTAT-UI",
+    "titleLength": 53,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-RPTAUD-EXP",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-STAFF-UI",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 11,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-SUPPORT-SEC",
+    "titleLength": 61,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-001-VREG-UI",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-BOOK-UI",
+    "titleLength": 64,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 1,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-COMMHUB-API",
+    "titleLength": 54,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-LOCMGT-DATA",
+    "titleLength": 61,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 5,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-OTP-UI",
+    "titleLength": 55,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-PDPA-UI",
+    "titleLength": 57,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 8,
+     "har": 0,
+     "stackTrace": false
+    },
+    "unresolved": [
+     {
+      "kind": "logs",
+      "path": "evidence/DEF-002-PDPA-UI/control-experiment-result-20261012T143000Z.json (earlier control from the first investigation round; its interpretation is superseded by the experiment results listed above)"
+     }
+    ]
+   },
+   {
+    "id": "DEF-002-PERMQR-EXP",
+    "titleLength": 56,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 5,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-PPL-EXP",
+    "titleLength": 63,
+    "defectType": "Data",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-RESSTAT-EXP",
+    "titleLength": 57,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-RPTAUD-EXP",
+    "titleLength": 65,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-SRCHBOX-UI",
+    "titleLength": 62,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 4,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-STAFF-API",
+    "titleLength": 61,
+    "defectType": "Interface",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-002-TXCIO-UI",
+    "titleLength": 46,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 7,
+     "videos": 0,
+     "logs": 2,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-ADMROL-SEC",
+    "titleLength": 51,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-LOCMGT-DATA",
+    "titleLength": 61,
+    "defectType": "Interface",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 16,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-OTP-EXP",
+    "titleLength": 63,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-003-RESSTAT-UI",
+    "titleLength": 62,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 3,
+     "videos": 0,
+     "logs": 0,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-ADMROL-API",
+    "titleLength": 61,
+    "defectType": "Logic",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 6,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-STAFF-API",
+    "titleLength": 58,
+    "defectType": "Interface",
+    "evidence": {
+     "screenshots": 0,
+     "videos": 0,
+     "logs": 7,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-004-SUPPORT-EXP",
+    "titleLength": 65,
+    "defectType": "Other",
+    "evidence": {
+     "screenshots": 2,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   },
+   {
+    "id": "DEF-005-SUPPORT-API",
+    "titleLength": 60,
+    "defectType": "Interface",
+    "evidence": {
+     "screenshots": 1,
+     "videos": 0,
+     "logs": 3,
+     "har": 0,
+     "stackTrace": false
+    }
+   }
+  ]
+ },
+ "r06Triage11": {
+  "note": "R06 triage-1.1 snapshot of DEF-009-REG-UI, before the Gate 2 rejection added its evidence",
+  "id": "DEF-009-REG-UI",
+  "titleLength": 58,
+  "defectType": "Logic",
+  "evidence": {
+   "screenshots": 0,
+   "videos": 0,
+   "logs": 0,
+   "har": 0,
+   "stackTrace": false
+  }
+ }
+}

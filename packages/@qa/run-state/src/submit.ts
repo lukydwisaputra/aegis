@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import { join, relative } from "node:path";
-import { ReviewIdSchema, ReviewSchema, WorkReportIdSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
+import { ReviewIdSchema, ReviewSchema, WORK_REPORT_KEYS, WorkReportIdSchema, WorkReportSchema, type ReviewVerdict } from "@qa/contracts";
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
@@ -27,6 +27,8 @@ export interface SubmitResult {
 /** A work report's submit result: for a report writer, the lint of the files it produced (a stamp in the stored report, never a refusal). */
 export interface WorkReportSubmitResult extends SubmitResult {
   lint?: SubmitLint;
+  /** Top-level keys of the submitted report the schema does not know (a `findings` key, for one): they are not stored, so the worker moves the content into a key that is kept. */
+  droppedKeys?: string[];
 }
 
 export interface LessonOutcome {
@@ -95,6 +97,19 @@ function canonicalizeId(raw: unknown, kind: "work-report" | "review"): { value: 
   return { value: doc, adjusted: [`id: ${typeof had === "string" ? `"${had.slice(0, 60)}"` : "missing"} -> ${want}`] };
 }
 
+/** An id that fails its format says what the id must be and that leaving it out lets the CLI fill it in (the commonest submit refusal). */
+function withIdFix<I extends { path: Array<string | number>; message: string }>(issues: I[], kind: "work-report" | "review"): I[] {
+  return issues.map((i) => {
+    const last = i.path[i.path.length - 1];
+    if (last !== "id" && last !== "workReportId") return i;
+    if (last === "workReportId") return { ...i, message: "must be WR- followed by the task id of the work report under review (WR-T-intake-1)" };
+    if (kind === "work-report") {
+      return { ...i, message: `must be WR- followed by the task id (WR-T-intake-1); with a valid taskId in the report, leave id out and the CLI fills it in` };
+    }
+    return { ...i, message: `must be RV-{reviewer}-{taskId} (RV-qa-orchestrator-spv-T-intake-1); with a valid reviewer and target.taskId, leave id out and the CLI fills it in` };
+  });
+}
+
 /** Parse a submission; over-long narrative fields are cut to their limits (except a stored lesson rule), anything else invalid is refused. */
 function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: { issues: Array<{ path: Array<string | number>; message: string }> } } }, raw: unknown, kind: "work-report" | "review"): { data: T; trimmed: TrimmedField[]; adjusted: string[] } {
   const { value, adjusted } = canonicalizeId(raw, kind);
@@ -103,7 +118,7 @@ function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true
   const { value: cut, trimmed } = trimOverlong(value, first.error.issues as never, (path) => path.includes("correctiveInstructions"));
   const second = trimmed.length === 0 ? first : schema.safeParse(cut);
   if (second.success) return { data: second.data, trimmed, adjusted };
-  throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, second.error.issues as never)}`);
+  throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, withIdFix(second.error.issues, kind) as never)}`);
 }
 
 /** `lintErrors` is the CLI's stamp: one the agent wrote is dropped before parsing, and the result says so. */
@@ -111,6 +126,13 @@ function withoutLintStamp(raw: unknown): { value: unknown; dropped: boolean } {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw) || !Object.prototype.hasOwnProperty.call(raw, "lintErrors")) return { value: raw, dropped: false };
   const { lintErrors: _dropped, ...rest } = raw as Record<string, unknown>;
   return { value: rest, dropped: true };
+}
+
+/** The top-level keys of a submitted work report that WorkReportSchema drops (it is not strict): said in the result, never silent. */
+function unknownKeys(raw: unknown): string[] {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const known = new Set(WORK_REPORT_KEYS);
+  return Object.keys(raw).filter((k) => !known.has(k));
 }
 
 /**
@@ -124,6 +146,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
   const { value: raw, dropped } = withoutLintStamp(loadJson(file));
   const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
   if (dropped) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
+  const droppedKeys = unknownKeys(raw);
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
@@ -165,7 +188,7 @@ export async function submitWorkReport(root: string, runId: string, file: string
       fs.rmSync(out, { force: true });
       throw e;
     }
-    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}), ...(linted !== null ? { lint: linted.lint } : {}) };
+    return { path: rel, attempt, ...(trimmed.length > 0 ? { trimmed } : {}), ...(adjusted.length > 0 ? { adjusted } : {}), ...(droppedKeys.length > 0 ? { droppedKeys } : {}), ...(linted !== null ? { lint: linted.lint } : {}) };
   });
 }
 

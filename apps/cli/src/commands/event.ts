@@ -1,8 +1,9 @@
 import { Command } from "commander";
 import { appendChained, EventBusRefusal } from "@qa/event-bus";
 import { AegisEventSchema } from "@qa/contracts";
-import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, RunStateError, trimOverlong } from "@qa/run-state";
-import { action, context, runIdFor } from "./_io.js";
+import { assertAppendableByAgent, assertCallerAllowed, assertEventConsistent, busPath, readRunConfig, RunStateError, trimOverlong } from "@qa/run-state";
+import { action, addTypedInput, context, runIdFor } from "./_io.js";
+import { readJsonFile } from "./json-file.js";
 
 export function eventCommand(): Command {
   const ev = new Command("event").description("Append events to the run's hash-chained log");
@@ -10,24 +11,53 @@ export function eventCommand(): Command {
   ev.command("append")
     .description("Validate and append one event (ts and runId are filled in)")
     .requiredOption("--type <type>", "event type, e.g. discovery.step-complete (run.*, task.*, gate.*, review.*, integrity.* and artifact.created are CLI-recorded)")
-    .option("--json <payload>", "event fields as a JSON object", "{}")
+    .option("--json <payload>", "event fields as a JSON object")
+    .option("--json-file <path>", "read the event fields (a JSON object) from a file; /dev/stdin reads standard input")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
-      action(async (o: { type: string; json: string; run?: string }) => {
+      action(async (o: { type: string; json?: string; jsonFile?: string; run?: string }) => {
         const ctx = context();
         assertCallerAllowed(ctx.caller, "event.append");
         assertAppendableByAgent(o.type);
         const runId = runIdFor(ctx, o.run);
+        if (o.json !== undefined && o.jsonFile !== undefined) {
+          throw new RunStateError("invalid-input", "give the event fields with --json or with --json-file, not both");
+        }
+        if (o.json === undefined && o.jsonFile === undefined) {
+          throw new RunStateError("invalid-input", "give the event fields with --json <object> or --json-file <path> (an event with no fields: --json {})");
+        }
+        const source = o.jsonFile !== undefined ? `--json-file ${o.jsonFile}` : "--json";
         let fields: unknown;
         try {
-          fields = JSON.parse(o.json);
-        } catch {
-          throw new RunStateError("invalid-input", "--json is not valid JSON");
+          let text = o.json!;
+          if (o.jsonFile !== undefined) {
+            text = readJsonFile(o.jsonFile);
+            // What the caller typed into the file is typed input like --json: a refusal that echoes it is recorded with it subtracted.
+            addTypedInput(text);
+          }
+          fields = JSON.parse(text);
+        } catch (e) {
+          if (e instanceof RunStateError) throw e;
+          throw new RunStateError(
+            "invalid-input",
+            o.jsonFile !== undefined
+              ? `${source} does not hold valid JSON: write one JSON object with double-quoted keys and strings`
+              : "--json is not valid JSON: give one JSON object (shell-quote it), or write it to a file and use --json-file <path> (--json-file /dev/stdin reads standard input)"
+          );
         }
         if (typeof fields !== "object" || fields === null || Array.isArray(fields)) {
-          throw new RunStateError("invalid-input", "--json must be a JSON object");
+          throw new RunStateError("invalid-input", o.jsonFile !== undefined ? `${source} must hold a JSON object` : "--json must be a JSON object");
         }
-        assertEventConsistent(o.type, fields as Record<string, unknown>);
+        // The owner's recorded exceptions (reportRules.disable) are read only for the one type that checks them; an unreadable config lifts nothing.
+        let disabled = new Set<string>();
+        if (o.type === "compliance.review-complete") {
+          try {
+            disabled = new Set(readRunConfig(ctx.root).reportRules.disable);
+          } catch {
+            /* the tag check stands */
+          }
+        }
+        assertEventConsistent(o.type, fields as Record<string, unknown>, disabled);
         let event: Record<string, unknown> = { runId, ...(fields as Record<string, unknown>), type: o.type, ts: new Date().toISOString() };
         // A free-text field over its limit (an observation summary of 340 characters where 300 fit) is cut, not refused for a turn.
         const parsed = AegisEventSchema.safeParse(event);

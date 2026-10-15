@@ -56,9 +56,12 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 {
   "cycleDate": "2026-07-27",           // or run.json#createdAt; the index shows "—" without one
   "metrics": {
-    "passed": 886, "failed": 0, "blocked": 0,
+    "designed": 900, "passed": 886, "failed": 0, "blocked": 0,
     "passRate": 100.0,                  // headline rate as a plain number: passed over the checks that ran to a verdict (attempted less ruledOutOfScope, deferred and notVerified)
-    "requirementsCoverage": 92.5        // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
+    "requirementsCoverage": 92.5,       // number 0–100 copied from `reports/metrics/coverage.json#requirementsCoverage`, or null when unavailable (file missing, noData, or the key null)
+    "testExecutionCoverage": 98.0, "automationCoverage": 85.0,
+    "defectDensity": 0.4, "dre": 88.0, "escapeRate": 12.0, "reopenRate": 0.0,
+    "mttdHours": 6.5, "mttrHours": null // all fourteen keys are written; null when a figure cannot be computed (also name it in unavailableMetricValues)
   },
   "defectMetrics": {
     "totalLogged": 16,
@@ -79,6 +82,8 @@ Two rules that matter more than they look:
 Do not invent new shapes for these figures. `gen-index.ts` carries compatibility resolvers for several historical layouts (`metrics.items[]` matched by prose `name`, `resultsSummary.overallTally`, `passRatePct` objects, `reports/test-status-inventory.json`). Those exist to read runs that are already closed — they are not a menu. A shape no resolver recognizes renders as `—`, and `export-run.sh` then refuses to publish the index rather than overwrite good values with dashes.
 
 ### closure.json: unavailable metrics
+
+`closure.json#metrics` carries all fourteen figures: designed (or totalTestCases), passed, failed, blocked, passRate, requirementsCoverage, testExecutionCoverage, automationCoverage, defectDensity, dre, escapeRate, reopenRate, mttdHours (or mttdMs) and mttrHours (or mttrMs). Each key is present (null when it cannot be computed), or the metric is named in `unavailableMetricValues` (for example "MTTR: no repair data recorded"); a missing rollup file listed in `unavailableMetrics` covers only the figures it computes (`coverage.json`: the counts, pass rate and both coverage percentages; `defect-trend.json`: density, escape rate, reopen rate, MTTD, MTTR; `effectiveness.json`: DRE and escape rate); automation coverage is always stated. The closure phase refuses a closure with a figure that is neither stated nor declared.
 
 `closure.json` always carries `unavailableMetrics`: the file names of the required metric files (Inputs) that did not exist when you drafted, `[]` when every one did.
 

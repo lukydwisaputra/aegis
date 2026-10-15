@@ -1,6 +1,9 @@
 import { Command } from "commander";
-import { completePhase, startPhase } from "@qa/run-state";
+import { completePhaseWithWarnings, startPhase } from "@qa/run-state";
 import { action, context, runIdFor } from "./_io.js";
+
+/** How many warnings `phase complete` prints; the rest are in the warnings report. */
+const WARNINGS_SHOWN = 10;
 
 export function phaseCommand(): Command {
   const phase = new Command("phase").description("Start and complete pipeline phases (orchestrator only)");
@@ -17,9 +20,15 @@ export function phaseCommand(): Command {
     .requiredOption("--phase <id>", "phase id")
     .option("--not-applicable", "record a phase this run does not need (compliance, dev-test-review)")
     .option("--run <id>", "run id (defaults to the active run)")
-    .action(action((o: { phase: string; notApplicable?: boolean; run?: string }) => {
+    .action(action(async (o: { phase: string; notApplicable?: boolean; run?: string }) => {
       const ctx = context();
-      return completePhase(ctx.root, runIdFor(ctx, o.run), o.phase, ctx.caller, { notApplicable: o.notApplicable === true });
+      // The run state, plus the warnings the barrier saw (never a refusal; kept in reports/lint/phase-{id}.json when there are any).
+      const done = await completePhaseWithWarnings(ctx.root, runIdFor(ctx, o.run), o.phase, ctx.caller, { notApplicable: o.notApplicable === true });
+      // Bounded: the count, the first 10 and the path of the full list (which is in the report file only when it could be written).
+      return {
+        ...done.state, warningsCount: done.warnings.length, warnings: done.warnings.slice(0, WARNINGS_SHOWN),
+        ...(done.warningsReport !== undefined ? { warningsReport: done.warningsReport } : {}),
+      };
     }));
   return phase;
 }

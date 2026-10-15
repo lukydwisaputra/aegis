@@ -1,16 +1,20 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, type Dirent } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { existsSync, lstatSync, readFileSync, readdirSync, type Dirent } from "node:fs";
+import { join, relative } from "node:path";
 import { BRAND_CLEAN_RUN_GLOBS, DEFECT_RECORD, TOOLING_CLEAN_RUN_GLOBS, matchGlob } from "@qa/path-guard";
 import { readLines } from "@qa/event-bus";
 import { readRunConfig } from "../config.js";
 import { busPath, runDir } from "../paths.js";
 import { buildClosureView, signoffFedTexts, toolingStringsIn, type ToolingHit } from "@qa/contracts";
+import { plainRunFile } from "./plain-path.js";
 import { scanPii } from "./pii.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
 import { hasLongLine, MAX_LINE, MAX_TEXT_BYTES, maskPath } from "./mask.js";
 import { scanBrand, scanTextsUnblanked, scanWithRules, type Finding, type ScanText, type Severity } from "./text.js";
+import { citationFindings } from "./citations.js";
 import { dataFindings, dataRuleGroup, type DataStage } from "./data.js";
 import { renderingSnapshot } from "../render/artefacts.js";
+
+export { plainRunFile };
 
 export interface LintReport {
   runId: string;
@@ -80,21 +84,6 @@ function walk(dir: string, base: string, out: string[], skipped: Skipped[]): voi
     else if (entry.isDirectory()) walk(abs, base, out, skipped);
     else if (entry.isFile()) out.push(rel);
     else skipped.push({ file: rel, reason: "not a regular file" });
-  }
-}
-
-/**
- * Whether `rel` is a regular file of the run directory `dir` reached through no symbolic link: no component after the run directory is a
- * link (its real path is the run's real path plus `rel`), so a link in the middle of a path (reports/closure/linkdir/x.md) never reads a
- * file outside the run. An absolute path or one with `..` is never one.
- */
-export function plainRunFile(dir: string, rel: string): boolean {
-  if (rel === "" || isAbsolute(rel) || rel.split(/[\\/]/).includes("..")) return false;
-  try {
-    const abs = join(dir, rel);
-    return realpathSync(abs) === join(realpathSync(dir), rel) && lstatSync(abs).isFile();
-  } catch {
-    return false;
   }
 }
 
@@ -527,5 +516,7 @@ export function lintFindings(root: string, runId: string, gate?: "G2" | "G3"): {
   const shownSkipped = skipped.map((e) => ({ ...e, file: maskPath(e.file) })).sort((a, b) => a.file.localeCompare(b.file));
   const shownFindings = findings.map((f) => ({ ...f, file: maskPath(f.file) })).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.rule.localeCompare(b.rule));
   const data = stage === undefined ? [] : dataFindings(root, runId, stage, disabled);
-  return { filesScanned, skipped: shownSkipped, findings: [...shownFindings, ...data] };
+  // Dangling citations of the closure and compliance files: at the G3 lint (and so the Closure-final barrier), a warning, never at Execution.
+  const citations = gate === "G3" && existsSync(dir) && !disabled.has("citation-dangling") ? citationFindings(root, runId) : [];
+  return { filesScanned, skipped: shownSkipped, findings: [...shownFindings, ...data, ...citations] };
 }

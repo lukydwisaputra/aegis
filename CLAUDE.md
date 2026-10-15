@@ -86,7 +86,7 @@ In-chat QA commands (typed in Claude Code chat, not terminal):
 - `dashboard.projectName` — appears in all customer-facing report output
 - `reportRules` — what the pre-gate lint (`aegis lint run`, run before G2 and G3, and at the executive stage with `--stage executive`) checks in the customer-facing files; each key is optional:
   - `extend` — extra wording rules (`{id, pattern, message, severity?}`)
-  - `disable` — ids of built-in rules the project turns off (the wording rules, `brand-name`, `tooling-tier1`, `tooling-tier2`, and at the executive stage `exec-residual-risk-ids`, `exec-risk-one-sentence`, `exec-report-event-missing`; disabling `brand-name` or a tier silences the lint only: H1 and the report scripts still refuse them), or a data rule group (`blocked-qa-side`, `defect-origin`, `defect-counts`, `env-probe`) checked at Execution, Triage and G2
+  - `disable` — ids of built-in rules the project turns off (the wording rules, `brand-name`, `tooling-tier1`, `tooling-tier2`, `citation-dangling` (G3 only: an OQ id the closure's openQuestions do not list, or a cases path naming no case file, in a closure or compliance file; a warning), and at the executive stage `exec-residual-risk-ids`, `exec-risk-one-sentence`, `exec-report-event-missing`; disabling `brand-name` or a tier silences the lint only: H1 and the report scripts still refuse them), or a data rule group (`blocked-qa-side`, `defect-origin`, `defect-counts`, `defect-fields`, `design-checks`, `execution-totals`, `env-probe`) checked at Design, Execution, Triage and G2, or a schema rule: `closure-schema` (the whole closure file check at Closure-draft and Closure-final, for a run whose closure predates it), `closure-metrics-missing` and `closure-forbidden-key` (one of its two rules), `compliance-tag-invalid` (the append-time tag check of a compliance review event)
   - `allow` — phrases the project uses on purpose, so the wording rules skip them
   - `localPorts` — default `[]`: the local server and stub ports of the project's environments (for example `[3002, 3011, 3998, 54421, 54422]` for a target whose dev server, stubs and local database use them). An unlisted `:N` is not flagged by H1, the report scripts or the executive checker. `localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` (not a CIDR range such as `0.0.0.0/0`) and "port N" are always flagged. List ports of 1024 or above: a low port such as `:22` also matches clock times (10:22)
   - `pii.syntheticValues` — exact personal-data values declared as test data that cannot be real
@@ -154,7 +154,7 @@ runs/{runId}/
   reports/executive/    # executive deck and sign-off (brand-clean)
   reports/work/         # work reports, one per attempt (CLI-written)
   reports/review/       # SPV reviews (CLI-written)
-  reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json, and stage-executive.json (CLI-written, aegis lint run)
+  reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json, stage-executive.json (CLI-written, aegis lint run), and phase-{phase}.json: the warnings of a completed phase's barrier (CLI-written, aegis phase complete; removed when the phase is reopened)
   reports/explore/      # Explore baseline.json and probe.json: page signatures and the reuse decision (CLI-written, aegis explore probe)
   reports/env/          # probe-execution.json and probe-g2.json: environment health and the build under test (CLI-written, aegis env probe)
   reports/.locks/       # submit and claim locks (CLI-owned)

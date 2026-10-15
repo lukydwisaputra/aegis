@@ -1,0 +1,111 @@
+{
+ "R12": {
+  "runId": "RUN-20261012-002",
+  "summary": {
+   "passed": 97,
+   "failed": 16,
+   "blocked": 3,
+   "skipped": 0,
+   "pendingManual": 0
+  },
+  "barrierCounts": {
+   "designed": 116,
+   "attempted": 116,
+   "passed": 97,
+   "failed": 16,
+   "partial": 1,
+   "blocked": 2,
+   "skipped": 0,
+   "unknown": 0,
+   "notAttempted": 0
+  },
+  "finalCounts": {
+   "designed": 105,
+   "attempted": 105,
+   "passed": 87,
+   "failed": 15,
+   "partial": 1,
+   "blocked": 2,
+   "skipped": 0,
+   "unknown": 0,
+   "notAttempted": 0,
+   "outOfScope": 11
+  },
+  "descopedAtBarrier": 0,
+  "descopedLater": 11
+ },
+ "R06": {
+  "runId": "RUN-20261006-001",
+  "summary": {
+   "passed": 90,
+   "failed": 7,
+   "blocked": 2,
+   "skipped": 0,
+   "pendingManual": 0
+  },
+  "barrierCounts": {
+   "designed": 99,
+   "attempted": 99,
+   "passed": 90,
+   "failed": 7,
+   "partial": 1,
+   "blocked": 1,
+   "skipped": 0,
+   "unknown": 0,
+   "notAttempted": 0,
+   "outOfScope": 1
+  },
+  "finalCounts": {
+   "designed": 99,
+   "attempted": 99,
+   "passed": 90,
+   "failed": 7,
+   "partial": 1,
+   "blocked": 1,
+   "skipped": 0,
+   "unknown": 0,
+   "notAttempted": 0,
+   "outOfScope": 1
+  },
+  "descopedAtBarrier": 1,
+  "descopedLater": 0
+ },
+ "S05": {
+  "runId": "RUN-20261005-002",
+  "summary": {
+   "passed": 166,
+   "failed": 3,
+   "blocked": 0,
+   "skipped": 0,
+   "pendingManual": 0
+  },
+  "barrierCounts": {
+   "designed": 174,
+   "attempted": 174,
+   "passed": 166,
+   "failed": 3,
+   "partial": 0,
+   "blocked": 0,
+   "skipped": 0,
+   "unknown": 0,
+   "notAttempted": 0,
+   "ruledOutOfScope": 4,
+   "deferred": 1
+  },
+  "finalCounts": {
+   "designed": 174,
+   "attempted": 174,
+   "passed": 166,
+   "failed": 3,
+   "partial": 0,
+   "blocked": 0,
+   "skipped": 0,
+   "unknown": 0,
+   "notAttempted": 0,
+   "ruledOutOfScope": 4,
+   "deferred": 1
+  },
+  "descopedAtBarrier": 0,
+  "descopedLater": 0
+ }
+}

@@ -3,11 +3,12 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { PhaseId } from "@qa/contracts";
 import { runDir } from "./paths.js";
-import { OUTPUT_SCHEMAS, PHASE_OUTPUT_SETS, PHASE_OUTPUTS, type OutputSchema } from "./phase-map.js";
+import { readRunConfig } from "./config.js";
+import { CLOSURE_OUTPUT, OUTPUT_SCHEMAS, PHASE_OUTPUT_SETS, PHASE_OUTPUTS, type OutputSchema } from "./phase-map.js";
 import { formatIssues } from "./util.js";
 
 /** Read and validate one output file: its parsed value, or the problem to report. */
-function checkOutput(file: string, rel: string, schema: OutputSchema | undefined): { problem: string } | { value: unknown } {
+function checkOutput(root: string, file: string, rel: string, schema: OutputSchema | undefined, phase?: PhaseId): { problem: string } | { value: unknown } {
   let value: unknown;
   try {
     value = JSON.parse(readFileSync(file, "utf-8"));
@@ -16,7 +17,33 @@ function checkOutput(file: string, rel: string, schema: OutputSchema | undefined
   }
   if (schema === undefined) return { value };
   const parsed = schema.safeParse(value);
-  return parsed.success ? { value } : { problem: `output ${rel} is invalid: ${formatIssues(parsed.error?.issues ?? [])}` };
+  if (parsed.success) return { value };
+  const issues = rel === CLOSURE_OUTPUT ? withoutDisabledRules(root, parsed.error?.issues ?? []) : (parsed.error?.issues ?? []);
+  if (issues.length === 0) return { value };
+  const closure = rel === CLOSURE_OUTPUT;
+  // Closure-final keeps the metrics as drafted (the reporter's instructions), so adding a null key is not a remedy there.
+  const shaped = closure && phase === "closure-final" ? issues.map((i) => ({ ...i, message: i.message.replace(ADD_KEY_REMEDY, "name each in unavailableMetricValues (the metrics stay as drafted at Closure-final)") })) : issues;
+  const exception = closure ? "; reportRules.disable with closure-schema is the owner's recorded exception for a closure that predates this check" : "";
+  return { problem: `output ${rel} is invalid: ${formatIssues(shaped)}${exception}` };
+}
+
+/** The remedy text of the closure-metrics-missing issue that Closure-final cannot take (see CLOSURE_METRICS_MISSING in contracts). */
+const ADD_KEY_REMEDY = "state each (null when it cannot be computed) or name it in unavailableMetricValues";
+
+/**
+ * The closure file's issues the owner has not turned off: reportRules.disable with closure-schema lifts the whole check (a run in
+ * flight whose closure predates it), or with a rule id (closure-metrics-missing, closure-forbidden-key) lifts that rule. An issue
+ * message begins with its rule id. The config is read only when the file already failed, so a valid closure never reads it.
+ */
+function withoutDisabledRules<T extends { message: string }>(root: string, issues: T[]): T[] {
+  let disabled: Set<string>;
+  try {
+    disabled = new Set(readRunConfig(root).reportRules.disable);
+  } catch {
+    return issues; // an unreadable config lifts nothing; the closure refusal stands
+  }
+  if (disabled.has("closure-schema")) return [];
+  return issues.filter((i) => ![...disabled].some((id) => i.message.startsWith(`${id}:`)));
 }
 
 /** True for a symlink, even a dangling one (existsSync follows links). */
@@ -52,7 +79,7 @@ export function outputProblems(root: string, runId: string, phase: PhaseId): str
       problems.push(`output ${rel} is missing`);
       continue;
     }
-    const checked = checkOutput(file, rel, OUTPUT_SCHEMAS[rel]);
+    const checked = checkOutput(root, file, rel, OUTPUT_SCHEMAS[rel], phase);
     if ("problem" in checked) problems.push(checked.problem);
     else if (rel === "dev-test-review.json") {
       const floor = mutationFloorProblem(root, checked.value);
@@ -80,7 +107,7 @@ export function outputProblems(root: string, runId: string, phase: PhaseId): str
     }
     for (const name of names) {
       const rel = `${set.dir}/${name}`;
-      const checked = checkOutput(join(at, name), rel, set.schema);
+      const checked = checkOutput(root, join(at, name), rel, set.schema);
       if ("problem" in checked) {
         problems.push(checked.problem);
         continue;

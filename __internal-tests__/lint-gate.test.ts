@@ -3,7 +3,7 @@ import * as path from 'path';
 import { addTask, busPath, completePhase, createRun, decideGate, lintBlockMessage, lintFindings, nextStep, openGate, readRun, runDir, startPhase } from '@qa/run-state';
 import { readLines } from '@qa/event-bus';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
-import { fastForward, ORCH, workTask, writeRunFile } from './helpers/pipeline';
+import { CLOSURE_METRICS, fastForward, ORCH, VALID_CLOSURE, workTask, writeRunFile } from './helpers/pipeline';
 
 let t: TmpAegis;
 let runId: string;
@@ -31,7 +31,7 @@ async function driveToActivePhase(gate: 'G2' | 'G3') {
   if (gate === 'G3') {
     fastForward(t.root, runId, 'closure-final', { G1: approved, G2: approved });
     await startPhase(t.root, runId, 'closure-final', ORCH);
-    writeRunFile(t.root, runId, 'reports/closure/closure.json', {});
+    writeRunFile(t.root, runId, 'reports/closure/closure.json', VALID_CLOSURE);
     await workTask(t.root, runId, 'T-closure-final-1', 'qa-closure-reporter', 'qa-closure-reporter-spv');
     await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');
   } else {
@@ -298,12 +298,12 @@ describe('the brand rule and the tooling tiers in the lint', () => {
 
     it('block the closure-final barrier until the closure reporter rewrites them', async () => {
       await driveToActivePhase('G3');
-      put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with `full oracles`.', reason: 'Owner decision.' }] }));
+      put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with `full oracles`.', reason: 'Owner decision.' }], metrics: CLOSURE_METRICS }));
       await expect(completePhase(t.root, runId, 'closure-final', ORCH)).rejects.toMatchObject({
         code: 'barrier', message: expect.stringContaining('reports/closure/closure.json:4 tooling-tier2'),
       });
       await workTask(t.root, runId, 'T-closure-final-2', 'qa-closure-reporter', 'qa-closure-reporter-spv');
-      put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with the full expected results.', reason: 'Owner decision.' }] }));
+      put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with the full expected results.', reason: 'Owner decision.' }], metrics: CLOSURE_METRICS }));
       await completePhase(t.root, runId, 'closure-final', ORCH);
       await expect(openGate(t.root, runId, 'G3', ORCH)).resolves.toMatchObject({ status: 'awaiting-gate' });
     });
