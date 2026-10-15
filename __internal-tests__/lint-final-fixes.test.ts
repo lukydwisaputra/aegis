@@ -296,7 +296,7 @@ describe('round 2: names, long lines and small fixes', () => {
   it('the gate-open text names only possible actions', () => {
     const open = lintBlockMessage('G3', [{ file: 'a.md', line: 1, rule: 'qa-cycle' }], 'gate-open');
     expect(open).toContain('already complete');
-    expect(open).toContain('the orchestrator then opens the gate again');
+    expect(open).toContain('the orchestrator opens the gate again');
     expect(open).toContain('the owner rejects the open gate and reopens the phase');
     expect(open).not.toContain('or a reopened phase');
   });

@@ -29,6 +29,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The executive conditions checker (scripts/check-executive-conditions.mjs) reads the PDFs with pdftotext.
+      - name: Install poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - name: Baseline guard (growth and shrink)
         if: github.event_name == 'pull_request'
         env:

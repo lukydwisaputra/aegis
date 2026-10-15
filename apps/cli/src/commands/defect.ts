@@ -52,15 +52,16 @@ export function rtmCommand(): Command {
   const rtm = new Command("rtm").description("Correct the requirements traceability matrix after triage (qa-defect-manager and the owner)");
   rtm
     .command("unlink")
-    .description("Remove one defect id from a requirement's row of rtm.json, and its defectMap entry for that requirement")
+    .description("Remove one defect id from a requirement's row of rtm.json; its defectMap entry stays unless --drop-map-entry")
     .requiredOption("--defect <id>", "defect id to unlink")
     .requiredOption("--requirement <id>", "requirement id of the row, e.g. REQ-REG-04")
     .requiredOption("--reason <text>", "why the link is no longer valid (withdrawn, reframed, wrong requirement)")
+    .option("--drop-map-entry", "also remove the defectMap entry (its plan-time columns are lost); by default only the row link goes")
     .option("--run <id>", "run id (defaults to the active run)")
     .action(
-      action((o: { defect: string; requirement: string; reason: string; run?: string }) => {
+      action((o: { defect: string; requirement: string; reason: string; dropMapEntry?: boolean; run?: string }) => {
         const ctx = context();
-        return unlinkRtmDefect(ctx.root, runIdFor(ctx, o.run), { requirementId: o.requirement, defectId: o.defect, reason: o.reason }, ctx.caller);
+        return unlinkRtmDefect(ctx.root, runIdFor(ctx, o.run), { requirementId: o.requirement, defectId: o.defect, reason: o.reason, dropMapEntry: o.dropMapEntry === true }, ctx.caller);
       })
     );
   rtm

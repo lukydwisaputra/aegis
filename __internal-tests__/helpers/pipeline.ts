@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { addTask, claimTask, releaseTask, runDir, submitReview, submitWorkReport } from '@qa/run-state';
+import { appendChained } from '@qa/event-bus';
+import { addTask, busPath, claimTask, releaseTask, runDir, submitReview, submitWorkReport } from '@qa/run-state';
 
 export const TS = '2026-09-30T08:00:00.000Z';
 export const ORCH = 'qa-orchestrator';
@@ -53,6 +54,16 @@ export const escalationDecision = (agent: string, taskId: string, attempt: numbe
   decidedBy: 'owner',
   decidedAt: TS,
 });
+
+/**
+ * The executive reporter's three report.produced events (technical, signoff, slides), as the report skills append them after a render:
+ * the executive barrier needs one per deliverable after the latest start of the executive phase.
+ */
+export async function produceDeliverables(root: string, runId: string): Promise<void> {
+  for (const [deliverable, file] of [['technical', 'technical-report.pdf'], ['signoff', 'signoff.pdf'], ['slides', 'executive-deck.pdf']] as const) {
+    await appendChained({ type: 'report.produced', ts: TS, runId, deliverable, path: `reports/executive/${file}` } as never, busPath(root, runId), { emittedBy: 'qa-executive-reporter', runId });
+  }
+}
 
 /** One worker task through the SPV loop: add (orchestrator), claim + submit + release (worker), review (SPV, if any). */
 export async function workTask(

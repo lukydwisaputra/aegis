@@ -51,7 +51,7 @@ This skill is distinct from the other two in one important way: **it enforces a 
 3. Run `detectJargon()` over the rewritten content. If more survivors remain than `--max-jargon-survivors`, fail with exit code 5 and report the surviving terms.
 4. Assemble the `SlideSpec` (see `packages/@qa/pdf-renderer/src/index.ts`).
 5. Enforce slide count: 1 (key finding) + N supporting insights + 1 recommendations + 1 residual risks = 5–7. Reject (exit 6) content outside that range.
-6. Check the deck content against the stakeholder brand patterns of `@qa/contracts`; a match fails the run (exit 7).
+6. When `reports/closure/closure.json` exists, a headline figure it carries that cannot be read (compliance totals, the exit-criteria count) refuses the deck with exit 11, naming the field; nothing is rendered. Check the deck content against the stakeholder brand patterns of `@qa/contracts`; a match fails the run (exit 7). Before the tone-check and before anything renders, the same customer-facing wording guard as the H1 hook and the two report scripts (`findToolingWordsIn`: tooling words, file paths and names, ports and hosts) runs over every string of `executive-deck.json` and exits 10 with the first 5 offending phrases, each with its deck field and what to write instead.
 7. Call `renderSlideDeck(spec)` and write to `--out`, then verify the file is a PDF (`%PDF-` header, over 1 KB).
 
 ## Implementation

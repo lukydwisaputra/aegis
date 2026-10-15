@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import { PhaseIdSchema, type EnvironmentSpecialistConfig, type PhaseId } from "@qa/contracts";
+import { PhaseIdSchema, localPortsOf, type EnvironmentSpecialistConfig, type PhaseId } from "@qa/contracts";
 import type { RolePaths } from "./roles.js";
 
 /** What the guard knows about the repo and its active run; read fresh for every hook call (no cache). */
@@ -24,6 +24,8 @@ export interface GuardContext extends RolePaths {
    * file there is not a worktree. Unset (a hand-built context): every entry there counts as a worktree.
    */
   nativeWorktrees?: string[];
+  /** aegis.config.json#reportRules.localPorts: the project's local server ports, refused colon-prefixed in customer-facing files. Unset: none. */
+  localPorts?: number[];
 }
 
 interface RawConfig {
@@ -31,6 +33,7 @@ interface RawConfig {
   testsDir?: unknown;
   environments?: Record<string, EnvironmentSpecialistConfig>;
   collector?: { path?: unknown };
+  reportRules?: unknown;
 }
 
 const RUN_ID = /^RUN-\d{8}-\d{3}$/;
@@ -92,6 +95,8 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
   const targetRoot = resolve(root, typeof config.targetProjectRoot === "string" ? config.targetProjectRoot : "..");
   const testsDir = typeof config.testsDir === "string" ? resolve(root, config.testsDir) : join(targetRoot, "tests", "qa");
   checkTestsDir(testsDir, targetRoot, root);
+  // A malformed list throws like a corrupt config: the guard never drops the project's ports and carries on without them.
+  const localPorts = localPortsOf(config);
   const activeRunId = readActiveRunId(root);
   let environment: string | null = null;
   let currentPhase: PhaseId | null = null;
@@ -121,6 +126,7 @@ export function loadGuardContext(aegisRoot: string): GuardContext {
     ...(typeof config.collector?.path === "string" ? { collectorRoot: resolve(root, config.collector.path) } : {}),
     nativeWorktrees: nativeWorktrees(root),
     ...(runStateUnreadable ? { runStateUnreadable: true as const } : {}),
+    ...(localPorts.length > 0 ? { localPorts } : {}),
   };
 }
 

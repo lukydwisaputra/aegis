@@ -1,0 +1,1397 @@
+{
+  "runId": "RUN-20261004-001",
+  "project": "Northwind Portal",
+  "standard": "ISTQB closure structure",
+  "environment": "development",
+  "pass": "final",
+  "cycleDate": "2026-10-12",
+  "verdictPolicy": "No release recommendation and no compliance verdict is given in this closure.",
+  "summary": "Neutral summary of the retest cycle.",
+  "metrics": {
+    "designed": 105,
+    "attempted": 105,
+    "passed": 87,
+    "failed": 15,
+    "blocked": 2,
+    "partial": 1,
+    "skipped": 0,
+    "notAttempted": 0,
+    "outOfScope": 11,
+    "passRate": 82.9,
+    "requirementsCoverage": 87.5,
+    "partialRequirements": 4,
+    "requirementsInScope": 32,
+    "testExecutionCoverage": 98.1,
+    "codeCoverage": 60.4,
+    "defectDensity": 4.76,
+    "dre": 100,
+    "escapeRate": 0,
+    "automationCoverage": 98.1,
+    "reopenRate": null,
+    "mttdHours": 1.92,
+    "mttrHours": null,
+    "cycleWallClockHours": 36.7,
+    "openApplicationDefects": 5,
+    "passRateBasisNote": "Case figures. Neutral basis of the pass rate."
+  },
+  "unavailableMetrics": [],
+  "unavailableMetricsNote": "Neutral unavailable metrics note text.",
+  "unavailableMetricValues": {
+    "repair time (MTTR)": "Neutral repair time ( m t t r) text.",
+    "reopen rate": "Neutral reopen rate text."
+  },
+  "variancesFromPlan": [
+    {
+      "variance": "Neutral variance text.",
+      "reason": "Neutral reason text."
+    },
+    {
+      "variance": "Neutral variance text.",
+      "reason": "Neutral reason text."
+    },
+    {
+      "variance": "Neutral variance text.",
+      "reason": "Neutral reason text."
+    }
+  ],
+  "comprehensivenessAssessment": {
+    "requirements": "Neutral requirements text.",
+    "execution": "Neutral execution text.",
+    "risk": "Neutral risk text.",
+    "compliance": "Neutral compliance text.",
+    "goLiveScope": "Neutral go live scope text.",
+    "outOfScope": "Neutral out of scope text.",
+    "knownGaps": "Neutral known gaps text.",
+    "productVersusProject": "Neutral product versus project text.",
+    "complianceByRegulation": [
+      {
+        "regulation": "ISO/IEC 25010",
+        "subject": "quality characteristics",
+        "coverageGaps": 23,
+        "bySeverity": {
+          "High": 3,
+          "Medium": 10,
+          "Low": 10
+        },
+        "highRatedGaps": [
+          "high rated gap 1",
+          "high rated gap 2",
+          "high rated gap 3"
+        ],
+        "statement": "Neutral statement text."
+      },
+      {
+        "regulation": "ISO/IEC 5055",
+        "subject": "code weaknesses",
+        "coverageGaps": 13,
+        "bySeverity": {
+          "High": 1,
+          "Medium": 5,
+          "Low": 7
+        },
+        "highRatedGaps": [
+          "high rated gap 1"
+        ],
+        "statement": "Neutral statement text."
+      },
+      {
+        "regulation": "ISTQB",
+        "subject": "test process and practice",
+        "coverageGaps": 19,
+        "bySeverity": {
+          "High": 1,
+          "Medium": 11,
+          "Low": 7
+        },
+        "highRatedGaps": [
+          "high rated gap 1"
+        ],
+        "statement": "Neutral statement text."
+      }
+    ],
+    "complianceLimits": [
+      "Neutral compliance limits text.",
+      "Neutral compliance limits text.",
+      "Neutral compliance limits text."
+    ]
+  },
+  "resultsSummary": {
+    "counts": {
+      "designed": 105,
+      "attempted": 105,
+      "passed": 87,
+      "failed": 15,
+      "blocked": 2,
+      "partial": 1,
+      "skipped": 0,
+      "notAttempted": 0,
+      "outOfScope": 11
+    },
+    "passRate": 82.9,
+    "caseOfRecord": {
+      "caseId": "TC-DDD-007",
+      "status": "partial",
+      "basis": "The case of record for TC-DDD-007 is its result against the simulated service."
+    },
+    "outOfScope": [
+      {
+        "caseId": "TC-EEE-005",
+        "reason": "Neutral reason 1 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-006",
+        "reason": "Neutral reason 2 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-007",
+        "reason": "Neutral reason 3 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-008",
+        "reason": "Neutral reason 4 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-009",
+        "reason": "Neutral reason 5 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-010",
+        "reason": "Neutral reason 6 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-011",
+        "reason": "Neutral reason 7 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-012",
+        "reason": "Neutral reason 8 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-013",
+        "reason": "Neutral reason 9 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-014",
+        "reason": "Neutral reason 10 for the out of scope check."
+      },
+      {
+        "caseId": "TC-EEE-016",
+        "reason": "Neutral reason 11 for the out of scope check."
+      }
+    ],
+    "notCarriedIntoRun": [
+      {
+        "caseId": "TC-HHH-012",
+        "reason": "Neutral reason text."
+      }
+    ],
+    "byModule": {
+      "AAA": {
+        "passed": 3,
+        "failed": 0,
+        "blocked": 0,
+        "partial": 0
+      },
+      "BBB": {
+        "passed": 22,
+        "failed": 0,
+        "blocked": 1,
+        "partial": 0
+      },
+      "CCC": {
+        "passed": 7,
+        "failed": 1,
+        "blocked": 0,
+        "partial": 0
+      },
+      "DDD": {
+        "passed": 6,
+        "failed": 2,
+        "blocked": 1,
+        "partial": 1
+      },
+      "EEE": {
+        "passed": 4,
+        "failed": 0,
+        "blocked": 0,
+        "partial": 0
+      },
+      "FFF": {
+        "passed": 3,
+        "failed": 0,
+        "blocked": 0,
+        "partial": 0
+      },
+      "GGG": {
+        "passed": 5,
+        "failed": 3,
+        "blocked": 0,
+        "partial": 0
+      },
+      "HHH": {
+        "passed": 15,
+        "failed": 4,
+        "blocked": 0,
+        "partial": 0
+      },
+      "III": {
+        "passed": 3,
+        "failed": 3,
+        "blocked": 0,
+        "partial": 0
+      },
+      "JJJ": {
+        "passed": 6,
+        "failed": 0,
+        "blocked": 0,
+        "partial": 0
+      },
+      "KKK": {
+        "passed": 13,
+        "failed": 2,
+        "blocked": 0,
+        "partial": 0
+      }
+    },
+    "byModuleNote": "Neutral by module note text.",
+    "byTestType": {
+      "UI": {
+        "passed": 10,
+        "failed": 8,
+        "blocked": 0,
+        "partial": 0
+      },
+      "API": {
+        "passed": 63,
+        "failed": 4,
+        "blocked": 1,
+        "partial": 1
+      },
+      "E2E": {
+        "passed": 10,
+        "failed": 1,
+        "blocked": 1,
+        "partial": 0
+      },
+      "Database": {
+        "passed": 3,
+        "failed": 0,
+        "blocked": 0,
+        "partial": 0
+      },
+      "Security": {
+        "passed": 1,
+        "failed": 2,
+        "blocked": 0,
+        "partial": 0
+      }
+    },
+    "byTestTypeNote": "Neutral by test type note text.",
+    "failedCaseToDefectState": {
+      "TC-DDD-013": "Neutral  t c- c o m m s-013 text.",
+      "TC-HHH-021": "Neutral  t c- r e g-021 text.",
+      "TC-HHH-020": "Neutral  t c- r e g-020 text.",
+      "TC-KKK-009": "Neutral  t c- v o l-009 text.",
+      "TC-CCC-010": "Neutral  t c- a u t h-010 text.",
+      "TC-DDD-012": "Neutral  t c- c o m m s-012 text.",
+      "TC-GGG-007": "Neutral  t c- p a r t-007 text.",
+      "TC-GGG-009": "Neutral  t c- p a r t-009 text.",
+      "TC-HHH-013": "Neutral  t c- r e g-013 text.",
+      "TC-HHH-014": "Neutral  t c- r e g-014 text.",
+      "TC-III-007": "Neutral  t c- r p t-007 text.",
+      "TC-III-004": "Neutral  t c- r p t-004 text.",
+      "TC-III-006": "Neutral  t c- r p t-006 text.",
+      "TC-KKK-003": "Neutral  t c- v o l-003 text.",
+      "TC-GGG-008": "Neutral  t c- p a r t-008 text."
+    },
+    "failedCaseToDefectNote": "Neutral failed case to defect note text.",
+    "stillBlockedOrPartial": [
+      {
+        "id": "TC-BBB-022",
+        "status": "blocked",
+        "reason": "Neutral reason text."
+      },
+      {
+        "id": "TC-DDD-004",
+        "status": "blocked",
+        "reason": "Neutral reason text."
+      },
+      {
+        "id": "TC-DDD-007",
+        "status": "partial (case of record)",
+        "reason": "Neutral reason text."
+      }
+    ],
+    "stillBlockedOrPartialNote": "Neutral still blocked or partial note text.",
+    "passedWithQualifications": [
+      {
+        "id": "TC-HHH-015",
+        "reason": "Neutral reason text."
+      }
+    ]
+  },
+  "uncoveredTestCases": [
+    {
+      "id": "TC-BBB-022",
+      "module": "ATT",
+      "status": "blocked",
+      "origin": "Neutral origin text."
+    },
+    {
+      "id": "TC-DDD-004",
+      "module": "COMMS",
+      "status": "blocked",
+      "origin": "Neutral origin text."
+    }
+  ],
+  "uncoveredTestCasesTotal": 2,
+  "uncoveredTestCasesNote": "Neutral uncovered test cases note text.",
+  "defectMetrics": {
+    "totalLogged": 29,
+    "totalLoggedDetail": "Neutral total logged detail text.",
+    "confirmedOpen": 5,
+    "confirmedDefectsBySeverity": {
+      "Sev1": 0,
+      "Sev2": 0,
+      "Sev3": 1,
+      "Sev4": 4,
+      "Sev5": 0
+    },
+    "confirmedOpenIds": [
+      "DEF-001-KKK-EXP",
+      "DEF-010-HHH-UI",
+      "DEF-005-DDD-EXP"
+    ],
+    "openApplicationDefects": 5,
+    "openSev1Sev2Callout": "Neutral open sev1 sev2 callout text.",
+    "severityOfAllRecords": {
+      "Sev1": 0,
+      "Sev2": 2,
+      "Sev3": 5,
+      "Sev4": 14,
+      "Sev5": 8
+    },
+    "severityOfAllRecordsNote": "Neutral severity of all records note text.",
+    "openItems": [
+      {
+        "defectId": "DEF-001-KKK-EXP",
+        "severity": "Sev4 (Minor)",
+        "state": "PARTIALLY FIXED",
+        "title": "Neutral title of open defect 1",
+        "awaits": "A developer fix of the part that remains, or the developers' confirmation that the current fix resolves everything"
+      },
+      {
+        "defectId": "DEF-010-HHH-UI",
+        "severity": "Sev4 (Minor)",
+        "state": "PARTIALLY FIXED",
+        "title": "Neutral title of open defect 2",
+        "awaits": "A developer fix of the part that remains, or the developers' confirmation that the current fix resolves everything"
+      },
+      {
+        "defectId": "DEF-005-DDD-EXP",
+        "severity": "Sev4 (Minor)",
+        "state": "New this run, triaged, no retest verdict",
+        "title": "Neutral title of open defect 3",
+        "awaits": "A developer fix of the part that remains, or the developers' confirmation that the current fix resolves everything"
+      },
+      {
+        "defectId": "DEF-012-HHH-A11Y",
+        "severity": "Sev4 (Minor)",
+        "state": "New this run, triaged, no retest verdict",
+        "title": "Neutral title of open defect 4",
+        "awaits": "A developer fix of the part that remains, or the developers' confirmation that the current fix resolves everything"
+      },
+      {
+        "defectId": "DEF-006-DDD-API",
+        "severity": "Sev3 (Major)",
+        "state": "New this run, triaged, no retest verdict",
+        "title": "Neutral title of open defect 5",
+        "awaits": "A developer fix of the part that remains, or the developers' confirmation that the current fix resolves everything"
+      }
+    ],
+    "partiallyFixedOpen": {
+      "count": 2,
+      "ids": [
+        "DEF-001-KKK-EXP",
+        "DEF-010-HHH-UI"
+      ],
+      "note": "Neutral note text."
+    },
+    "newOpenWithoutVerdict": {
+      "count": 3,
+      "ids": [
+        "DEF-005-DDD-EXP",
+        "DEF-006-DDD-API",
+        "DEF-012-HHH-A11Y"
+      ]
+    },
+    "recordsByVerdict": {
+      "FIXED": 14,
+      "PARTIALLY FIXED": 2,
+      "REFRAMED": 8,
+      "REPORT WITHDRAWN": 2,
+      "newOpenWithoutVerdict": 3,
+      "NOT FIXED": 0,
+      "CANNOT VERIFY": 0,
+      "total": 29
+    },
+    "baseline24": {
+      "FIXED": {
+        "count": 14,
+        "ids": [
+          "DEF-001-AAA-UI",
+          "DEF-001-CCC-UI",
+          "DEF-001-DDD-UI"
+        ]
+      },
+      "PARTIALLY FIXED": {
+        "count": 2,
+        "ids": [
+          "DEF-001-KKK-EXP",
+          "DEF-010-HHH-UI"
+        ]
+      },
+      "REFRAMED": {
+        "count": 6,
+        "ids": [
+          "DEF-002-DDD-UI",
+          "DEF-003-HHH-SEC",
+          "DEF-003-III-EXP"
+        ]
+      },
+      "REPORT WITHDRAWN": {
+        "count": 2,
+        "ids": [
+          "DEF-003-CCC-API",
+          "DEF-007-III-API"
+        ]
+      },
+      "NOT FIXED": {
+        "count": 0,
+        "ids": []
+      },
+      "CANNOT VERIFY": {
+        "count": 0,
+        "ids": [],
+        "note": "Neutral note text."
+      }
+    },
+    "newThisRun": {
+      "openApplicationDefects": [
+        "DEF-005-DDD-EXP",
+        "DEF-006-DDD-API",
+        "DEF-012-HHH-A11Y"
+      ],
+      "reframed": [
+        "DEF-001-GGG-EXP",
+        "DEF-004-CCC-EXP"
+      ]
+    },
+    "awaitingDecision": {
+      "note": "Neutral note text.",
+      "fixed": [
+        {
+          "defectId": "DEF-001-AAA-UI",
+          "awaits": "Neutral awaits text."
+        },
+        {
+          "defectId": "DEF-001-CCC-UI",
+          "awaits": "Neutral awaits text."
+        },
+        {
+          "defectId": "DEF-001-DDD-UI",
+          "awaits": "Neutral awaits text."
+        }
+      ],
+      "reframed": [
+        {
+          "defectId": "DEF-002-DDD-UI",
+          "outcome": "Neutral outcome text.",
+          "awaits": "Neutral awaits text."
+        },
+        {
+          "defectId": "DEF-003-HHH-SEC",
+          "outcome": "Neutral outcome text.",
+          "awaits": "Neutral awaits text."
+        },
+        {
+          "defectId": "DEF-004-EEE-API",
+          "outcome": "Neutral outcome text.",
+          "awaits": "Neutral awaits text."
+        }
+      ],
+      "reportWithdrawn": [
+        {
+          "defectId": "DEF-003-CCC-API",
+          "outcome": "Neutral outcome text.",
+          "awaits": "Neutral awaits text."
+        },
+        {
+          "defectId": "DEF-007-III-API",
+          "outcome": "Neutral outcome text.",
+          "awaits": "Neutral awaits text."
+        }
+      ]
+    },
+    "fixedConditionsRecord": "Neutral fixed conditions record text.",
+    "defectsRaisedInThisRun": 5,
+    "defectsRaisedNote": "Neutral defects raised note text."
+  },
+  "falsePasses": {
+    "confirmed": [
+      {
+        "case": "TC-CCC-007",
+        "finding": "Neutral finding 1.",
+        "latestResult": "Pass after correction 1."
+      },
+      {
+        "case": "TC-DDD-007 (API angle)",
+        "finding": "Neutral finding 2.",
+        "latestResult": "Pass after correction 2."
+      },
+      {
+        "case": "TC-HHH-011",
+        "finding": "Neutral finding 3.",
+        "latestResult": "Pass after correction 3."
+      },
+      {
+        "case": "TC-HHH-015",
+        "finding": "Neutral finding 4.",
+        "latestResult": "Pass after correction 4."
+      },
+      {
+        "case": "TC-KKK-002 (assertion 3 of 3)",
+        "finding": "Neutral finding 5.",
+        "latestResult": "Pass after correction 5."
+      },
+      {
+        "case": "TC-KKK-012",
+        "finding": "Neutral finding 6.",
+        "latestResult": "Pass after correction 6."
+      },
+      {
+        "case": "TC-BBB-003",
+        "finding": "Neutral finding 7.",
+        "latestResult": "Pass after correction 7."
+      }
+    ],
+    "count": 7,
+    "method": "Neutral method text.",
+    "mechanism": "Undeterminable: the earlier evidence is empty and no output was kept. This is a QA process finding, not an application defect.",
+    "authThree": {
+      "requirement": "AC-AAA-002-R5: after five wrong codes, when the sixth attempt is made, the account is locked.",
+      "wrongStep": "Step 4 of the case expected the lock on the fifth wrong code itself.",
+      "whatConforms": "The build locks on the fifth wrong code and refuses the sixth.",
+      "whatThePassMeans": "The case is recorded as a pass because its results match step 4 as written."
+    },
+    "note": "These passes of the first report are our own mistakes: the checks behind them could not have held."
+  },
+  "ownMistakesCorrected": {
+    "note": "Our own mistakes, stated plainly. They are test-side mistakes of the QA team, not application defects, and no defect was filed for them.",
+    "items": [
+      {
+        "case": "TC-III-005",
+        "earlier": "fail",
+        "now": "pass",
+        "what": "Our own mistake 1: the earlier check read the rule wrongly and the corrected check follows it."
+      },
+      {
+        "case": "TC-HHH-018",
+        "earlier": "fail",
+        "now": "pass",
+        "what": "Our own mistake 2: the earlier check read the rule wrongly and the corrected check follows it."
+      },
+      {
+        "case": "TC-HHH-015",
+        "earlier": "blocked",
+        "now": "pass",
+        "what": "Our own mistake 3: the earlier check read the rule wrongly and the corrected check follows it."
+      },
+      {
+        "case": "TC-KKK-002",
+        "earlier": "partial",
+        "now": "pass",
+        "what": "Our own mistake 4: the earlier check read the rule wrongly and the corrected check follows it."
+      },
+      {
+        "case": "TC-EEE-005",
+        "earlier": "blocked",
+        "now": "out of scope (descoped)",
+        "what": "Our own mistake 5: the earlier check read the rule wrongly and the corrected check follows it."
+      },
+      {
+        "case": "TC-KKK-002 and TC-KKK-016 (case wording)",
+        "earlier": "case text",
+        "now": "wording wrong, results stand",
+        "what": "Our own mistake 6: the earlier check read the rule wrongly and the corrected check follows it."
+      }
+    ]
+  },
+  "evaluation": [
+    "Neutral evaluation text.",
+    "Neutral evaluation text.",
+    "Neutral evaluation text."
+  ],
+  "openQuestions": [
+    {
+      "id": "OQ-1",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 1?",
+      "triageSummaryQuestion": 1,
+      "related": [
+        "DEF-004-EEE-API",
+        "RISK-ENG-005"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-2",
+      "priority": "high",
+      "audience": "PM",
+      "question": "Neutral open question 2?",
+      "triageSummaryQuestion": 2,
+      "related": [
+        "DEF-001-KKK-EXP",
+        "RISK-VOL-001"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-3",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 3?",
+      "triageSummaryQuestion": 3,
+      "related": [
+        "DEF-010-HHH-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-5",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 4?",
+      "triageSummaryQuestion": 5,
+      "related": [
+        "DEF-010-HHH-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-6",
+      "priority": "low",
+      "audience": "developers",
+      "question": "Neutral open question 5?",
+      "triageSummaryQuestion": 6,
+      "related": [
+        "DEF-001-KKK-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-7",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 6?",
+      "triageSummaryQuestion": 7,
+      "related": [
+        "DEF-005-DDD-EXP",
+        "DEF-012-HHH-A11Y"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-8",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 7?",
+      "triageSummaryQuestion": 8,
+      "related": [
+        "DEF-003-III-EXP",
+        "TC-III-007"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-9",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 8?",
+      "triageSummaryQuestion": 9,
+      "related": [
+        "DEF-002-DDD-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-10",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 9?",
+      "triageSummaryQuestion": 10,
+      "related": [
+        "DEF-005-AAA-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-11",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 10?",
+      "triageSummaryQuestion": 11,
+      "related": [
+        "DEF-004-CCC-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-12",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 11?",
+      "triageSummaryQuestion": 12,
+      "related": [
+        "DEF-001-GGG-EXP",
+        "TC-GGG-007",
+        "TC-GGG-008"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-13",
+      "priority": "low",
+      "audience": "owner",
+      "question": "Neutral open question 12?",
+      "triageSummaryQuestion": 13,
+      "related": [
+        "DEF-001-GGG-EXP",
+        "DEF-004-AAA-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-14",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 13?",
+      "triageSummaryQuestion": 14,
+      "related": [
+        "DEF-003-HHH-SEC"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-15",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 14?",
+      "triageSummaryQuestion": 15,
+      "related": [
+        "DEF-004-DDD-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-16",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 15?",
+      "triageSummaryQuestion": 16,
+      "related": [
+        "DEF-007-III-API",
+        "TC-III-005"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-17",
+      "priority": "low",
+      "audience": "developers",
+      "question": "Neutral open question 16?",
+      "triageSummaryQuestion": 17,
+      "related": [
+        "DEF-003-CCC-API",
+        "TC-CCC-003"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-18",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 17?",
+      "triageSummaryQuestion": 18,
+      "related": [
+        "TC-III-004"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-19",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 18?",
+      "triageSummaryQuestion": 19,
+      "related": [
+        "TC-III-006"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-20",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 19?",
+      "triageSummaryQuestion": 20,
+      "related": [
+        "TC-KKK-003"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-21",
+      "priority": "high",
+      "audience": "PM",
+      "question": "Neutral open question 20?",
+      "triageSummaryQuestion": 21,
+      "related": [
+        "TC-DDD-007",
+        "TC-HHH-015"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-22",
+      "priority": "high",
+      "audience": "PM",
+      "question": "Neutral open question 21?",
+      "triageSummaryQuestion": 22,
+      "related": [
+        "RISK-AUTH-014"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-23",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 22?",
+      "triageSummaryQuestion": 23,
+      "related": [
+        "DEF-001-CCC-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-24",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 23?",
+      "triageSummaryQuestion": 24,
+      "related": [
+        "DEF-001-CCC-UI"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-25",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 24?",
+      "triageSummaryQuestion": 25,
+      "related": [
+        "TC-BBB-022"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-26",
+      "priority": "low",
+      "audience": "PM",
+      "question": "Neutral open question 25?",
+      "triageSummaryQuestion": 26,
+      "related": [
+        "TC-BBB-011"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-27",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 26?",
+      "triageSummaryQuestion": 27,
+      "related": [
+        "TC-CCC-004",
+        "RISK-AUTH-014"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-28",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 27?",
+      "triageSummaryQuestion": 28,
+      "related": [
+        "RISK-PROC-013"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-29",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 28?",
+      "triageSummaryQuestion": 29,
+      "related": [
+        "TC-DDD-004",
+        "TC-III-006"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-30",
+      "priority": "high",
+      "audience": "developers",
+      "question": "Neutral open question 29?",
+      "triageSummaryQuestion": 30,
+      "related": [
+        "DEF-006-DDD-API",
+        "TC-DDD-007"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-31",
+      "priority": "medium",
+      "audience": "developers",
+      "question": "Neutral open question 30?",
+      "triageSummaryQuestion": 31,
+      "related": [
+        "TC-DDD-007",
+        "DEF-004-DDD-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-32",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 31?",
+      "triageSummaryQuestion": 32,
+      "related": [
+        "TC-DDD-007",
+        "DEF-006-DDD-API"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-33",
+      "priority": "medium",
+      "audience": "PM",
+      "question": "Neutral open question 32?",
+      "triageSummaryQuestion": 33,
+      "related": [
+        "TC-EEE-005",
+        "RISK-ENV-004"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-34",
+      "priority": "high",
+      "audience": "owner",
+      "question": "Neutral open question 33?",
+      "related": [
+        "RISK-SPD-003"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-35",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 34?",
+      "related": [
+        "DEF-002-BBB-API",
+        "RISK-ATT-002"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-36",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 35?",
+      "related": [
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-37",
+      "priority": "low",
+      "audience": "owner",
+      "question": "Neutral open question 36?",
+      "related": [
+        "DEF-004-CCC-EXP",
+        "DEF-005-AAA-EXP"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-38",
+      "priority": "high",
+      "audience": "owner",
+      "question": "Neutral open question 37?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-39",
+      "priority": "low",
+      "audience": "owner",
+      "question": "Neutral open question 38?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-40",
+      "priority": "medium",
+      "audience": "owner",
+      "question": "Neutral open question 39?",
+      "related": [
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-41",
+      "priority": "medium",
+      "audience": "owner and data protection officer",
+      "question": "Neutral open question 40?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-42",
+      "priority": "medium",
+      "audience": "PM and data protection officer",
+      "question": "Neutral open question 41?",
+      "related": [
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-43",
+      "priority": "medium",
+      "audience": "PM and data protection officer",
+      "question": "Neutral open question 42?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-44",
+      "priority": "medium",
+      "audience": "owner and data protection officer",
+      "question": "Neutral open question 43?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-45",
+      "priority": "medium",
+      "audience": "owner and data protection officer",
+      "question": "Neutral open question 44?",
+      "related": [
+        "Neutral related text.",
+        "Neutral related text."
+      ],
+      "status": "open"
+    },
+    {
+      "id": "OQ-46",
+      "priority": "high",
+      "audience": "owner",
+      "question": "Neutral open question 45?",
+      "related": [
+        "TC-BBB-016",
+        "TC-CCC-007",
+        "TC-KKK-013"
+      ],
+      "status": "open"
+    }
+  ],
+  "openQuestionsCount": {
+    "total": 45,
+    "firstNamedAudience": {
+      "PM": 23,
+      "owner": 14,
+      "developers": 8
+    }
+  },
+  "openQuestionsNote": "Neutral open questions note text.",
+  "residualRiskSummary": [
+    {
+      "riskId": "RISK-PROC-012",
+      "title": "Neutral title text.",
+      "originalLikelihoodImpactScore": "4 x 5 = 20 (Critical)",
+      "rating": "Critical",
+      "mitigationStatus": "Partially tested",
+      "residualExposure": "Neutral residual exposure text."
+    },
+    {
+      "riskId": "RISK-VOL-001",
+      "title": "Neutral title text.",
+      "originalLikelihoodImpactScore": "4 x 5 = 20 (Critical)",
+      "rating": "Critical",
+      "mitigationStatus": "Partially tested",
+      "residualExposure": "Neutral residual exposure text."
+    },
+    {
+      "riskId": "RISK-PROC-013",
+      "title": "Neutral title text.",
+      "originalLikelihoodImpactScore": "4 x 4 = 16 (High)",
+      "rating": "High",
+      "mitigationStatus": "Partially tested",
+      "residualExposure": "Neutral residual exposure text."
+    }
+  ],
+  "residualRiskNote": "Neutral residual risk note text.",
+  "complianceFindings": [
+    {
+      "regulation": "ISO/IEC 25010",
+      "subject": "quality characteristics",
+      "coverageGaps": 23,
+      "bySeverity": {
+        "High": 3,
+        "Medium": 10,
+        "Low": 10
+      },
+      "highRatedGaps": [
+        "high rated gap 1",
+        "high rated gap 2",
+        "high rated gap 3"
+      ],
+      "statement": "ISO/IEC 25010: 23 coverage gaps."
+    },
+    {
+      "regulation": "ISO/IEC 5055",
+      "subject": "code weaknesses",
+      "coverageGaps": 13,
+      "bySeverity": {
+        "High": 1,
+        "Medium": 5,
+        "Low": 7
+      },
+      "highRatedGaps": [
+        "high rated gap 1"
+      ],
+      "statement": "ISO/IEC 5055: 13 coverage gaps."
+    },
+    {
+      "regulation": "ISTQB",
+      "subject": "test process and practice",
+      "coverageGaps": 19,
+      "bySeverity": {
+        "High": 1,
+        "Medium": 11,
+        "Low": 7
+      },
+      "highRatedGaps": [
+        "high rated gap 1"
+      ],
+      "statement": "ISTQB: 19 coverage gaps."
+    },
+    {
+      "regulation": "CMMI",
+      "subject": "verification and validation practices",
+      "coverageGaps": 9,
+      "bySeverity": {
+        "High": 2,
+        "Medium": 7,
+        "Low": 0
+      },
+      "highRatedGaps": [
+        "high rated gap 1",
+        "high rated gap 2"
+      ],
+      "statement": "CMMI: 9 coverage gaps."
+    },
+    {
+      "regulation": "GDPR",
+      "subject": "personal data of EU data subjects",
+      "coverageGaps": 15,
+      "bySeverity": {
+        "High": 3,
+        "Medium": 11,
+        "Low": 1
+      },
+      "highRatedGaps": [
+        "high rated gap 1",
+        "high rated gap 2",
+        "high rated gap 3"
+      ],
+      "statement": "GDPR: 15 coverage gaps."
+    },
+    {
+      "regulation": "PDPA",
+      "subject": "Singapore personal data protection",
+      "coverageGaps": 23,
+      "bySeverity": {
+        "High": 3,
+        "Medium": 18,
+        "Low": 2
+      },
+      "highRatedGaps": [
+        "high rated gap 1",
+        "high rated gap 2",
+        "high rated gap 3"
+      ],
+      "statement": "PDPA: 23 coverage gaps."
+    }
+  ],
+  "complianceStatus": "assessed: six coverage assessments are folded in; coverage gaps only, no compliance verdict",
+  "complianceNote": "Compliance coverage: six assessments of the scope are folded in. Coverage gaps only, no compliance verdict.",
+  "lessonsLearned": [
+    "Neutral lessons learned text.",
+    "Neutral lessons learned text.",
+    "Neutral lessons learned text."
+  ],
+  "exitCriteria": [
+    {
+      "criterion": "Exit criterion 1 is stated in plain words.",
+      "met": true,
+      "evidence": "Evidence for exit criterion 1: the records agree."
+    },
+    {
+      "criterion": "Exit criterion 2 is stated in plain words.",
+      "met": true,
+      "evidence": "Evidence for exit criterion 2: the records agree."
+    },
+    {
+      "criterion": "Exit criterion 3 is stated in plain words.",
+      "met": true,
+      "evidence": "Evidence for exit criterion 3: the records agree."
+    },
+    {
+      "criterion": "Exit criterion 4 is stated in plain words.",
+      "met": true,
+      "evidence": "Evidence for exit criterion 4: the records agree."
+    },
+    {
+      "criterion": "Exit criterion 5 is stated in plain words.",
+      "met": true,
+      "evidence": "Met, with a qualification. All failed cases carry a recorded origin. If the owner reads the criterion more strictly, the criterion is not met and 6 of 9 criteria are met."
+    },
+    {
+      "criterion": "Exit criterion 6 is stated in plain words.",
+      "met": true,
+      "evidence": "Evidence for exit criterion 6: the records agree."
+    },
+    {
+      "criterion": "Exit criterion 7 is stated in plain words.",
+      "met": true,
+      "evidence": "Evidence for exit criterion 7: the records agree."
+    },
+    {
+      "criterion": "Exit criterion 8 is stated in plain words.",
+      "met": false,
+      "evidence": "Not met: the difference for exit criterion 8 is stated in plain words."
+    },
+    {
+      "criterion": "Exit criterion 9 is stated in plain words.",
+      "met": false,
+      "evidence": "Not met: the difference for exit criterion 9 is stated in plain words."
+    }
+  ],
+  "approvals": {
+    "note": "Neutral note text.",
+    "signatories": [
+      {
+        "role": "QA lead",
+        "name": "",
+        "decision": "",
+        "date": "",
+        "comment": ""
+      },
+      {
+        "role": "Engineering lead",
+        "name": "",
+        "decision": "",
+        "date": "",
+        "comment": ""
+      },
+      {
+        "role": "Product owner",
+        "name": "",
+        "decision": "",
+        "date": "",
+        "comment": "Neutral comment text."
+      }
+    ]
+  },
+  "metricSources": {
+    "passed/failed/blocked/partial/passRate": "Neutral passed/failed/blocked/partial/pass rate text.",
+    "requirementsCoverage": "Neutral requirements coverage text.",
+    "testExecutionCoverage": "Neutral test execution coverage text.",
+    "codeCoverage": "Neutral code coverage text.",
+    "defectDensity": "Neutral defect density text.",
+    "dre": "Neutral dre text.",
+    "escapeRate": "Neutral escape rate text.",
+    "automationCoverage": "Neutral automation coverage text.",
+    "reopenRate": "Neutral reopen rate text.",
+    "mttdHours": "Neutral mttd hours text.",
+    "mttrHours": "Neutral mttr hours text.",
+    "cycleWallClockHours": "Neutral cycle wall clock hours text.",
+    "openApplicationDefects": "Neutral open application defects text."
+  },
+  "traceabilityState": {
+    "matchesRecords": "Neutral matches records text.",
+    "differencesInDataVersionOnly": [
+      "Neutral differences in data version only text.",
+      "Neutral differences in data version only text."
+    ],
+    "differencesInBothVersions": [
+      "Neutral differences in both versions text.",
+      "Neutral differences in both versions text.",
+      "Neutral differences in both versions text."
+    ],
+    "cannotBeChanged": "Neutral cannot be changed text.",
+    "ownerChoice": "Neutral owner choice text.",
+    "openDefectFigures": "Neutral open defect figures text."
+  },
+  "reconciliations": [
+    {
+      "point": "Reconciliation of the case figures",
+      "statement": "Case figures. The coverage summary counts 105 designed cases in scope: 87 passed, 15 failed, 2 blocked and 1 partial, 82.9% (87 of 105 attempted). The execution summary reads differently because it was written before the descoping."
+    },
+    {
+      "point": "Another reconciliation point",
+      "statement": "Neutral statement for the second reconciliation point."
+    }
+  ],
+  "exitCriteriaSummary": "7 of 9 criteria are met (criterion 5 with a stated qualification); criteria 8 and 9 are not met."
+}

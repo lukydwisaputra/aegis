@@ -50,8 +50,15 @@ function defaultRules(manualBudgetPercent: number | null): ResolvedRule[] {
   return rules;
 }
 
+/** The brand rule over the customer-facing files (BRAND_CLEAN_RUN_GLOBS): "Aegis", an internal agent name, a framework identifier. */
+export const BRAND_NAME = "brand-name";
+/** Tier 1: tooling words, run-file paths and names, local servers (TOOLING_WORD_RULES), over the tooling-clean files and the executive inputs. */
+export const TOOLING_TIER1 = "tooling-tier1";
+/** Tier 2: plain business language (PLAIN_LANGUAGE_RULES), only over what the sign-off and the deck print. */
+export const TOOLING_TIER2 = "tooling-tier2";
+
 /** The default rules, minus `disable`, plus the project's `extend`. */
-export function resolveRules(rules: ReportRules, manualBudgetPercent: number | null): ResolvedRule[] {
+export function resolveRules(rules: Omit<ReportRules, "localPorts">, manualBudgetPercent: number | null): ResolvedRule[] {
   const off = new Set(rules.disable);
   const base = defaultRules(manualBudgetPercent).filter((r) => !off.has(r.id));
   const extra = rules.extend.map((e): ResolvedRule => ({ id: e.id, re: new RegExp(e.pattern, e.flags ?? "i"), message: e.message, severity: e.severity ?? "error" }));

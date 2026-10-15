@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DefectG2TriageSchema, DefectIdSchema, DefectSchema, RequirementIdSchema, RetestVerdictSchema, StoryIdSchema, checkBrandExposure, checkToolingWords, defectRetestVerdict, isOpenApplicationDefect } from "@qa/contracts";
 import { readdirSync } from "node:fs";
-import { appendChained } from "@qa/event-bus";
+import { appendChained, readAll, typeFilter } from "@qa/event-bus";
 import { assertCallerAllowed, OWNER } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { busPath, runDir } from "./paths.js";
@@ -158,7 +158,9 @@ export async function amendDefect(root: string, runId: string, defectId: string,
     let tooling = false;
     eachString(t.value, (s) => {
       if (checkBrandExposure(s) !== null) branded = true;
-      if (checkToolingWords(s) !== null) tooling = true;
+      // Word rules only, as H1 applies them to defects/DEF-*: the amendable fields are reproduction and triage data, which may cite a
+      // URL, a local server or a file (the title, which the path rules still cover, is not amendable).
+      if (checkToolingWords(s, { kinds: ["word"] }) !== null) tooling = true;
     });
     if (branded) throw new RunStateError("invalid-input", `the new value of ${t.path} is quoted in the reports and must not name the framework or an agent: it matches a forbidden term`);
     // defects/** is customer-facing (the H1 hook checks the same patterns on a write); the CLI writes the file itself, outside the hook.
@@ -226,8 +228,10 @@ export interface UnlinkResult {
   remaining: string[];
   /** Whether the pair was linked in the requirement's row of rtm.json. */
   rowLinkRemoved: boolean;
-  /** The defectMap entries of this defect and requirement that were removed. */
+  /** The defectMap entries of this defect and requirement that were removed (only with dropMapEntry, or when the pair was in the map only). */
   defectMapEntriesRemoved: number;
+  /** Whether a defectMap entry for the pair existed and was kept (its plan-time columns stay). */
+  defectMapEntryKept: boolean;
   /** Whether the defect table of rtm.md was re-rendered from the defectMap. */
   rtmMdUpdated: boolean;
 }
@@ -301,13 +305,14 @@ function rerenderMd(mdFile: string, defectMap: unknown): string | null {
 
 /**
  * `aegis rtm unlink`: remove one defect-to-requirement link from rtm.json (qa-defect-manager and the owner only), for a link that is no
- * longer valid: a withdrawn or reframed defect, or one linked to the wrong requirement. The pair may be in the requirement row's
- * `defectIds`, in a `defectMap` entry ({defectId, requirementId}), or both: each is removed, and a pair that exists only in the defectMap
- * succeeds. A pair present nowhere is refused, naming what the requirement's row does link. The defect table of rtm.md is re-rendered from
+ * longer valid: a withdrawn or reframed defect, or one linked to the wrong requirement. By default it removes ONLY the row link
+ * (`defectIds` of the requirement's row) and KEEPS the defectMap entry, whose plan-time columns (acceptance criteria, wave, fix, notes)
+ * would otherwise be lost and re-created with defaults by the next sync; `dropMapEntry` also removes the entry. A pair that exists only
+ * in the defectMap (no row link) has its entry removed, as before. A pair present nowhere is refused, naming what the requirement's row does link. The defect table of rtm.md is re-rendered from
  * the defectMap; the rest of rtm.json and rtm.md is untouched. One `rtm.link-removed` event records requirement, defect, reason and agent
  * (and defectMapEntriesRemoved); a failed event puts both files back. Lock order: run.lock -> event-bus lock.
  */
-export async function unlinkRtmDefect(root: string, runId: string, input: { requirementId: string; defectId: string; reason: string; now?: Date }, caller: string): Promise<UnlinkResult> {
+export async function unlinkRtmDefect(root: string, runId: string, input: { requirementId: string; defectId: string; reason: string; dropMapEntry?: boolean; now?: Date }, caller: string): Promise<UnlinkResult> {
   assertCallerAllowed(caller, "rtm.unlink");
   const reason = requireReason(input.reason);
   const req = RequirementIdSchema.safeParse(input.requirementId);
@@ -324,8 +329,12 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
     const inRow = linked.includes(input.defectId);
     const map = Array.isArray(doc["defectMap"]) ? (doc["defectMap"] as unknown[]) : [];
     const kept = map.filter((e) => !(isPlain(e) && e["defectId"] === input.defectId && e["requirementId"] === req.data));
-    const mapEntriesRemoved = map.length - kept.length;
-    if (!inRow && mapEntriesRemoved === 0) {
+    const matching = map.length - kept.length;
+    // A row link goes alone unless dropMapEntry; a map-only pair has nothing else to remove, so its entry goes.
+    const dropMap = matching > 0 && (!inRow || input.dropMapEntry === true);
+    const mapEntriesRemoved = dropMap ? matching : 0;
+    const mapEntryKept = matching > 0 && !dropMap;
+    if (!inRow && matching === 0) {
       throw new RunStateError(
         "invalid-input",
         row === undefined
@@ -341,7 +350,7 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
     try {
       priorMd = mapEntriesRemoved > 0 ? rerenderMd(mdFile, kept) : null;
       await appendChained(
-        { type: "rtm.link-removed", ts: iso(input.now), requirementId: req.data, defectId: input.defectId, agent: caller, reason, ...(mapEntriesRemoved > 0 ? { defectMapEntriesRemoved: mapEntriesRemoved } : {}) },
+        { type: "rtm.link-removed", ts: iso(input.now), requirementId: req.data, defectId: input.defectId, agent: caller, reason, ...(mapEntriesRemoved > 0 ? { defectMapEntriesRemoved: mapEntriesRemoved } : {}), ...(matching > 0 ? { defectMapEntryKept: mapEntryKept } : {}) },
         busPath(root, runId),
         { emittedBy: caller, runId }
       );
@@ -350,7 +359,7 @@ export async function unlinkRtmDefect(root: string, runId: string, input: { requ
       if (priorMd !== null) atomicWrite(mdFile, priorMd);
       throw e;
     }
-    return { runId, requirementId: req.data, defectId: input.defectId, reason, remaining, rowLinkRemoved: inRow, defectMapEntriesRemoved: mapEntriesRemoved, rtmMdUpdated: priorMd !== null };
+    return { runId, requirementId: req.data, defectId: input.defectId, reason, remaining, rowLinkRemoved: inRow, defectMapEntriesRemoved: mapEntriesRemoved, defectMapEntryKept: mapEntryKept, rtmMdUpdated: priorMd !== null };
   });
 }
 
@@ -359,6 +368,8 @@ export interface SyncResult {
   /** false: the defectMap and the rows already matched the records; nothing was written and no event recorded. */
   changed: boolean;
   added: string[];
+  /** Added entries whose earlier entry was removed by `rtm unlink --drop-map-entry`: re-created with DEFAULT plan-time columns (acceptance criteria, wave, fix and notes are lost). */
+  recreatedWithDefaults: string[];
   updated: string[];
   removed: string[];
   /** Extra entries of a defect that already had one (one entry per defect record is kept). */
@@ -489,7 +500,14 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
     }
     const newMap = [...byId.values()].sort((a, b) => String(a["defectId"]).localeCompare(String(b["defectId"])));
     const changed = added.length + updated.length + removed.length + duplicatesRemoved + rowLinksAdded.length + rowLinksRemoved.length > 0;
-    const base = { runId, added, updated, removed, duplicatesRemoved, rowLinksAdded, rowLinksRemoved, unlinked, unreadable: [...unreadable].sort(), reason };
+    let droppedBefore = new Set<string>();
+    try {
+      droppedBefore = new Set(readAll(busPath(root, runId), typeFilter("rtm.link-removed")).flatMap((e) => (e.type === "rtm.link-removed" && (e.defectMapEntriesRemoved ?? 0) > 0 ? [e.defectId] : [])));
+    } catch {
+      // an unreadable log leaves the list empty: the added ids still name every re-created entry
+    }
+    const recreatedWithDefaults = added.filter((id) => droppedBefore.has(id));
+    const base = { runId, added, recreatedWithDefaults, updated, removed, duplicatesRemoved, rowLinksAdded, rowLinksRemoved, unlinked, unreadable: [...unreadable].sort(), reason };
     if (!changed) return { ...base, changed: false, rtmMdUpdated: false };
     doc["defectMap"] = newMap;
     atomicWrite(file, JSON.stringify(doc, null, 2) + "\n");
@@ -497,7 +515,7 @@ export async function syncRtmDefectMap(root: string, runId: string, input: { rea
     try {
       priorMd = rerenderMd(mdFile, newMap);
       await appendChained(
-        { type: "rtm.defect-map-synced", ts: iso(input.now), agent: caller, reason, added, updated, removed, duplicatesRemoved, rowLinksAdded, ...(input.pruneRows === true ? { rowLinksRemoved } : {}), rtmMdUpdated: priorMd !== null },
+        { type: "rtm.defect-map-synced", ts: iso(input.now), agent: caller, reason, added, ...(recreatedWithDefaults.length > 0 ? { recreatedWithDefaults } : {}), updated, removed, duplicatesRemoved, rowLinksAdded, ...(input.pruneRows === true ? { rowLinksRemoved } : {}), rtmMdUpdated: priorMd !== null },
         busPath(root, runId),
         { emittedBy: caller, runId }
       );

@@ -1,5 +1,5 @@
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { PHASE_IDS, checkBrandExposure, checkToolingWords } from "@qa/contracts";
+import { PHASE_IDS, checkBrandExposure, findToolingWords, findToolingWordsIn } from "@qa/contracts";
 import { XARGS_VALUE_FLAGS, bashWriteTargets, expandBraces, findParts, unwrap, writtenBy, xargsCommand, type LocatedCommand, type ShellWord, type WriteTarget } from "./bash.js";
 import type { GuardContext } from "./context.js";
 import { envVerdict, isCliOnlyRunPath, matchGlob, roleOf, roleWritable } from "./roles.js";
@@ -50,7 +50,7 @@ export type GuardResult =
 export const ROLLUP_OWNED_RUN_GLOBS: readonly string[] = ["execution-summary.json", "reports/metrics/**", "reports/closure/metrics.json"];
 
 /** Customer-facing run files (CLAUDE.md brand exposure rule). */
-export const BRAND_CLEAN_RUN_GLOBS: readonly string[] = ["plan.*", "rtm.*", "cases/**", "defects/**", "reports/closure/**", "reports/executive/**"];
+export const BRAND_CLEAN_RUN_GLOBS: readonly string[] = ["plan.*", "rtm.*", "cases/**", "defects/**", "reports/closure/**", "reports/executive/**", "reports/compliance/**"];
 
 /** Customer-facing run files that must also be free of tooling wording (TOOLING_WORD_PATTERNS in @qa/contracts). */
 export const TOOLING_CLEAN_RUN_GLOBS: readonly string[] = ["defects/**", "reports/closure/**", "reports/compliance/**"];
@@ -321,6 +321,69 @@ function trackedRunsFileOp(caller: Caller, abs: string, via: string, ctx: GuardC
   return caller.kind === "main" && TRACKED_RUNS_OPS.has(via) && TRACKED_RUNS_FILES.some((f) => abs === join(ctx.aegisRoot, "runs", f));
 }
 
+/** A defect record (defects/DEF-*.json or .md), run-relative: its reproduction data legitimately names URLs, local servers and file names. */
+export const DEFECT_RECORD = /^defects\/DEF-[^/]+$/;
+/** A `"title": "..."` member in JSON text that does not parse as a whole (an Edit or MultiEdit fragment). */
+const TITLE_MEMBER = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+
+/** The decoded value of a JSON string body, or the body itself when it does not decode. */
+function jsonString(body: string): string {
+  try {
+    const v: unknown = JSON.parse(`"${body}"`);
+    return typeof v === "string" ? v : body;
+  } catch {
+    return body;
+  }
+}
+
+/**
+ * The texts of a defect record that are its title and take every rule. A parsed record: its `title`. A parsed lone JSON string (an Edit
+ * that replaces one value): itself, since the hook cannot tell which field it replaces, so it fails closed. A JSON fragment that does not
+ * parse: every `"title": "..."` member in it. Markdown: the first `# ` heading line.
+ */
+function defectTitles(inRun: string, content: string, parsed: unknown): string[] {
+  if (inRun.endsWith(".md")) {
+    const heading = /^# (.*)$/m.exec(content);
+    return heading === null ? [] : [heading[1]!];
+  }
+  if (typeof parsed === "string") return [parsed];
+  if (parsed !== null && typeof parsed === "object") {
+    const title = (parsed as Record<string, unknown>)["title"];
+    return typeof title === "string" ? [title] : [];
+  }
+  return [...content.matchAll(TITLE_MEMBER)].map((m) => jsonString(m[1]!));
+}
+
+/**
+ * The first tooling phrase of customer-facing content. A JSON file is read by its string values (a value that is only a path, such as an
+ * evidence list, is data and exempt from the path rules); anything else, markdown included, is read whole. A defect record takes the word
+ * rules only in every field but the title (its steps, ruled-out notes and build line cite URLs, ports and files to reproduce the defect,
+ * and an application can have an attempt count): its title, which the technical report and the sign-off print, takes every rule, also
+ * in a fragment that does not parse. The project's local ports come from the context.
+ */
+function toolingHit(inRun: string, content: string, ctx: GuardContext): ReturnType<typeof findToolingWords>[number] | null {
+  const localPorts = ctx.localPorts ?? [];
+  const record = DEFECT_RECORD.test(inRun);
+  const opts = record ? { kinds: ["word"] as const, localPorts } : { localPorts };
+  let parsed: unknown;
+  let isJson = false;
+  if (inRun.endsWith(".json")) {
+    try {
+      parsed = JSON.parse(content);
+      isJson = true;
+    } catch {
+      // not parseable (a partial edit): read it as text
+    }
+  }
+  const hit = isJson ? findToolingWordsIn(parsed, "", opts)[0] : findToolingWords(content, opts)[0];
+  if (hit !== undefined || !record) return hit ?? null;
+  for (const title of defectTitles(inRun, content, parsed)) {
+    const t = findToolingWords(title, { localPorts, location: ".title" })[0];
+    if (t !== undefined) return t;
+  }
+  return null;
+}
+
 /**
  * One write target. `abs` is absolute and normalized (decide() refuses anything else); `via` is the tool name, ">" for a
  * redirect, or the Bash command that writes or removes the path. Rule order: brand, runs/ removal, legacy allowance,
@@ -336,8 +399,8 @@ function checkPath(caller: Caller, abs: string, content: string | null, via: str
     if (hit !== null) return { deny: `${abs} is customer-facing and the text matches ${String(hit)}; write "QA team" or the project name instead (CLAUDE.md brand exposure rule)` };
   }
   if (content !== null && inRun !== null && TOOLING_CLEAN_RUN_GLOBS.some((g) => matchGlob(g, inRun))) {
-    const hit = checkToolingWords(content);
-    if (hit !== null) return { deny: `${abs} is customer-facing and the text has tooling wording (${String(hit)}); say what the application does, and keep tooling facts (commands, event numbers, review or attempt counts, refusals) for the events and the work report (customer-facing wording rule)` };
+    const hit = toolingHit(inRun, content, ctx);
+    if (hit !== null) return { deny: `${abs} is customer-facing and the text has tooling wording ("${hit.phrase}", ${String(hit.pattern)}${hit.location === "" ? "" : ` at ${hit.location}`}); write ${hit.instead} instead, and keep tooling facts (commands, file names, ports, event numbers, review or attempt counts, refusals) for the events and the work report (customer-facing wording rule)` };
   }
   // Removing runs/ or a run directory deletes every CLI-only file in it; no caller does it, legacy skill or not.
   if (REMOVE_OPS.has(via) && holdsRuns(ctx, abs)) {

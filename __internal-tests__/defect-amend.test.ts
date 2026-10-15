@@ -184,6 +184,20 @@ describe('aegis defect amend: customer-facing wording', () => {
     expect(events().find((e) => e.type === 'defect.amended')).toBeUndefined();
   });
 
+  it('accepts reproduction data with a URL, a listed local port and a file name (word rules only, as H1 applies to defect records)', async () => {
+    const cfg = path.join(t.root, 'aegis.config.json');
+    const c = JSON.parse(fs.readFileSync(cfg, 'utf8'));
+    fs.writeFileSync(cfg, JSON.stringify({ ...c, reportRules: { ...c.reportRules, localPorts: [3002] } }));
+    const res = await amend([
+      { path: 'retestVerdict.reason', value: 'Reproduced: log in as an admin and open http://127.0.0.1:3002/communications/not-a-uuid on the restarted :3002 server.' },
+      { path: 'retestVerdict.triageVerification', value: 'Build: Next.js dev server, port 3000; the rtm.json row and execution-summary.json agree. Why does the attempt count decrement here?' },
+    ]);
+    expect(res.changes.map((ch) => ch.path)).toEqual(['retestVerdict.reason', 'retestVerdict.triageVerification']);
+    expect(read(`defects/${ID}.json`).retestVerdict.reason).toContain('http://127.0.0.1:3002/communications/not-a-uuid');
+    const err = await amend([{ path: 'retestVerdict.reason', value: 'Reproduced on http://127.0.0.1:3002; see the work report.' }]).catch((e) => e);
+    expect(err).toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/it matches a tooling word/) });
+  });
+
   it('still accepts plain application wording', async () => {
     const res = await amend([{ path: 'retestVerdict.reason', value: 'The burst returned 25 x 403 and no 429; authorisation holds.' }]);
     expect(res.changes).toHaveLength(1);
@@ -208,21 +222,29 @@ describe('aegis rtm unlink', () => {
     const after = read('rtm.json');
     expect(after.rows[0].defectIds).toEqual(['DEF-001-AUTH-UI']);
     expect(after.rows[1].defectIds).toEqual([ID]);
-    // The defectMap entry of this defect and requirement goes with the row link; nothing else in the file changes.
-    expect({ ...after, rows: undefined }).toEqual({ ...rtm(), rows: undefined, defectMap: [] });
-    expect(res.defectMapEntriesRemoved).toBe(1);
-    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ requirementId: 'REQ-REG-04', defectId: ID, agent: DM, reason: 'Linked to the wrong requirement', defectMapEntriesRemoved: 1 });
+    // Only the row link goes: the defectMap entry (with its plan-time columns) stays, and nothing else in the file changes.
+    expect({ ...after, rows: undefined }).toEqual({ ...rtm(), rows: undefined });
+    expect(res).toMatchObject({ defectMapEntriesRemoved: 0, defectMapEntryKept: true });
+    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ requirementId: 'REQ-REG-04', defectId: ID, agent: DM, reason: 'Linked to the wrong requirement', defectMapEntryKept: true });
   });
 
-  it('keeps defectMap entries of other pairs, and records no count when the map has none for this pair', async () => {
+  it('--drop-map-entry removes the entry too', async () => {
+    write('rtm.json', rtm());
+    const res = await unlink({ dropMapEntry: true });
+    expect(res).toMatchObject({ defectMapEntriesRemoved: 1, defectMapEntryKept: false });
+    expect(read('rtm.json').defectMap).toEqual([]);
+    expect(events().find((e) => e.type === 'rtm.link-removed')).toMatchObject({ defectMapEntriesRemoved: 1, defectMapEntryKept: false });
+  });
+
+  it('keeps defectMap entries of other pairs, and records no kept flag when the map has none for this pair', async () => {
     const doc = rtm();
     doc.defectMap.push({ defectId: ID, requirementId: 'REQ-REG-05' }, { defectId: 'DEF-001-AUTH-UI', requirementId: 'REQ-REG-04' });
     write('rtm.json', doc);
-    await unlink();
+    await unlink({ dropMapEntry: true });
     expect(read('rtm.json').defectMap).toEqual([{ defectId: ID, requirementId: 'REQ-REG-05' }, { defectId: 'DEF-001-AUTH-UI', requirementId: 'REQ-REG-04' }]);
     write('rtm.json', { rows: rtm().rows });
     await unlink({ requirementId: 'REQ-REG-05' });
-    expect(events().filter((e) => e.type === 'rtm.link-removed').pop()!.defectMapEntriesRemoved).toBeUndefined();
+    expect(events().filter((e) => e.type === 'rtm.link-removed').pop()).not.toHaveProperty('defectMapEntryKept');
   });
 
   it('refuses a missing row, a link that is not there, a missing reason, bad ids and other callers', async () => {
@@ -234,6 +256,7 @@ describe('aegis rtm unlink', () => {
     await expect(unlink({}, 'qa-closure-reporter')).rejects.toMatchObject({ code: 'caller-forbidden' });
     expect(read('rtm.json')).toEqual(rtm());
     await unlink();
+    await unlink(); // the row link is gone and the map entry is all that is left: this call drops it, as a map-only pair always did
     await expect(unlink()).rejects.toMatchObject({ message: expect.stringMatching(/is not linked/) });
   });
 
