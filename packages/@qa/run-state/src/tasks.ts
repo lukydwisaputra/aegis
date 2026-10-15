@@ -4,6 +4,7 @@ import { GATE_AFTER, GateIdSchema, PhaseIdSchema, SPECIALISTS, TaskRefSchema, sp
 import { appendChained } from "@qa/event-bus";
 import { PathGuardError, assertEnvSafe, envVerdict, readEnvPolicy, roleOf } from "@qa/path-guard";
 import { ClaimError, createTaskmasterClient, type Task } from "@qa/taskmaster-client";
+import { decideReviewBySystem, type AutoReviewResult } from "./auto-review.js";
 import { AGENT_ID, assertCallerAllowed, isSpecialist, ORCHESTRATOR } from "./caller.js";
 import { readSettings } from "./config.js";
 import { RunStateError } from "./errors.js";
@@ -378,7 +379,8 @@ function unescalatedFailure(root: string, runId: string, task: Task, agent: stri
 }
 
 /**
- * Release a claimed task. `failed` always opens an escalation for the latest attempt (the run blocks until the owner
+ * Release a claimed task. `done` may also record the review of the attempt when the CLI can decide it without an SPV (decideReviewBySystem; the
+ * result carries `autoReview`). `failed` always opens an escalation for the latest attempt (the run blocks until the owner
  * decides), for reviewed agents and agents without an SPV alike. Releasing an already-failed task failed again
  * re-drives an escalation that was never recorded.
  */
@@ -389,7 +391,7 @@ export async function releaseTask(
   result: "done" | "failed",
   caller: string,
   now?: Date
-): Promise<Task> {
+): Promise<Task & { autoReview?: AutoReviewResult }> {
   assertCallerAllowed(caller, "task.release");
   assertTaskId(taskId);
   await mustGet(root, runId, taskId);
@@ -413,7 +415,13 @@ export async function releaseTask(
     if (result === "failed") {
       const attempts = attemptsIn(workDir(root, runId), caller, taskId);
       await escalateFailedRelease(root, runId, caller, taskId, Math.max(...attempts), now);
+      return mustGet(root, runId, taskId);
     }
-    return mustGet(root, runId, taskId);
+    // Item 6: the CLI decides two kinds of reviews itself (a lint-stamped report, a carry-forward attempt with unchanged files); the SPV is not
+    // dispatched for them. Anything else, and any decision that cannot be completed, is left to the SPV exactly as before.
+    const latest = freshAttempt(root, runId, caller, taskId);
+    const autoReview = latest === null ? undefined : await decideReviewBySystem(root, runId, caller, taskId, latest, now);
+    const done = await mustGet(root, runId, taskId);
+    return autoReview === undefined ? done : { ...done, autoReview };
   }));
 }

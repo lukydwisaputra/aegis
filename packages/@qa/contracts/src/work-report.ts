@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Sha256HexSchema } from "./chain.js";
 import { LessonIdSchema, WorkReportIdSchema, ReviewIdSchema } from "./ids.js";
 
 // ─── Work report (worker → SPV) ───────────────────────────────────────────────
@@ -37,6 +38,15 @@ export const WorkReportSchema = z.object({
   // Stamped by the CLI at submit, never by the agent (one it writes is dropped), on a work report whose summary begins "Carry-forward attempt":
   // eligible true = the shortcut review applies, false = the full checklist applies, null = the CLI could not tell. Absent on every other report.
   carryForward: z.object({ eligible: z.boolean().nullable(), reason: z.string().min(1).max(400) }).strict().optional(),
+  // Stamped by the CLI at submit next to lintErrors, never by the agent: the first findings behind those error ids (rule, file, line, the lint's fix
+  // message, the masked line), so the CLI can return the report with a requested-changes review it builds itself. Absent on a report that carries no lintErrors.
+  lintFindings: z.array(z.object({
+    rule: z.string(), file: z.string(), line: z.number().int().nonnegative(), message: z.string(), context: z.string(),
+  }).strict()).max(20).optional(),
+  // Stamped by the CLI at submit, never by the agent: a digest of the task's own files at that moment (the case result files of its dispatched
+  // cases and the run files artifactsProduced names): `files` of them, `sha256` over their sorted path and content hashes. A carry-forward attempt
+  // equal to the digest of the previous accepted attempt is accepted by the CLI without an SPV. Absent when the task has no such file or too many.
+  resultDigest: z.object({ files: z.number().int().positive(), sha256: Sha256HexSchema }).strict().optional(),
 });
 
 export type WorkReport = z.infer<typeof WorkReportSchema>;

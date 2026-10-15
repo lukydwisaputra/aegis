@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PhaseIdSchema, ReviewSchema } from "@qa/contracts";
 import { createTaskmasterClient, type TaskStatus } from "@qa/taskmaster-client";
-import { assertCallerAllowed, pairedSpv } from "./caller.js";
+import { assertCallerAllowed, isDecidingReviewer } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { readEscalationDecision } from "./escalation.js";
 import { taskmasterDir } from "./paths.js";
@@ -53,7 +53,7 @@ function reviewStateOf(root: string, runId: string, agent: string, taskId: strin
   const file = join(reviewDir(root, runId), `${agent}.${taskId}.${latest}.json`);
   if (!existsSync(file)) return "none";
   const review = ReviewSchema.safeParse(loadJson(file));
-  if (!review.success || review.data.reviewer !== pairedSpv(agent)) {
+  if (!review.success || !isDecidingReviewer(review.data.reviewer, agent)) {
     throw new RunStateError("invalid-input", `task ${taskId}: review file ${agent}.${taskId}.${latest}.json is invalid`);
   }
   return review.data.verdict === "requested-changes" ? "requested-changes" : "passed";

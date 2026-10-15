@@ -116,13 +116,13 @@ describe('a report writer sees the lint of its files when it submits; the errors
     expect(rv).toMatchObject({ attempt: 2, path: 'reports/review/qa-closure-reporter.T-closure-draft-1.2.json', verdict: 'passed' });
   });
 
-  it('a stamped attempt released as is goes to its reviewer, which can return it', async () => {
+  it('a stamped attempt released as is is returned by the CLI itself: no SPV review is possible or needed (auto-review.test.ts has the detail)', async () => {
     put('reports/closure/closure.md', '# Closure\n\nThe cycle took 36 hours.\n');
     await claimed('T-closure-draft-1', CLOSURE_R);
     await submitWorkReport(t.root, runId, tmp('w1.json', wr(CLOSURE_R, 'T-closure-draft-1')), CLOSURE_R);
-    await releaseTask(t.root, runId, 'T-closure-draft-1', 'done', CLOSURE_R);
-    const rv = await submitReview(t.root, runId, tmp('r.json', review('qa-closure-reporter-spv', CLOSURE_R, 'T-closure-draft-1', 'requested-changes')), 'qa-closure-reporter-spv');
-    expect(rv).toMatchObject({ attempt: 1, verdict: 'requested-changes', reopened: true });
+    const rel = await releaseTask(t.root, runId, 'T-closure-draft-1', 'done', CLOSURE_R);
+    expect(rel.autoReview).toMatchObject({ decided: 'returned', attempt: 1, reopened: true });
+    await expect(submitReview(t.root, runId, tmp('r.json', review('qa-closure-reporter-spv', CLOSURE_R, 'T-closure-draft-1', 'requested-changes')), 'qa-closure-reporter-spv')).rejects.toMatchObject({ message: expect.stringMatching(/pending a new attempt/) });
   });
 });
 
@@ -230,8 +230,10 @@ describe('the executive barrier safety net', () => {
 
   it('refuses phase complete on an executive-stage error, naming the rule and the file, and completes once it is fixed', async () => {
     await produceDeliverables(t.root, runId);
-    put(DECK, { keyFinding: 'Admin pages were denied with 403.' });
+    // The reviewed report was clean when it was accepted (a stamped one is returned by the CLI); the deck is changed afterwards.
+    put(DECK, { keyFinding: 'Staff could not open the admin pages, as intended.' });
     await workTask(t.root, runId, 'T-executive-1', EXEC, 'qa-executive-reporter-spv');
+    put(DECK, { keyFinding: 'Admin pages were denied with 403.' });
     const { integrityCheckpoint: _c, ...before } = readRun(t.root, runId);
     await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({
       code: 'barrier',
@@ -251,7 +253,7 @@ describe('the executive barrier safety net', () => {
     await expect(completePhase(t.root, runId, 'executive', ORCH)).resolves.toMatchObject({ phases: { executive: { status: 'completed' } } });
   });
 
-  it('refuses a missing deliverable event; the reporter sees the same stage errors in its submit result, stamped', async () => {
+  it('refuses a missing deliverable event; the reporter sees the same stage errors in its submit result, stamped, and the CLI returns the report', async () => {
     put(DECK, { keyFinding: 'Admin pages were denied with 403.' });
     await claimed('T-executive-1', EXEC);
     const res = await submitWorkReport(t.root, runId, tmp('w.json', wr(EXEC, 'T-executive-1', { artifactsProduced: [`runs/${runId}/reports/executive/executive-deck.pdf`, DECK] })), EXEC);
@@ -259,9 +261,9 @@ describe('the executive barrier safety net', () => {
     expect(stored(res.path)['lintErrors']).toEqual(expect.arrayContaining(['exec-report-event-missing reports/executive/signoff.pdf:1', expect.stringMatching(/^tooling-tier2 reports\/executive\/executive-deck\.json:\d+$/)]));
     // The deck's tier-2 hit is an error from the stage, not the run-level warning class of the executive inputs.
     expect(res.lint!.warnings.filter((f) => f.file === DECK)).toEqual([]);
-    await releaseTask(t.root, runId, 'T-executive-1', 'done', EXEC);
-    await submitReview(t.root, runId, tmp('r.json', review('qa-executive-reporter-spv', EXEC, 'T-executive-1', 'passed')), 'qa-executive-reporter-spv');
-    await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/exec-report-event-missing.*tooling-tier2/) });
+    expect((await releaseTask(t.root, runId, 'T-executive-1', 'done', EXEC)).autoReview).toMatchObject({ decided: 'returned', reopened: true });
+    // The barrier still refuses what the stamp named, when no report carries it (here the task is open again, so the phase cannot complete either way).
+    await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({ code: 'barrier' });
   });
 
   it("reportRules.disable is the owner's exception for each rule", async () => {

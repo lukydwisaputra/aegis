@@ -109,8 +109,9 @@ describe('the lint is a barrier of the gated phase, while it is still active', (
     await driveToActivePhase('G2');
     put('defects/DEF-001-AUTH-UI.md', 'Found on this cycle.\n');
     await expect(completePhase(t.root, runId, 'triage', ORCH)).rejects.toMatchObject({ code: 'barrier' });
-    await workTask(t.root, runId, 'T-triage-2', 'qa-defect-manager', 'qa-defect-manager-spv');
+    // The correction is submitted clean: a report the lint stamps is returned by the CLI, so the fix lands before the report.
     put('defects/DEF-001-AUTH-UI.md', 'Found during the test window.\n');
+    await workTask(t.root, runId, 'T-triage-2', 'qa-defect-manager', 'qa-defect-manager-spv');
     await completePhase(t.root, runId, 'triage', ORCH);
     expect(nextStep(readRun(t.root, runId))).toEqual({ kind: 'open-gate', gate: 'G2' });
     await expect(openGate(t.root, runId, 'G2', ORCH)).resolves.toMatchObject({ status: 'awaiting-gate' });
@@ -123,8 +124,8 @@ describe('the lint is a barrier of the gated phase, while it is still active', (
       code: 'barrier',
       message: expect.stringContaining('reports/closure/closure.md:3 qa-cycle'),
     });
-    await workTask(t.root, runId, 'T-closure-final-2', 'qa-closure-reporter', 'qa-closure-reporter-spv');
     put('reports/closure/closure.md', '# Closure\n\nThe test window took 36 hours.\n');
+    await workTask(t.root, runId, 'T-closure-final-2', 'qa-closure-reporter', 'qa-closure-reporter-spv');
     await completePhase(t.root, runId, 'closure-final', ORCH);
     await expect(openGate(t.root, runId, 'G3', ORCH)).resolves.toMatchObject({ status: 'awaiting-gate' });
   });
@@ -302,8 +303,8 @@ describe('the brand rule and the tooling tiers in the lint', () => {
       await expect(completePhase(t.root, runId, 'closure-final', ORCH)).rejects.toMatchObject({
         code: 'barrier', message: expect.stringContaining('reports/closure/closure.json:4 tooling-tier2'),
       });
-      await workTask(t.root, runId, 'T-closure-final-2', 'qa-closure-reporter', 'qa-closure-reporter-spv');
       put('reports/closure/closure.json', json({ variancesFromPlan: [{ variance: 'Re-run with the full expected results.', reason: 'Owner decision.' }], metrics: CLOSURE_METRICS }));
+      await workTask(t.root, runId, 'T-closure-final-2', 'qa-closure-reporter', 'qa-closure-reporter-spv');
       await completePhase(t.root, runId, 'closure-final', ORCH);
       await expect(openGate(t.root, runId, 'G3', ORCH)).resolves.toMatchObject({ status: 'awaiting-gate' });
     });

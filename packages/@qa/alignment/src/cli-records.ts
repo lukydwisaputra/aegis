@@ -4,7 +4,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "run.stop": ["run.stop.requested"],
   "run.resume": ["run.resumed", "integrity.acknowledged"],
   "task.claim": ["task.claimed", "env.specialist-blocked"],
-  "task.release": ["task.released", "run.blocked"],
+  "task.release": ["task.released", "run.blocked", "review.auto-accepted", "review.auto-returned", "task.escalated", "lesson.conflict-flagged", "lesson.schema-rejected"],
   "task.cancel": ["task.cancelled"],
   "task.abandon": ["task.cancelled"],
   "work-report.submit": ["artifact.created"],
