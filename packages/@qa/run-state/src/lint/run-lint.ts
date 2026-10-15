@@ -4,7 +4,7 @@ import { BRAND_CLEAN_RUN_GLOBS, DEFECT_RECORD, TOOLING_CLEAN_RUN_GLOBS, matchGlo
 import { readLines } from "@qa/event-bus";
 import { readRunConfig } from "../config.js";
 import { busPath, runDir } from "../paths.js";
-import { buildClosureView, signoffFedTexts, toolingStringsIn, type ToolingHit } from "@qa/contracts";
+import { DATA_PATH_KEYS, DEFECT_AUDIT_FIELDS, blankDefectAuditSections, buildClosureView, signoffFedTexts, toolingStringsIn, withoutDefectAudit, type ToolingHit } from "@qa/contracts";
 import { plainRunFile } from "./plain-path.js";
 import { scanPii } from "./pii.js";
 import { BRAND_NAME, resolveRules, TOOLING_TIER1, TOOLING_TIER2 } from "./rules.js";
@@ -112,17 +112,26 @@ function keyLabel(key: string): string | null {
   return words.some((w) => PHONE_WORDS.has(w)) ? joined : null;
 }
 
+/** What a line of a JSON file is for the wording rules: prose (every rule), a generated identifier (every rule but the task id), or an audit field (none). */
+type LineKind = "prose" | "id" | "audit";
+
 /**
  * A JSON file as text lines: one per string value. A key is never prose (cycleDate), except that a string under a name-like or phone-like key
  * (and each string of an array under one) is emitted as `<label>: <value>` (the key in words), so the label and cue rules of scanPii work on JSON.
+ * Each line carries what the wording rules may do with it: a defect record's `history` and `investigationLog` are append-only audit fields
+ * (nobody can reword them and no report prints them: "audit"); the value of `charterSessionId`, or a whitespace-free value under a DATA_PATH_KEYS key
+ * (evidence, file ...), is a name the framework generated ("id": the task id rule skips it, as the tooling path rules skip a bare path).
  */
-function jsonStrings(value: unknown, out: string[], key?: string): void {
+function jsonStrings(value: unknown, out: Array<{ text: string; kind: LineKind }>, opts: { defect: boolean }, key?: string, audit = false): void {
   if (typeof value === "string") {
     const label = key === undefined ? null : keyLabel(key);
-    out.push(label === null ? value : `${label}: ${value}`);
+    const generated = key === "charterSessionId" || (key !== undefined && DATA_PATH_KEYS.has(key) && !/\s/.test(value));
+    out.push({ text: label === null ? value : `${label}: ${value}`, kind: audit ? "audit" : generated ? "id" : "prose" });
   }
-  else if (Array.isArray(value)) for (const v of value) jsonStrings(v, out, key);
-  else if (value !== null && typeof value === "object") for (const [k, v] of Object.entries(value)) jsonStrings(v, out, k);
+  else if (Array.isArray(value)) for (const v of value) jsonStrings(v, out, opts, key, audit);
+  else if (value !== null && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) jsonStrings(v, out, opts, k, audit || (opts.defect && key === undefined && DEFECT_AUDIT_FIELDS.includes(k)));
+  }
 }
 
 const PARTLY = "line over";
@@ -263,8 +272,8 @@ export function brandTexts(value: unknown, at = ""): ScanText[] {
 
 /** The texts tier 1 reads in a file: a JSON file by its string values (with their field paths), anything else by line; a defect record's title is marked. */
 function tier1Texts(rel: string, raw: string, parsed: unknown): ScanText[] {
-  if (rel.endsWith(".json")) return toolingStringsIn(parsed, "").map((s) => ({ location: s.location, text: s.text, dataKey: s.dataKey }));
-  const lines = raw.split("\n");
+  if (rel.endsWith(".json")) return toolingStringsIn(DEFECT_RECORD.test(rel) ? withoutDefectAudit(parsed) : parsed, "").map((s) => ({ location: s.location, text: s.text, dataKey: s.dataKey }));
+  const lines = (DEFECT_RECORD.test(rel) ? blankDefectAuditSections(raw) : raw).split("\n");
   const heading = DEFECT_RECORD.test(rel) ? lines.findIndex((l) => /^# /.test(l)) : -1;
   return lines.map((text, i) => ({ location: i === heading ? TITLE : "", line: i + 1, text }));
 }
@@ -389,22 +398,34 @@ function lintOneFile(ctx: FileLintContext, rel: string, findings: Finding[], ski
     return false;
   }
   const raw = text;
+  const defect = DEFECT_RECORD.test(rel);
   let parsed: unknown;
+  // What the wording rules read: the file's text, with the lines they must not read blanked (so line numbers stay). `generated` holds the
+  // lines of generated identifiers, read by every wording rule but the task id.
+  let wording = text;
+  let generated: string | null = null;
   if (rel.endsWith(".json")) {
     try {
       parsed = JSON.parse(text);
-      const strings: string[] = [];
-      jsonStrings(parsed, strings);
-      text = strings.join("\n");
+      const lines: Array<{ text: string; kind: LineKind }> = [];
+      jsonStrings(parsed, lines, { defect });
+      text = lines.map((l) => l.text).join("\n");
+      wording = lines.map((l) => (l.kind === "prose" ? l.text : "")).join("\n");
+      if (lines.some((l) => l.kind === "id")) generated = lines.map((l) => (l.kind === "id" ? l.text : "")).join("\n");
     } catch {
       skipped.push({ file: rel, reason: "not valid JSON" }); // never the parser text: it echoes the input, personal data included
       return false;
     }
+  } else if (defect && rel.endsWith(".md")) {
+    wording = blankDefectAuditSections(text);
   }
   if (hasLongLine(text)) skipped.push({ file: rel, reason: `${PARTLY} ${MAX_LINE} characters: scanned in part` });
   const working = WORKING_RECORD.test(rel);
   // A specialist's result record is a working note, not customer reading: the wording rules skip it, the personal-data rules do not.
-  if (!working) findings.push(...scanWithRules(rel, text, rules, allow));
+  if (!working) {
+    findings.push(...scanWithRules(rel, wording, rules, allow));
+    if (generated !== null) findings.push(...scanWithRules(rel, generated, rules.filter((r) => r.id !== "internal-task-id"), allow));
+  }
   findings.push(...scanPii(rel, text, ctx.pii));
   // The brand rule reads the file as written, keys and quoted runs included, as H1 does; a framework name in a working record is a warning.
   // A JSON file is read by its parsed keys and values, so a minified file on one long line keeps every hit (no line is cut).

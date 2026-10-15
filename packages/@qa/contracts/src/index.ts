@@ -3,6 +3,7 @@ export * from "./tags.js";
 export * from "./ids.js";
 export * from "./defect-types.js";
 export * from "./forbidden-strings.js";
+export * from "./defect-audit.js";
 export * from "./artefacts.js";
 export * from "./events.js";
 export * from "./lesson.js";

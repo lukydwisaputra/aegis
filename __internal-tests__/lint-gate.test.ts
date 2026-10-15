@@ -290,9 +290,9 @@ describe('the brand rule and the tooling tiers in the lint', () => {
       expect(phrases(ours('G3'))).toEqual(['case_id']);
       put('reports/executive/residual-risks.json', json([{ riskId: 'RISK-PDPA-001', plain: 'Partial identity numbers may be handled wrongly.' }]));
       expect(ours('G3')).toEqual([]);
-      // The plain sentence is printed instead, so it is read (R06 RISK-CMP-PROCESS-ML1: "the open Blocker and Critical defects").
+      // The plain sentence is printed instead, so it is read (R06 RISK-CMP-ERRPATH: "endpoint").
       // Only the executive reporter writes reports/executive/ (after G3), so at G3 it is a warning; its executive stage holds it.
-      put('reports/executive/residual-risks.json', json([{ riskId: 'RISK-PDPA-001', plain: 'No stakeholder acceptance of the open Blocker and Critical defects is recorded.' }]));
+      put('reports/executive/residual-risks.json', json([{ riskId: 'RISK-PDPA-001', plain: 'One attendance endpoint returns a server error instead of a clear client error.' }]));
       expect(ours('G3').map((f) => [f.file, f.rule, f.severity])).toEqual([['reports/executive/residual-risks.json', 'tooling-tier2', 'warning']]);
     });
 
