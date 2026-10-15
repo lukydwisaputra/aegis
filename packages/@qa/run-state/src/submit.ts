@@ -405,8 +405,12 @@ export async function submitReview(root: string, runId: string, file: string, ca
   if (!caller.endsWith("-spv")) {
     throw new RunStateError("caller-forbidden", `only SPV agents submit reviews; "${caller}" is not an SPV`);
   }
-  const raw = loadJson(file, text);
+  const given = loadJson(file, text);
+  // `resultDigest` is the CLI's stamp on a passing review: one the SPV wrote is dropped, and the result says so.
+  const droppedDigest = given !== null && typeof given === "object" && !Array.isArray(given) && Object.prototype.hasOwnProperty.call(given, "resultDigest");
+  const raw = droppedDigest ? (({ resultDigest: _digest, ...rest }) => rest)(given as Record<string, unknown>) : given;
   const { data: review, trimmed, adjusted } = parseSubmission(ReviewSchema, raw, "review");
+  if (droppedDigest) adjusted.push("resultDigest: removed (the CLI stamps it when a review passes)");
   if (review.reviewer !== caller) {
     throw new RunStateError("invalid-input", `review reviewer "${review.reviewer}" does not match caller "${caller}"`);
   }
@@ -445,8 +449,10 @@ export async function submitReview(root: string, runId: string, file: string, ca
     const rejected = review.verdict === "requested-changes";
     const floor = supersededAttempt(readRun(root, runId), agent, taskId);
     const rejections = rejectionsSoFar(dir, agent, taskId, floor) + (rejected ? 1 : 0);
+    // The digest of the task's recorded files at the moment the attempt is accepted: a later carry-forward attempt is compared with it.
+    const digest = !rejected && isSpecialist(agent) ? taskDigest(root, runId, latestDispatchCases(root, runId, taskId)) : null;
     try {
-      publishJson(out, review);
+      publishJson(out, digest !== null ? { ...review, resultDigest: digest } : review);
     } catch (e) {
       if (!isExists(e)) throw e;
       const already = new RunStateError("invalid-input", `attempt ${attempt} of ${agent}/${taskId} is already reviewed`);

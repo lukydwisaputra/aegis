@@ -71,7 +71,7 @@ export function submitLintFiles(root: string, runId: string, agent: string, arti
  * may be run-relative, carry the run prefix or `{run}/`, name a directory or a glob; anything outside the run or naming no file is ignored).
  * No role-table fallback: an entry that names nothing names nothing.
  */
-export function namedRunFiles(root: string, runId: string, artifactsProduced: readonly string[]): string[] {
+function namedRunFiles(root: string, runId: string, artifactsProduced: readonly string[]): string[] {
   const dir = runDir(root, runId);
   let all: string[] | null = null;
   const files = (): string[] => (all ??= runFiles(dir).files);

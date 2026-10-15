@@ -245,10 +245,10 @@ export async function collectRunMetrics(runDir: string): Promise<void> {
     if (event.type === "task.released") {
       const stats = getAgent(event.agent);
       stats.tasksCompleted++;
-    } else if (event.type === "review.passed" || event.type === "review.passed-with-notes") {
+    } else if (event.type === "review.passed" || event.type === "review.passed-with-notes" || event.type === "review.auto-accepted") {
       const stats = getAgent(event.target.agent);
       stats.reviewsPassed++;
-    } else if (event.type === "review.requested-changes") {
+    } else if (event.type === "review.requested-changes" || event.type === "review.auto-returned") {
       const stats = getAgent(event.target.agent);
       stats.reviewsRejected++;
     }

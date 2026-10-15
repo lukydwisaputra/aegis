@@ -262,8 +262,8 @@ describe('the executive barrier safety net', () => {
     // The deck's tier-2 hit is an error from the stage, not the run-level warning class of the executive inputs.
     expect(res.lint!.warnings.filter((f) => f.file === DECK)).toEqual([]);
     expect((await releaseTask(t.root, runId, 'T-executive-1', 'done', EXEC)).autoReview).toMatchObject({ decided: 'returned', reopened: true });
-    // The barrier still refuses what the stamp named, when no report carries it (here the task is open again, so the phase cannot complete either way).
-    await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({ code: 'barrier' });
+    // The barrier still names the stage errors the stamp named (the task is open again too, so the message names that first).
+    await expect(completePhase(t.root, runId, 'executive', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/exec-report-event-missing.*tooling-tier2/) });
   });
 
   it("reportRules.disable is the owner's exception for each rule", async () => {

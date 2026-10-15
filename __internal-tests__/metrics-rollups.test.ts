@@ -129,6 +129,23 @@ describe('agent-reliability.json', () => {
     expect(ar['qa-test-executor']).toEqual({ reviewPassRate: 100, requestedChangesCount: 0, meanTaskDurationMs: 20 * 60_000, lessonAppendCount: 0 });
     expect(ar['qa-ui-specialist']).toEqual({ reviewPassRate: 66.7, requestedChangesCount: 1, meanTaskDurationMs: 10 * 60_000, lessonAppendCount: 0 });
   });
+  // A review the CLI decided itself (a lint-returned report, an unchanged carry-forward attempt) is a review of the worker like any other: the metric is per
+  // reviewed worker, whoever decided. A return counts as a rejection, an acceptance as a pass.
+  it('a review the CLI decided counts for the worker: auto-returned as a rejection, auto-accepted as a pass', () => {
+    const t = (agent: string, taskId: string) => ({ target: { agent, taskId } });
+    const events = [
+      ev(0, 'task.claimed', { taskId: 'T-closure-1', agent: 'qa-closure-reporter' }), ev(5, 'task.released', { taskId: 'T-closure-1', agent: 'qa-closure-reporter', result: 'done' }),
+      ev(6, 'review.auto-returned', { ...t('qa-closure-reporter', 'T-closure-1'), attempt: 1, findingCount: 2, rejections: 1 }),
+      ev(7, 'review.passed', t('qa-closure-reporter', 'T-closure-1')),
+      ev(8, 'review.auto-accepted', { ...t('qa-ui-specialist', 'T-execution-2'), attempt: 2, baselineAttempt: 1, files: 3 }),
+    ];
+    const x = (computeRollups(runWith({}, events)).files['agent-reliability.json'] as any).agents;
+    expect(x['qa-closure-reporter']).toMatchObject({ reviewPassRate: 50, requestedChangesCount: 1 });
+    expect(x['qa-ui-specialist']).toMatchObject({ reviewPassRate: 100, requestedChangesCount: 0 });
+    // Only the return: a worker rejected by the CLI alone is not "no review".
+    const only = (computeRollups(runWith({}, [events[2]!])).files['agent-reliability.json'] as any).agents;
+    expect(only['qa-closure-reporter']).toMatchObject({ reviewPassRate: 0, requestedChangesCount: 1 });
+  });
   it('an agent with no review has a null pass rate, never 0', () => {
     const x = (computeRollups(runWith({}, [ev(0, 'task.claimed', { taskId: 'T-scan-1', agent: 'qa-context-scanner' }), ev(1, 'task.released', { taskId: 'T-scan-1', agent: 'qa-context-scanner', result: 'done' })])).files['agent-reliability.json'] as any).agents;
     expect(x['qa-context-scanner']).toMatchObject({ reviewPassRate: null, requestedChangesCount: 0, meanTaskDurationMs: 60_000 });

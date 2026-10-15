@@ -22,7 +22,7 @@ Your proposals feed the system's self-improvement loop. Over many cycles, well-c
 ## Inputs
 
 - `runs/{runId}/events.jsonl` — full event log
-- `runs/{runId}/reports/review/*.json` — all SPV reviews, recorded by the SPVs through the CLI (skip the owner's `*.escalation.json` decision files there: they are not reviews)
+- `runs/{runId}/reports/review/*.json` — the reviews of the run, recorded through the CLI: an SPV's, or the CLI's own (reviewer `system-cli`, `modelUsed` `deterministic`: a work report returned because its submit lint found errors, or a carry-forward attempt accepted because its recorded files were unchanged). Treat a CLI review as the CLI's decision, never as an SPV's judgment: a returned report is a pattern of the worker (the lint rule that recurs is worth a proposal for that worker, or a wording rule), an acceptance carries no finding and is skipped, and neither says anything about how an SPV reviews; skip the owner's `*.escalation.json` decision files there: they are not reviews
 - `runs/{runId}/defects/*.json` — defects with resolution outcomes (includes EXP-type exploratory defects — no parent TC; trace via `charterSessionId`)
 - `runs/{runId}/reports/metrics/agent-reliability.json` — agent performance data
 - `runs/{runId}/reports/work/*.json` — all work reports

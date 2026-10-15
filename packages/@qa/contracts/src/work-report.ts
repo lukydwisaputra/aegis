@@ -43,9 +43,11 @@ export const WorkReportSchema = z.object({
   lintFindings: z.array(z.object({
     rule: z.string(), file: z.string(), line: z.number().int().nonnegative(), message: z.string(), context: z.string(),
   }).strict()).max(20).optional(),
-  // Stamped by the CLI at submit, never by the agent: a digest of the task's own files at that moment (the case result files of its dispatched
-  // cases and the run files artifactsProduced names): `files` of them, `sha256` over their sorted path and content hashes. A carry-forward attempt
-  // equal to the digest of the previous accepted attempt is accepted by the CLI without an SPV. Absent when the task has no such file or too many.
+  // Stamped by the CLI at submit, never by the agent: a digest of the task's recorded files at that moment (the case result files and designs of the
+  // cases of its latest dispatch, the spec files under the tests directory that they name, and the evidence of those cases): `files` of them, `sha256`
+  // over their sorted keys and content hashes. The CLI compares it, recomputed at release, with the digest recorded when the previous accepted attempt
+  // was accepted (the `resultDigest` of that review) to accept an unchanged carry-forward attempt without an SPV. Absent when the digest cannot be
+  // determined (no case, a case without a result, a link, a named file that is missing) or is too large.
   resultDigest: z.object({ files: z.number().int().positive(), sha256: Sha256HexSchema }).strict().optional(),
 });
 
@@ -84,6 +86,10 @@ export const ReviewFindingSchema = z.object({
   regulatoryRef: z.string().optional(),
 });
 
+// Stamped by the CLI on a passing review (an SPV's or the CLI's own), never by the agent (one it writes is dropped): the digest of the task's recorded
+// files at the moment the attempt was accepted (same definition as the work report's `resultDigest`). A later carry-forward attempt is compared with it.
+export const ReviewResultDigestSchema = z.object({ files: z.number().int().positive(), sha256: Sha256HexSchema }).strict();
+
 export const ReviewSchema = z.object({
   id: ReviewIdSchema,
   reviewer: z.string(),
@@ -99,6 +105,7 @@ export const ReviewSchema = z.object({
   correctiveInstructions: z.array(CorrectiveInstructionSchema).default([]),
   reviewedAt: z.string().datetime({ offset: false }),
   modelUsed: z.string(),
+  resultDigest: ReviewResultDigestSchema.optional(),
 });
 
 export type Review = z.infer<typeof ReviewSchema>;

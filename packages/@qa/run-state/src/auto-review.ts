@@ -7,7 +7,7 @@ import { isCarryForwardSummary, latestDispatchCases } from "./carry-forward.js";
 import { isDecidingReviewer, SYSTEM_REVIEWER } from "./caller.js";
 import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { readRun, supersededAttempt } from "./run.js";
-import type { ResultDigest } from "./result-digest.js";
+import { taskDigest, type ResultDigest } from "./result-digest.js";
 import { attemptsIn, publishJson, rejectionsSoFar, reviewDir, settleReview, workDir } from "./submit.js";
 import { iso, loadJson } from "./util.js";
 
@@ -40,6 +40,13 @@ export interface AutoReviewResult {
   next?: string;
 }
 
+/** One event of the worker's agent: its type and what it names (a task id and case ids, either may be absent). */
+export interface WorkerEvent {
+  type: string;
+  taskId?: string | undefined;
+  cases: readonly string[];
+}
+
 /** The event types a worker may have emitted since its claim and still have done no new work (a carry-forward attempt). */
 const NO_WORK_EVENTS: ReadonlySet<string> = new Set(["task.claimed", "task.released", "artifact.created", "token.used", "cli.refused"]);
 
@@ -57,13 +64,17 @@ export interface CarryForwardFacts {
   artifactsProduced: number;
   /** The cases of the task's latest dispatch, or null when none names the task. */
   dispatchCases: readonly string[] | null;
-  /** The event types the worker emitted since its last claim of the task, or null when its claim is not in the log. */
-  workerEvents: readonly string[] | null;
-  /** The digest stamped on this attempt. */
+  /** The events the worker's agent emitted since its last claim of the task, or null when its claim is not in the log. */
+  workerEvents: readonly WorkerEvent[] | null;
+  /** The digest stamped on this attempt at its submit. */
   digest: ResultDigest | undefined;
-  /** The previous accepted attempt and the digest stamped on it, or null when no earlier attempt was accepted. */
+  /** The digest of the same files recomputed now, at the release. */
+  currentDigest: ResultDigest | undefined;
+  /** The previous accepted attempt and the digest recorded when it was accepted, or null when no earlier attempt was accepted. */
   baseline: { attempt: number; digest: ResultDigest | undefined } | null;
 }
+
+const sameDigest = (a: ResultDigest, b: ResultDigest): boolean => a.sha256 === b.sha256 && a.files === b.files;
 
 export type CarryForwardDecision = { accept: true; baselineAttempt: number; files: number } | { accept: false; why: string };
 
@@ -71,8 +82,9 @@ export type CarryForwardDecision = { accept: true; baselineAttempt: number; file
  * Whether the CLI accepts a carry-forward attempt without an SPV. Every condition is read from stored data, in this order, and the first that
  * fails sends the attempt to its SPV (the full checklist): the CLI's stamp says the shortcut applies (eligible true); the CLI's submit lint
  * found no error; the report states no uncertainty and lists no artifact; the task is not a gate task; the task has dispatched cases and the
- * summary names none outside them; the worker emitted no event of work since its claim; and the digest of the task's recorded result files
- * (their paths and bytes) equals the digest stamped on the previous accepted attempt. Pure: the replay of a finished run calls it as the CLI does.
+ * summary names none outside them; no event of work since the claim names the task or one of its cases (an event naming another task or other
+ * cases only, such as a sibling instance's, is not this task's), nor names neither; and the digest of the task's recorded files (results, designs,
+ * the specs and the evidence they name: result-digest.ts) is the same at the submit, at the release and when the previous accepted attempt was accepted. Pure: the replay of a finished run calls it as the CLI does.
  */
 export function carryForwardAutoAccept(f: CarryForwardFacts): CarryForwardDecision {
   const no = (why: string): CarryForwardDecision => ({ accept: false, why });
@@ -87,28 +99,37 @@ export function carryForwardAutoAccept(f: CarryForwardFacts): CarryForwardDecisi
   const named = [...new Set(f.summary.match(TC_IN_TEXT) ?? [])].filter((tc) => !f.dispatchCases!.includes(tc));
   if (named.length > 0) return no(`the summary names a case outside the task's dispatch: ${named.slice(0, 3).join(", ")}`);
   if (f.workerEvents === null) return no("the worker's claim is not in the event log");
-  const work = f.workerEvents.filter((t) => !NO_WORK_EVENTS.has(t));
-  if (work.length > 0) return no(`the worker recorded events of work since its claim: ${[...new Set(work)].slice(0, 3).join(", ")}`);
-  if (f.digest === undefined) return no("no digest of the task's result files was stamped on this attempt");
+  const cases = f.dispatchCases;
+  const ours = (e: WorkerEvent): boolean => e.taskId === f.taskId || e.cases.some((tc) => cases.includes(tc)) || (e.taskId === undefined && e.cases.length === 0);
+  const work = f.workerEvents.filter((e) => !NO_WORK_EVENTS.has(e.type) && ours(e)).map((e) => e.type);
+  if (work.length > 0) return no(`the worker recorded events of work on this task or its cases since its claim: ${[...new Set(work)].slice(0, 3).join(", ")}`);
+  if (f.digest === undefined) return no("no digest of the task's recorded files was stamped on this attempt");
+  if (f.currentDigest === undefined) return no("the task's recorded files cannot be digested at the release");
+  if (!sameDigest(f.digest, f.currentDigest)) return no("the task's recorded files changed between the submit and the release");
   if (f.baseline === null) return no("no earlier attempt of the task was accepted");
-  if (f.baseline.digest === undefined) return no(`attempt ${f.baseline.attempt} has no digest of its result files`);
-  if (f.digest.sha256 !== f.baseline.digest.sha256 || f.digest.files !== f.baseline.digest.files) {
-    return no(`the result files differ from those of attempt ${f.baseline.attempt} (a file changed, was added or is missing)`);
+  if (f.baseline.digest === undefined) return no(`attempt ${f.baseline.attempt} was accepted with no digest of its recorded files`);
+  if (!sameDigest(f.currentDigest, f.baseline.digest)) {
+    return no(`the recorded files differ from those of attempt ${f.baseline.attempt} when it was accepted (a file changed, was added or is missing)`);
   }
   return { accept: true, baselineAttempt: f.baseline.attempt, files: f.digest.files };
 }
 
-/** The event types `agent` emitted since its last `task.claimed` of `taskId`, or null when that claim is not in the log. */
-export function workerEventsSinceClaim(root: string, runId: string, agent: string, taskId: string): string[] | null {
+/** The events `agent` emitted since its last `task.claimed` of `taskId` (the type, and the task and case ids each names), or null when that claim is not in the log. */
+export function workerEventsSinceClaim(root: string, runId: string, agent: string, taskId: string): WorkerEvent[] | null {
   const marker = `"emittedBy":"${agent}"`;
-  let since: string[] | null = null;
+  let since: WorkerEvent[] | null = null;
   for (const line of readLines(busPath(root, runId))) {
     if (!line.includes(marker)) continue;
     try {
-      const e = JSON.parse(line) as { type?: unknown; taskId?: unknown; emittedBy?: unknown };
-      if (e.emittedBy !== agent || typeof e.type !== "string") continue;
-      if (e.type === "task.claimed" && e.taskId === taskId) since = [];
-      else if (since !== null) since.push(e.type);
+      const e = JSON.parse(line) as Record<string, unknown>;
+      if (e["emittedBy"] !== agent || typeof e["type"] !== "string") continue;
+      if (e["type"] === "task.claimed" && e["taskId"] === taskId) {
+        since = [];
+        continue;
+      }
+      if (since === null) continue;
+      const cases = [e["testCaseId"], e["tcId"], e["caseId"], ...(Array.isArray(e["tcIds"]) ? e["tcIds"] : [])].filter((c): c is string => typeof c === "string");
+      since.push({ type: e["type"], ...(typeof e["taskId"] === "string" ? { taskId: e["taskId"] } : {}), cases });
     } catch {
       continue; // a torn line is the integrity check's business
     }
@@ -125,7 +146,7 @@ const readReport = (root: string, runId: string, agent: string, taskId: string, 
   }
 };
 
-/** The highest attempt below `attempt` whose review (its SPV's or the CLI's) accepted it, with the digest stamped on its work report. */
+/** The highest attempt below `attempt` whose review (its SPV's or the CLI's) accepted it, with the digest recorded on that review when it was accepted. */
 export function previousAccepted(root: string, runId: string, agent: string, taskId: string, attempt: number): { attempt: number; digest: ResultDigest | undefined } | null {
   const dir = reviewDir(root, runId);
   for (const n of attemptsIn(dir, agent, taskId).filter((x) => x < attempt).sort((a, b) => b - a)) {
@@ -137,7 +158,7 @@ export function previousAccepted(root: string, runId: string, agent: string, tas
     }
     if (!review.success || !isDecidingReviewer(review.data.reviewer, agent)) continue;
     if (review.data.verdict === "requested-changes") continue;
-    return { attempt: n, digest: readReport(root, runId, agent, taskId, n)?.resultDigest };
+    return { attempt: n, digest: review.data.resultDigest };
   }
   return null;
 }
@@ -154,6 +175,7 @@ function carryForwardFacts(root: string, runId: string, agent: string, taskId: s
     dispatchCases: latestDispatchCases(root, runId, taskId),
     workerEvents: workerEventsSinceClaim(root, runId, agent, taskId),
     digest: report.resultDigest,
+    currentDigest: taskDigest(root, runId, latestDispatchCases(root, runId, taskId)) ?? undefined,
     baseline: previousAccepted(root, runId, agent, taskId, attempt),
   };
 }
@@ -183,13 +205,21 @@ function lintFindingsOf(report: WorkReport): LintFinding[] {
  */
 export function lintReturnReview(agent: string, taskId: string, attempt: number, report: WorkReport, reviewedAt: string): Review {
   const found = lintFindingsOf(report);
+  const total = Math.max(found.length, (report.lintErrors ?? []).length);
   const rules = [...new Set(found.map((f) => f.rule))];
   const instructions = rules.slice(0, MAX_INSTRUCTIONS).map((rule) => {
     const f = found.find((x) => x.rule === rule)!;
     const where = f.line > 0 ? `${f.file}:${f.line}` : f.file;
     return {
       mistake: cut(`The submitted files carry the lint error ${rule} at ${where}${f.context !== "" ? `: ${f.context}` : ""}`, 300),
-      rootCause: cut(`The submit lint listed ${rule}${f.message !== "" ? ` (${cut(f.message, 120)})` : ""} as an error in the submit result and the task was released without fixing it.`, 300),
+      // A report stamped before `lintFindings` has only the ids: its root cause is the rule and the place alone, short, so that the lessons of two rules
+      // are not merged by the memory's similarity check (a shared template would make them alike).
+      rootCause: cut(
+        f.message !== ""
+          ? `The submit lint listed ${rule} at ${where} (${cut(f.message, 120)}) as an error in the submit result and the task was released without fixing it.`
+          : `${`lint error ${rule} at ${where}`.padEnd(20, " .")}`.trimEnd(),
+        300
+      ),
       correctiveRule: cut(`Fix every error the submit lint lists before releasing the task${f.message !== "" ? `: ${f.message}` : ", then submit the work report again"}`, 400),
     };
   });
@@ -198,7 +228,7 @@ export function lintReturnReview(agent: string, taskId: string, attempt: number,
     reviewer: SYSTEM_REVIEWER,
     target: { agent, taskId },
     verdict: "requested-changes",
-    summary: cut(`Returned by the CLI without an SPV review: the submit lint reported ${found.length} error${found.length === 1 ? "" : "s"} in the files of attempt ${attempt} (${rules.slice(0, 5).join(", ")}). Fix them, claim the task, submit the work report again and release it.`, 500),
+    summary: cut(`Returned by the CLI without an SPV review: the submit lint reported ${total} error${total === 1 ? "" : "s"} in the files of attempt ${attempt} (${rules.slice(0, 5).join(", ")})${found.length < total ? `; the first ${found.length} are listed` : ""}. Fix them, claim the task, submit the work report again and release it.`, 500),
     findings: found.slice(0, MAX_FINDINGS).map((f) => ({
       severity: "high",
       claim: cut(`${f.rule} at ${f.line > 0 ? `${f.file}:${f.line}` : f.file}${f.message !== "" ? `: ${f.message}` : ""}${f.context !== "" ? ` [line: ${f.context}]` : ""}`, 600),
@@ -225,7 +255,8 @@ export async function decideReviewBySystem(root: string, runId: string, agent: s
   if (!lint && !isCarryForwardSummary(report.summary)) return undefined;
   const out = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
   try {
-    const decision = lint ? null : carryForwardAutoAccept(carryForwardFacts(root, runId, agent, taskId, attempt, report));
+    const facts = lint ? null : carryForwardFacts(root, runId, agent, taskId, attempt, report);
+    const decision = facts === null ? null : carryForwardAutoAccept(facts);
     if (decision !== null && !decision.accept) return { decided: null, attempt, reason: decision.why };
     const accepted = decision !== null && decision.accept ? decision : null;
 
@@ -242,6 +273,8 @@ export async function decideReviewBySystem(root: string, runId: string, agent: s
           correctiveInstructions: [],
           reviewedAt: ts,
           modelUsed: SYSTEM_MODEL,
+          // The digest of the files this acceptance covers (equal to the stamped one: the decision requires it), the baseline of the next attempt.
+          ...(facts?.currentDigest !== undefined ? { resultDigest: facts.currentDigest } : {}),
         });
 
     const dir = reviewDir(root, runId);
