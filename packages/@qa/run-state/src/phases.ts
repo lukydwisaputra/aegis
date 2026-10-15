@@ -30,6 +30,7 @@ import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { maskPath } from "./lint/mask.js";
 import { dataFindings } from "./lint/data.js";
+import { recordSpecReport, specBlockMessage, specFindings } from "./lint/specs.js";
 import { designBlockMessage } from "./lint/design.js";
 import { executiveBlockMessage, executiveFindings } from "./lint/executive.js";
 import type { Finding } from "./lint/text.js";
@@ -206,6 +207,8 @@ export interface BarrierPrecomputed {
   executiveErrors?: readonly Finding[];
   /** Its warnings, which never refuse: they go to the barrier's warning channel when the phase completes. */
   executiveWarnings?: readonly Finding[];
+  /** The spec lint findings (lint/specs.ts), for the Execution phase: parsing the spec files is async, so it runs before run.lock is taken. */
+  specFindings?: readonly Finding[];
 }
 
 /** The errors of the executive stage, the executive barrier's lint (warnings never refuse). Reads run files only. */
@@ -309,6 +312,12 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
       const data = found.filter((f) => f.severity === "error");
       if (data.length > 0) problems.push(lintBlockMessage("G2", data, "execution"));
       warnings?.push(...found.filter((f) => f.severity === "warning"));
+      // The spec lint of the specialists' spec files, computed once before the lock (it parses with the TypeScript compiler): its errors refuse
+      // while a specialist can still fix the spec, its warnings go to the same channel.
+      const spec = pre.specFindings ?? [];
+      const specErrors = spec.filter((f) => f.severity === "error");
+      if (specErrors.length > 0) problems.push(specBlockMessage(specErrors));
+      warnings?.push(...spec.filter((f) => f.severity === "warning"));
     }
     // The executive stage as a safety net: its errors (the deck, the plain risk sentences, the deliverable events) refuse the phase while
     // the reporter can still fix them; the reporter saw them in its submit result already.
@@ -431,9 +440,12 @@ export async function completePhaseWithWarnings(root: string, runId: string, pha
   let identity = id === "explore" && opts.notApplicable !== true && (await completionLikely(root, runId, id)) ? exploreIdentity(root) : undefined;
   // The executive stage reads every executive input and the event log: once, before run.lock is taken.
   const executive = id === "executive" && opts.notApplicable !== true ? executiveFindings(root, runId) : [];
+  // The spec lint of the Execution barrier parses every spec file the result files name: once, before run.lock is taken.
+  const specs = id === "execution" && opts.notApplicable !== true ? await specFindings(root, runId) : [];
+  if (id === "execution" && opts.notApplicable !== true) recordSpecReport(root, runId, specs);
   const pre: BarrierPrecomputed = id === "executive" && opts.notApplicable !== true
     ? { executiveErrors: executive.filter((f) => f.severity === "error"), executiveWarnings: executive.filter((f) => f.severity === "warning") }
-    : {};
+    : id === "execution" ? { specFindings: specs } : {};
   // What the barrier's own scans found as warnings (it scans anyway: nothing extra is read for them); kept only if this completion commits.
   const warnings: Finding[] = [];
 

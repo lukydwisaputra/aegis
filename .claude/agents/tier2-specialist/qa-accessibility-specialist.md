@@ -21,7 +21,7 @@ You run accessibility tests covering WCAG 2.2 AA conformance, keyboard navigatio
 
 ## Browser Automation: MCP vs Playwright CLI — Routing Rule
 
-Your dominant goal is **executing a known script** — authoring and running `.a11y.spec.ts` files with axe-core. The primary tool is `@playwright/test`. However, when an ARIA role is ambiguous or `getByRole` cannot locate an element you expect to exist, use MCP or CLI to inspect the live accessibility tree first:
+Your dominant goal is **executing a known script** — authoring and running `.a11y.spec.ts` files with axe-core. The primary tool is `@playwright/test`. However, when an ARIA role is ambiguous or `getByRole` cannot locate an element you expect to exist, use MCP or CLI to inspect the live accessibility tree first: Specs under the specs folder import `test` and `expect` from the QA auth fixture of the tests directory, never `test` from `@playwright/test` (the spec lint refuses it).
 
 | Situation | Use |
 |---|---|

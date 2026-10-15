@@ -504,7 +504,7 @@ describe('agent prose for the Blocked rule and its corrections', () => {
   it('the orchestrator owns the Blocked correction in Execution and in Triage, dispatches the specialist and its SPV, and lists both in its contract', () => {
     const o = agent('orchestrator/qa-orchestrator.md');
     expect(o).toMatch(/\*\*Blocked correction in Execution or Triage\.\*\* When the Execution barrier .* add a correction task to the active phase, Execution or Triage, for the specialist that wrote the result file/);
-    expect(o).toMatch(/you never dispatch a specialist in Execution, except for a Blocked correction task the Execution barrier names/);
+    expect(o).toMatch(/you never dispatch a specialist in Execution, except for a correction task the Execution barrier names \(a Blocked result or a spec check error;/);
     // Item 7: a corrected case that now fails goes to the defect manager before Triage completes.
     expect(o).toMatch(/when a corrected case now fails, add a correction task for `qa-defect-manager` to the active Triage phase .* complete Triage only after its review passes/);
     const dispatches = o.slice(o.indexOf('dispatches:'), o.indexOf('config:'));

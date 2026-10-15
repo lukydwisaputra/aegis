@@ -82,10 +82,13 @@ describe('the orchestrator runs a reissue of any phase after Gate 1', () => {
   it('a reset gate is neither open nor approved, and the case list lapses at a gate rejection', () => {
     expect(orch).toContain('a reset gate is neither open nor approved');
     expect(orch).toContain('`next` is `open-gate` for the gate the reissue reset');
-    expect(orch).toContain('The case list applies only until a gate rejection or a completed run: when the event log holds a `gate.decided` with decision rejected or a `run.completed` after the latest `run.reissued`, ignore the `cases` of the `reissue` record');
+    expect(orch).toContain('The case list applies only until a gate rejection without a case list or a completed run: when the event log holds a `gate.decided` with decision rejected and no `cases`, or a `run.completed`, after the latest `run.reissued`, ignore the `cases` of the `reissue` record');
+    // A rejection decided with cases sets the list itself, also in a run that was never reissued.
+    expect(orch).toContain('A rejection decided with `cases` (`gates/gate-{N}-decision.json` lists them) sets the case list itself, also in a run that was never reissued, and replaces the reissue\'s list when it came after the reissue: put it in the brief of `qa-test-executor` as "the owner\'s rejection names these cases: " followed by the ids');
+    expect(orch).toContain("the reissue's list then no longer applies");
     // Step 5, the gate-rejection path, points to step 9 for the lapsed case list.
     const step5 = orch.slice(orch.indexOf('5. **Open the gates; never decide them.**'), orch.indexOf('6. **Leave the specialist cap to the CLI.**'));
-    expect(step5).toContain("Inside a reissued cycle a rejection also lapses the reissue's case list: step 9 says what the `qa-test-executor` brief then states.");
+    expect(step5).toContain("Inside a reissued cycle a rejection without a case list also lapses the reissue's case list, and one decided with `cases` (`gates/gate-{N}-decision.json` lists them) replaces it: step 9 says what the `qa-test-executor` brief then states.");
   });
 
   it('a lapsed case list is announced in the executor brief with the sentence the executor matches', () => {
@@ -117,16 +120,22 @@ describe('the executor runs a scoped re-execution', () => {
   });
 
   it('the case list lapses at a gate rejection', () => {
-    expect(exec).toContain('The case list applies only until a gate rejection or a completed run');
-    expect(exec).toContain('the event log holds a `gate.decided` with decision rejected or a `run.completed` after the latest `run.reissued`');
+    expect(exec).toContain('The case list applies only until a gate rejection without a case list or a completed run');
+    expect(exec).toContain('the event log holds a `gate.decided` with decision rejected and no `cases`, or a `run.completed`, after the latest `run.reissued`');
     expect(exec).toContain('ignore the `cases` of the `reissue` record');
+    expect(exec).toContain('when your brief says "the owner\'s rejection names these cases: " followed by case ids, dispatch only those cases');
+    expect(exec).toContain('the CLI stamps that report with `carryForward` (eligible true, false or null, with a reason; the specialist never writes it)');
   });
 
   it('its SPV reads run.json and checks the scope', () => {
     const spv = read('.claude/agents/spv/qa-test-executor-spv.md');
     expect(spv).toContain('- `runs/{runId}/run.json` — its `reissue` record');
     expect(spv).toContain('11. **Scoped re-execution.**');
-    expect(spv).toContain('The check lapses once the event log holds a `gate.decided` with decision rejected or a `run.completed` after the latest `run.reissued`');
+    // The list is keyed on the reissue record or the latest rejection decided with cases, never on run.json alone; the stamp says which verdict applies.
+    expect(spv).toContain('or when the latest `gate.decided` with decision rejected carries `cases` (the decision file lists them); the latest of a `run.reissued` and such a rejection sets the list');
+    expect(spv).toContain('after the latest of the `run.reissued` or the `gate.decided` that set the list are within the case list');
+    expect(spv).toContain('The `carryForward` stamp of each carry-forward work report says it');
+    expect((contractOf(spv) as { reads: unknown[] }).reads).toContain('{run}/gates/gate-*-decision.json');
     expect((contractOf(spv) as { reads: unknown[] }).reads).toContain('{run}/run.json');
   });
 });
@@ -195,8 +204,16 @@ describe('branch review fixes', () => {
     for (const f of specialistSpvs) {
       const spv = read(`.claude/agents/spv/${f}`);
       expect(spv).toContain('**Carry-forward attempt (scoped re-execution).**');
-      expect(spv).toContain('the work report\'s summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above');
-      expect(spv).toContain('no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`');
+      expect(spv).toContain('A work report whose summary begins "Carry-forward attempt"');
+      expect(spv).toContain('check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above');
+      // The CLI's stamp decides: true is the shortcut, false the full checklist (never a rejection for the attempt alone), null the earlier rule.
+      expect(spv).toContain('carries a `carryForward` stamp that the CLI wrote (the worker cannot): `eligible` and a `reason`');
+      expect(spv).toContain('With `eligible: true` (a case list is in force and the task holds none of its cases), check only that each result file the report names exists and is unchanged');
+      expect(spv).toContain('With `eligible: false`');
+      expect(spv).toContain('A genuine carry-forward under a lapsed list passes when the full checklist holds for the cases the report actually ran');
+      expect(spv).toContain('review the report with the full checklist above, and never return it only for being a carry-forward attempt');
+      expect(spv).toContain('With `eligible: null`');
+      expect(spv).toContain('the event log holds no later `gate.decided` with decision rejected and no `cases`, and no `run.completed`, after it');
       expect(spv).toContain('A carry-forward attempt that re-ran or changed anything = requested-changes.');
       const reads = (contractOf(spv) as { reads: string[] }).reads;
       expect(reads).toEqual(expect.arrayContaining(['{run}/run.json', '{run}/events.jsonl']));

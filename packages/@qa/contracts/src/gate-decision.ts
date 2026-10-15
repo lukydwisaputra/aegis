@@ -21,6 +21,8 @@ export const GateDecisionSchema = z
     decision: GateDecisionValueSchema,
     note: z.string().min(1),
     reopenPhase: PhaseIdSchema.optional(),
+    // A rejection decided with --cases: the case scope the re-run may cover (older files carry none).
+    cases: z.array(z.string().min(1)).min(1).optional(),
     decidedBy: z.enum(["owner", "auto"]),
     decidedAt: z.string().datetime({ offset: false }),
     metrics: z.array(GateMetricSchema).optional(),

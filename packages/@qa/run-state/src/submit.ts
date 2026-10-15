@@ -4,6 +4,8 @@ import { ReviewIdSchema, ReviewSchema, WORK_REPORT_KEYS, WorkReportIdSchema, Wor
 import { pipeCorrectiveInstruction } from "@qa/agent-memory";
 import { appendChained } from "@qa/event-bus";
 import { createTaskmasterClient } from "@qa/taskmaster-client";
+import { CARRY_FORWARD_PREFIX, carryForwardStamp, isCarryForwardSummary, latestDispatchCases, normalizeCarryForwardSummary, type CarryForwardStamp } from "./carry-forward.js";
+import { reissueCaseScope } from "./reissue-scope.js";
 import { AGENT_ID, assertCallerAllowed, pairedSpv } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { withSubmitLock } from "./locks.js";
@@ -11,7 +13,7 @@ import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
 import { atomicWrite, formatLimitIssues, iso, loadJson, trimOverlong, type TrimmedField } from "./util.js";
-import { submitLint, type SubmitLint } from "./lint/submit-lint.js";
+import { mergeSubmitLints, specSubmitLint, submitLint, type SubmitLint } from "./lint/submit-lint.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -121,11 +123,32 @@ function parseSubmission<T>(schema: { safeParse: (v: unknown) => { success: true
   throw new RunStateError("invalid-input", `${kind === "review" ? "review" : "work report"} invalid: ${formatLimitIssues(value, withIdFix(second.error.issues, kind) as never)}`);
 }
 
-/** `lintErrors` is the CLI's stamp: one the agent wrote is dropped before parsing, and the result says so. */
-function withoutLintStamp(raw: unknown): { value: unknown; dropped: boolean } {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw) || !Object.prototype.hasOwnProperty.call(raw, "lintErrors")) return { value: raw, dropped: false };
-  const { lintErrors: _dropped, ...rest } = raw as Record<string, unknown>;
-  return { value: rest, dropped: true };
+/** `lintErrors` and `carryForward` are the CLI's stamps: ones the agent wrote are dropped before parsing, and the result says so. */
+function withoutStamps(raw: unknown): { value: unknown; dropped: string[] } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { value: raw, dropped: [] };
+  const { lintErrors: _lint, carryForward: _carry, ...rest } = raw as Record<string, unknown>;
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(raw, k);
+  const dropped = ["lintErrors", "carryForward"].filter(has);
+  return dropped.length === 0 ? { value: raw, dropped } : { value: rest, dropped };
+}
+
+/** A carry-forward attempt's summary leads with the literal prefix: one that leads with the carry-forward words in another form is rewritten, and the result says so. */
+function withCarryForwardPrefix(raw: unknown): { value: unknown; note: string | null } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { value: raw, note: null };
+  const summary = (raw as { summary?: unknown }).summary;
+  if (typeof summary !== "string") return { value: raw, note: null };
+  const n = normalizeCarryForwardSummary(summary);
+  if (!n.changed) return { value: raw, note: null };
+  return { value: { ...(raw as object), summary: n.summary }, note: `summary: began "${summary.slice(0, 40)}"; now begins "${CARRY_FORWARD_PREFIX}"` };
+}
+
+/** The carry-forward stamp of a task's report: reads run files only and never refuses (an unreadable log gives a null stamp that says so). */
+function carryStamp(root: string, runId: string, taskId: string): CarryForwardStamp {
+  try {
+    return carryForwardStamp(reissueCaseScope(root, runId, readRun(root, runId)), latestDispatchCases(root, runId, taskId));
+  } catch (e) {
+    return { eligible: null, reason: `the case list could not be read: ${(e as Error).message.slice(0, 120)}` };
+  }
 }
 
 /** The top-level keys of a submitted work report that WorkReportSchema drops (it is not strict): said in the result, never silent. */
@@ -144,23 +167,33 @@ function unknownKeys(raw: unknown): string[] {
  */
 export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date, text?: string): Promise<WorkReportSubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
-  const { value: raw, dropped } = withoutLintStamp(loadJson(file, text));
+  const { value: unprefixed, dropped } = withoutStamps(loadJson(file, text));
+  const { value: raw, note: prefixed } = withCarryForwardPrefix(unprefixed);
   const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
-  if (dropped) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
+  if (dropped.includes("lintErrors")) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
+  if (dropped.includes("carryForward")) adjusted.push("carryForward: removed (the CLI stamps it from the case list in force and the task's dispatch)");
+  if (prefixed !== null) adjusted.push(prefixed);
   const droppedKeys = unknownKeys(raw);
   if (report.agent !== caller) {
     throw new RunStateError("invalid-input", `work report agent "${report.agent}" does not match caller "${caller}"`);
   }
 
   assertSafeIds(report.agent, report.taskId);
+  // The spec files are parsed with the TypeScript compiler API: outside the submit lock, which a long synchronous parse would otherwise hold.
+  const specLint = await specSubmitLint(root, runId, caller, report.artifactsProduced);
   return withSubmitLock(root, runId, caller, report.taskId, async () => {
     const task = await createTaskmasterClient(taskmasterDir(root, runId)).get(report.taskId);
     if (task === null || task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${report.taskId} is not in progress under ${caller}`);
     }
-    // Reads run files only; never refuses.
-    const linted = submitLint(root, runId, caller, report.artifactsProduced);
-    const stored = linted !== null && linted.lintErrors.length > 0 ? { ...report, lintErrors: linted.lintErrors } : report;
+    // Reads run files (and, for a specialist, the spec files it lists) only; never refuses.
+    const linted = mergeSubmitLints(submitLint(root, runId, caller, report.artifactsProduced), specLint);
+    const carry = isCarryForwardSummary(report.summary) ? carryStamp(root, runId, report.taskId) : null;
+    const stored = {
+      ...report,
+      ...(linted !== null && linted.lintErrors.length > 0 ? { lintErrors: linted.lintErrors } : {}),
+      ...(carry !== null ? { carryForward: carry } : {}),
+    };
 
     const dir = workDir(root, runId);
     fs.mkdirSync(dir, { recursive: true });
