@@ -8,11 +8,28 @@ import { appendLedger, readLedger } from '@qa/path-guard';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
   addTask, appendSpecialistDispatched, createRun, LIVENESS_GRACE_MS, readSettings, RESUME_FRESH_MS, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
-  releaseTask, requestStop, resumeRun, reviewDir, submitReview, submitWorkReport, taskmasterDir, waitNextTasks, readRun, writeRun, SYSTEM_REVIEWER,
+  releaseTask, requestStop, resumeRun, reviewDir, submitReview, submitWorkReport, taskmasterDir, waitNextTasks, readRun, writeRun, SYSTEM_REVIEWER, runDir,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 import { hookStale, runHook } from './helpers/hooks';
 import { review, TS, workReport, writeRunFile } from './helpers/pipeline';
+
+// A pause the tests hold open at one step of a release: the next append of `type` first runs `fn` (a deterministic interleaving, no timing).
+let mockPause: { type: string; fn: () => Promise<void> } | null = null;
+jest.mock('@qa/event-bus', () => {
+  const actual = jest.requireActual('@qa/event-bus');
+  return {
+    ...actual,
+    appendChained: async (event: { type: string }, ...rest: unknown[]) => {
+      if (mockPause !== null && event.type === mockPause.type) {
+        const { fn } = mockPause;
+        mockPause = null;
+        await fn();
+      }
+      return actual.appendChained(event, ...rest);
+    },
+  };
+});
 
 // Item 1 of the trim program: the executor refills a specialist slot as soon as one frees and runs each finished specialist's
 // SPV alongside the rest. The loop is agent prose; these tests pin the CLI that makes it mechanical (aegis task next) and the
@@ -1199,7 +1216,7 @@ describe('item 6: reviews the CLI decides at the release, in the loop', () => {
     await run('T-2', UI);
     await run('T-3', API);
     const rel = await lintReturned('T-2', UI);
-    expect(rel.autoReview).toMatchObject({ decided: 'returned', reopened: true, next: expect.stringMatching(/stop now and do not claim it again here.*your dispatcher re-dispatches you for T-2 with these findings.*aegis task next offers it as a corrective dispatch/) });
+    expect(rel.autoReview).toMatchObject({ decided: 'returned', reopened: true });
     const v = await nextTasks(t.root, runId, EXEC);
     expect(v.dispatch).toEqual([expect.objectContaining({ task: 'T-2', corrective: true })]);
     expect(v.review).toEqual([]);
@@ -1291,5 +1308,122 @@ describe('item 6: reviews the CLI decides at the release, in the loop', () => {
     expect(v.redrive).toEqual([expect.objectContaining({ task: 'T-3' })]);
     expect(v.redrive[0]!.inFlight).toBeUndefined();
     expect(v.review).toEqual([]);
+  });
+
+  it('the stop message of the executor labels a CLI-returned task as waiting for the next wave, never as awaiting an SPV', async () => {
+    await setup('batch');
+    await add('T-2', UI);
+    await add('T-3', API);
+    await addTask(t.root, runId, { id: 'T-1', title: 'executor', agent: EXEC }, 'qa-orchestrator');
+    ledger('ex-1', EXEC, 'claim', 'T-1');
+    await claimTask(t.root, runId, 'T-1', EXEC);
+    await run('T-2', UI);
+    await run('T-3', API);
+    await lintReturned('T-2', UI);
+    expect(ids((await nextTasks(t.root, runId, EXEC)).held)).toEqual(['T-2']);
+    const stop = await checkSubagentStop(t.root, { agentId: 'ex-1', agentType: EXEC });
+    expect(stop.block).toBe(true);
+    expect(stop.reason).toMatch(/returned by the CLI, waiting for the next wave: T-2/);
+    expect(stop.reason).not.toMatch(/awaiting their SPV: [^;]*T-2/);
+  });
+
+  it('a task of the Execution phase tells its returned specialist to stop; another phase tells it to fix in its own session', async () => {
+    await setup('continuous');
+    await add('T-2', UI);
+    await run('T-2', UI);
+    const file = path.join(taskmasterDir(t.root, runId), 'tasks', 'T-2.json');
+    fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), phase: 'execution' }));
+    expect((await lintReturned('T-2', UI)).autoReview).toMatchObject({ decided: 'returned', next: expect.stringMatching(/stop now and do not claim it again here.*your dispatcher re-dispatches you for T-2 with these findings.*aegis task next offers it as a corrective dispatch/) });
+    await setup('continuous');
+    await add('T-2', UI);
+    await run('T-2', UI);
+    expect((await lintReturned('T-2', UI)).autoReview).toMatchObject({ next: expect.stringMatching(/claim it again.*If you stop instead/) });
+  });
+
+  /** A carry-forward attempt of T-2 submitted and not yet released (a baseline accepted, the scope list in force, the claim held). */
+  async function carryForwardSubmitted() {
+    writeRunFile(t.root, runId, 'cases/TC-AUTH-001-result.json', { status: 'passed' });
+    await run('T-2', UI);
+    await finish('T-2', UI);
+    await reviewed('T-2', UI, 'passed');
+    const s = readRun(t.root, runId);
+    writeRun(t.root, { ...s, supersededAttempts: { 'T-2': { [UI]: 1 } }, reissue: { phase: 'execution', reason: 'again', at: s.createdAt, cases: ['TC-OTHER-001'], reopenedPhases: ['execution'], reopenedGates: [] } } as never);
+    await appendChained({ type: 'run.reissued', ts: new Date().toISOString(), runId, phase: 'execution', reason: 'again', cases: ['TC-OTHER-001'] } as never, busPath(t.root, runId), { emittedBy: 'owner', runId });
+    await createTaskmasterClient(taskmasterDir(t.root, runId)).reopen('T-2');
+    await run('T-2', UI);
+    await submitWorkReport(t.root, runId, tmp(report(UI, 'T-2', 'Carry-forward attempt: the recorded result of TC-AUTH-001 stands unchanged, nothing was re-run.')), UI);
+  }
+
+  it('task next never lists a CLI-decided task under review or redrive while its release is in flight (a pause at each step of the release, both modes)', async () => {
+    const steps: Array<['returned' | 'accepted', string]> = [['returned', 'task.released'], ['returned', 'review.auto-returned'], ['accepted', 'task.released'], ['accepted', 'review.auto-accepted']];
+    for (const mode of ['batch', 'continuous'] as const) {
+      for (const [kind, step] of steps) {
+        await setup(mode);
+        await add('T-2', UI);
+        await add('T-3', API);
+        let during: Awaited<ReturnType<typeof nextTasks>> | null = null;
+        let lockHeld = false;
+        const pause = { type: step, fn: async () => { during = await nextTasks(t.root, runId, EXEC); lockHeld = true; } };
+        if (kind === 'returned') {
+          await run('T-2', UI);
+          await run('T-3', API);
+          mockPause = pause;
+          await lintReturned('T-2', UI);
+        } else {
+          await carryForwardSubmitted();
+          await run('T-3', API);
+          mockPause = pause;
+          await releaseTask(t.root, runId, 'T-2', 'done', UI);
+        }
+        mockPause = null;
+        const label = `${mode} ${kind} paused at ${step}`;
+        expect({ label, lockHeld }).toEqual({ label, lockHeld: true });
+        const v = during!;
+        expect({ label, review: ids(v.review), redrive: ids(v.redrive), reviewing: ids(v.reviewing) }).toEqual({ label, review: [], redrive: [], reviewing: [] });
+        if (step === 'task.released') expect({ label, next: v.next, reason: v.reason }).toMatchObject({ label, next: 'wait', reason: expect.stringMatching(/T-2: its release is in progress/) });
+        // afterwards the view is the settled one
+        const after = await nextTasks(t.root, runId, EXEC);
+        expect(ids(after.review)).toEqual([]);
+        if (kind === 'accepted') expect(after.settled).toContain('T-2');
+        else expect([...after.dispatch, ...after.held].map((e) => e.task)).toContain('T-2');
+        t.cleanup();
+      }
+    }
+    t = makeAegisRoot();
+  });
+
+  it('crash safety: a crash between the writes of a release leaves a state task next classifies correctly, and a dead holder never blocks it', async () => {
+    await setup('continuous');
+    await add('T-2', UI);
+    await run('T-2', UI);
+    // (1) crash after task.released, before the decision: done, no review. A fresh lock says a release is running; a stale one (a dead holder) does not.
+    const lock = path.join(runDir(t.root, runId), 'reports', '.locks', `${UI}.T-2.lock`);
+    await submitWorkReport(t.root, runId, tmp(report(UI, 'T-2', 'Wrote the login flow specs for the case.')), UI);
+    await releaseTask(t.root, runId, 'T-2', 'done', UI);
+    expect(ids((await nextTasks(t.root, runId, EXEC)).review)).toEqual(['T-2']);
+    fs.mkdirSync(`${lock}.lock`, { recursive: true });
+    expect((await nextTasks(t.root, runId, EXEC)).review).toEqual([]);
+    const old = new Date(Date.now() - 3_600_000);
+    fs.utimesSync(`${lock}.lock`, old, old);
+    expect(ids((await nextTasks(t.root, runId, EXEC)).review)).toEqual(['T-2']); // the SPV decides: nothing was lost
+    fs.rmSync(`${lock}.lock`, { recursive: true, force: true });
+    // (2) crash after the stored review, before its event: done + the CLI's requested-changes file and no event: a redrive dated by the file
+    await setup('continuous', 5);
+    await add('T-2', UI);
+    await add('T-3', UI);
+    await run('T-2', UI);
+    await finish('T-2', UI);
+    await run('T-3', UI);
+    await finish('T-3', UI);
+    const rv = { ...review(SYSTEM_REVIEWER, UI, 'T-3', 'requested-changes'), id: 'RV-system-cli-T-3', modelUsed: 'deterministic' };
+    fs.mkdirSync(reviewDir(t.root, runId), { recursive: true });
+    const file = path.join(reviewDir(t.root, runId), `${UI}.T-3.1.json`);
+    fs.writeFileSync(file, JSON.stringify(rv));
+    fs.utimesSync(file, later(5000), later(5000));
+    ledger('spv-1', `${UI}-spv`, 'start', undefined, later(1000).toISOString());
+    const v = await nextTasks(t.root, runId, EXEC, { now: later(10_000) });
+    expect(v.reviewing).toEqual([expect.objectContaining({ task: 'T-2' })]);
+    expect(v.redrive).toEqual([expect.objectContaining({ task: 'T-3' })]);
+    expect(v.redrive[0]!.inFlight).toBeUndefined();
   });
 });

@@ -599,13 +599,17 @@ describe('a work report the submit lint stamped with errors is returned by the C
     expect((await closureAttempt()).rel.autoReview).toMatchObject({ decided: 'returned', rejections: 3, escalated: true });
   });
 
-  it('tells a returned specialist to stop (its executor loop re-dispatches it) and a returned phase agent that it may fix in its own session', () => {
+  it('tells a returned Execution specialist to stop (the executor loop re-dispatches it) and any worker the orchestrator dispatches that it may fix in its own session', () => {
     const reopened = { escalated: false, reopened: true };
-    expect(returnedNext('qa-ui-specialist', 'T-execution-2', reopened)).toMatch(/^the task is reopened for a new attempt: stop now and do not claim it again here; your dispatcher re-dispatches you for T-execution-2 with these findings \(aegis task next offers it as a corrective dispatch\)/);
-    expect(returnedNext('qa-closure-reporter', 'T-closure-1', reopened)).toMatch(/^the task is reopened: claim it again \(aegis task claim --task T-closure-1\), fix every finding above, submit the work report again and release the task.*If you stop instead, your dispatcher re-dispatches you/);
+    expect(returnedNext('qa-ui-specialist', 'T-execution-2', reopened, 'execution')).toMatch(/^the task is reopened for a new attempt: stop now and do not claim it again here; your dispatcher re-dispatches you for T-execution-2 with these findings \(aegis task next offers it as a corrective dispatch\)/);
+    // the same specialist type dispatched by the orchestrator (Explore sessions, a correction task of Triage) has no task-next loop: only the executor and the owner may call it
+    for (const [agent, phase] of [['qa-exploratory-specialist', 'explore'], ['qa-ui-specialist', 'triage'], ['qa-ui-specialist', undefined], ['qa-closure-reporter', 'closure-final']] as const) {
+      expect(returnedNext(agent, 'T-1', reopened, phase)).toMatch(/^the task is reopened: claim it again \(aegis task claim --task T-1\), fix every finding above, submit the work report again and release the task.*If you stop instead, your dispatcher re-dispatches you/);
+      expect(returnedNext(agent, 'T-1', reopened, phase)).not.toMatch(/aegis task next/);
+    }
     for (const agent of ['qa-ui-specialist', 'qa-closure-reporter']) {
-      expect(returnedNext(agent, 'T-1', { escalated: true, reopened: false })).toMatch(/3rd return.*stop now and do not claim the task again/);
-      expect(returnedNext(agent, 'T-1', { escalated: false, reopened: false })).toMatch(/could not be reopened; tell your dispatcher/);
+      expect(returnedNext(agent, 'T-1', { escalated: true, reopened: false }, 'execution')).toMatch(/3rd return.*stop now and do not claim the task again/);
+      expect(returnedNext(agent, 'T-1', { escalated: false, reopened: false }, 'execution')).toMatch(/could not be reopened; tell your dispatcher/);
     }
   });
 

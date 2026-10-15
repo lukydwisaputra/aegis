@@ -83,7 +83,18 @@ export function trimOverlong(input: unknown, issues: LimitIssue[], keep: (path: 
   return { value, trimmed };
 }
 
-const LOCK_OPTIONS = { stale: 10_000, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } };
+/** A lock not refreshed for this long is a crashed holder's: lockfile reclaims it, and a reader's isFileLocked no longer counts it. */
+export const LOCK_STALE_MS = 10_000;
+const LOCK_OPTIONS = { stale: LOCK_STALE_MS, retries: { retries: 50, minTimeout: 20, maxTimeout: 250 } };
+
+/** Whether `lockPath` is held right now by a live holder (a stale lock does not count). Never waits, never creates the file, never throws. */
+export function isFileLocked(lockPath: string): boolean {
+  try {
+    return existsSync(lockPath) && lockfile.checkSync(lockPath, { stale: LOCK_STALE_MS });
+  } catch {
+    return false;
+  }
+}
 
 /** Hold an exclusive cross-process lock on `lockPath` (created empty if missing, never truncated) while `fn` runs. */
 export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {

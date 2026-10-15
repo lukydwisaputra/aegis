@@ -241,15 +241,16 @@ export function lintReturnReview(agent: string, taskId: string, attempt: number,
 }
 
 /**
- * What the returned worker does next, said in its release result. A specialist runs under the executor's loop (`aegis task next`), which offers the
- * reopened task as a corrective dispatch: it stops and is re-dispatched with the findings, so no second instance is started beside it. Any other
- * worker (a phase agent dispatched by the orchestrator, with no loop of its own to refill) may fix in its own session; the orchestrator re-checks the
- * task list when it returns and re-dispatches the worker only if the task is still open.
+ * What the returned worker does next, said in its release result. It depends on who dispatched the task. A specialist task of the Execution phase
+ * runs under the executor's loop (`aegis task next`, which only the executor and the owner may call), which offers the reopened task as a corrective
+ * dispatch: the specialist stops and is re-dispatched with the findings, so no second instance is started beside it. Any other task (a phase agent, or a
+ * specialist the orchestrator dispatches itself: the Explore sessions, a correction task of Triage) is the orchestrator's: the worker may fix in its own
+ * session, and the orchestrator re-reads the task list when it returns and re-dispatches the worker only if the task is still open.
  */
-export function returnedNext(agent: string, taskId: string, settled: { escalated: boolean; reopened: boolean }): string {
+export function returnedNext(agent: string, taskId: string, settled: { escalated: boolean; reopened: boolean }, phase?: string): string {
   if (settled.escalated) return "this was the 3rd return of the round: the owner decides through the escalation; stop now and do not claim the task again";
   if (!settled.reopened) return "the review is recorded but the task could not be reopened; tell your dispatcher";
-  return isSpecialist(agent)
+  return isSpecialist(agent) && phase === "execution"
     ? `the task is reopened for a new attempt: stop now and do not claim it again here; your dispatcher re-dispatches you for ${taskId} with these findings (aegis task next offers it as a corrective dispatch); no SPV reviews a report the lint returned`
     : `the task is reopened: claim it again (aegis task claim --task ${taskId}), fix every finding above, submit the work report again and release the task; no SPV reviews a report the lint returned. If you stop instead, your dispatcher re-dispatches you with these findings`;
 }
@@ -269,6 +270,7 @@ export async function decideReviewBySystem(root: string, runId: string, agent: s
   if (!lint && !isCarryForwardSummary(report.summary)) return undefined;
   const out = join(reviewDir(root, runId), `${agent}.${taskId}.${attempt}.json`);
   try {
+    const phase = (await createTaskmasterClient(taskmasterDir(root, runId)).get(taskId))?.phase;
     const facts = lint ? null : carryForwardFacts(root, runId, agent, taskId, attempt, report);
     const decision = facts === null ? null : carryForwardAutoAccept(facts);
     if (decision !== null && !decision.accept) return { decided: null, attempt, reason: decision.why };
@@ -323,7 +325,7 @@ export async function decideReviewBySystem(root: string, runId: string, agent: s
       ...(settled.reopenError !== undefined ? { reopenError: settled.reopenError } : {}),
       lessons: settled.lessons,
       ...(settled.warnings.length > 0 ? { warnings: settled.warnings } : {}),
-      next: returnedNext(agent, taskId, settled),
+      next: returnedNext(agent, taskId, settled, phase),
     };
   } catch (e) {
     const why = e instanceof Error ? e.message.slice(0, 160) : "error";
