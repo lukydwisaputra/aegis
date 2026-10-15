@@ -283,12 +283,6 @@ entries:
   - key: "EVENT:qa-ingest-book:book.ingest.started:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"
-  - key: "EVENT:qa-metrics-collector:defect.closed:no-emitter"
-    ids: [AUD-102]
-    note: "nobody emits defect.closed"
-  - key: "EVENT:qa-metrics-collector:defect.reopened:no-emitter"
-    ids: [AUD-102]
-    note: "nobody emits defect.reopened"
   - key: "EVENT:qa-promote-stage:run.gate.check.triggered:owner-cannot-append"
     ids: [AUD-100]
     note: "skills run as owner, and the owner cannot append events"

@@ -149,23 +149,23 @@ const unavailable = new Set(
     .flatMap((v) => [v, v.replace(/\.jsonl?$/, "")]),
 );
 const isUnavailable = (...names) => names.some((n) => unavailable.has(n));
-// The collector writes { "noData": true } for a metric file it has no source data for.
+// `aegis metrics all` writes { "noData": true } for a metric file it has no source data for.
 const hasData = (doc) => doc !== null && !(typeof doc === "object" && !Array.isArray(doc) && doc.noData === true);
 
 const m = closure.metrics ?? {};
 const metric = (key, ...files) => (isUnavailable(key, ...files) ? null : num(m[key]));
 
-// Check counts: the counts object of the collector's coverage.json is computed from the case files and wins over
+// Check counts: the counts object of coverage.json (written by `aegis metrics all`) is computed from the case files and wins over
 // closure.json#metrics, which copies the executor's roll-up (that roll-up counts a partial case as a pass). A coverage.json
 // without a complete counts object (written before counts existed, or never written) is recomputed here from the case files,
-// read-only, by the same function the collector command runs. Only when that finds no data either do the closure figures stand,
+// read-only, by the same function the metrics command runs. Only when that finds no data either do the closure figures stand,
 // and a zero is never printed as if it were real.
 let rollupCounts;
 let recomputed;
 try {
   ({ counts: rollupCounts, recomputed } = resolveCheckCounts(runDir, coverageDoc));
 } catch (e) {
-  // A malformed case-of-record declaration: the collector's coverage command gives the same message; this script exits 10, not a stack trace.
+  // A malformed case-of-record declaration: `aegis metrics coverage` gives the same message; this script exits 10, not a stack trace.
   if (e instanceof CaseOfRecordError) {
     console.error(`ERROR: ${e.message}`);
     process.exit(10);
@@ -222,9 +222,9 @@ if (view.unreadable.length > 0) {
 }
 const openDefects = view.defects.open;
 
-// Coverage: the collector's coverage.json holding "noData": true means not available, whatever closure says.
+// Coverage: coverage.json holding "noData": true means not available, whatever closure says.
 const coverageNoData = coverageDoc !== null && !hasData(coverageDoc);
-// A figure the collector computed from the RTM wins over the copy in closure.json: a reissued executive phase re-reads a
+// A figure the metrics command computed from the RTM wins over the copy in closure.json: a reissued executive phase re-reads a
 // closure.json written before the figure was right.
 const rollupCoverage = recomputed !== null ? num(recomputed.requirementsCoverage) : hasData(coverageDoc) ? num(coverageDoc.requirementsCoverage) : null;
 

@@ -293,7 +293,7 @@ Each run's reporting output is partitioned by owner:
 runs/{runId}/reports/
   closure/      closure.md + closure.json                       (qa-closure-reporter)
   metrics/      coverage.json, defect-trend.json, cycle-time.json,
-                effectiveness.json, flaky.json, agent-reliability.json  (qa-metrics-collector — SOLE owner)
+                effectiveness.json, flaky.json, agent-reliability.json  (CLI-written, aegis metrics all)
   executive/    technical-report.pdf, signoff.pdf,
                 executive-deck.pdf                               (qa-executive-reporter)
   compliance/   {iso25010,iso5055,istqb,cmmi,gdpr,pdpa}.{md,json}
@@ -301,7 +301,7 @@ runs/{runId}/reports/
   work/         qa-*.json  (work reports read by SPVs)
 ```
 
-`qa-metrics-collector` is the **sole owner** of `reports/metrics/` — no other agent writes there.
+`reports/metrics/` is written only by the CLI (`aegis metrics all`) — no agent writes there.
 
 ---
 

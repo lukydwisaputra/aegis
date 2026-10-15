@@ -8,6 +8,8 @@ omitClaudeMd: true
 tools: [Read, Write, Bash]
 knowledge_refs:
   - knowledge/synthesis/metrics-and-reporting.md
+retiredAt: 2026-10-15
+reason: "Item 7 of the token and time trim: every metric file is computed in code, so aegis metrics all (run by the orchestrator before Closure-draft and before Executive) replaces the model dispatch"
 ---
 
 # QA Metrics Collector

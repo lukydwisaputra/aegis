@@ -11,7 +11,11 @@ const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8')
 const DM = '.claude/agents/tier1-phase/qa-defect-manager.md';
 const DM_SPV = '.claude/agents/spv/qa-defect-manager-spv.md';
 const UNIT = '.claude/agents/tier2-specialist/qa-unit-specialist.md';
-const COLLECTOR = '.claude/agents/crosscutting/qa-metrics-collector.md';
+/** The metric file definitions the retired collector agent carried: HANDBOOK/13, "Metric file definitions" (what aegis metrics all writes). */
+const metricDefs = (): string => {
+  const h = read('HANDBOOK/13-mechanics.md');
+  return h.slice(h.indexOf('**Metric file definitions**'), h.indexOf('## 13.11'));
+};
 const CLOSURE = '.claude/agents/tier1-phase/qa-closure-reporter.md';
 
 interface Contract { reads: Array<string | { path: string }>; writes: Array<string | { path: string }>; emits: Array<{ event: string }> }
@@ -83,7 +87,7 @@ describe('an RTM after the defect manager append still parses with RtmRowSchema'
   });
 });
 
-describe('unit coverage has its own file; the collector owns reports/metrics/coverage.json', () => {
+describe('unit coverage has its own file; the CLI writes reports/metrics/coverage.json', () => {
   const unit = read(UNIT);
   const covFile = '{run}/reports/unit-coverage.json';
 
@@ -105,10 +109,11 @@ describe('unit coverage has its own file; the collector owns reports/metrics/cov
     expect(unit).toContain('recomputed over the whole QA unit-test scope');
   });
 
-  it('the collector reads unit-coverage.json (optional), not the unit work reports', () => {
-    const c = read(COLLECTOR);
-    expect(read(COLLECTOR)).toContain('`runs/{runId}/reports/unit-coverage.json`');
-    expect(JSON.stringify(contractOf(c).reads)).toContain('{run}/reports/unit-coverage.json');
+  it('the coverage rollup reads unit-coverage.json (optional), not the unit work reports; the unit SPV, its reader in the contracts, reviews it', () => {
+    const c = metricDefs();
+    expect(c).toContain('`reports/unit-coverage.json`');
+    expect(paths(contractOf(read('.claude/agents/spv/qa-unit-specialist-spv.md')).reads)).toContain('{run}/reports/unit-coverage.json');
+    expect(JSON.stringify(contractOf(read('.claude/agents/orchestrator/qa-orchestrator.md')).reads)).not.toContain('unit-coverage');
     expect(c).not.toMatch(/reports\/work\/qa-unit-specialist/);
   });
 });
@@ -118,8 +123,8 @@ describe('result files are read in both layouts', () => {
     expect(paths(contractOf(read('.claude/agents/tier2-specialist/qa-responsive-specialist.md')).writes)).toContain('{run}/cases/{TC-ID}-{viewport}-result.json');
   });
 
-  it('the collector counts a TC once, per-viewport files win, one flaky row, missing viewport = undeterminable (not passed)', () => {
-    const c = read(COLLECTOR);
+  it('the metric definitions count a TC once, per-viewport files win, one flaky row, missing viewport = undeterminable (not passed)', () => {
+    const c = metricDefs();
     expect(c).toContain('`^TC-[A-Z]{2,8}-\\d{3,}$`');
     expect(c).toContain('one of `desktop`, `tablet` or `mobile`');
     expect(c).toContain('A TC counts once, however many of its files exist');
@@ -137,11 +142,11 @@ describe('result files are read in both layouts', () => {
     expect(cl).toContain('`desktop`, `tablet` or `mobile`');
   });
 
-  it('the collector names both layouts and reads the glob that matches both', () => {
-    const c = read(COLLECTOR);
-    expect(c).toContain('`runs/{runId}/cases/{TC-ID}-result.json`');
-    expect(c).toContain('`runs/{runId}/cases/{TC-ID}-{viewport}-result.json`');
-    expect(paths(contractOf(c).reads)).toContain('{run}/cases/*-result.json');
+  it('the metric definitions name both layouts and the glob that matches both', () => {
+    const c = metricDefs();
+    expect(c).toContain('`cases/{TC-ID}-result.json`');
+    expect(c).toContain('`cases/{TC-ID}-{viewport}-result.json`');
+    expect(c).toContain('the glob `cases/*-result.json` matches both');
   });
 
   it('the closure reporter names both layouts and reads the glob', () => {

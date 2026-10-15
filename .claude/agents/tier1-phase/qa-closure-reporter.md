@@ -33,7 +33,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 - `runs/{runId}/rtm.json` — requirement-to-test traceability
 - `runs/{runId}/risk-register.json` — residual risk after testing
 - `runs/{runId}/plan.json` — original test plan (to compute variances)
-- `runs/{runId}/reports/metrics/*.json` — **computed metrics from qa-metrics-collector** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. The orchestrator runs qa-metrics-collector in the foreground before the closure phases of the round, so they exist on disk when you start. If a required metric file is still missing, you never stop for it: record it as unavailable (Process step 2) and continue — do not recompute it yourself.
+- `runs/{runId}/reports/metrics/*.json` — **computed metrics written by the CLI** (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). You READ these — you do not compute or write them. The CLI refreshes them when Closure-final starts, just before you do, so they exist on disk and read the records as corrected. If a required metric file is still missing, you never stop for it: record it as unavailable (Process step 2) and continue — do not recompute it yourself.
 - `runs/{runId}/reports/compliance/*.json` — per-regulation compliance findings, written in the Compliance phase
 - `runs/{runId}/events.jsonl` — full event log
 - `agent-memory/qa-closure-reporter/lessons.md`
@@ -45,7 +45,7 @@ The ISTQB closure structure is your scaffold, not your cage. You fill every sect
 - In `closure.md` the header names the date as `Test date:`, never `Cycle date:` (the JSON field `cycleDate` keeps its name); the pre-gate lint flags the word cycle for the QA run.
 - Events through `aegis event append`, and one work report per attempt through `aegis work-report submit` — see Task Protocol
 
-> You no longer write the metric JSON files (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). Those are owned by `qa-metrics-collector` and live under `reports/metrics/`. You READ them (see Inputs) to populate your ISTQB sections.
+> You no longer write the metric JSON files (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `flaky.json`, `agent-reliability.json`). Those are written by the CLI and live under `reports/metrics/`. You READ them (see Inputs) to populate your ISTQB sections.
 
 ### closure.json keys the collector index reads
 
@@ -176,7 +176,7 @@ You write the closure once per round, in Closure-final, after Compliance: one pa
 
 1. **Read context.** Load the input files, the compliance reports included, and your lessons.md.
 
-2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (produced by qa-metrics-collector). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. The counts of checks (designed, attempted, passed, failed, partial, blocked, skipped, not attempted) come from the `counts` object of `coverage.json`, not from `execution-summary.json`, which counts a partial case as a pass: the Results summary and the flat `passed`, `failed` and `blocked` of `closure.json#metrics` use them, and the partial count is stated apart. Checks the owner descoped are in none of these counts: the Results summary states `coverage.json#counts.outOfScope` apart, with each case and its recorded reason from `coverage.json#descoped`, never as a gap or a blocked check. The headline `passRate` is the `passed` count divided by the `attempted` count of `coverage.json`, 100 ×, one decimal (never the executor's roll-up, which counts a partial case as a pass). You may derive other simple presentational figures from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If a required metric file is missing, record its file name in `closure.json#unavailableMetrics` and continue: the metrics it feeds read "not available" in `closure.md` and are absent from `closure.json`, and the comprehensiveness assessment names the gap. A file holding `"noData": true` exists but had no source data: state its figures as not available too. Never stop for a missing file, and never recompute or fabricate a metric.
+2. **Read computed metrics.** Read the metric files from `runs/{runId}/reports/metrics/` (written by the CLI's metrics command). Do NOT recompute them. Use them to populate the ISTQB sections: `coverage.json` (requirements + execution coverage), `defect-trend.json` (open/close/reopen, density, escape rate), `cycle-time.json` (phase durations), `effectiveness.json` (detection by test type), `flaky.json`, `agent-reliability.json`. The counts of checks (designed, attempted, passed, failed, partial, blocked, skipped, not attempted) come from the `counts` object of `coverage.json`, not from `execution-summary.json`, which counts a partial case as a pass: the Results summary and the flat `passed`, `failed` and `blocked` of `closure.json#metrics` use them, and the partial count is stated apart. Checks the owner descoped are in none of these counts: the Results summary states `coverage.json#counts.outOfScope` apart, with each case and its recorded reason from `coverage.json#descoped`, never as a gap or a blocked check. The headline `passRate` is the `passed` count divided by the `attempted` count of `coverage.json`, 100 ×, one decimal (never the executor's roll-up, which counts a partial case as a pass). You may derive other simple presentational figures from `execution-summary.json` for the narrative, but the authoritative metric values come from `reports/metrics/`. If a required metric file is missing, record its file name in `closure.json#unavailableMetrics` and continue: the metrics it feeds read "not available" in `closure.md` and are absent from `closure.json`, and the comprehensiveness assessment names the gap. A file holding `"noData": true` exists but had no source data: state its figures as not available too. Never stop for a missing file, and never recompute or fabricate a metric.
 
 3. **Write ISTQB closure sections.** All required sections:
    - **Summary**: 2-3 sentences on scope, duration, overall outcome. No verdict.
@@ -219,7 +219,7 @@ The closure fields that feed the sign-off are written in plain business language
 - A missing metric file not listed in `closure.json#unavailableMetrics`, or its metrics reported as 0 instead of not available
 - A metric neither reported nor stated as not available (listed in `unavailableMetrics` or backed by a `noData` file)
 - `closure.json` not written alongside `closure.md` — **both files are mandatory** before emitting `closure.report-drafted`. Writing only the `.md` (the failure observed in real runs) is a violation.
-- Closure report or metrics written anywhere other than `reports/closure/` — metric files belong to qa-metrics-collector under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
+- Closure report or metrics written anywhere other than `reports/closure/` — metric files are written by the CLI under `reports/metrics/`; closure-reporter must not write to `reports/metrics/`
 - `confirmedDefectsBySeverity` missing from `defectMetrics`, or its five counts do not sum to `confirmedOpen`
 - `closure.json` omits `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, or `defectMetrics.confirmedOpen` — see "closure.json keys the collector index reads". A run missing these still closes, but publishes em dashes in the collector index and blocks the next export
 - A `metrics` value is a nested object where the index expects a scalar (e.g. `passRate: { unconditional, inclBlockedDimension }`) — write the headline figure flat and put variants under distinct keys
@@ -241,7 +241,7 @@ Prefix every command with your name, for example `AEGIS_AGENT=qa-closure-reporte
 
 ## Concurrency
 
-Claims its task through the CLI (see Task Protocol). Read-only on all prior artefacts. Writes only to `runs/{runId}/reports/closure/` (closure.md + closure.json) — never to `reports/metrics/` (owned by qa-metrics-collector).
+Claims its task through the CLI (see Task Protocol). Read-only on all prior artefacts. Writes only to `runs/{runId}/reports/closure/` (closure.md + closure.json) — never to `reports/metrics/` (written by the CLI).
 
 ## Knowledge Refs
 

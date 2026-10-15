@@ -174,9 +174,9 @@ describe('aegis metrics rollups', () => {
   }
   const metricsDir = (runId: string) => path.join(runDir(t.root, runId), 'reports', 'metrics');
 
-  it('writes the five files with the earlier key sets, for the collector and the owner, and says which inputs were missing', async () => {
+  it('writes the five files with the earlier key sets, for the owner, and says which inputs were missing', async () => {
     const runId = await seeded();
-    for (const caller of ['qa-metrics-collector', 'owner']) {
+    for (const caller of ['owner']) {
       const out = writeRollups(t.root, runId, caller);
       expect(out.written).toEqual(['cycle-time.json', 'defect-trend.json', 'effectiveness.json', 'agent-reliability.json', 'flaky.json'].map((f) => `reports/metrics/${f}`));
       expect(out.missingInputs).toEqual([]);
@@ -196,51 +196,40 @@ describe('aegis metrics rollups', () => {
     expect((out.files['defect-trend.json'] as any).openApplicationDefects).toBe(2);
     expect(fs.existsSync(metricsDir(runId))).toBe(false);
     expect(() => writeRollups(t.root, runId, 'qa-defect-manager')).toThrow(expect.objectContaining({ code: 'caller-forbidden', message: expect.stringMatching(/only run metrics rollups with --check/) }));
-    expect(() => assertCallerAllowed('qa-closure-reporter', 'metrics.rollups')).toThrow(/run only by qa-metrics-collector and qa-defect-manager/);
+    expect(() => assertCallerAllowed('qa-closure-reporter', 'metrics.rollups')).toThrow(/run only by qa-defect-manager/);
+    expect(() => writeRollups(t.root, runId, 'qa-orchestrator', { check: true })).toThrow(expect.objectContaining({ code: 'caller-forbidden' }));
     expect(fs.existsSync(metricsDir(runId))).toBe(false);
   });
 
   it('refuses a malformed case-of-record declaration and writes no file at all', async () => {
     const runId = await seeded({ ...FILES, 'cases/TC-UI-002-result.json': { status: 'pass', caseOfRecord: true }, 'cases/TC-UI-002-result-x.json': { status: 'pass' } });
-    expect(() => writeRollups(t.root, runId, 'qa-metrics-collector')).toThrow(expect.objectContaining({ code: 'invalid-input', message: expect.stringMatching(/caseOfRecordReason/) }));
+    expect(() => writeRollups(t.root, runId, 'owner')).toThrow(expect.objectContaining({ code: 'invalid-input', message: expect.stringMatching(/caseOfRecordReason/) }));
     expect(fs.existsSync(metricsDir(runId))).toBe(false);
   });
 
   it('lists a missing input and never writes 0 for what it cannot know', async () => {
     const runId = await seeded({});
-    const out = writeRollups(t.root, runId, 'qa-metrics-collector');
+    const out = writeRollups(t.root, runId, 'owner');
     expect(out.missingInputs).toEqual(expect.arrayContaining(['cases/', 'defects/']));
     expect(out.files['defect-trend.json']).toMatchObject({ defectDensity: null });
     expect(out.files['effectiveness.json']).toMatchObject({ noData: true });
   });
 
-  it('is on the H4 cheat-sheet of the collector and the defect manager', async () => {
+  it('is on the H4 cheat-sheet of the defect manager only', async () => {
     const runId = await seeded();
     expect(runId).toBeTruthy();
     expect(CLI_USAGE['metrics.rollups']).toBe('metrics rollups [--check] [--run <id>]');
-    expect(runContextFor(t.root, 'qa-metrics-collector', 'm1')).toContain('pnpm aegis metrics rollups [--check] [--run <id>]');
     expect(runContextFor(t.root, 'qa-defect-manager', 'm2')).toContain('pnpm aegis metrics rollups [--check] [--run <id>]');
     expect(runContextFor(t.root, 'qa-closure-reporter', 'm3')).not.toContain('metrics rollups');
+    expect(runContextFor(t.root, 'qa-orchestrator', 'm4')).not.toContain('metrics rollups');
   });
 
-  (stale ? it.skip : it)('the built CLI writes the files for the collector', async () => {
+  (stale ? it.skip : it)('the built CLI writes the files for the owner', async () => {
     const runId = await seeded();
-    const env = { ...process.env, AEGIS_AGENT: 'qa-metrics-collector', AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+    const env = { ...process.env, AEGIS_AGENT: 'owner', AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
     const r = spawnSync(process.execPath, [CLI, 'metrics', 'rollups', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout).written).toHaveLength(5);
     expect(fs.existsSync(path.join(metricsDir(runId), 'agent-reliability.json'))).toBe(true);
   }, 60_000);
-});
-
-describe('collector instructions', () => {
-  const text = fs.readFileSync(path.join(__dirname, '..', '.claude', 'agents', 'crosscutting', 'qa-metrics-collector.md'), 'utf8');
-  it('run the CLI, copy nothing by hand, and report an exact refusal writing nothing', () => {
-    expect(text).toMatch(/Write every metric file with the CLI; copy nothing by hand/);
-    expect(text).toMatch(/pnpm aegis metrics rollups/);
-    expect(text).toMatch(/You never write, edit or compute a metric file or a figure yourself/);
-    expect(text).toMatch(/report its exact refusal text to the orchestrator and write nothing/);
-    expect(text).toMatch(/suspectedFlaky/);
-    expect(text).toMatch(/cli: \[event\.append, metrics\.coverage, metrics\.defects, metrics\.rollups\]/);
-  });
 });

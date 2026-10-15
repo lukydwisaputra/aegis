@@ -48,7 +48,7 @@ Re-renders all reports and dashboards from existing events.jsonl + artifacts.
 Options:
   --run=RUN-...         Target run
   --rerun-tests         Re-execute test scripts before re-rendering
-  --reports=closure,executive   Subset of reports to regenerate (metrics rollups are qa-metrics-collector's)
+  --reports=closure,executive   Subset of reports to regenerate (metric files are refreshed at phase start by `aegis metrics all`)
 ```
 
 ### /qa-resume

@@ -15,7 +15,7 @@ Every tier runs the same model, `claude-sonnet-5-5`. A tier now decides the reas
 | `planning` | `claude-sonnet-5-5` | high | Orchestrator, test planner, executive reporter, curator, the 6 compliance reviewers. Errors here propagate to every downstream task. |
 | `implementation` | `claude-sonnet-5-5` | medium | Phase agents and Tier-2 specialists. High call count, predictable patterns. |
 | `validation` | `claude-sonnet-5-5` | high | SPVs, the shared compliance SPV, the developer-test reviewer. A missed SPV review lets a defect reach production. |
-| `read-only` | `claude-sonnet-5-5` | medium | `qa-context-scanner` and `qa-metrics-collector`: scanning, extraction and metric rollups. |
+| `read-only` | `claude-sonnet-5-5` | medium | `qa-context-scanner`: scanning and extraction. |
 
 An SPV now shares its worker's model, so it no longer brings an independent model's blind spots to the review. High effort is the compensation. If SPV rejection rates or escaped defects suggest the review has weakened, raise the validation tier's model or effort first.
 

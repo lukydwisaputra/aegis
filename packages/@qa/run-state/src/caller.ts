@@ -44,6 +44,7 @@ export const CLI_COMMANDS = [
   "rtm.unlink",
   "metrics.defects",
   "metrics.rollups",
+  "metrics.all",
   "rtm.sync-defects",
   "rtm.render",
   "env.exec",
@@ -79,6 +80,8 @@ export const OWNER_COMMANDS: ReadonlySet<CliCommand> = new Set<CliCommand>([
   // Gap 7: read-only, the defect headline numbers of the run's records.
   "metrics.defects",
   "metrics.rollups",
+  // The orchestrator writes every metric file before Closure-draft and before Executive; the owner may run it too.
+  "metrics.all",
   "rtm.sync-defects",
   "rtm.render",
   // The orchestrator lints the customer-facing files before a gate; the owner may run it too.
@@ -123,7 +126,6 @@ export const SINGLE_AGENT_COMMANDS: Readonly<Partial<Record<CliCommand, string>>
   "messaging.plan": "qa-messaging-specialist",
   "messaging.exec": "qa-messaging-specialist",
   "messaging.check": "qa-environment-engineer",
-  "metrics.coverage": "qa-metrics-collector",
   "defect.amend": "qa-defect-manager",
   "rtm.unlink": "qa-defect-manager",
   "rtm.sync-defects": "qa-defect-manager",
@@ -147,9 +149,13 @@ const ENV_EXEC_AGENTS: readonly string[] = [
 // the agent that states them; and, for env.exec / env.check, the agents that run a test runner with the QA credentials injected:
 // the environment engineer, the executor and the specialists whose contract lists them. No reviewer, compliance agent or scanner may.
 export const AGENT_SET_COMMANDS: Readonly<Partial<Record<CliCommand, readonly string[]>>> = {
-  "metrics.defects": ["qa-metrics-collector", "qa-defect-manager", "qa-closure-reporter"],
-  // The collector writes the rollups; the defect manager may only check them (--check writes nothing, enforced in writeRollups).
-  "metrics.rollups": ["qa-metrics-collector", "qa-defect-manager"],
+  "metrics.defects": ["qa-defect-manager", "qa-closure-reporter"],
+  // The two halves of aegis metrics all: the owner writes them (diagnosis); the defect manager may only check the rollups (--check writes
+  // nothing, enforced in writeRollups). No other agent runs either: the orchestrator runs metrics all.
+  "metrics.coverage": [],
+  "metrics.rollups": ["qa-defect-manager"],
+  // aegis metrics all writes the six metric files (the retired collector's job): the orchestrator, before Closure-draft and Executive.
+  "metrics.all": ["qa-orchestrator"],
   "env.exec": ENV_EXEC_AGENTS,
   "env.check": ENV_EXEC_AGENTS,
   "lint.run": ["qa-orchestrator"],
@@ -174,7 +180,7 @@ export function assertCallerAllowed(caller: string, command: CliCommand): void {
   }
   const set = AGENT_SET_COMMANDS[command];
   if (caller !== OWNER && set !== undefined && !set.includes(caller)) {
-    throw new RunStateError("caller-forbidden", `${command} is run only by ${set.join(" and ")}`);
+    throw new RunStateError("caller-forbidden", set.length === 0 ? `${command} is run only by the owner (agents run metrics all)` : `${command} is run only by ${set.join(" and ")}`);
   }
 }
 
@@ -183,7 +189,7 @@ export const CLI_RECORDED_PREFIXES: readonly string[] = ["run.", "task.", "gate.
 // cli.refused (NEW-06): the CLI records an agent's invalid-input or internal refusal itself. The two lesson events are
 // recorded by aegis review submit when it cannot write a CorrectiveInstruction to the worker's lessons (gap 2); the last two by
 // aegis defect amend and aegis rtm unlink (gap 5).
-export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered", "env.executed", "lint.completed", "explore.probed", "env.probed", "cases.rendered"]);
+export const CLI_RECORDED_TYPES: ReadonlySet<string> = new Set(["metrics.phase-rollup", "metrics.cycle-complete", "artifact.created", "env.specialist-blocked", "preflight.failed", "cli.refused", "messaging.contract-fetched", "messaging.live-preflight", "lesson.conflict-flagged", "lesson.schema-rejected", "defect.record-amended", "rtm.link-removed", "rtm.defect-map-synced", "rtm.rendered", "env.executed", "lint.completed", "explore.probed", "env.probed", "cases.rendered"]);
 
 export function isCliRecordedEventType(type: string): boolean {
   return CLI_RECORDED_TYPES.has(type) || CLI_RECORDED_PREFIXES.some((p) => type.startsWith(p));

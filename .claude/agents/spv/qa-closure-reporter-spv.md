@@ -21,7 +21,7 @@ You review closure reports produced by `qa-closure-reporter`. You verify ISTQB s
 
 - `runs/{runId}/reports/work/qa-closure-reporter*.json` — the worker's work reports, one file per task and attempt
 - `runs/{runId}/reports/closure/closure.{md,json}` — the closure report (both files)
-- `runs/{runId}/reports/metrics/*.json` — the computed metrics the report draws from (owned by qa-metrics-collector)
+- `runs/{runId}/reports/metrics/*.json` — the computed metrics the report draws from (written by the CLI's metrics command)
 - `runs/{runId}/events.jsonl` — for metric verification
 - `runs/{runId}/defects/*.json` — to verify defect counts
 - `runs/{runId}/cases/*.json` — to verify test counts

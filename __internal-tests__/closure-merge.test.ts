@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { completePhase, createRun, decideGate, nextStep, openGate, readRun, reissueRun, runDir, startPhase, writeRun } from '@qa/run-state';
+import { completePhase, createRun, decideGate, nextStep, openGate, readRun, reissueRun, runDir, startPhase, startPhaseWithWarnings, writeRun } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, ORCH, VALID_CLOSURE, workTask } from './helpers/pipeline';
 
@@ -97,6 +97,18 @@ describe('Closure-draft hosts only the corrections a gate decision demands', () 
     await workTask(t.root, runId, 'T-GATE-G3', ORCH, 'qa-orchestrator-spv');
     put('reports/closure/closure.json', { metrics: {} });
     await expect(completePhase(t.root, runId, 'closure-final', ORCH)).rejects.toMatchObject({ code: 'barrier', message: expect.stringMatching(/closure-metrics-missing/) });
+  });
+});
+
+describe('the metric files are refreshed before the one closure is written', () => {
+  it('starting Closure-final refreshes them, also when Closure-draft was recorded not-applicable', async () => {
+    fastForward(t.root, runId, 'closure-draft', G2);
+    await completePhase(t.root, runId, 'closure-draft', ORCH, { notApplicable: true });
+    fastForward(t.root, runId, 'closure-final', G2);
+    const out = await startPhaseWithWarnings(t.root, runId, 'closure-final', ORCH);
+    expect(out.warnings).toEqual([]);
+    expect(out.metrics?.written.map((f) => path.basename(f)).sort()).toEqual(['agent-reliability.json', 'coverage.json', 'cycle-time.json', 'defect-trend.json', 'effectiveness.json', 'flaky.json']);
+    expect(fs.existsSync(path.join(runDir(t.root, runId), 'reports', 'metrics', 'coverage.json'))).toBe(true);
   });
 });
 

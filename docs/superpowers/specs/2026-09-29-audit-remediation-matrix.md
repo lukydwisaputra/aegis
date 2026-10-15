@@ -234,7 +234,7 @@ lives in `__internal-tests__/alignment/baseline.yaml`; each slice's definition o
 |----|-------|------------------|-----|-------|--------|
 | AUD-100 | Skills emit events themselves, contrary to the router model (the owner cannot append; 29 skills / 92 events) | qa-start SKILL:41 `run.phase.started`; qa-gate-check SKILL:42 `gate.passed` | MED | P0c (execution) / P3 (query, internal) | open |
 | AUD-101 | SPVs state they emit `review.*` directly instead of via `aegis review submit` (25 SPVs) | qa-test-designer-spv.md:49 | MED | P0a-2 | fixed |
-| AUD-102 | Events awaited with no emitter (`defect.closed`, `defect.reopened`) | qa-metrics-collector.md:45 | MED | P0c | open |
+| AUD-102 | Events awaited with no emitter (`defect.closed`, `defect.reopened`) | qa-metrics-collector.md:45 | MED | P0c | fixed — the collector agent is retired (item 7 of the token and time trim): `aegis metrics all` reads the log, so nothing awaits them |
 | AUD-103 | Orchestrator emits CLI-recorded `run.*` / `gate.*` types directly | qa-orchestrator.md:34,120 | HIGH | P0a-1 | fixed — P0a-1 |
 | AUD-104 | Skills reference nonexistent paths not covered by AUD-056…059/060/065 (`templates/config/`, `runs/{run}/defects.json`, hardcoded sibling-project paths) | _qa-init-project SKILL:28; qa-gate-check SKILL:25; qa-push-reports SKILL:9; qa-cicd-implementer.md:22,35,75 `aegis/templates/github-workflows/` (the empty untracked `templates/` skeleton was deleted 2026-10-01) | MED | P3 / QW | open |
 | AUD-105 | Config keys read at the wrong location (`target.sourceDirs` vs top-level `sourceDirs`) | qa-security-specialist.md:39; aegis.config.json `sourceDirs` | LOW | QW | fixed — by P1 (security prose) |

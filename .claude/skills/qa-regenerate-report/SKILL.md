@@ -18,13 +18,13 @@ Replays a run's `events.jsonl` through the report-generation agents to produce f
 |------|---------|-------------|
 | `--run` | last run | Run ID whose events log to replay |
 | `--rerun-tests` | `false` | Also re-execute all test cases before regenerating (full re-run of execution phase only) |
-| `--reports` | `all` | Comma-separated subset of reports to regenerate: `closure` (the closure report) and `executive` (the executive deliverables). Token-usage and coverage rollups are metrics files, which qa-metrics-collector regenerates; the RTM and the defect records belong to their phase agents |
+| `--reports` | `all` | Comma-separated subset of reports to regenerate: `closure` (the closure report) and `executive` (the executive deliverables). Token-usage and coverage rollups are metrics files, which the orchestrator's metrics command regenerates; the RTM and the defect records belong to their phase agents |
 
 ## Behaviour
 1. Resolve run directory and validate that `events.jsonl` exists and is non-empty.
 2. Parse flag `--reports`; if `all`, enumerate every report template in `templates/reports/`.
 3. For each requested report type, invoke the corresponding reporter sub-agent with the events log as input.
-4. Reporter agents write output files to `runs/{run}/reports/closure/` and `runs/{run}/reports/executive/` (overwriting existing files). The CLI owns the work reports and the reviews, and qa-metrics-collector owns the metrics files, so nothing here writes those.
+4. Reporter agents write output files to `runs/{run}/reports/closure/` and `runs/{run}/reports/executive/` (overwriting existing files). The CLI owns the work reports and the reviews, and the CLI's metrics command writes the metrics files, so nothing here writes those.
 5. If `--rerun-tests` is set, first dispatch the execution phase agents for the run before regenerating.
 6. Print the regenerated report paths; run state is owned by the CLI and is not edited here.
 7. Print a summary of which report files were written and their sizes.

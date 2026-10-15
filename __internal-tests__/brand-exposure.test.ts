@@ -53,8 +53,8 @@ describe('every qa-* agent name is a brand pattern hit', () => {
   const names = agentNames(path.join(__dirname, '..', '.claude', 'agents'));
 
   it('finds the whole roster (phase agents, specialists, SPVs, compliance and cross-cutting agents)', () => {
-    expect(names.length).toBeGreaterThanOrEqual(56);
-    expect(names).toEqual(expect.arrayContaining(['qa-compliance-spv', 'qa-orchestrator-spv', 'qa-curator', 'qa-context-scanner', 'qa-metrics-collector', 'qa-compliance-pdpa']));
+    expect(names.length).toBeGreaterThanOrEqual(55);
+    expect(names).toEqual(expect.arrayContaining(['qa-compliance-spv', 'qa-orchestrator-spv', 'qa-curator', 'qa-context-scanner', 'qa-compliance-pdpa']));
   });
 
   it('matches each name, and not the plain "QA team" wording', () => {
