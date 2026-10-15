@@ -30,6 +30,7 @@ import { outputProblems } from "./outputs.js";
 import { lintBlockMessage, lintFindings, notScannedCount } from "./lint/run-lint.js";
 import { maskPath } from "./lint/mask.js";
 import { dataFindings } from "./lint/data.js";
+import { designBlockMessage } from "./lint/design.js";
 import { executiveBlockMessage, executiveFindings } from "./lint/executive.js";
 import type { Finding } from "./lint/text.js";
 import { renderingProblem } from "./render/artefacts.js";
@@ -281,6 +282,11 @@ export async function barrierProblems(root: string, runId: string, state: RunSta
     if (phase === "design") {
       const rendering = renderingProblem(root, runId);
       if (rendering !== null) problems.push(rendering);
+      // The design checks: a manual case without its reasons and a coveredBy on a weak developer test refuse; the rest are warnings.
+      const found = dataFindings(root, runId, "design", new Set(readRunConfig(root).reportRules.disable));
+      const errors = found.filter((f) => f.severity === "error");
+      if (errors.length > 0) problems.push(designBlockMessage(errors));
+      warnings?.push(...found.filter((f) => f.severity === "warning"));
     }
     // The Blocked data checks while Execution is still active, where a specialist can still fix the result: no wording or personal-data rule here.
     if (phase === "execution") {

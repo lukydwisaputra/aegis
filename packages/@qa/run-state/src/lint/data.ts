@@ -7,21 +7,23 @@ import { envProbeReportRel, probeStaleReason, readProbeReport } from "../env-pro
 import { busPath, runDir } from "../paths.js";
 import { reissueCaseScope } from "../reissue-scope.js";
 import { readRun } from "../run.js";
-import { maskPath, maskPersonalData } from "./mask.js";
+import { finding, isPlain, snippet } from "./data-util.js";
+import { designFindings } from "./design.js";
+import { totalsFindings } from "./totals.js";
 import { plainRunPath } from "./plain-path.js";
 import type { Finding } from "./text.js";
 
 /**
  * The data checks of the lint: what the run's own records say, not how a customer file is worded. They read run files only (result
  * files under cases/, defect records, events.jsonl, rtm.json) and never spawn a process. Stage `execution` (the Execution barrier) runs
- * the Blocked rules only; stage `G2` (the Triage barrier, openGate G2, aegis lint run --gate G2) runs the Blocked, the defect and the
+ * the Blocked rules and the totals of the execution summary (a warning); stage `design` (the Design barrier) the design checks of lint/design.ts; stage `G2` (the Triage barrier, openGate G2, aegis lint run --gate G2) runs the Blocked, the defect and the
  * environment probe rules (the g2 probe report only: the probe itself runs outside the lock, in aegis env probe).
  * Only a full cycle is checked: a smoke run's G2 is auto-decided.
  */
-export type DataStage = "execution" | "G2";
+export type DataStage = "design" | "execution" | "G2";
 
 /** The rule groups `reportRules.disable` may name: the owner's recorded project exception for a whole group. */
-export const DATA_RULE_GROUPS = ["blocked-qa-side", "defect-origin", "defect-counts", "defect-fields", "env-probe"] as const;
+export const DATA_RULE_GROUPS = ["blocked-qa-side", "defect-origin", "defect-counts", "defect-fields", "env-probe", "design-checks", "execution-totals"] as const;
 export type DataRuleGroup = (typeof DATA_RULE_GROUPS)[number];
 
 /** Every data rule id and its group. */
@@ -42,6 +44,11 @@ export const DATA_RULES: Readonly<Record<string, DataRuleGroup>> = {
   "defect-counts-mismatch": "defect-counts",
   "defect-severity-mismatch": "defect-counts",
   "defect-rtm-mismatch": "defect-counts",
+  "design-manual-reason-missing": "design-checks",
+  "design-covered-by-weak": "design-checks",
+  "design-covered-by-unknown": "design-checks",
+  "design-dev-test-unused": "design-checks",
+  "execution-totals-mismatch": "execution-totals",
   "env-probe-missing": "env-probe",
   "env-probe-stale": "env-probe",
   "env-probe-failed": "env-probe",
@@ -50,14 +57,6 @@ export const DATA_RULES: Readonly<Record<string, DataRuleGroup>> = {
 
 /** The group of a data rule id, or undefined for a wording or personal-data rule. */
 export const dataRuleGroup = (rule: string): DataRuleGroup | undefined => DATA_RULES[rule];
-
-/** How much of a record value is masked before the cut: enough that a cut never splits a value the masker would have caught. */
-const MASK_PREFIX = 1000;
-/** A piece of record text in a finding: personal data masked over a bounded prefix FIRST, then cut at 60 characters. */
-const snippet = (s: string): string => maskPersonalData(s.slice(0, MASK_PREFIX)).text.slice(0, 60);
-
-const finding = (rule: string, severity: Finding["severity"], file: string, message: string, context: string): Finding =>
-  ({ rule, severity, file: maskPath(file), line: 1, message, context, kind: "data" });
 
 // ─── Blocked ──────────────────────────────────────────────────────────────────
 
@@ -157,8 +156,6 @@ const EVIDENCE_EMPTY = "an application defect cites proof: at least one screensh
 const EVIDENCE_PATH_MISSING = "every path under evidence names a file of this run (runs/{run}/evidence/...): attach the file, or correct the path; a note goes in another field";
 
 const COUNT_FIELDS = ["openApplicationDefects", "fixed", "partiallyFixed", "reframed", "reportWithdrawn", "cannotVerify", "notFixed"] as const;
-
-const isPlain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 interface DefectFiles {
   /** Readable records (a JSON object), by file name. */
@@ -380,7 +377,10 @@ export function dataFindings(root: string, runId: string, stage: DataStage, disa
   const dir = runDir(root, runId);
   const on = (group: DataRuleGroup): boolean => !disabled.has(group);
   const out: Finding[] = [];
-  if (on("blocked-qa-side")) out.push(...blockedFindings(dir, reissueCaseScope(root, runId, state)));
+  if (stage === "design" && on("design-checks")) out.push(...designFindings(root, runId));
+  if (stage !== "design" && on("blocked-qa-side")) out.push(...blockedFindings(dir, reissueCaseScope(root, runId, state)));
+  // The totals of the summary are compared where the Execution barrier stands; at G2 the descopes of Triage and later results would differ.
+  if (stage === "execution" && on("execution-totals")) out.push(...totalsFindings(root, runId));
   if (stage === "G2" && (on("defect-origin") || on("defect-counts") || on("defect-fields"))) {
     const files = readDefects(dir, runId);
     // The record-level findings carry their own group (DATA_RULES), applied below.

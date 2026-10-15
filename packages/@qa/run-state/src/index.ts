@@ -35,6 +35,8 @@ export * from "./lint/pii.js";
 export * from "./lint/mask.js";
 export * from "./lint/run-lint.js";
 export * from "./lint/data.js";
+export { designFindings } from "./lint/design.js";
+export { executionTotalsMismatch } from "./lint/totals.js";
 export * from "./lint/executive.js";
 export * from "./lint/command.js";
 export * from "./lint/submit-lint.js";
