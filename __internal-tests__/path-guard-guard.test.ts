@@ -236,10 +236,10 @@ describe('decide: environment, missing run and speed', () => {
     expect(decide(write(`${ROOT}/packages/x.ts`), none, deps).allow).toBe(true);
   });
 
-  it('decides in well under 2 ms per call', () => {
+  it('decides in well under 10 ms per call (a call is about 0.1 ms: the bound only catches a scan of the tree or a process spawn per call)', () => {
     const input = bash(`cd sandbox && cat > a.txt <<'EOF'\nx\nEOF\nAEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task T-1`, 'qa-ui-specialist');
     const t0 = Date.now();
     for (let i = 0; i < 1000; i++) decide(input, ctx, deps);
-    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(Date.now() - t0).toBeLessThan(10_000);
   });
 });

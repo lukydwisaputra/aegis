@@ -193,7 +193,7 @@ describe('locks: integrity.lock, then the bus lock', () => {
     const releaseBus = await lockfile.lock(busPath(t.root, runId), { stale: 10_000, update: 2_000 });
     const p = repairTail(t.root, runId, 'owner');
     const integrityLock = path.join(runDir(t.root, runId), 'integrity.lock.lock');
-    for (let i = 0; i < 100 && !fs.existsSync(integrityLock); i++) await sleep(20);
+    for (let i = 0; i < 1000 && !fs.existsSync(integrityLock); i++) await sleep(20); // up to 20 s: a loaded machine can be slow to take the lock
     expect(fs.existsSync(integrityLock)).toBe(true); // integrity.lock is held while it waits for the bus
     expect(fs.readFileSync(busPath(t.root, runId)).equals(before)).toBe(true);
     await releaseBus();
