@@ -4,6 +4,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { appendChained, EventBusRefusal } from '@qa/event-bus';
 import { busPath } from '@qa/run-state';
+import { readJsonFile, type JsonFileIo } from '../apps/cli/src/commands/json-file';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
 
 // `event append`: schema refusals read like the submit refusals (field path and limit), and the fields come from --json or --json-file.
@@ -154,4 +155,55 @@ describe('the bus formats schema issues with the field path and the limit', () =
     const array = write('array.json', '[1]');
     expect(aegis([...FRAMEWORK, '--json-file', array]).err.message).toBe(`--json-file ${array} must hold a JSON object`);
   }, 60_000);
+});
+
+describe('the --json-file reader takes standard input from fd 0, never by opening its path', () => {
+  // On Linux, opening /dev/stdin (/proc/self/fd/0) fails with ENXIO when stdin is a socket (a harness or spawn pipe): the reader must not open it.
+  const enxio = Object.assign(new Error('ENXIO: no such device or address'), { code: 'ENXIO' });
+  const io = (chunks: Array<Buffer | string>, opened: string[], closed: number[], reads: number[] = []): JsonFileIo => {
+    const queue = [...chunks];
+    return {
+      open: (file) => { opened.push(file); throw enxio; },
+      isDirectory: () => false,
+      read: (fd, buf) => {
+        reads.push(fd);
+        const next = queue.shift();
+        if (next === undefined) return 0;
+        if (typeof next === 'string') throw Object.assign(new Error(next), { code: next });
+        return next.copy(buf);
+      },
+      close: (fd) => { closed.push(fd); },
+    };
+  };
+
+  it.each(['/dev/stdin', '/proc/self/fd/0', '/dev/fd/0'])('%s is read through fd 0 even where opening the path fails with ENXIO', (p) => {
+    const opened: string[] = [];
+    const closed: number[] = [];
+    const reads: number[] = [];
+    expect(readJsonFile(p, io([Buffer.from('{"a":'), Buffer.from('1}')], opened, closed, reads))).toBe('{"a":1}');
+    expect(opened).toEqual([]);
+    expect(closed).toEqual([]);
+    expect(new Set(reads)).toEqual(new Set([0]));
+  });
+
+  it('a stdin with no data yet (EAGAIN) is retried, and an EOF code ends the input', () => {
+    expect(readJsonFile('/dev/stdin', io(['EAGAIN', Buffer.from('{}'), 'EOF'], [], []))).toBe('{}');
+  });
+
+  it('stdin over the limit is refused after 1 MB + 1 byte', () => {
+    let given = 0;
+    const endless: JsonFileIo = { open: () => { throw enxio; }, isDirectory: () => false, read: (_fd, buf, length) => { given += length; buf.fill(97, 0, length); return length; }, close: () => undefined };
+    expect(() => readJsonFile('/dev/stdin', endless)).toThrow('--json-file /dev/stdin is larger than 1048576 bytes');
+    expect(given).toBe(1024 * 1024 + 1);
+  });
+
+  it('any other path is still opened (and closed), and a failed open names the path', () => {
+    const opened: string[] = [];
+    const closed: number[] = [];
+    expect(() => readJsonFile('/some/file.json', io([], opened, closed))).toThrow('--json-file /some/file.json cannot be read: ENXIO');
+    expect(opened).toEqual(['/some/file.json']);
+    const ok: JsonFileIo = { open: () => 7, isDirectory: () => false, read: (() => { let first = true; return (_fd: number, buf: Buffer) => (first ? ((first = false), Buffer.from('{}').copy(buf)) : 0); })(), close: (fd) => { closed.push(fd); } };
+    expect(readJsonFile('/some/file.json', ok)).toBe('{}');
+    expect(closed).toEqual([7]);
+  });
 });
