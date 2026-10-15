@@ -11,7 +11,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "review.submit": ["review.passed", "review.passed-with-notes", "review.requested-changes", "task.escalated", "run.blocked", "lesson.conflict-flagged", "lesson.schema-rejected"],
   "integrity.verify": ["integrity.violation", "run.blocked"],
   "integrity.repair-tail": ["integrity.tail-repaired"],
-  "phase.start": ["run.phase.started"],
+  "phase.start": ["run.phase.started", "metrics.phase-rollup", "metrics.cycle-complete"],
   "phase.complete": ["run.phase.completed", "run.phase.not-applicable", "preflight.failed", "integrity.violation", "run.blocked"],
   "run.complete": ["run.completed", "integrity.violation", "run.blocked"],
   "run.reissue": ["run.reissued", "integrity.violation", "run.blocked"],

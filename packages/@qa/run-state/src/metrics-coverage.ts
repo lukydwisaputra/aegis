@@ -5,7 +5,7 @@ import { CaseOfRecordError, computeAllMetrics, computeCoverage, computeDefectRec
 import { assertCallerAllowed, OWNER } from "./caller.js";
 import { RunStateError } from "./errors.js";
 import { busPath, runDir } from "./paths.js";
-import { readRun } from "./run.js";
+import { readRun, withRunLock } from "./run.js";
 import { atomicWrite, iso } from "./util.js";
 
 export interface CoverageWritten {
@@ -39,7 +39,7 @@ export interface DefectCountsRead {
 
 /**
  * `aegis metrics defects`: read-only. The defect headline numbers computed from the run's defect records (openApplicationDefects and the
- * per-verdict counts), for the defect manager's `defect.management-complete` event and the metrics collector's defect-trend.json, so both
+ * per-verdict counts), for the defect manager's `defect.management-complete` event and defect-trend.json (aegis metrics all), so both
  * state the same figures. Run it after any record correction.
  */
 export function readDefectCounts(root: string, runId: string, caller: string): DefectCountsRead {
@@ -113,6 +113,13 @@ export interface AllMetricsWritten {
  */
 export async function writeAllMetrics(root: string, runId: string, caller: string, now?: Date): Promise<AllMetricsWritten> {
   assertCallerAllowed(caller, "metrics.all");
+  // Under run.lock, like env probe: the "no rollup in the log yet" and "Executive pending" tests and the appends are one step, so two
+  // concurrent calls cannot both record the same phase.
+  return withRunLock(root, runId, () => writeAllMetricsLocked(root, runId, caller, now));
+}
+
+/** writeAllMetrics for a caller that already holds run.lock (phase start); no caller check: phase start is orchestrator and owner only, as metrics all is. */
+export async function writeAllMetricsLocked(root: string, runId: string, caller: string, now?: Date): Promise<AllMetricsWritten> {
   let all: ReturnType<typeof computeAllMetrics>;
   try {
     all = computeAllMetrics(runDir(root, runId));

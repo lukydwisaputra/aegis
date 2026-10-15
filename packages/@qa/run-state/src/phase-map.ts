@@ -89,5 +89,4 @@ export const PHASE_OUTPUT_SETS: Readonly<Partial<Record<PhaseId, readonly Output
 // Agents the barrier accepts without an SPV review, each for a stated reason (P2):
 // qa-context-scanner — the Scan barrier validates target-profile.json against the strict TargetProfileSchema;
 // qa-curator — the owner reviews its proposals through /qa-promote.
-// qa-metrics-collector runs without a task, so the barrier never looks it up.
 export const SPV_NONE: ReadonlySet<string> = new Set(["qa-context-scanner", "qa-curator"]);

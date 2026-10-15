@@ -24,16 +24,16 @@ function requiredMetricFiles(): string[] {
   return [...new Set(names)];
 }
 
-describe('the orchestrator runs the metrics command before Closure-draft and Executive (item 7: no agent is dispatched)', () => {
+describe('the CLI refreshes the metric files at the start of Closure-draft and Executive (item 7: no agent is dispatched)', () => {
   const orch = read(ORCH);
 
-  it('states the Bash call, the two positions and that no agent, task or SPV is involved', () => {
-    expect(orch).toContain(
-      'Run `AEGIS_AGENT=qa-orchestrator pnpm aegis metrics all` yourself, as a Bash call, immediately before `aegis phase start --phase closure-draft` and again immediately before `aegis phase start --phase executive`.',
-    );
-    expect(orch).toContain('No agent is dispatched, no task is added and no SPV reviews it.');
-    expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| `qa-closure-reporter` \(draft pass\) \| Run `aegis metrics all` first/);
-    expect(orch).toMatch(/\| Executive \| `executive` \| `qa-executive-reporter` \| Starts only after Gate 3 is approved\. Run `aegis metrics all` first/);
+  it('states that phase start writes the files at Closure-draft and Executive, no agent or task, and aegis metrics all as the manual refresh', () => {
+    expect(orch).toContain("`aegis phase start --phase closure-draft` and `aegis phase start --phase executive` (full cycle) first recompute every figure from the run's records");
+    expect(orch).toContain('(nothing is dispatched or spawned)');
+    expect(orch).toContain('`AEGIS_AGENT=qa-orchestrator pnpm aegis metrics all` is for a manual refresh only');
+    expect(orch).toContain('No task is added and no SPV reviews it.');
+    expect(orch).toMatch(/\| Closure-draft \| `closure-draft` \| `qa-closure-reporter` \(draft pass\) \| The CLI refreshes the metric files at the start/);
+    expect(orch).toMatch(/\| Executive \| `executive` \| `qa-executive-reporter` \| Starts only after Gate 3 is approved\. The CLI refreshes the metric files at the start/);
     expect(orch).not.toContain('qa-metrics-collector');
   });
 

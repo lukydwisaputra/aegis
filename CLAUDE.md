@@ -132,7 +132,7 @@ Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) ar
 - **taskmaster-client** — task claim/release protocol with file-lock serialization
 - **run-state** — run lifecycle, task claims, submissions and integrity checks behind the `aegis` CLI
 - **alignment** — static alignment checker behind `pnpm aegis align`
-- **metrics** — token logger, cycle-time tracker and every rollup: `aegis metrics all` (the orchestrator, before Closure-draft and Executive) writes all six `reports/metrics/*.json` files from `events.jsonl` and the run's records; `aegis metrics coverage` writes only `coverage.json`
+- **metrics** — token logger, cycle-time tracker and every rollup: `aegis metrics all` (run by `aegis phase start` for Closure-draft and Executive; the orchestrator may refresh by hand) writes all six `reports/metrics/*.json` files from `events.jsonl` and the run's records; `aegis metrics coverage` writes only `coverage.json`
 - **eslint-plugin** — custom ESLint rules for QA code
 - **test-helpers** and **supabase** — QA helpers (HAR sanitising, evidence naming, factory cleanup; Supabase role JWTs, migrations, RLS checks) that `aegis helpers vendor` copies into the target's `tests/qa/support/`
 - **reporters** — PDF and Markdown report rendering
@@ -157,7 +157,7 @@ runs/{runId}/
   reports/lint/         # pre-gate lint report, gate-G2.json and gate-G3.json, stage-executive.json (CLI-written, aegis lint run), and phase-{phase}.json: the warnings of a completed phase's barrier (CLI-written, aegis phase complete; removed when the phase is reopened), and spec-execution.json: the full list of spec lint findings behind an Execution refusal (CLI-written, aegis phase complete)
   reports/explore/      # Explore baseline.json and probe.json: page signatures and the reuse decision (CLI-written, aegis explore probe)
   reports/env/          # probe-execution.json and probe-g2.json: environment health and the build under test (CLI-written, aegis env probe)
-  reports/metrics/      # cycle-time, coverage, defect-trend, effectiveness, agent-reliability and flaky .json (CLI-written, aegis metrics all, run by the orchestrator before Closure-draft and before Executive)
+  reports/metrics/      # cycle-time, coverage, defect-trend, effectiveness, agent-reliability and flaky .json (CLI-written, aegis metrics all, written at the start of Closure-draft and of Executive, and by hand after a record correction)
   reports/.locks/       # submit and claim locks (CLI-owned)
   gates/gate-{N}-decision.json  # owner gate decisions (CLI-written)
   taskmaster/           # the run's task tree and claim locks (CLI-written)

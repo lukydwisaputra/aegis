@@ -43,7 +43,7 @@ The closure artefact (`closure.md` + `closure.json`) is the developer-facing sum
 7. **Execution timeline** — phase durations and gate wait times
 8. **Artefact index** — links to all generated files
 
-`reports/metrics/` is written only by the CLI (`aegis metrics all`, which the orchestrator runs before Closure-draft and before Executive) — no agent writes there.
+`reports/metrics/` is written only by the CLI (`aegis metrics all`, which `aegis phase start` runs for Closure-draft and for Executive) — no agent writes there.
 
 `closure.json` is also the input to the collector repo's index (`scripts/gen-index.ts` → `manifest.json` + README tables). The index reads a fixed set of keys — `cycleDate`, flat `metrics.passed/failed/blocked/passRate`, and `defectMetrics.confirmedOpen` — and publishes **open** defects rather than the logged total. A run that stores those figures in some other shape still closes normally, but its row renders as em dashes and `export-run.sh` blocks the next export rather than overwrite good values. The authoritative contract, including why nested `metrics` values break the index, is in `.claude/agents/tier1-phase/qa-closure-reporter.md` under "closure.json keys the collector index reads".
 
@@ -65,7 +65,7 @@ PDFs are generated using a headless Chromium print pipeline. They respect the `d
 
 ### 9.4 Operational Rollups
 
-Rollups are per run. `aegis metrics all` writes them to `runs/<RUN-ID>/reports/metrics/` (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `agent-reliability.json` and `flaky.json`) when the orchestrator dispatches it in the foreground, immediately before Closure-draft and again before Executive. Every dispatch writes every file (`flaky.json` is `[]` without retries), and `qa-closure-reporter` reads them into the closure report; a file still missing is listed in `closure.json#unavailableMetrics`, never waited for. No command aggregates a calendar week; to see the trend between two runs, diff them:
+Rollups are per run. `aegis metrics all` writes them to `runs/<RUN-ID>/reports/metrics/` (`coverage.json`, `defect-trend.json`, `cycle-time.json`, `effectiveness.json`, `agent-reliability.json` and `flaky.json`) when `aegis phase start` begins Closure-draft and again when it begins Executive (and on a manual refresh). Every call writes every file (`flaky.json` is `[]` without retries), and `qa-closure-reporter` reads them into the closure report; a file still missing is listed in `closure.json#unavailableMetrics`, never waited for. No command aggregates a calendar week; to see the trend between two runs, diff them:
 ```bash
 /qa-compare RUN-20260516-001 RUN-20260523-001 --focus=defects,coverage
 ```
