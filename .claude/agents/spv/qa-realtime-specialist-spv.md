@@ -23,7 +23,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 - Real-time test files at `tests/qa/api/{feature}.realtime.test.ts`
 - `runs/{runId}/target-profile.json` — `hasRealtimeFeatures`, for the no-op check
 - `agent-memory/qa-realtime-specialist/lessons.md`
-- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt of a scoped re-execution: its `reissue` record and whether the case list has lapsed
+- `runs/{runId}/run.json` and `runs/{runId}/events.jsonl` — only for a carry-forward attempt stamped `eligible: null`: its `reissue` record and whether the case list has lapsed
 
 ## Review Checklist
 
@@ -37,7 +37,7 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 8. **Assertion-present specs.** Every committed spec contains at least one assertion that can fail. A committed spec with zero assertions (an assertion-free "smoke" script) = requested-changes.
 9. **Blocked cause.** Every Blocked result in the work carries `blockedCause`: `product-dependency` with `blockedDependency` naming the real product dependency that exists now (exactly, never a generic word such as api, service or data), or `requirement-gap`. A Blocked result whose cause is on the QA side (a spec error, auth, missing test or seed data, a missing factory env name or credential, a budget, the harness, an environment fault), or with no valid cause, = requested-changes: the fault is fixed and the case run, never recorded as Blocked.
 
-**Carry-forward attempt (scoped re-execution).** When `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, the case list has not lapsed (the event log holds no `gate.decided` with decision rejected and no `run.completed` after the latest `run.reissued`), the task holds none of the listed cases, and the work report's summary begins "Carry-forward attempt", check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes.
+**Carry-forward attempt (scoped re-execution).** A work report whose summary begins "Carry-forward attempt" carries a `carryForward` stamp that the CLI wrote (the worker cannot): `eligible` and a `reason`. With `eligible: true` (a case list is in force and the task holds none of its cases), check only that each result file the report names exists and is unchanged and that no new file was written; skip every checklist item above (the tool, spec, evidence and category checks). A carry-forward attempt that re-ran or changed anything = requested-changes. With `eligible: false` (no case list is in force because a rejection without cases or a completed run lapsed it, or the task holds listed cases that had to be re-run) the shortcut does not apply: review the report with the full checklist above, and never return it only for being a carry-forward attempt. With `eligible: null` (the CLI could not tell, for example no dispatch names the task's cases) or no stamp, decide it as before: the shortcut applies when `run.json` holds a `reissue` record with `cases` and `execution` in its `reopenedPhases`, or the latest `gate.decided` with decision rejected carries `cases`, the case list has not lapsed (the event log holds no later `gate.decided` with decision rejected and no `cases`, and no `run.completed`, after it), and the task holds none of the listed cases.
 
 ## Verdict
 

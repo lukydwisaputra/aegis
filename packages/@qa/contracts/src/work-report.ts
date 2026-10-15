@@ -34,6 +34,9 @@ export const WorkReportSchema = z.object({
   // Stamped by the CLI at submit, never by the agent (one it writes is dropped): the lint error ids (`<rule> <file>:<line>`) found in the
   // files of artifactsProduced of a report writer. Absent when the lint found no error or the agent is not linted at submit.
   lintErrors: z.array(z.string()).optional(),
+  // Stamped by the CLI at submit, never by the agent (one it writes is dropped), on a work report whose summary begins "Carry-forward attempt":
+  // eligible true = the shortcut review applies, false = the full checklist applies, null = the CLI could not tell. Absent on every other report.
+  carryForward: z.object({ eligible: z.boolean().nullable(), reason: z.string().min(1).max(400) }).strict().optional(),
 });
 
 export type WorkReport = z.infer<typeof WorkReportSchema>;

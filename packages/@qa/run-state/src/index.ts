@@ -46,6 +46,7 @@ export {
   BASELINE_REL, PROBE_BUDGET_MS, PROBE_REL, environmentBaseUrl, exploreHead, exploreIdentity, exploreProbe, probeExplore, settleWithin, takeBaseline, targetDirOf,
   type BaselineResult, type FetcherFactory, type PageFetcher, type ProbeOptions, type ProbeResult,
 } from "./explore/probe.js";
+export * from "./carry-forward.js";
 export * from "./reissue-scope.js";
 export * from "./render/markdown.js";
 export * from "./render/artefacts.js";
