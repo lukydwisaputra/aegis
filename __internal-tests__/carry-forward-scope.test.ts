@@ -4,7 +4,7 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { AegisEventSchema, EVENT_FIELD_NAMES, GateDecisionSchema } from '@qa/contracts';
 import { appendChained, readLines } from '@qa/event-bus';
-import { busPath, createRun, dataFindings, decideGate, readRun, reissueCaseScope, writeRun } from '@qa/run-state';
+import { busPath, createRun, dataFindings, decideGate, readRun, reissueCaseScope, runDir, writeRun } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
 import { fastForward, writeRunFile } from './helpers/pipeline';
 
@@ -55,10 +55,15 @@ describe('gate decide --cases', () => {
     ]);
   });
 
-  it('a G1 rejection before Execution carries the scope too', async () => {
+  it('refuses --cases on a G1 rejection: Design runs again in full, and nothing is recorded', async () => {
     await openGateRun('G1');
-    await decideGate(root(), runId, { gate: 'G1', decision: 'rejected', note: 'Plan again', cases: ['TC-AUTH-002'] }, 'owner');
-    expect([...scope()!]).toEqual(['TC-AUTH-002']);
+    const before = fs.readFileSync(busPath(root(), runId), 'utf8');
+    await expect(decideGate(root(), runId, { gate: 'G1', decision: 'rejected', note: 'Plan again', cases: ['TC-AUTH-002'] }, 'owner')).rejects.toMatchObject({
+      code: 'invalid-input', message: expect.stringMatching(/--cases does not apply to a G1 rejection.*Design runs again in full.*G2 rejection with --reopen-phase execution/),
+    });
+    await expect(decideGate(root(), runId, { gate: 'G1', decision: 'rejected', note: 'Plan again', reopenPhase: 'scan', cases: ['TC-AUTH-002'] }, 'owner')).rejects.toMatchObject({ message: expect.stringContaining('G1 rejection') });
+    expect(fs.readFileSync(busPath(root(), runId), 'utf8')).toBe(before);
+    expect(scope()).toBeNull();
   });
 
   it('a rejection without cases lapses the scope, as before', async () => {
@@ -113,8 +118,24 @@ describe('gate decide --cases', () => {
     });
     expect(fs.readFileSync(busPath(root(), runId), 'utf8')).toBe(before);
     expect(readRun(root(), runId).gates.G2).toMatchObject({ status: 'open', decisions: 0 });
+  });
+
+  it('refuses --cases on a G3 rejection whatever the reopen phase, and points to a reissue instead of a refused --reopen-phase', async () => {
     await openGateRun('G3');
-    await expect(decideGate(root(), runId, { gate: 'G3', decision: 'rejected', note: 'n', reopenPhase: 'closure-draft', cases: ['TC-AUTH-001'] }, 'owner')).rejects.toMatchObject({ code: 'invalid-input' });
+    for (const reopenPhase of [undefined, 'closure-draft', 'execution']) {
+      const err = await decideGate(root(), runId, { gate: 'G3', decision: 'rejected', note: 'n', cases: ['TC-AUTH-001'], ...(reopenPhase !== undefined ? { reopenPhase } : {}) }, 'owner').catch((e: Error) => e);
+      expect(err).toMatchObject({ code: 'invalid-input', message: expect.stringMatching(/--cases cannot be used on a G3 rejection.*\/qa-reissue --phase execution --cases <ids>/) });
+      expect((err as Error).message).not.toMatch(/add --reopen-phase/);
+    }
+    expect(readRun(root(), runId).gates.G3).toMatchObject({ status: 'open', decisions: 0 });
+  });
+
+  it('refuses --cases when the run has no cases folder yet, and says so', async () => {
+    await openGateRun('G2');
+    fs.rmSync(path.join(runDir(root(), runId), 'cases'), { recursive: true, force: true });
+    await expect(decideGate(root(), runId, { gate: 'G2', decision: 'rejected', note: 'n', reopenPhase: 'execution', cases: ['TC-AUTH-001'] }, 'owner')).rejects.toMatchObject({
+      message: expect.stringMatching(/no cases folder yet.*decide without --cases/),
+    });
   });
 
   it('refuses --cases on an approval, an empty list, a malformed id, an unknown id and a descoped case', async () => {

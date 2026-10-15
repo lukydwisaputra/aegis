@@ -95,12 +95,10 @@ describe('the stamp', () => {
   });
 
   it('a list set by a rejection with cases counts, in a run that was never reissued', async () => {
-    const s = readRun(t.root, runId);
     for (const id of ['TC-AUTH-001', 'TC-AUTH-005']) writeRunFile(t.root, runId, `cases/${id}.json`, { id });
     fastForward(t.root, runId, 'closure-draft', { G1: { status: 'approved', decisions: 1 }, G2: { status: 'open', decisions: 0 } });
     writeRun(t.root, { ...readRun(t.root, runId), status: 'awaiting-gate' } as never);
     await decideGate(t.root, runId, { gate: 'G2', decision: 'rejected', note: 'Retest', reopenPhase: 'execution', cases: ['TC-AUTH-001'] }, 'owner');
-    expect(s.runId).toBe(runId);
     // The reopened Execution is in progress, as the orchestrator leaves it after the next start.
     const after = readRun(t.root, runId);
     writeRun(t.root, { ...after, status: 'running', currentPhase: 'execution', phases: { ...after.phases, execution: { status: 'in-progress' } } } as never);
@@ -108,6 +106,41 @@ describe('the stamp', () => {
     await dispatched('T-execution-3', ['TC-AUTH-001']);
     expect(stamp((await submit('T-execution-2', CF)).rec)).toMatchObject({ eligible: true });
     expect(stamp((await submit('T-execution-3', CF)).rec)).toMatchObject({ eligible: false });
+  });
+
+  it('a rejection decided with cases replaces the reissue list in the stamp', async () => {
+    for (const id of ['TC-AUTH-001', 'TC-AUTH-002', 'TC-AUTH-005']) writeRunFile(t.root, runId, `cases/${id}.json`, { id });
+    await reissued(['TC-AUTH-001']);
+    await dispatched('T-execution-2', ['TC-AUTH-001']);
+    await dispatched('T-execution-3', ['TC-AUTH-002']);
+    // Under the reissue list TC-AUTH-001 is listed (false) and TC-AUTH-002 is not (true).
+    expect(stamp((await submit('T-execution-2', CF)).rec)).toMatchObject({ eligible: false });
+    expect(stamp((await submit('T-execution-3', CF)).rec)).toMatchObject({ eligible: true });
+    fastForward(t.root, runId, 'closure-draft', { G1: { status: 'approved', decisions: 1 }, G2: { status: 'open', decisions: 0 } });
+    writeRun(t.root, { ...readRun(t.root, runId), status: 'awaiting-gate' } as never);
+    await decideGate(t.root, runId, { gate: 'G2', decision: 'rejected', note: 'Retest', reopenPhase: 'execution', cases: ['TC-AUTH-002'] }, 'owner');
+    const after = readRun(t.root, runId);
+    writeRun(t.root, { ...after, status: 'running', currentPhase: 'execution', phases: { ...after.phases, execution: { status: 'in-progress' } } } as never);
+    // Now the rejection's list is the one in force: the verdicts swap.
+    expect(stamp((await submit('T-execution-4', CF, {})).rec)).toMatchObject({ eligible: null });
+    await dispatched('T-execution-5', ['TC-AUTH-001']);
+    await dispatched('T-execution-6', ['TC-AUTH-002']);
+    expect(stamp((await submit('T-execution-5', CF)).rec)).toMatchObject({ eligible: true });
+    expect(stamp((await submit('T-execution-6', CF)).rec)).toMatchObject({ eligible: false, reason: expect.stringContaining('TC-AUTH-002') });
+  });
+
+  it.each([
+    'Carry-forward is not applicable: all 12 cases are on the list, so the full set was re-run.',
+    'Carry-forward not used; re-ran every case of the task against the rebuilt app.',
+    'Carry-forward-eligible cases were skipped; ran the rest of the login cases.',
+    'Carry-forward of TC-AUTH-001 to TC-AUTH-004: the results stand unchanged.',
+  ])('a statement about carry-forward is neither rewritten nor stamped: %s', async (summary) => {
+    await reissued(['TC-AUTH-001']);
+    await dispatched('T-execution-2', ['TC-AUTH-005']);
+    const { res, rec } = await submit('T-execution-2', summary);
+    expect(rec['summary']).toBe(summary);
+    expect('carryForward' in rec).toBe(false);
+    expect(res.adjusted ?? []).toEqual([expect.stringMatching(/^id: /)]);
   });
 
   it('a stamp the agent wrote is dropped and replaced, and the result says so', async () => {
@@ -152,6 +185,17 @@ describe('the pure rules', () => {
     expect(n('3rd-round carry-forward re-verification of T-execution-6: findings unchanged.').summary).toBe('Carry-forward attempt: of T-execution-6: findings unchanged.');
     expect(n('carry-forward attempt: lower case lead stands.').summary).toBe('Carry-forward attempt: lower case lead stands.');
     expect(n('Carried forward from attempt 1, no re-run, recorded results unchanged.').summary).toMatch(SPV_RULE);
+    // The accepted leads (the real shapes): each is rewritten.
+    for (const lead of [
+      'Carry-forward settlement after the G2 rejection: x stands.', 'No-op carry-forward settlement (3rd G2 round): x stands.', 'No-op carry-forward: x stands.',
+      'Carry-forward re-verification: x stands.', 'Carry-forward re-verify: x stands.', '3rd-round carry-forward re-verification of T-1: x stands.', 'Carry-forward reconciliation after G2: x stands.',
+      'Carry-forward no-op: x stands.', "Carry-forward under the owner's Gate-2 rejection; x stands.", 'Carry-forward: prior-leg result stands.', 'Carried forward from attempt 1, no re-run: x stands.',
+    ]) expect({ lead, ...n(lead) }).toMatchObject({ changed: true, summary: expect.stringMatching(/^Carry-forward attempt: \S/) });
+    // Everything else that merely starts with the words is left alone.
+    for (const other of [
+      'Carry-forward is not applicable: all cases re-ran.', 'Carry-forward not used; everything re-ran.', 'Carry-forward-eligible cases were skipped.', 'Carry-forward of TC-A-001: results stand.',
+      'Carry-forwards are not used in this run.', 'Carry-forward logic was reviewed for T-1.',
+    ]) expect({ other, ...n(other) }).toEqual({ other, summary: other, changed: false });
     for (const plain of ['Scoped re-execution of TC-REG-018 only, a carry-forward was refused.', 'Ran the login flow.', '']) expect(n(plain)).toEqual({ summary: plain, changed: false });
   });
   it('carryForwardStamp', () => {

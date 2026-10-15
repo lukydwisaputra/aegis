@@ -11,9 +11,17 @@ export interface CarryForwardStamp {
   reason: string;
 }
 
-// A summary that leads with the carry-forward words in another form: "Carry-forward settlement ...", "No-op carry-forward ...",
-// "3rd-round carry-forward re-verification ...", "Carried forward ...", "carry-forward attempt: ...".
-const LEAD = /^\s*(?:(?:no-op|\d+(?:st|nd|rd|th)-round)[ -])*carr(?:y|ied)[- ]forward\b(?:[ -](?:attempt|settlement|no-op|re-?verif\w*|reconciliation))*\s*[:;,.—-]*\s*/i;
+// A summary that leads with the carry-forward words AND names an attempt, round or re-run of a task: the leads of the real reports are
+// "Carry-forward settlement ...", "No-op carry-forward ...", "3rd-round carry-forward re-verification ...", "Carry-forward reconciliation ...",
+// "Carry-forward no-op: ...", "Carry-forward under the owner's ... rejection", "Carried forward from attempt 1 ..." and "Carry-forward: <what stands>".
+// A lead followed by anything else is a statement ABOUT carry-forward ("Carry-forward is not applicable", "Carry-forward not used",
+// "Carry-forward-eligible cases ...", "Carry-forward of TC-...") and is left alone: it is not rewritten and not stamped.
+const LEAD = new RegExp(
+  "^\\s*(?:(?:no-op|\\d+(?:st|nd|rd|th)-round)[ -])*carr(?:y|ied)[- ]forward(?![-\\w])" +
+    "(?:(?:[ -](?:attempt|settlement|no-op|re-?verif\\w*|reconciliation))+|(?=[ -](?:under|from attempt)\\b)|(?=\\s*[:;]))" +
+    "\\s*[:;,.\\u2014-]*\\s*",
+  "i"
+);
 
 /**
  * The summary of a work report that leads with the carry-forward words, written to begin with the literal prefix; the result is `changed`

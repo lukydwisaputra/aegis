@@ -111,6 +111,22 @@ export interface DecideGateInput {
 }
 
 /**
+ * `--cases` is refused where a case scope cannot work: on an approval; at G1, whose rejection reopens Planning and after which Design runs again
+ * in full, so the scope would only weaken the Design checks; and at a gate none of whose reopen phases is at or before Execution (G3 reopens
+ * only phases after G2's, which come after Execution), where a reissue of Execution is the way to scope a re-run.
+ */
+function assertCasesAllowedAt(gate: GateId, decision: GateDecisionValue): void {
+  if (decision !== "rejected") throw new RunStateError("invalid-input", "--cases is only valid with --decision rejected");
+  if (PHASE_IDS.indexOf(GATE_AFTER[gate]) < PHASE_IDS.indexOf("design")) {
+    throw new RunStateError("invalid-input", `--cases does not apply to a ${gate} rejection: Design runs again in full after it, and a case scope only means something from Execution on; use it on a G2 rejection with --reopen-phase execution`);
+  }
+  const previous = GATE_IDS[GATE_IDS.indexOf(gate) - 1];
+  if (previous !== undefined && PHASE_IDS.indexOf(GATE_AFTER[previous]) >= PHASE_IDS.indexOf("execution")) {
+    throw new RunStateError("invalid-input", `--cases cannot be used on a ${gate} rejection: it reopens only phases after gate ${previous}, which come after execution; to re-run chosen cases use /qa-reissue --phase execution --cases <ids>, which works on a completed run once ${gate} is decided`);
+  }
+}
+
+/**
  * Owner decision on an open gate (spec §3.2). A rejection reopens `reopenPhase` (default: the gated phase) through
  * the gated phase: every attempt so far on their tasks is recorded in run.json#supersededAttempts and the tasks go back
  * to pending, so only new work can pass the barrier again. It never reopens a phase at or before the previous gate's phase.
@@ -127,6 +143,7 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
   const gate = parseGate(input.gate);
   if (input.note.trim() === "") throw new RunStateError("invalid-input", "a decision note is required");
   let reopen: PhaseId | undefined;
+  if (input.cases !== undefined) assertCasesAllowedAt(gate, input.decision);
   if (input.decision === "rejected") {
     reopen = parsePhase(input.reopenPhase ?? GATE_AFTER[gate]);
     const at = PHASE_IDS.indexOf(reopen);
@@ -149,15 +166,17 @@ export async function decideGate(root: string, runId: string, input: DecideGateI
     );
   }
   // The case scope: refused before any write unless the rejection reopens Execution or an earlier phase (a scope means something only to
-  // Execution); ids are trimmed, deduplicated and checked against the run's case files.
+  // Execution); ids are trimmed, deduplicated and checked against the run's case files, which must exist by then.
   let cases: string[] | undefined;
-  if (input.cases !== undefined) {
-    if (reopen === undefined) throw new RunStateError("invalid-input", "--cases is only valid with --decision rejected");
+  if (input.cases !== undefined && reopen !== undefined) {
     if (PHASE_IDS.indexOf(reopen) > PHASE_IDS.indexOf("execution")) {
       throw new RunStateError(
         "invalid-input",
         `--cases needs a rejection that reopens execution or an earlier phase; this one reopens ${reopen}, after execution: add --reopen-phase execution (or an earlier phase), or leave --cases out`
       );
+    }
+    if (!existsSync(join(runDir(root, runId), "cases"))) {
+      throw new RunStateError("invalid-input", `--cases cannot be checked: run ${runId} has no cases folder yet, so no case id can be confirmed; decide without --cases`);
     }
     cases = parseCaseIds(root, runId, input.cases);
   }
