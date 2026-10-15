@@ -1,5 +1,6 @@
 import { Command } from "commander";
-import { EVENT_FIELD_NAMES } from "@qa/contracts";
+import { EVENT_FIELD_NAMES, SUBMISSION_FIELD_NAMES } from "@qa/contracts";
+import { readBoundedFile, type BoundedReadOptions } from "./json-file.js";
 import { CLI_COMMANDS, findAegisRoot, recordCliRefusal, resolveCaller, resolveRunId, RunStateError } from "@qa/run-state";
 
 export interface Ctx {
@@ -20,6 +21,16 @@ const typedInput: string[] = [];
 export function addTypedInput(text: string): void {
   typedInput.push(text);
 }
+/**
+ * The text of a file or of standard input the caller named (a path option, or /dev/stdin), registered as typed input at the point of
+ * reading, before anything can validate it: the raw text, also when it does not parse. A refusal that echoes any of it is then recorded
+ * with it subtracted, like what was typed on the command line. Every command that reads caller-supplied content goes through here.
+ */
+export function readTypedFile(file: string, opts: BoundedReadOptions = {}): string {
+  const text = readBoundedFile(file, opts);
+  addTypedInput(text);
+  return text;
+}
 const typedArgv = (): string[] => [...process.argv.slice(2), ...typedInput];
 
 /** The command id of an action: `<group>.<verb>` (the Command is the action's last argument); the bare name at top level. */
@@ -34,9 +45,9 @@ export function commandIdOf(args: readonly unknown[]): string | null {
 export function vocabularyOf(cmd: Command): ReadonlySet<string> {
   let root = cmd;
   while (root.parent !== null) root = root.parent;
-  // The event schema's declared field names are vocabulary too: a refusal that names the field ("component: longer than 200 characters")
-  // stays readable. Only declared names: any other key the caller typed in a --json object is still dropped.
-  const out = new Set<string>(["--help", "-h", "--version", "-V", "help", ...EVENT_FIELD_NAMES]);
+  // The event, work report and review schemas' declared field names are vocabulary too: a refusal that names the field ("component: longer
+  // than 200 characters") stays readable. Only declared names: any other key the caller typed in a --json object or a file is still dropped.
+  const out = new Set<string>(["--help", "-h", "--version", "-V", "help", ...EVENT_FIELD_NAMES, ...SUBMISSION_FIELD_NAMES]);
   const walk = (c: Command): void => {
     out.add(c.name());
     for (const o of c.options) {

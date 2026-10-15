@@ -390,6 +390,52 @@ describe('the built CLI records refusals without changing them', () => {
     expect(bytesOf()).not.toContain('xxxxxxxx');
   }, 60_000);
 
+  // work-report submit --file and review submit --file (a path or /dev/stdin) carry the same typed input as --json-file: the raw text is
+  // registered where it is read, so a refusal that echoes a value of it is recorded with the value subtracted. A value with an embedded
+  // quote closes the quoted operand early, so only the subtraction (not the quoted-operand pattern) stands between it and the log.
+  const submitFrom = (agent: string, cmd: 'work-report' | 'review', body: string, via: 'stdin' | 'file') => {
+    const env = { ...process.env, AEGIS_AGENT: agent, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json') };
+    if (via === 'file') {
+      const f = path.join(t.root, 'typed-input.json');
+      fs.writeFileSync(f, body);
+      return spawnSync(process.execPath, [CLI, cmd, 'submit', '--file', f], { cwd: t.root, encoding: 'utf-8', env });
+    }
+    return spawnSync(process.execPath, [CLI, cmd, 'submit', '--file', '/dev/stdin'], { cwd: t.root, encoding: 'utf-8', env, input: body });
+  };
+  const validReport = { id: 'WR-T-1', taskId: 'T-1', startedAt: '2026-09-30T08:00:00.000Z', completedAt: '2026-09-30T08:00:00.000Z', summary: 'Completed T-1 for the refusal test.', approach: 'Fixture-driven refusal test.' };
+
+  ctest.each(['stdin', 'file'] as const)('work-report submit --file (%s): a personal-data value echoed by the refusal is recorded as <value>, not as typed', (via) => {
+    const r = submitFrom('qa-ui-specialist', 'work-report', JSON.stringify({ ...validReport, agent: 'x" Tan Ah Kow S1234567D' }), via);
+    expect(r.status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/^work report agent "<value>" does not match caller/);
+    expect(bytesOf()).not.toMatch(/S1234567D|Tan Ah Kow/);
+  }, 60_000);
+
+  ctest.each(['stdin', 'file'] as const)('work-report submit --file (%s): a refused body that does not parse is not echoed; a declared field name stays', (via) => {
+    expect(submitFrom('qa-ui-specialist', 'work-report', '{"summary": "Tan Ah Kow S1234567D" oops', via).status).toBe(2);
+    const over = { ...validReport, agent: 'qa-ui-specialist', uncertainties: [{ topic: 't', impact: 'x" jane.doe@acme.example' }] };
+    expect(submitFrom('qa-ui-specialist', 'work-report', JSON.stringify(over), via).status).toBe(2);
+    expect(refused()).toHaveLength(2);
+    expect(refused()[1]!['message']).toContain('uncertainties.0.impact');
+    expect(bytesOf()).not.toMatch(/S1234567D|Tan Ah Kow|jane\.doe/);
+  }, 60_000);
+
+  ctest.each(['stdin', 'file'] as const)('review submit --file (%s): a personal-data value echoed by the refusal is recorded as <value>, not as typed', (via) => {
+    const r = submitFrom('qa-ui-specialist-spv', 'review', JSON.stringify({ id: 'RV-x-T-1', reviewer: 'x" Tan Ah Kow S1234567D', target: { agent: 'qa-ui-specialist', taskId: 'T-1' }, verdict: 'passed', summary: 'A review for the refusal test.', reviewedAt: '2026-09-30T08:00:00.000Z', modelUsed: 'm' }), via);
+    expect(r.status).toBe(2);
+    expect(refused()).toHaveLength(1);
+    expect(refused()[0]!['message']).toMatch(/^review reviewer "<value>" does not match caller/);
+    expect(bytesOf()).not.toMatch(/S1234567D|Tan Ah Kow/);
+  }, 60_000);
+
+  ctest('a --file larger than the submit limit is refused without a read past it, and not echoed', () => {
+    const r = submitFrom('qa-ui-specialist', 'work-report', JSON.stringify({ summary: 'x'.repeat(17 * 1024 * 1024) }), 'file');
+    expect(r.status).toBe(2);
+    expect(JSON.parse(r.stderr).message).toMatch(/--file .* is larger than 16777216 bytes/);
+    expect(bytesOf()).not.toContain('xxxxxxxx');
+  }, 60_000);
+
   ctest('a --file path that resolves to another spelling is not recorded', () => {
     expect(aegis('qa-ui-specialist', 'work-report', 'submit', '--file', '/nonexistent/zz/../hunterpathxyz.json').status).toBe(2);
     expect(refused()).toHaveLength(1);

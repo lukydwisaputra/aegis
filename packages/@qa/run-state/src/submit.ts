@@ -140,10 +140,11 @@ function unknownKeys(raw: unknown): string[] {
  * artifactsProduced are linted before the write: the findings come back in `lint` and the error ids are stamped into the stored report as
  * `lintErrors`, so its SPV returns it without a deep review. The lint never refuses (a refused submit would leave the task unreleasable).
  * A fix and a new submit within the same claim is the next attempt; the review attaches to the highest attempt.
+ * `text` is the report's content when the caller already read it from `file` (the CLI reads it once, to register it as typed input).
  */
-export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date): Promise<WorkReportSubmitResult> {
+export async function submitWorkReport(root: string, runId: string, file: string, caller: string, now?: Date, text?: string): Promise<WorkReportSubmitResult> {
   assertCallerAllowed(caller, "work-report.submit");
-  const { value: raw, dropped } = withoutLintStamp(loadJson(file));
+  const { value: raw, dropped } = withoutLintStamp(loadJson(file, text));
   const { data: report, trimmed, adjusted } = parseSubmission(WorkReportSchema, raw, "work-report");
   if (dropped) adjusted.push("lintErrors: removed (the CLI stamps it from the lint of your files)");
   const droppedKeys = unknownKeys(raw);
@@ -265,12 +266,12 @@ async function escalateOnce(
   );
 }
 
-export async function submitReview(root: string, runId: string, file: string, caller: string, now?: Date): Promise<ReviewResult> {
+export async function submitReview(root: string, runId: string, file: string, caller: string, now?: Date, text?: string): Promise<ReviewResult> {
   assertCallerAllowed(caller, "review.submit");
   if (!caller.endsWith("-spv")) {
     throw new RunStateError("caller-forbidden", `only SPV agents submit reviews; "${caller}" is not an SPV`);
   }
-  const raw = loadJson(file);
+  const raw = loadJson(file, text);
   const { data: review, trimmed, adjusted } = parseSubmission(ReviewSchema, raw, "review");
   if (review.reviewer !== caller) {
     throw new RunStateError("invalid-input", `review reviewer "${review.reviewer}" does not match caller "${caller}"`);

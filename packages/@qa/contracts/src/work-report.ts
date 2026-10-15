@@ -90,3 +90,26 @@ export const ReviewSchema = z.object({
 
 export type Review = z.infer<typeof ReviewSchema>;
 export type ReviewFinding = z.infer<typeof ReviewFindingSchema>;
+
+/** Every key a schema declares, at any depth (arrays, defaults and optionals unwrapped). */
+function declaredKeys(schema: z.ZodTypeAny, into: Set<string>): void {
+  if (schema instanceof z.ZodObject) {
+    for (const [key, child] of Object.entries(schema.shape as Record<string, z.ZodTypeAny>)) {
+      into.add(key);
+      declaredKeys(child, into);
+    }
+  } else if (schema instanceof z.ZodArray) declaredKeys(schema.element, into);
+  else if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) declaredKeys(schema.unwrap(), into);
+  else if (schema instanceof z.ZodDefault) declaredKeys(schema.removeDefault(), into);
+}
+
+/**
+ * The field names a work report or a review declares, at every depth. They are vocabulary, not caller-typed values: a refusal of a submitted
+ * file that names the field ("uncertainties.0.impact: ...") stays readable, while any other key the caller wrote into the file is dropped.
+ */
+export const SUBMISSION_FIELD_NAMES: readonly string[] = (() => {
+  const names = new Set<string>();
+  declaredKeys(WorkReportSchema, names);
+  declaredKeys(ReviewSchema, names);
+  return [...names].sort();
+})();
