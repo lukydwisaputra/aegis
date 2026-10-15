@@ -5,6 +5,7 @@ import { runDir } from "../paths.js";
 import { readRun } from "../run.js";
 import { executiveFindings } from "./executive.js";
 import { CLOSURE_JSON, EXECUTIVE_INPUTS, lintFileFindings, plainRunFile, runFiles, TEXT_FILE } from "./run-lint.js";
+import { specEntryFiles, specFindingsForEntries } from "./specs.js";
 import type { Finding } from "./text.js";
 
 /** The report writers whose submit is linted: the files they produce are customer-facing. */
@@ -115,16 +116,60 @@ export function submitLint(root: string, runId: string, agent: string, artifacts
   } catch (e) {
     return { lint: { errors: [], warnings: [], filesScanned: 0, unavailable: e instanceof Error ? e.message.slice(0, MESSAGE_MAX) : "the lint could not run" }, lintErrors: [] };
   }
-  const errors = scan.findings.filter((f) => f.severity === "error");
-  const warnings = scan.findings.filter((f) => f.severity !== "error");
+  return packageLint(scan.findings, scan.filesScanned);
+}
+
+/** The result a submit shows and the error ids it stamps, from a list of findings. */
+function packageLint(findings: readonly Finding[], filesScanned: number): { lint: SubmitLint; lintErrors: string[] } {
+  const errors = findings.filter((f) => f.severity === "error");
+  const warnings = findings.filter((f) => f.severity !== "error");
   const omitted = { errors: Math.max(0, errors.length - LISTED), warnings: Math.max(0, warnings.length - LISTED) };
   return {
     lint: {
       errors: errors.slice(0, LISTED).map(note),
       warnings: warnings.slice(0, LISTED).map(note),
       ...(omitted.errors + omitted.warnings > 0 ? { omitted } : {}),
-      filesScanned: scan.filesScanned,
+      filesScanned,
     },
     lintErrors: [...new Set(errors.map((f) => `${f.rule} ${f.file}:${f.line}`))].slice(0, STAMPED),
+  };
+}
+
+/** The specialists whose spec files are linted at submit: every one that writes Playwright or test specs (the spec lint, lint/specs.ts). */
+export const SPEC_LINTED_AGENTS: ReadonlySet<string> = new Set([
+  "qa-ui-specialist", "qa-responsive-specialist", "qa-accessibility-specialist", "qa-api-specialist", "qa-database-specialist", "qa-messaging-specialist",
+  "qa-realtime-specialist", "qa-feature-flag-specialist", "qa-unit-specialist",
+]);
+
+/**
+ * The lint of the spec files a specialist's work report lists in artifactsProduced (an entry is a path from the target root and may carry a
+ * note in parentheses): the spec rules over the files that resolve inside the tests directory. Null for any other agent, in a smoke run and
+ * when the entries name no spec file. Stamped like the report writers' lint (the error ids), never a refusal; never throws.
+ */
+export async function specSubmitLint(root: string, runId: string, agent: string, artifactsProduced: readonly string[]): Promise<{ lint: SubmitLint; lintErrors: string[] } | null> {
+  if (!SPEC_LINTED_AGENTS.has(agent)) return null;
+  try {
+    if (readRun(root, runId).cycleType === "smoke") return null;
+  } catch {
+    // an unreadable run.json: the lint below reports what it can
+  }
+  const files = specEntryFiles(root, artifactsProduced);
+  if (files.length === 0) return null;
+  return packageLint(await specFindingsForEntries(root, runId, artifactsProduced), files.length);
+}
+
+/** The two lints of one submission folded into one result: the errors and warnings of both, the error ids of both. */
+export function mergeSubmitLints(a: { lint: SubmitLint; lintErrors: string[] } | null, b: { lint: SubmitLint; lintErrors: string[] } | null): { lint: SubmitLint; lintErrors: string[] } | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  const omitted = { errors: (a.lint.omitted?.errors ?? 0) + (b.lint.omitted?.errors ?? 0), warnings: (a.lint.omitted?.warnings ?? 0) + (b.lint.omitted?.warnings ?? 0) };
+  return {
+    lint: {
+      errors: [...a.lint.errors, ...b.lint.errors].slice(0, LISTED),
+      warnings: [...a.lint.warnings, ...b.lint.warnings].slice(0, LISTED),
+      ...(omitted.errors + omitted.warnings > 0 ? { omitted } : {}),
+      filesScanned: a.lint.filesScanned + b.lint.filesScanned,
+    },
+    lintErrors: [...new Set([...a.lintErrors, ...b.lintErrors])].slice(0, STAMPED),
   };
 }

@@ -27,6 +27,8 @@ You review real-time test results from `qa-realtime-specialist`. You verify conn
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **specialist.no-op legitimacy.** A `specialist.no-op` is legitimate only when `target-profile.json` is readable and `hasRealtimeFeatures` is `false` (no WebSocket, SSE, or Socket.IO usage detected); a missing or unreadable profile, or `true`, = requested-changes.
 2. **Connection lifecycle coverage.** If real-time features exist: tests cover connect, disconnect (graceful and forceful), and reconnect. Missing reconnect test = passed-with-notes.
 3. **Message ordering.** At least one test verifies that messages arrive in the expected order under concurrent sends. Missing = passed-with-notes.

@@ -28,6 +28,8 @@ You review responsive/viewport test results from `qa-responsive-specialist`. You
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Three viewports tested.** Work report confirms tests ran against all 3 configured viewports: desktop (1920×1080), tablet (768×1024), mobile (375×667) for TCs with `viewportScope: all`. Missing any viewport for `all`-scope TCs = requested-changes.
 2. **`viewportScope` respected.** TCs with `viewportScope: mobile` were only tested at mobile (375×667). TCs with `viewportScope: desktop` only at desktop. Testing outside scope = passed-with-notes.
 3. **Viewport on candidates.** Every breakpoint defect candidate from this specialist names the `viewport` where it reproduces, and no defect was opened directly. Missing viewport tags = passed-with-notes.

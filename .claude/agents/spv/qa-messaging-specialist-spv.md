@@ -32,6 +32,8 @@ You review messaging test results from `qa-messaging-specialist`. You verify tha
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Contract recorded.** The work report names the adapter, the contract repo, path, ref and sha, and the static layer ran; otherwise requested-changes.
 2. **Static findings cite their source.** Every static finding cites file:line and a contract field, and every item of the `staticChecklist` in `runs/{runId}/messaging/plan.json` is answered; otherwise requested-changes.
 3. **Stub specs assert the request.** Every `*.messaging.spec.ts` asserts the operation, credential `present`, `valid === true`, the event id and the variables; an assertion-free spec = requested-changes.

@@ -13,7 +13,7 @@ import { busPath, runDir, taskmasterDir } from "./paths.js";
 import { blockRun, readRun, supersededAttempt } from "./run.js";
 import { TASK_ID } from "./tasks.js";
 import { atomicWrite, formatLimitIssues, iso, loadJson, trimOverlong, type TrimmedField } from "./util.js";
-import { submitLint, type SubmitLint } from "./lint/submit-lint.js";
+import { mergeSubmitLints, specSubmitLint, submitLint, type SubmitLint } from "./lint/submit-lint.js";
 
 export const MAX_ATTEMPTS = 3;
 
@@ -184,8 +184,8 @@ export async function submitWorkReport(root: string, runId: string, file: string
     if (task === null || task.status !== "in-progress" || task.claimedBy !== caller) {
       throw new RunStateError("not-claimed", `task ${report.taskId} is not in progress under ${caller}`);
     }
-    // Reads run files only; never refuses.
-    const linted = submitLint(root, runId, caller, report.artifactsProduced);
+    // Reads run files (and, for a specialist, the spec files it lists) only; never refuses.
+    const linted = mergeSubmitLints(submitLint(root, runId, caller, report.artifactsProduced), await specSubmitLint(root, runId, caller, report.artifactsProduced));
     const carry = isCarryForwardSummary(report.summary) ? carryStamp(root, runId, report.taskId) : null;
     const stored = {
       ...report,

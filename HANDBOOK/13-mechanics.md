@@ -174,6 +174,8 @@ Dispatcher (qa-orchestrator for phase agents, qa-test-executor for specialists):
   • 3rd rejection on the same task: the CLI records task.escalated and blocks the run; the owner decides with /qa-escalation
 ```
 
+**Spec lint at submit and at the Execution barrier.** When a specialist that writes specs submits its work report, the CLI parses the spec files listed in `artifactsProduced` (an entry is a path from the target root and may carry a note in parentheses) with the TypeScript compiler API and returns the findings in the submit result; the error ids are stamped on the stored report as `lintErrors`, never a refusal. The same rules run once over every spec the run's result files name before the Execution barrier takes the run lock (the compiler is imported only then: every hook loads the run-state package, so its import must stay lazy), and an error refuses the phase while a specialist can still fix the spec. The rule ids (`spec-trivial-assertion`, `spec-fixture-import` as errors; `spec-wait-for-timeout`, `spec-swallowed-cleanup`, `spec-afterEach-screenshot`, `spec-raw-page`, `spec-e2e-suffix` as warnings) share the group `spec-checks`; reportRules.disable with the group or one id is the owner's recorded exception. HANDBOOK/04 lists what each rule reads.
+
 ## 13.6 Model-policy resolution at build time
 
 `apps/cli/build-agents.ts` reads `model-policy.yaml`, then for each `.claude/agents/**/*.md`:

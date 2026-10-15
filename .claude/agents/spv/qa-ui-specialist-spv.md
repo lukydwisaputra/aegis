@@ -29,6 +29,8 @@ You review Playwright E2E test files and work reports from `qa-ui-specialist`. Y
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Auth fixture import.** Every `*.spec.ts` file under `tests/qa/specs/` imports `{ test, expect }` from `tests/qa/fixtures/auth.fixture` — not from `@playwright/test`. Direct `@playwright/test` import = requested-changes.
 2. **Folder structure.** Spec files must be under `tests/qa/specs/{url-path}/` and POM files under `tests/qa/pages/{url-path}/`, mirroring the app's URL structure (e.g. `/auth/login` → `tests/qa/specs/auth/login/`). Any spec written directly under `tests/qa/specs/` with no URL-path subfolder, or any POM directly under `tests/qa/pages/` = requested-changes.
 3. **POM mandatory.** Test code uses Page Object classes (e.g., `new ReferralFormPage(page)`). Direct `page.locator()` / `page.fill()` / `page.click()` calls in the spec file without going through a POM = requested-changes.

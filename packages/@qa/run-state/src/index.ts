@@ -38,6 +38,7 @@ export * from "./lint/data.js";
 export { designBlockMessage, designFindings } from "./lint/design.js";
 export { executionTotalsMismatch } from "./lint/totals.js";
 export * from "./lint/executive.js";
+export { SPEC_RULE_GROUP, SPEC_RULES, specBlockMessage, specEntryFiles, specFindings, specFindingsForEntries, specPathsIn, specRefs, type SkippedReason, type SpecRefs } from "./lint/specs.js";
 export * from "./lint/command.js";
 export * from "./lint/submit-lint.js";
 export * from "./explore/identity.js";

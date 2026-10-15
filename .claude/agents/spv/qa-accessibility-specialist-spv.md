@@ -28,6 +28,8 @@ You review accessibility test files and reports from `qa-accessibility-specialis
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Zero critical/serious axe violations on new code.** Work report confirms 0 critical and 0 serious violations for pages/components touched in this cycle. Existing violations in pre-existing code are tolerated but must be listed. Unreported critical violations = requested-changes.
 2. **WCAG tag format.** Every a11y defect has a `WCAG-2.2-{criterion}` tag (e.g., `WCAG-2.2-1.4.3`). Defects tagged with just "WCAG" or "WCAG 2.2 AA" without a criterion number = passed-with-notes.
 3. **Keyboard navigation coverage.** At least one test per interactive component verifies keyboard navigation (Tab, Enter, Escape, arrow keys as applicable). No keyboard tests = requested-changes for interactive UIs.

@@ -27,6 +27,8 @@ You review database test results from `qa-database-specialist`. You verify that 
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Migration order enforced.** Work report confirms migrations were applied in sequential order (e.g., 09→28 for <target-project>) using `runMigrations` from `tests/qa/support/supabase.ts`. Out-of-order or skipped migrations = requested-changes.
 2. **Up/down idempotency.** Each migration was verified: apply → check state → rollback → re-apply without error. Work report documents idempotency result per migration. Missing rollback verification = passed-with-notes.
 3. **RLS via forged JWT, not service role.** RLS policy tests used `SUPABASE_JWT_SECRET` to forge per-role JWTs — NOT the service role key (which bypasses RLS). Service role used for RLS testing = requested-changes.

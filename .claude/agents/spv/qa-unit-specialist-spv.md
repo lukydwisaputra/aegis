@@ -30,6 +30,8 @@ You review unit test files and work reports from `qa-unit-specialist`. Unit test
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Behaviour not implementation.** Tests assert on what the component/function does (output, rendered text, emitted events, state changes) — not on how it does it (internal method calls, state variable names). Assertions on private methods or internal implementation = requested-changes.
 2. **Mock discipline.** Only external dependencies (API calls, `localStorage`, third-party SDKs) are mocked. Internal module mocks without justification = passed-with-notes. Mocking the module under test itself = requested-changes.
 3. **Read-only on developer units.** No file in the target project outside `tests/qa/unit/` was written or edited (the run-side reports, results and sandbox scratch are not in the target project) (unit testing is developer scope). Net-new QA unit tests exist only under `tests/qa/unit/` — no co-located tests next to source, no writes into the developer's `tests/unit/`. Any developer-tree write = requested-changes.

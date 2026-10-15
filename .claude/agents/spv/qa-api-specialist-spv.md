@@ -29,6 +29,8 @@ You review API test files and work reports from `qa-api-specialist`. You verify 
 
 ## Review Checklist
 
+**Spec lint stamp first.** When the latest attempt of the work report carries `lintErrors` (the spec lint errors of the spec files it lists), the verdict is requested-changes without a deep review: one finding that quotes the stamped ids and one corrective instruction to fix those files and submit again.
+
 1. **Triple assertion.** Every API test asserts: (a) status code (exact or range), (b) response body schema (via Zod or explicit field checks), (c) at least one relevant header (`Content-Type`, `Cache-Control`, auth header absence on public routes). Missing any of the three = passed-with-notes. Missing all three = requested-changes.
 2. **Error path coverage.** For each endpoint tested, at least one 4xx scenario is covered (bad input, missing auth, not found). Only happy-path tests = passed-with-notes.
 3. **Contract tests.** If the target has shared API consumers (detected from `target-profile.json` — multiple apps consuming same API), at least one Pact consumer contract test exists at `tests/qa/contract/`. Missing = passed-with-notes.
