@@ -9,23 +9,27 @@ const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8')
 const body = (md: string): string => md.slice(0, md.indexOf('## Contract (machine-checked)'));
 const TS = '2026-10-04T00:00:00.000Z';
 
-describe('B1: the metrics collector pins cycle-time.json and writes no token file', () => {
-  const text = body(read('.claude/agents/crosscutting/qa-metrics-collector.md'));
+describe('B1: the metric definitions pin cycle-time.json and write no token file', () => {
+  const full = (): string => {
+    const h = read('HANDBOOK/13-mechanics.md');
+    return h.slice(h.indexOf('**Metric file definitions**'), h.indexOf('## 13.11'));
+  };
 
   it('names the exact cycle-time.json shape and what the total covers', () => {
+    const text = full();
     expect(text).toContain(
       '`{ phases: [{ phase, startedAt, completedAt, durationMs, agentName }], totalWallClockMs, bottleneckPhase }`',
     );
     expect(text).toMatch(/`totalWallClockMs` runs from the run's start[^\n]*to the last `completedAt`[^\n]*including the time spent waiting at gates/);
   });
 
-  it('writes no token-usage.jsonl: not in the prose, the description or the contract, and totalTokensUsed is the only token figure', () => {
-    const full = read('.claude/agents/crosscutting/qa-metrics-collector.md');
-    expect(full).not.toMatch(/token-usage|usdCost/i);
-    expect(full).not.toMatch(/token usage,/i);
+  it('writes no token-usage.jsonl: not in the prose or the pipeline, and totalTokensUsed is the only token figure', () => {
+    const text = full();
+    expect(text).not.toMatch(/token-usage|usdCost/i);
+    expect(text).not.toMatch(/token usage,/i);
     expect(read('.claude/pipeline.yaml')).not.toMatch(/token-usage/);
     expect(text).toContain('the sum of `input`, `output` and `cached` over every `token.used` event');
-    expect(text).toContain('`{"totalDurationMs": n, "totalTokensUsed": n}`');
+    expect(text).toContain('`totalTokensUsed` of `metrics.cycle-complete`');
   });
 });
 

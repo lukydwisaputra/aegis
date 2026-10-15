@@ -57,6 +57,7 @@ const ENTRY: Record<string, string> = {
   'rtm.render': 'renderRtmDefects',
   'env.exec': 'execWithEnv',
   'lint.run': 'lintRun',
+  'metrics.all': 'writeAllMetrics',
   'explore.probe': 'exploreProbe',
   'env.probe': 'probeEnvironment',
   'cases.render': 'renderArtefacts',

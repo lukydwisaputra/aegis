@@ -6,9 +6,10 @@ import { extractContract } from '@qa/alignment';
 const ROOT = path.join(__dirname, '..');
 const read = (f: string): string => fs.readFileSync(path.join(ROOT, f), 'utf-8');
 
-describe('the metrics collector names the out-of-scope rule and keys of coverage.json', () => {
-  const collector = read('.claude/agents/crosscutting/qa-metrics-collector.md');
-  const coverage = collector.slice(collector.indexOf('### Coverage'), collector.indexOf('### Defect Metrics'));
+describe('the metric definitions name the out-of-scope rule and keys of coverage.json', () => {
+  const handbook = read('HANDBOOK/13-mechanics.md');
+  const collector = handbook.slice(handbook.indexOf('**Metric file definitions**'), handbook.indexOf('## 13.11'));
+  const coverage = collector.slice(collector.indexOf('**Coverage.**'), collector.indexOf('**Defect metrics'));
 
   it('says a descoped case is in none of the counts and never uncovered, and names outOfScope and descoped', () => {
     expect(coverage).toContain('- **Out of scope**: a case the owner descoped (recorded in `run.json` with its reason) is out of scope');

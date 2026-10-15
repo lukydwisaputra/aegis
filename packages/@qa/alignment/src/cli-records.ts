@@ -28,6 +28,7 @@ export const CLI_RECORDS: Readonly<Record<string, readonly string[]>> = {
   "rtm.render": ["rtm.rendered"],
   "env.exec": ["env.executed"],
   "lint.run": ["lint.completed"],
+  "metrics.all": ["metrics.phase-rollup", "metrics.cycle-complete"],
   "explore.probe": ["explore.probed"],
   "env.probe": ["env.probed"],
   "cases.render": ["cases.rendered"],

@@ -27,7 +27,7 @@ export interface Role {
   readonly writes: readonly string[];
   /** Globs that deny a path even when a `writes` glob covers it. */
   readonly excludes?: readonly string[];
-  /** The SPV that reviews this agent; null for an SPV, for an agent in SPV_NONE (@qa/run-state), or for an agent with no task (qa-metrics-collector). */
+  /** The SPV that reviews this agent; null for an SPV, or for an agent in SPV_NONE (@qa/run-state). */
   readonly spv: string | null;
   /** Phases in which the agent changes the environment under test ("any": every phase). */
   readonly mutatesEnvIn: readonly PhaseId[] | "any";
@@ -90,7 +90,6 @@ export const ROLES: readonly Role[] = [
   reviewed("qa-executive-reporter", "phase", ["{run}/reports/executive/**"]),
   ...COMPLIANCE_REGULATIONS.map((c) => row(complianceAgent(c), "compliance", [`{run}/reports/compliance/${c}.*`], "qa-compliance-spv")),
   row("qa-curator", "crosscutting", ["{run}/pending-promotions/**"], null),
-  row("qa-metrics-collector", "crosscutting", ["{run}/reports/metrics/**"], null),
   specialist("accessibility", ["{testsDir}/specs/**/a11y.spec.ts"]),
   specialist("api", ["{testsDir}/api/**", "{testsDir}/contract/**"]),
   specialist("database", ["{testsDir}/integration/**"]),
@@ -157,7 +156,7 @@ export function matchGlob(pattern: string, path: string): boolean {
  */
 export const CLI_ONLY_RUN_GLOBS: readonly string[] = [
   "events.jsonl", "run.json", "**/*.lock", "**/*.lock/**", "gates/**", "reports/work/**", "reports/review/**",
-  "reports/lint/**", "reports/explore/**", "reports/env/**", "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**", "messaging/**",
+  "reports/lint/**", "reports/explore/**", "reports/env/**", "reports/metrics/**", "reports/.locks/**", "taskmaster/**", "intake/**", "hooks/**", "integrity/**", "messaging/**",
   // The Markdown view of a case and a scenario, rendered from their JSON by aegis cases render (the JSON stays the designer's).
   "cases/TC-*.md", "scenarios/SCN-*.md",
 ];

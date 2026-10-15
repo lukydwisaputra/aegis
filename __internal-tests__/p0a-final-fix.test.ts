@@ -275,7 +275,7 @@ describe('A1, A2, A6: parked prose', () => {
   it('A2: /qa-regenerate-report offers only the reports it writes', () => {
     const skill = fs.readFileSync(path.join(__dirname, '..', '.claude', 'skills', 'qa-regenerate-report', 'SKILL.md'), 'utf8');
     expect(skill).not.toMatch(/token-usage,|`token-usage`|CLI owns the work reports, the reviews and the metrics/);
-    expect(skill).toMatch(/qa-metrics-collector owns the metrics files/);
+    expect(skill).toMatch(/the CLI's metrics command writes the metrics files/);
   });
   it('A6: the curator runs before run completion; CMMI and curator skip escalation decisions', () => {
     expect(prose('crosscutting/qa-curator.md')).not.toMatch(/after `run\.completed` is emitted/);

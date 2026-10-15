@@ -11,7 +11,7 @@ description: "Internal: render the comprehensive technical report PDF (Deliverab
 
 Renders `runs/{runId}/reports/executive/technical-report.pdf` — the comprehensive technical document for engineers and auditors (Deliverable 1 of three from `qa-executive-reporter`).
 
-The skill is a thin orchestrator. It reads the closure artefacts already produced by upstream phases, assembles a `TechnicalReportSpec`, and calls `renderTechnicalReport` from the built PDF renderer. It does NOT compute metrics or synthesise findings — that work happens in `qa-closure-reporter`, `qa-metrics-collector` and `qa-defect-manager`.
+The skill is a thin orchestrator. It reads the closure artefacts already produced by upstream phases, assembles a `TechnicalReportSpec`, and calls `renderTechnicalReport` from the built PDF renderer. It does NOT compute metrics or synthesise findings — that work happens in `qa-closure-reporter`, the CLI's metrics command and `qa-defect-manager`.
 
 ## Usage
 

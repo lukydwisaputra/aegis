@@ -31,7 +31,7 @@ You operate after Gate 3 (cycle approved for closure). Your three outputs are Cl
 - `runs/{runId}/events.jsonl` — full event timeline
 - `runs/{runId}/gates/gate-{1,2,3}-decision.json` — gate decisions
 - `runs/{runId}/reports/compliance/*.json` — the per-regulation compliance reports (one per relevant regulation)
-- `runs/{runId}/reports/metrics/*.json` — computed metrics from qa-metrics-collector (requirements coverage and the `counts` of checks)
+- `runs/{runId}/reports/metrics/*.json` — computed metrics written by the CLI's metrics command (requirements coverage and the `counts` of checks)
 - `aegis.config.json#dashboard.projectName` and `#dashboard.footerText` — brand-clean labels
 - `agent-memory/qa-executive-reporter/lessons.md` — prior cycles' lessons
 

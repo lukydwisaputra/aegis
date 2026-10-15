@@ -132,16 +132,15 @@ describe('defect.management-complete', () => {
 });
 
 describe('metrics defects: who may run it and where it is listed', () => {
-  it('owner, qa-defect-manager, qa-metrics-collector and qa-closure-reporter only', () => {
-    for (const ok of ['owner', 'qa-defect-manager', 'qa-metrics-collector', 'qa-closure-reporter']) expect(() => assertCallerAllowed(ok, 'metrics.defects')).not.toThrow();
-    for (const no of ['qa-executive-reporter', 'qa-orchestrator', 'qa-defect-manager-spv']) expect(() => assertCallerAllowed(no, 'metrics.defects')).toThrow(/run only by qa-metrics-collector and qa-defect-manager and qa-closure-reporter/);
+  it('owner, qa-defect-manager and qa-closure-reporter only', () => {
+    for (const ok of ['owner', 'qa-defect-manager', 'qa-closure-reporter']) expect(() => assertCallerAllowed(ok, 'metrics.defects')).not.toThrow();
+    for (const no of ['qa-executive-reporter', 'qa-orchestrator', 'qa-defect-manager-spv']) expect(() => assertCallerAllowed(no, 'metrics.defects')).toThrow(/run only by qa-defect-manager and qa-closure-reporter/);
   });
   it('is on the cheat-sheet of those agents and not of the executive reporter', async () => {
     const t = makeAegisRoot();
     try {
       await startedRun(t.root);
       expect(runContextFor(t.root, 'qa-defect-manager', 'a1')).toContain('pnpm aegis metrics defects [--run <id>]');
-      expect(runContextFor(t.root, 'qa-metrics-collector', 'a2')).toContain('pnpm aegis metrics defects [--run <id>]');
       expect(runContextFor(t.root, 'qa-closure-reporter', 'a3')).toContain('pnpm aegis metrics defects [--run <id>]');
       expect(runContextFor(t.root, 'qa-executive-reporter', 'a4')).not.toContain('metrics defects');
     } finally {
@@ -159,7 +158,7 @@ describe('metrics defects: who may run it and where it is listed', () => {
         const r = spawnSync(process.execPath, [CLI, 'metrics', 'defects', '--run', runId], { cwd: t.root, encoding: 'utf-8', env });
         return { status: r.status, out: r.stdout ? JSON.parse(r.stdout) : null, err: r.stderr ? JSON.parse(r.stderr) : null };
       };
-      expect(run('qa-metrics-collector')).toMatchObject({ status: 0, out: { runId, counts: { openApplicationDefects: 1, notFixed: 1 } } });
+      expect(run('qa-defect-manager')).toMatchObject({ status: 0, out: { runId, counts: { openApplicationDefects: 1, notFixed: 1 } } });
       expect(run('qa-executive-reporter')).toMatchObject({ status: 2, err: { error: 'caller-forbidden' } });
     } finally {
       t.cleanup();

@@ -13,7 +13,7 @@ There is no DevOps tier. The seven agent definitions that once planned branches,
 | Need | Where it comes from |
 |---|---|
 | CI workflows for the target | The owner runs `/qa-ci-bootstrap` (Chapter 12). It writes only the QA-owned `qa-*.yml` workflow files, a named exception in the CLAUDE.md read/write table, and prints the Husky hook and the secrets guide for the developers to add. |
-| Flaky-test data | The run's own retry and attempt data in `runs/<RUN-ID>/cases/*-result.json`, read by the metrics collector. |
+| Flaky-test data | The run's own retry and attempt data in `runs/<RUN-ID>/cases/*-result.json`, computed by `aegis metrics rollups` (part of `aegis metrics all`). |
 | Committing the QA test suite | The developers commit `tests/qa/` through their own branch and review flow. |
 | Repository secrets | The developers set them from the guide `/qa-ci-bootstrap` prints; local secrets are described in `secrets/README.md`. |
 
