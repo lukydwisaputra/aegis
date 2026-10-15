@@ -12,7 +12,7 @@ export interface TmpAegis {
  * (reportRules.disable), which also lifts the startPhase execution guard: a fixture has no environment to probe. A test of the
  * probe barriers passes `envProbe: true` (or rewrites reportRules) to get them back.
  */
-export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Record<string, unknown>; envProbe?: boolean } = {}): TmpAegis {
+export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Record<string, unknown>; envProbe?: boolean; dispatchMode?: string } = {}): TmpAegis {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rs-'));
   fs.writeFileSync(
     path.join(root, 'aegis.config.json'),
@@ -23,6 +23,7 @@ export function makeAegisRoot(opts: { maxSpecialists?: number; environments?: Re
         production: { url: 'https://example.com', mutating: false },
       },
       ...(opts.envProbe === true ? {} : { reportRules: { disable: ['env-probe'] } }),
+      ...(opts.dispatchMode !== undefined ? { execution: { dispatchMode: opts.dispatchMode } } : {}),
     }),
   );
   process.env['AEGIS_COUNTERS_PATH'] = path.join(root, '.aegis', '.counters.json');

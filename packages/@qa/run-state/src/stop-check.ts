@@ -49,8 +49,8 @@ const EXECUTOR = "qa-test-executor";
  * while specialists still run. During an escalation, a stop request or a block it may return once nothing it dispatched is in
  * flight (its task stays claimed, as its prose says). Null lets this task through.
  */
-async function executorLoopProblem(root: string, runId: string, task: Task, noReport: string): Promise<string | null> {
-  const v = await readNextTasks(root, runId, task.phase);
+async function executorLoopProblem(root: string, runId: string, task: Task, noReport: string, now?: Date): Promise<string | null> {
+  const v = await readNextTasks(root, runId, task.phase, now);
   const phase = v.phase ?? task.phase ?? "execution";
   const wait = `AEGIS_AGENT=${EXECUTOR} pnpm aegis task next --phase ${phase} --wait 540`;
   const inFlight = inFlightOf(v);
@@ -63,7 +63,7 @@ async function executorLoopProblem(root: string, runId: string, task: Task, noRe
     ["running", [...v.running, ...v.dispatched]],
     ["to dispatch", v.dispatch],
     ["waiting for a slot", v.waiting],
-    ["awaiting their SPV", [...v.review, ...v.reviewing, ...v.redrive]],
+    ["awaiting their SPV", [...v.review, ...v.reviewing, ...v.held, ...v.redrive]],
     ["to re-release failed", v.failedRelease],
   ] as const;
   const state = parts.filter(([, xs]) => xs.length > 0).map(([label, xs]) => `${label}: ${xs.map((e) => e.task).join(", ")}`).join("; ");
@@ -81,7 +81,7 @@ async function workerProblem(root: string, runId: string, input: StopInput, runL
     const noReport = `task ${taskId} is still claimed by you and has no work report from this claim: submit it (AEGIS_AGENT=${agent} pnpm aegis work-report submit --file /dev/stdin), then release it (aegis task release --task ${taskId} --result done|failed) before you stop`;
     if (freshAttempt(root, runId, agent, taskId) === null) {
       if (agent !== EXECUTOR) return noReport;
-      const loop = await executorLoopProblem(root, runId, task, noReport);
+      const loop = await executorLoopProblem(root, runId, task, noReport, input.now);
       if (loop === null) continue;
       return loop;
     }
@@ -196,7 +196,7 @@ export async function checkSubagentStop(root: string, input: StopInput): Promise
   if (runId === null) return out;
   const role = roleOf(input.agentType);
   // Fix round 1 (M1): instances a resume left behind count as ended, as in aegis task next and task claim.
-  const runLedger = readEffectiveLedger(root, runId);
+  const runLedger = readEffectiveLedger(root, runId, input.now);
   const own = runLedger.filter((e) => e.agentId === input.agentId);
   let problem: string | null = null;
   if (role?.kind === "spv") {

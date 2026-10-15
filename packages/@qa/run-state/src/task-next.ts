@@ -5,7 +5,7 @@ import { readRunLedger, type LedgerEntry } from "@qa/path-guard";
 import { createTaskmasterClient, type Task } from "@qa/taskmaster-client";
 import { assertCallerAllowed, isSpecialist, pairedSpv } from "./caller.js";
 import { claimHolderEntry, effectiveLedger, endedAt, holderGone } from "./claim-holder.js";
-import { readSettings } from "./config.js";
+import { readSettings, type DispatchMode } from "./config.js";
 import { RunStateError } from "./errors.js";
 import { busPath, taskmasterDir } from "./paths.js";
 import { readRun } from "./run.js";
@@ -73,6 +73,10 @@ export interface TaskNextResult {
   escalated: NextEntry[];
   settled: string[];
   recover: RecoverEntry[];
+  /** batch mode: released tasks whose SPV waits until the whole wave has returned. */
+  held: NextEntry[];
+  /** aegis.config.json#execution.dispatchMode (absent: batch). */
+  mode: DispatchMode;
 }
 
 interface TaskEvents {
@@ -172,12 +176,12 @@ interface View {
 async function computeView(root: string, runId: string, phase: string | undefined, now: number): Promise<View> {
   const state = readRun(root, runId);
   const scope = phase ?? state.currentPhase ?? undefined;
-  const { maxSpecialists: cap } = readSettings(root);
+  const { maxSpecialists: cap, dispatchMode: mode } = readSettings(root);
   const all = (await readTaskList(root, runId)).tasks.filter((t) => t.assignee !== null && isSpecialist(t.assignee));
   const dir = taskmasterDir(root, runId);
   const raws = new Map((existsSync(join(dir, "tasks")) ? await createTaskmasterClient(dir).list() : []).map((t) => [t.id, t]));
   const { tasks: evs, resumes } = scanEvents(root, runId);
-  const ledger = effectiveLedger(readRunLedger(root, runId), resumes);
+  const ledger = effectiveLedger(readRunLedger(root, runId), resumes, now);
 
   // Where each task stands; an in-progress task's holder decides between running and resume (a dead holder never runs).
   const gone = new Map<string, number>();
@@ -211,8 +215,8 @@ async function computeView(root: string, runId: string, phase: string | undefine
 
   const entry = (c: Classified, extra: Partial<NextEntry> = {}): NextEntry => ({ task: c.entry.id, agent: c.entry.assignee!, title: c.entry.title, ...extra });
   const result: TaskNextResult = {
-    runId, phase: scope ?? null, cap, freeSlots, next: "wait", reason: null, blockedBy: null, specialistTasks: 0,
-    running: [], dispatched: [], dispatch: [], waiting: [], review: [], reviewing: [], redrive: [], failedRelease: [], escalated: [], settled: [], recover: [],
+    runId, phase: scope ?? null, mode, cap, freeSlots, next: "wait", reason: null, blockedBy: null, specialistTasks: 0,
+    running: [], dispatched: [], dispatch: [], waiting: [], review: [], reviewing: [], held: [], redrive: [], failedRelease: [], escalated: [], settled: [], recover: [],
   };
   const candidates: NextEntry[] = [];
   const toReview: Classified[] = [];
@@ -239,9 +243,6 @@ async function computeView(root: string, runId: string, phase: string | undefine
     else if (t.status === "done") toReview.push(c);
     else if (t.status === "failed") failed.push(c);
   }
-  result.dispatch.push(...candidates.slice(0, freeSlots));
-  result.waiting.push(...candidates.slice(freeSlots));
-
   // An instance started after the moment that made the entry (a release, a rejection, a failed release) works on it: matched oldest
   // first, one instance per entry. A matched review is `reviewing`; a matched redrive or failed release is `inFlight`.
   const taken = new Set<string>();
@@ -262,6 +263,28 @@ async function computeView(root: string, runId: string, phase: string | undefine
   }
   for (const c of failed.sort(byTime("releasedAt"))) {
     result.failedRelease.push(entry(c, match(c.entry.assignee!, evs.get(c.entry.id)?.releasedAt ?? 0) ? { inFlight: true } : {}));
+  }
+
+  // The dispatch mode (aegis.config.json#execution.dispatchMode). continuous: every free slot is refilled at once and each
+  // released task's SPV is offered at once. batch (the default): one wave. While a specialist of the phase is running, reserved
+  // or to be resumed, released tasks wait in `held` for their SPV and nothing new is offered; once the whole wave returned its
+  // SPVs are offered; only when no task awaits its SPV is the next wave offered, up to the free slots.
+  if (mode === "continuous") {
+    result.dispatch.push(...candidates.slice(0, freeSlots));
+    result.waiting.push(...candidates.slice(freeSlots));
+  } else {
+    const waveOpen = result.running.length + result.dispatched.length + result.dispatch.length > 0;
+    const awaitingSpv = result.review.length + result.reviewing.length + result.redrive.length > 0;
+    if (waveOpen) {
+      result.held.push(...result.review, ...result.redrive.filter((e) => e.inFlight !== true));
+      result.review = [];
+      result.redrive = result.redrive.filter((e) => e.inFlight === true);
+      result.waiting.push(...candidates);
+    } else if (awaitingSpv) result.waiting.push(...candidates);
+    else {
+      result.dispatch.push(...candidates.slice(0, freeSlots));
+      result.waiting.push(...candidates.slice(freeSlots));
+    }
   }
 
   if (state.stopRequested) result.blockedBy = "a stop is requested";
@@ -307,7 +330,7 @@ export async function readNextTasks(root: string, runId: string, phase?: string,
 const fingerprint = (r: TaskNextResult): string =>
   JSON.stringify([
     r.next, r.freeSlots, r.blockedBy,
-    ...(["running", "dispatched", "dispatch", "waiting", "review", "reviewing", "redrive", "failedRelease", "escalated"] as const).map((k) =>
+    ...(["running", "dispatched", "dispatch", "waiting", "review", "reviewing", "held", "redrive", "failedRelease", "escalated"] as const).map((k) =>
       r[k].map((e) => `${e.task}:${e.resume === true}:${e.inFlight === true}`)
     ),
     r.settled,

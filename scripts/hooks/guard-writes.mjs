@@ -2,7 +2,7 @@
 // H1 guard-writes (P0 spec §4.2): PreToolUse on Write|Edit|MultiEdit|NotebookEdit|Bash|Agent|Task.
 // The hook payload arrives as JSON on stdin. Exit 2 with the reason on stderr denies the call; a warning goes to stdout
 // as {"systemMessage": …} with exit 0 (never a permissionDecision: the normal permission flow still applies).
-import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -200,6 +200,32 @@ function fixFor(message) {
   return "rebuild with pnpm build, and report it if it persists";
 }
 
+/** At most one heartbeat ledger entry per qa-* instance in this window. */
+const HEARTBEAT_EVERY_MS = 30_000;
+
+/**
+ * Append `{kind: "heartbeat"}` for this instance to the active run's hook ledger, throttled by the mtime of a marker file
+ * (hooks/heartbeat/<agent_id>). Best-effort: it never fails, delays or denies the tool call.
+ */
+function heartbeat(runId) {
+  try {
+    if (!/^RUN-\d{8}-\d{3}$/.test(runId) || !/^[A-Za-z0-9_-]{1,128}$/.test(agentId)) return;
+    const dir = join(RUNS, runId, "hooks", "heartbeat");
+    const marker = join(dir, agentId);
+    const now = Date.now();
+    try {
+      if (now - statSync(marker).mtimeMs < HEARTBEAT_EVERY_MS) return;
+    } catch {
+      // no marker yet: first heartbeat of this instance
+    }
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(marker, "");
+    pg.appendLedger(ROOT, runId, { ts: new Date(now).toISOString(), agentId, agentType, kind: "heartbeat" });
+  } catch {
+    // liveness is best-effort; the guard decision never depends on it
+  }
+}
+
 let pg;
 let caller;
 try {
@@ -221,6 +247,8 @@ try {
     ...(loaded.collectorRoot !== undefined ? { collectorRoot: canonical(loaded.collectorRoot) } : {}),
     ...(Array.isArray(loaded.nativeWorktrees) ? { nativeWorktrees: loaded.nativeWorktrees.map(canonical) } : {}),
   };
+  // Item 1 fix 2: a qa-* instance's tool call proves it is alive (liveness in @qa/run-state claim-holder.ts).
+  if (isQa && typeof ctx.activeRunId === "string") heartbeat(ctx.activeRunId);
   const result = pg.decide(payload, ctx, {
     cliAllowed(who, command) {
       if (!caller.CLI_COMMANDS.includes(command)) return null;

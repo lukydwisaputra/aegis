@@ -222,6 +222,8 @@ describe('M2 in the hook: a claim is logged in the run it names, or not at all',
     await startPhase(t.root, active, 'intake', 'qa-orchestrator');
   });
   afterEach(() => t.cleanup());
+  // H1 also records a heartbeat of u1 in the active run on every call (item 1 fix 2); these tests are about where the claim goes.
+  const claims = (xs: Array<{ kind: string }>) => xs.filter((e) => e.kind !== 'heartbeat');
   const claim = (extra: string) =>
     runHook('guard-writes', { tool_name: 'Bash', tool_input: { command: `AEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task T-1${extra}` }, cwd: t.root, agent_type: 'qa-ui-specialist', agent_id: 'u1' }, t.root);
 
@@ -231,18 +233,18 @@ describe('M2 in the hook: a claim is logged in the run it names, or not at all',
     fs.writeFileSync(path.join(t.root, 'runs', other, 'run.json'), '{}');
     expect(claim(` --run ${other}`).status).toBe(0);
     expect(readLedger(t.root, other, 'u1')).toEqual([expect.objectContaining({ kind: 'claim', taskId: 'T-1' })]);
-    expect(readRunLedger(t.root, active)).toEqual([]);
+    expect(claims(readRunLedger(t.root, active))).toEqual([]);
   });
 
   htest('--run of a run that does not resolve: no ledger entry anywhere', () => {
     expect(claim(' --run RUN-20990101-009').status).toBe(0);
-    expect(readRunLedger(t.root, active)).toEqual([]);
+    expect(claims(readRunLedger(t.root, active))).toEqual([]);
     expect(fs.existsSync(path.join(t.root, 'runs', 'RUN-20990101-009'))).toBe(false);
   });
 
   htest('no --run: the active run, as before', () => {
     expect(claim('').status).toBe(0);
-    expect(readLedger(t.root, active, 'u1')).toEqual([expect.objectContaining({ kind: 'claim', taskId: 'T-1' })]);
+    expect(claims(readLedger(t.root, active, 'u1'))).toEqual([expect.objectContaining({ kind: 'claim', taskId: 'T-1' })]);
     expect(fs.existsSync(path.join(runDir(t.root, active), 'hooks', 'agents.jsonl'))).toBe(true);
   });
 

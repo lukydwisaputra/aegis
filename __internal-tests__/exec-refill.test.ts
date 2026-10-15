@@ -4,13 +4,14 @@ import * as path from 'path';
 import { staleBuild } from '@qa/alignment';
 import { readLines } from '@qa/event-bus';
 import { appendChained } from '@qa/event-bus';
-import { appendLedger } from '@qa/path-guard';
+import { appendLedger, readLedger } from '@qa/path-guard';
 import { createTaskmasterClient } from '@qa/taskmaster-client';
 import {
-  addTask, appendSpecialistDispatched, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
+  addTask, appendSpecialistDispatched, LIVENESS_GRACE_MS, assertCallerAllowed, busPath, cancelTask, checkSubagentStop, claimTask, DISPATCH_GRACE_MS, listTasks, nextTasks,
   releaseTask, requestStop, resumeRun, reviewDir, submitReview, submitWorkReport, taskmasterDir, waitNextTasks,
 } from '@qa/run-state';
 import { makeAegisRoot, startedRun, type TmpAegis } from './helpers/aegis-root';
+import { hookStale, runHook } from './helpers/hooks';
 import { review, workReport } from './helpers/pipeline';
 
 // Item 1 of the trim program: the executor refills a specialist slot as soon as one frees and runs each finished specialist's
@@ -56,7 +57,7 @@ const afterDelay = (ms: number, fn: () => Promise<unknown>) => new Promise((r) =
 
 describe('aegis task next: the loop view', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     for (const [id, agent] of [['T-2', UI], ['T-3', API], ['T-4', DB], ['T-5', SEC]] as const) await add(id, agent);
   });
@@ -181,7 +182,7 @@ describe('aegis task next: the loop view', () => {
 
 describe('the dispatch reservation (aegis event append --type specialist.dispatched)', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     for (const [id, agent] of [['T-2', UI], ['T-3', API], ['T-4', DB], ['T-5', SEC]] as const) await add(id, agent);
   });
@@ -253,7 +254,7 @@ describe('the dispatch reservation (aegis event append --type specialist.dispatc
 
 describe('a duplicate instance cannot take a task a live instance holds', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     await add('T-2', UI);
   });
@@ -276,7 +277,7 @@ describe('a duplicate instance cannot take a task a live instance holds', () => 
 
 describe('H2 keeps the executor in its loop', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     await addTask(t.root, runId, { id: 'T-1', title: 'execution', agent: EXEC }, 'qa-orchestrator');
     ledger('ex-1', EXEC, 'claim', 'T-1');
@@ -314,7 +315,7 @@ const cliStale = (process.env.CI ? null : staleBuild(path.join(__dirname, '..'))
 
 describe('the built CLI', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     await add('T-2', UI);
   });
@@ -339,12 +340,13 @@ describe('the prose follows the continuous loop', () => {
   const executor = read('.claude/agents/tier1-phase/qa-test-executor.md');
 
   it('the executor reads its loop from task next, reserves before it dispatches, refills and reviews at once', () => {
-    expect(executor).toContain('Never dispatch in batches that wait for their slowest member: a slot that frees is refilled at once, and a finished specialist\'s SPV runs alongside the specialists still working.');
+    expect(executor).toContain('Dispatch exactly what `aegis task next` offers, when it offers it: the CLI applies `aegis.config.json#execution.dispatchMode`');
+    expect(executor).toContain('You never choose the mode, never hold back an offer and never dispatch what it does not offer.');
     expect(executor).toContain('Run `aegis task next --phase execution` (read-only)');
     expect(executor).toContain('first append `specialist.dispatched` for its task, then make the `Agent` call');
     expect(executor).toContain('after a refusal you make no `Agent` call');
     expect(executor).toContain('`aegis task next --phase execution --wait 540` (Bash timeout 600000 ms)');
-    expect(executor).toContain('dispatch its SPV (`qa-{specialist}-spv`) at once with the `Agent` tool, in the background, while the other specialists still run');
+    expect(executor).toContain('as soon as `aegis task next` lists the task under `review` (at once in `continuous` mode; in `batch` mode it waits under `held` until the whole wave has returned');
     expect(executor).toMatch(/cli: \[[^\]]*\btask\.next\b/);
   });
 
@@ -357,7 +359,9 @@ describe('the prose follows the continuous loop', () => {
   });
 
   it('the executor SPV checks the dispatch order and that the summary waited; the orchestrator still waits for the executor', () => {
-    expect(read('.claude/agents/spv/qa-test-executor-spv.md')).toContain('14. **Continuous dispatch.**');
+    const spv = read('.claude/agents/spv/qa-test-executor-spv.md');
+    expect(spv).toContain('14. **Dispatch protocol.**');
+    expect(spv).toContain('Read the mode from `aegis.config.json#execution.dispatchMode` (`batch` when absent).');
     expect(read('.claude/agents/orchestrator/qa-orchestrator.md')).toContain('You dispatch the executor itself in the foreground and wait for it, as every dispatch of yours;');
   });
 });
@@ -372,7 +376,7 @@ const crash = async () => {
 
 describe('fix 1 M1: agents a dead session left behind are ended at the resume', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     await add('T-2', UI);
     await add('T-3', API);
@@ -451,7 +455,7 @@ describe('fix 1 M1: agents a dead session left behind are ended at the resume', 
 
 describe('fix 1 M2: --wait returns early only when something is actionable', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 2 });
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     await add('T-2', UI);
   });
@@ -506,7 +510,7 @@ describe('fix 1 M2: --wait returns early only when something is actionable', () 
 
 describe('fix 1 minors', () => {
   beforeEach(async () => {
-    t = makeAegisRoot({ maxSpecialists: 1 });
+    t = makeAegisRoot({ maxSpecialists: 1, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     await add('T-2', UI);
     await add('T-3', API);
@@ -520,7 +524,7 @@ describe('fix 1 minors', () => {
 
   it('settled with no specialist task says why; task add records createdAt; the CLI stamps reserved', async () => {
     t.cleanup();
-    t = makeAegisRoot({ maxSpecialists: 1 });
+    t = makeAegisRoot({ maxSpecialists: 1, dispatchMode: 'continuous' });
     runId = await startedRun(t.root);
     expect(await nextTasks(t.root, runId, EXEC)).toMatchObject({ next: 'settled', specialistTasks: 0, reason: expect.stringContaining('no specialist task exists') });
     await add('T-2', UI);
@@ -554,5 +558,147 @@ describe('fix 1 minors', () => {
     const [d, c] = await Promise.all([run(EXEC, ['event', 'append', '--type', 'specialist.dispatched', '--json', fields]), run(API, ['task', 'claim', '--task', 'T-3'])]);
     expect([d.code, c.code].sort()).toEqual([0, 2]);
     expect(d.err + c.err).toContain('cap-reached');
+  }, 60_000);
+});
+
+// ─── Fix round 2: the dispatch mode switch and heartbeat liveness ─────────────
+
+describe('fix 2: execution.dispatchMode (absent: batch)', () => {
+  const four = async () => {
+    for (const [id, agent] of [['T-2', UI], ['T-3', API], ['T-4', DB]] as const) await add(id, agent);
+  };
+  const run = async (id: string, agent: string) => {
+    await dispatch(id, agent);
+    await claimTask(t.root, runId, id, agent);
+  };
+
+  it('defaults to batch when the key is absent; an unknown value is refused by name', async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    expect((await nextTasks(t.root, runId, EXEC)).mode).toBe('batch');
+    const file = path.join(t.root, 'aegis.config.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...config, execution: { dispatchMode: 'fast' } }));
+    await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ code: 'invalid-input', message: expect.stringContaining('aegis.config.json#execution.dispatchMode must be "batch" (the default) or "continuous"') });
+    await add('T-2', UI);
+    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('execution.dispatchMode') });
+    fs.writeFileSync(file, JSON.stringify({ ...config, execution: 'continuous' }));
+    await expect(nextTasks(t.root, runId, EXEC)).rejects.toMatchObject({ message: expect.stringContaining('aegis.config.json#execution must be an object') });
+    fs.writeFileSync(file, JSON.stringify({ ...config, execution: {} }));
+    expect((await nextTasks(t.root, runId, EXEC)).mode).toBe('batch');
+  });
+
+  it('batch: one wave up to the cap, no refill of a freed slot, no SPV beside a running specialist, SPVs once the wave returned, then the next wave', async () => {
+    t = makeAegisRoot({ maxSpecialists: 2 });
+    runId = await startedRun(t.root);
+    await four();
+    let v = await nextTasks(t.root, runId, EXEC);
+    expect(ids(v.dispatch)).toEqual(['T-2', 'T-3']);
+    await run('T-2', UI);
+    await run('T-3', API);
+    await finish('T-3', API); // the fast member returns
+    v = await nextTasks(t.root, runId, EXEC);
+    expect(v).toMatchObject({ next: 'wait', freeSlots: 1, dispatch: [], review: [] });
+    expect(ids(v.held)).toEqual(['T-3']);
+    expect(ids(v.waiting)).toEqual(['T-4']);
+    await finish('T-2', UI); // the wave has returned
+    v = await nextTasks(t.root, runId, EXEC);
+    expect(v).toMatchObject({ next: 'act', dispatch: [], held: [] });
+    expect(ids(v.review).sort()).toEqual(['T-2', 'T-3']);
+    await reviewed('T-3', API, 'passed');
+    v = await nextTasks(t.root, runId, EXEC);
+    expect(v.dispatch).toEqual([]); // T-2 still awaits its SPV
+    await reviewed('T-2', UI, 'passed');
+    v = await nextTasks(t.root, runId, EXEC);
+    expect(ids(v.dispatch)).toEqual(['T-4']);
+  });
+
+  it('continuous: the same moment offers the refill and the SPV beside the running specialist', async () => {
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
+    runId = await startedRun(t.root);
+    await four();
+    await run('T-2', UI);
+    await run('T-3', API);
+    await finish('T-3', API);
+    const v = await nextTasks(t.root, runId, EXEC);
+    expect(v).toMatchObject({ mode: 'continuous', next: 'act', held: [] });
+    expect(ids(v.review)).toEqual(['T-3']);
+    expect(ids(v.dispatch)).toEqual(['T-4']);
+  });
+
+  it('the guards stay on in batch mode: reservation, cap with reservations, duplicate claim', async () => {
+    t = makeAegisRoot({ maxSpecialists: 1 });
+    runId = await startedRun(t.root);
+    await four();
+    await dispatch('T-2', UI);
+    await expect(dispatch('T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('already-dispatched') });
+    await expect(claimTask(t.root, runId, 'T-3', API)).rejects.toMatchObject({ code: 'cap-reached' });
+    ledger('ui-1', UI, 'claim', 'T-2');
+    await claimTask(t.root, runId, 'T-2', UI);
+    ledger('ui-2', UI, 'claim', 'T-2', later(1000).toISOString());
+    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+  });
+});
+
+describe('fix 2: heartbeat liveness', () => {
+  beforeEach(async () => {
+    t = makeAegisRoot({ maxSpecialists: 2, dispatchMode: 'continuous' });
+    runId = await startedRun(t.root);
+    await add('T-2', UI);
+  });
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const beat = (agentId: string, agentType: string, ts: string) => appendLedger(t.root, runId, { ts, agentId, agentType, kind: 'heartbeat' });
+
+  it('an agent that keeps beating across a resume stays alive: its task is running, never offered for resume, a second instance is a duplicate', async () => {
+    ledger('ui-1', UI, 'start', undefined, ago(40));
+    ledger('ui-1', UI, 'claim', 'T-2', ago(40));
+    await claimTask(t.root, runId, 'T-2', UI);
+    beat('ui-1', UI, ago(39));
+    await crash(); // a /qa-resume while it works
+    beat('ui-1', UI, new Date().toISOString());
+    const v = await nextTasks(t.root, runId, EXEC);
+    expect(ids(v.running)).toEqual(['T-2']);
+    expect(v.dispatch).toEqual([]);
+    expect(v.recover).toEqual([]);
+    ledger('ui-2', UI, 'claim', 'T-2');
+    await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
+  });
+
+  it('a crashed agent with no heartbeat is ended after the grace window, without any resume', async () => {
+    beat('ex-1', EXEC, ago(60)); // the run records heartbeats
+    ledger('ui-1', UI, 'start', undefined, ago(30));
+    ledger('ui-1', UI, 'claim', 'T-2', ago(30));
+    await claimTask(t.root, runId, 'T-2', UI, new Date(Date.now() - 30 * 60_000 + 1000));
+    const at = (min: number) => new Date(Date.now() - 30 * 60_000 + min * 60_000);
+    expect(ids((await nextTasks(t.root, runId, EXEC, { now: at(LIVENESS_GRACE_MS / 60_000 - 1) })).running)).toEqual(['T-2']);
+    const v = await nextTasks(t.root, runId, EXEC, { now: at(LIVENESS_GRACE_MS / 60_000 + 1) });
+    expect(v.running).toEqual([]);
+    expect(v.dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+
+  it('a run with no heartbeat data keeps the resume fallback', async () => {
+    ledger('ui-1', UI, 'start', undefined, ago(30));
+    ledger('ui-1', UI, 'claim', 'T-2', ago(30));
+    await claimTask(t.root, runId, 'T-2', UI, new Date(Date.now() - 30 * 60_000 + 1000));
+    expect(ids((await nextTasks(t.root, runId, EXEC)).running)).toEqual(['T-2']); // no beat, no resume: still counted live
+    await crash();
+    expect((await nextTasks(t.root, runId, EXEC)).dispatch).toEqual([expect.objectContaining({ task: 'T-2', resume: true })]);
+  });
+
+  (hookStale() ? it.skip : it)('H1 records one heartbeat per qa-* instance per 30 s, none for the main thread, and never fails the call', () => {
+    const call = (extra: object) =>
+      runHook('guard-writes', { cwd: t.root, tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'x.txt'), content: 'x' }, ...extra }, t.root);
+    expect(call({ agent_type: UI, agent_id: 'ui-7' }).status).toBe(0);
+    expect(call({ agent_type: UI, agent_id: 'ui-7' }).status).toBe(0);
+    expect(call({ agent_type: API, agent_id: 'api-1' }).status).toBe(0);
+    expect(call({}).status).toBe(0);
+    const beats = readLedger(t.root, runId, 'ui-7').filter((e) => e.kind === 'heartbeat');
+    expect(beats).toHaveLength(1);
+    expect(readLedger(t.root, runId, 'api-1').filter((e) => e.kind === 'heartbeat')).toHaveLength(1);
+    expect(readLedger(t.root, runId, 'main')).toEqual([]);
+    // an unwritable heartbeat place changes nothing for the call
+    fs.rmSync(path.join(t.root, 'runs', runId, 'hooks', 'heartbeat'), { recursive: true, force: true });
+    fs.writeFileSync(path.join(t.root, 'runs', runId, 'hooks', 'heartbeat'), 'not a directory');
+    expect(call({ agent_type: UI, agent_id: 'ui-8' }).status).toBe(0);
   }, 60_000);
 });

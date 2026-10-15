@@ -16,7 +16,9 @@ export type LedgerKind =
   /** H2 recorded token.used from the transcript entries up to `through` (AUD-042b). */
   | "tokens-recorded"
   /** H2 recorded no token.used for this stop; `note` says why (AUD-042b). */
-  | "token-unattributed";
+  | "token-unattributed"
+  /** H1 saw a tool call of this qa-* instance (at most one entry per instance every 30 s): it is alive. */
+  | "heartbeat";
 
 export interface LedgerEntry {
   ts: string;

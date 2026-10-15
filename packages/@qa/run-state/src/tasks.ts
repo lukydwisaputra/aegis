@@ -214,9 +214,9 @@ function assertAssignee(task: Task, caller: string): void {
  * of this task by this agent type is the caller's; when the claim holder (claimHolderEntry, as H2 judges it) is another instance
  * that has not ended, the caller is refused. Without ledger entries the answer stays already-claimed.
  */
-function assertNotDuplicate(root: string, runId: string, task: Task, caller: string): void {
+function assertNotDuplicate(root: string, runId: string, task: Task, caller: string, now?: Date): void {
   // Fix round 1 (M1): instances a resume left behind are ended, so the claim of a crashed holder passes to the new instance.
-  const ledger = readEffectiveLedger(root, runId);
+  const ledger = readEffectiveLedger(root, runId, now);
   const holder = claimHolderEntry(ledger, task, caller);
   const latest = ledger.filter((e) => e.kind === "claim" && e.taskId === task.id && e.agentType === caller).pop();
   if (holder === null || latest === undefined || latest.agentId === holder.agentId) return;
@@ -243,7 +243,7 @@ export async function claimTask(root: string, runId: string, taskId: string, cal
       assertRunAcceptsWork(readRun(root, runId), current.phase);
       // A resumed worker already holds this task: say so before the env and cap checks, which would count its own claim.
       if (current.status === "in-progress" && current.claimedBy === caller) {
-        assertNotDuplicate(root, runId, current, caller);
+        assertNotDuplicate(root, runId, current, caller, now);
         throw new RunStateError("invalid-input", `already-claimed: task ${taskId} is in progress and held by ${caller}; continue the work without claiming it again`);
       }
       if (isSpecialist(caller)) {
@@ -304,7 +304,7 @@ export async function cancelTask(root: string, runId: string, taskId: string, re
       const dead =
         before.status === "in-progress" &&
         before.assignee !== undefined &&
-        holderGone(readEffectiveLedger(root, runId), resumeTimes(busPath(root, runId)), before, before.assignee) === true &&
+        holderGone(readEffectiveLedger(root, runId, now), resumeTimes(busPath(root, runId)), before, before.assignee) === true &&
         freshAttempt(root, runId, before.assignee, taskId) === null;
       const claimed = before.assignee !== undefined && attemptsIn(workDir(root, runId), before.assignee, taskId).length > 0;
       if (!dead && (before.status !== "pending" || before.claimedBy !== undefined || claimed)) {

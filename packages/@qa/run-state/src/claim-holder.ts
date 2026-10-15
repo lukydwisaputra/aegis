@@ -52,26 +52,48 @@ export function claimHolderEntry(runLedger: LedgerEntry[], task: Task, agentType
 }
 
 /**
- * Fix round 1 (M1): a session that dies (crash, auth failure, killed terminal) fires no SubagentStop, so its agents keep a
- * `start` with no end in the hook ledger forever. A resume is the "the previous session's agents are gone" signal: every
- * instance first seen before a `run.resumed` with no end entry by then is given an end at that resume (a `stop-unresolved`
- * entry, synthetic, never written). A stop request alone ends nothing: the agents in flight may still be finishing.
+ * How long a qa-* instance stays alive after its last ledger entry (start, claim, heartbeat, a blocked stop) in a run that
+ * records heartbeats. H1 writes a heartbeat at most every 30 s while the instance makes tool calls, but one Bash call may run
+ * up to 10 minutes (the 600000 ms ceiling) without any hook firing, plus the model's turn around it: 15 minutes covers that.
  */
-export function effectiveLedger(ledger: LedgerEntry[], resumes: readonly number[]): LedgerEntry[] {
-  if (resumes.length === 0) return ledger;
-  const first = new Map<string, LedgerEntry>();
+export const LIVENESS_GRACE_MS = 15 * 60_000;
+
+/**
+ * Item 1 fix 2: when an instance has ended. A session that dies (crash, auth failure, killed terminal) fires no SubagentStop,
+ * so its agents keep a `start` with no end entry forever; the synthetic ends added here (a `stop-unresolved` entry, never
+ * written) say when they died.
+ * - Heartbeat liveness: in a run whose ledger records heartbeats (H1), an instance first seen at or after the run's first
+ *   heartbeat, or with a heartbeat of its own, is alive while its latest entry is within LIVENESS_GRACE_MS of `now`; a resume
+ *   ends nothing, so an agent that kept working across /qa-resume stays alive.
+ * - Fallback for runs and instances with no heartbeat data: every instance first seen before a `run.resumed` with no end by
+ *   then is ended at that resume. A stop request alone ends nothing in either mode: the agents in flight may still be finishing.
+ */
+export function effectiveLedger(ledger: LedgerEntry[], resumes: readonly number[], now: number = Date.now()): LedgerEntry[] {
+  const own = new Map<string, LedgerEntry[]>();
+  let firstBeat = Infinity;
   for (const e of ledger) {
-    const seen = first.get(e.agentId);
-    if (seen === undefined || Date.parse(e.ts) < Date.parse(seen.ts)) first.set(e.agentId, e);
+    const list = own.get(e.agentId) ?? [];
+    list.push(e);
+    own.set(e.agentId, list);
+    if (e.kind === "heartbeat") firstBeat = Math.min(firstBeat, Date.parse(e.ts));
   }
+  const sortedResumes = [...resumes].sort((a, b) => a - b);
   const ends: LedgerEntry[] = [];
-  for (const [agentId, e] of first) {
-    const since = Date.parse(e.ts);
-    const resume = [...resumes].sort((a, b) => a - b).find((r) => r > since);
-    if (resume === undefined) continue;
+  for (const [agentId, entries] of own) {
+    if (agentId === "main") continue;
+    const times = entries.map((e) => Date.parse(e.ts));
+    const since = Math.min(...times);
+    const first = entries[times.indexOf(since)]!;
     const ended = endedAt(ledger, agentId, since);
-    if (ended !== null && ended <= resume) continue;
-    ends.push({ ts: new Date(resume).toISOString(), agentId, agentType: e.agentType, kind: "stop-unresolved" });
+    if (entries.some((e) => e.kind === "heartbeat") || since >= firstBeat) {
+      if (ended !== null) continue;
+      const last = Math.max(...times);
+      if (now - last > LIVENESS_GRACE_MS) ends.push({ ts: new Date(last + LIVENESS_GRACE_MS).toISOString(), agentId, agentType: first.agentType, kind: "stop-unresolved" });
+      continue;
+    }
+    const resume = sortedResumes.find((r) => r > since);
+    if (resume === undefined || (ended !== null && ended <= resume)) continue;
+    ends.push({ ts: new Date(resume).toISOString(), agentId, agentType: first.agentType, kind: "stop-unresolved" });
   }
   return ends.length === 0 ? ledger : [...ledger, ...ends];
 }
@@ -92,9 +114,9 @@ export function resumeTimes(busFile: string): number[] {
   return out;
 }
 
-/** The run's hook ledger with the ends a resume implies (effectiveLedger). */
-export function readEffectiveLedger(root: string, runId: string): LedgerEntry[] {
-  return effectiveLedger(readRunLedger(root, runId), resumeTimes(join(root, "runs", runId, "events.jsonl")));
+/** The run's hook ledger with the ends liveness implies (effectiveLedger), judged at `now`. */
+export function readEffectiveLedger(root: string, runId: string, now?: Date): LedgerEntry[] {
+  return effectiveLedger(readRunLedger(root, runId), resumeTimes(join(root, "runs", runId, "events.jsonl")), (now ?? new Date()).getTime());
 }
 
 /**
