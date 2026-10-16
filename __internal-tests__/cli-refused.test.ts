@@ -100,7 +100,7 @@ describe('scrubRefusalMessage', () => {
     for (const bad of ['"'.repeat(4096), 'a'.repeat(4096), "'-".repeat(2048), '--x='.repeat(800)]) {
       const t0 = Date.now();
       scrubRefusalMessage(bad);
-      expect(Date.now() - t0).toBeLessThan(10_000);
+      expect(Date.now() - t0).toBeLessThan(10_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
     }
   });
 
@@ -110,7 +110,7 @@ describe('scrubRefusalMessage', () => {
       const t0 = Date.now();
       const typed = typedFragments(argv);
       scrubRefusalMessage(bad, typed);
-      expect(Date.now() - t0).toBeLessThan(20_000);
+      expect(Date.now() - t0).toBeLessThan(20_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
       expect(typed.length).toBeLessThanOrEqual(MAX_TYPED_FRAGMENTS);
       expect(typed.reduce((n, f) => n + f.length, 0)).toBeLessThanOrEqual(MAX_TYPED_FRAGMENT_BYTES);
       expect(typed[0]!.length).toBe(Math.max(...argv.map((a) => a.length)));
@@ -140,7 +140,7 @@ describe('scrubRefusalMessage', () => {
     expect(message.length).toBeGreaterThan(600 * 1024);
     const t0 = Date.now();
     const out = scrubRefusalMessage(message, typed);
-    expect(Date.now() - t0).toBeLessThan(30_000);
+    expect(Date.now() - t0).toBeLessThan(30_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
     expect(out).toBe('id "<value>"');
   });
 

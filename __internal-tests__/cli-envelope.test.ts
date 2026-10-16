@@ -95,7 +95,7 @@ describe('locks (CO-04)', () => {
       await c.addRootTask({ id: 'T-1', title: 't', phase: 'intake', assignee: 'qa-ui-specialist', createdBy: 'qa-test-executor' });
       let locked: () => void = () => undefined;
       const isLocked = new Promise<void>((r) => { locked = r; });
-      const held = withFileLock(path.join(dir, 'tasks', 'T-1.json'), () => { locked(); return new Promise((r) => setTimeout(r, 1500)); });
+      const held = withFileLock(path.join(dir, 'tasks', 'T-1.json'), () => { locked(); return new Promise((r) => setTimeout(r, 1500)); }); // hygiene-ok: holds the lock; the claim starts only once isLocked says it is held, so the timer orders nothing
       await isLocked; // the claim starts only once the lock is really held, however slow the machine
       await expect(c.claim('T-1', 'qa-ui-specialist')).resolves.toBeUndefined();
       await held;

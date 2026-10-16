@@ -1,4 +1,3 @@
-import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -8,6 +7,7 @@ import { BRAND_CLEAN_RUN_GLOBS, CLI_ONLY_RUN_GLOBS, readLedger, TOOLING_CLEAN_RU
 import { LessonIdSchema, ReviewFindingSchema, ReviewVerdictSchema, TOOLING_WORD_PATTERNS, TOOLING_WORD_RULES, WorkReportSchema } from '@qa/contracts';
 import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, startPhase, subagentRulesLines } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+import { builtCliHelp } from './helpers/cli-help';
 import { hookStale, REPO, runHook } from './helpers/hooks';
 
 let t: TmpAegis;
@@ -381,7 +381,7 @@ const cliStale = process.env['CI'] ? null : staleBuild(REPO);
 (cliStale ? it.skip : it)('every CLI_USAGE flag exists in the built CLI help (cheat-sheet stays true)', () => {
   for (const cmd of CLI_COMMANDS) {
     const [group, verb] = cmd.split('.') as [string, string];
-    const help = spawnSync(process.execPath, [path.join(REPO, 'apps', 'cli', 'dist', 'index.js'), group, verb, '--help'], { encoding: 'utf-8' }).stdout;
+    const help = builtCliHelp(REPO).get(`${group}.${verb}`) ?? '';
     for (const flag of CLI_USAGE[cmd].match(/--[a-z-]+/g) ?? []) expect(`${cmd} ${flag} ${help.includes(flag)}`).toBe(`${cmd} ${flag} true`);
   }
 }, 60_000);

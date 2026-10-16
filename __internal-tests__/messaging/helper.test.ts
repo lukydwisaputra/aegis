@@ -452,7 +452,8 @@ describe('read-back polling (PR #18 item 6)', () => {
     const file = path.join(fs.mkdtempSync(path.join(require('os').tmpdir(), 'aegis-poll-')), 'preflight.json');
     try {
       await withProvider(provider.url, file, async () => {
-        const out = await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan() });
+        // pollMs: the read-backs follow each other at once instead of 2 s apart (the order and count are what is checked)
+        const out = await replay([{ event_id: 'a', recipient_email: 'x@corp.co' }], { plan: plan(), pollMs: 10 });
         expect(out[0]).toMatchObject({ state: 'done', simulated: true });
       });
       expect(provider.reads()).toBe(2);
@@ -465,7 +466,7 @@ describe('read-back polling (PR #18 item 6)', () => {
       const provider = await scriptedProvider([first, SIMULATED]);
       try {
         await withProvider(provider.url, null, async () => {
-          expect(await waitFinal('m1', 5, { plan: plan() })).toMatchObject({ state: 'done' });
+          expect(await waitFinal('m1', 5, { plan: plan(), pollMs: 10 })).toMatchObject({ state: 'done' });
         });
         expect(provider.reads()).toBe(2);
       } finally { await provider.close(); }

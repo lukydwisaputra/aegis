@@ -87,13 +87,12 @@ const installFakePlaywright = (under = target) => {
 const logged = (): Array<Record<string, unknown>> => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 
 const aegis = (args: string[], caller = ORCH, env: Record<string, string> = {}) => {
-  const started = Date.now();
   const r = spawnSync(process.execPath, [CLI, ...args], {
     cwd: t.root, encoding: 'utf-8', timeout: 60_000,
     env: { ...process.env, AEGIS_AGENT: caller, AEGIS_ROOT: t.root, AEGIS_COUNTERS_PATH: path.join(t.root, '.aegis', '.counters.json'), FAKE_PW_LOG: log, ...env },
   });
   const safe = (s: string) => { try { return JSON.parse(s); } catch { return s; } };
-  return { status: r.status, out: r.stdout ? safe(r.stdout) : null, err: r.stderr ? safe(r.stderr) : null, ms: Date.now() - started };
+  return { status: r.status, out: r.stdout ? safe(r.stdout) : null, err: r.stderr ? safe(r.stderr) : null };
 };
 
 /** Explore in progress with the explorer's task reviewed, a two-page discovery report and one logged-in role. */
@@ -175,7 +174,8 @@ const markCarried = () => {
     const r = aegis(['explore', 'probe', '--baseline', '--run', runId], ORCH, { FAKE_PW_HANG_CLOSE: '1' });
     expect(r).toMatchObject({ status: 0, out: { pages: 2 } });
     expect(logged()).toContainEqual({ close: true });
-    expect(r.ms).toBeLessThan(30_000);
+    // Status 0 with the result is the proof: the fake's close never settles and a timer keeps it alive, so only the command's own exit
+    // ends it (a command left waiting is killed at the spawn timeout and has no status). No wall-clock bound.
   }, 60_000);
 });
 

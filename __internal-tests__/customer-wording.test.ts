@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { TOOLING_WORD_PATTERNS, checkBrandExposure, checkToolingWords } from '@qa/contracts';
 import { decide, type GuardContext, type HookToolInput } from '@qa/path-guard';
@@ -74,6 +75,8 @@ describe('TOOLING_WORD_PATTERNS', () => {
 
 describe('H1 denies tooling wording in defects, closure and compliance files', () => {
   const RUN = 'RUN-20261002-001';
+  // Not the checkout the tests run in: a worktree under .claude/ is framework territory for the guard, whatever the content.
+  const ROOT = path.join(os.tmpdir(), 'aegis-cw-root');
   const RUN_DIR = `${ROOT}/runs/${RUN}`;
   const ctx: GuardContext = {
     aegisRoot: ROOT, targetRoot: path.join(ROOT, '..'), testsDir: path.join(ROOT, '..', 'tests', 'qa'), runDir: RUN_DIR, activeRunId: RUN,

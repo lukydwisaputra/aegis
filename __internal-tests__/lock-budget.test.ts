@@ -21,10 +21,16 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-/** Take `file`'s lock now and hold it for HOLD_MS (refreshed, so it never goes stale); `done` settles on release. */
-async function holdFor(file: string): Promise<{ done: Promise<void> }> {
+/**
+ * Take `file`'s lock now and hold it for HOLD_MS (refreshed, so it never goes stale); `done` settles on release. `released()` turns
+ * true just before the lock is given up: a waiter that finishes sees it true only if it waited for the release (no wall-clock bound).
+ */
+async function holdFor(file: string): Promise<{ done: Promise<void>; released: () => boolean }> {
   const release = await lockfile.lock(file, { stale: 10_000 });
-  return { done: new Promise<void>((r) => setTimeout(r, HOLD_MS)).then(() => release()) };
+  let releasing = false;
+  // hygiene-ok: the hold is the condition under test (a lock held longer than the old 1.5-3 s budget); the order is checked by released()
+  const done = new Promise<void>((r) => setTimeout(r, HOLD_MS)).then(() => { releasing = true; return release(); });
+  return { done, released: () => releasing };
 }
 
 const candidate = {
@@ -39,10 +45,9 @@ it('ids: nextId waits out a counters lock held for 4 s', async () => {
   const counters = path.join(root, '.counters.json');
   fs.writeFileSync(counters, '{}\n');
   const held = await holdFor(counters);
-  const t0 = Date.now();
   await expect(nextId('TC', 'AUTH')).resolves.toBe('TC-AUTH-001');
   // It waited for the release, not for a stale lock or a lucky retry.
-  expect(Date.now() - t0).toBeGreaterThanOrEqual(HOLD_MS - 500);
+  expect(held.released()).toBe(true);
   await held.done;
 }, 30_000);
 
@@ -53,16 +58,14 @@ const lessonsFile = async (): Promise<string> => {
 
 it('agent-memory: proposeLesson waits out a lessons lock held for 4 s', async () => {
   const held = await holdFor(await lessonsFile());
-  const t0 = Date.now();
   await expect(proposeLesson(AGENT, candidate, root)).resolves.toMatchObject({ outcome: expect.any(String) });
-  expect(Date.now() - t0).toBeGreaterThanOrEqual(HOLD_MS - 500);
+  expect(held.released()).toBe(true);
   await held.done;
 }, 30_000);
 
 it('agent-memory: pruneAgedEntries waits out a lessons lock held for 4 s', async () => {
   const held = await holdFor(await lessonsFile());
-  const t0 = Date.now();
   await expect(pruneAgedEntries(AGENT, root)).resolves.toEqual({ pruned: 0 });
-  expect(Date.now() - t0).toBeGreaterThanOrEqual(HOLD_MS - 500);
+  expect(held.released()).toBe(true);
   await held.done;
 }, 30_000);

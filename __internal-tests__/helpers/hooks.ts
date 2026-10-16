@@ -25,5 +25,5 @@ export function runHook(name: string, input: unknown, root: string, opts: { scri
     encoding: 'utf-8',
     env: { ...process.env, AEGIS_ROOT: root, ...opts.env },
   });
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr, ms: Date.now() - t0 };
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr, ms: Date.now() - t0 }; // hygiene-ok: the duration feeds only the guard-hook ratio check (hook median over a bare node start under the same load)
 }
