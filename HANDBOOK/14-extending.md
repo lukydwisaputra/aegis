@@ -272,3 +272,17 @@ output by owning slice with `pnpm aegis align --by-slice`. `aegis align` refuses
    `ALLOW_BASELINE_GROWTH=true pnpm tsx scripts/check-baseline-growth.ts --base origin/main`.
 3. An entry that names a `fixed` or `wontfix` matrix ID fails as `closed-id`; an ID missing from
    the matrix fails as an unknown id.
+
+## 14.12 Writing deterministic tests
+
+CI runs the whole internal suite (`pnpm test`) on every pull request, on a runner slower and more loaded than a laptop. A test that fails there and passes locally is a bug in the test (or a race in the code), never a retry: fix its cause. `__internal-tests__/test-hygiene.test.ts` refuses the patterns behind this suite's past flakes:
+
+- **No wall-clock bound.** Prove order or completion with events, counts, the cap a timeout message names, or the process exit status, not with an elapsed time. A guard against a catastrophic slowdown of CPU-bound work (a backtracking pattern) may stay, at least ten times the idle time, with a reviewed reason.
+- **No real timer that orders work.** Inject the wait (the sleep option of the task next wait, the poll interval of the messaging read-back, the clock of the explore budget) and act from it; a timer beside the code under test races it.
+- **No floating promise.** Await every call into the code under test, and every rejects or resolves assertion: a promise left running reaches the next test's root.
+- **Distinct timestamps for ordered stamps.** Code that compares times at millisecond resolution ties when two stamps fall in the same millisecond. A ledger claim that must come after a CLI claim gets an explicitly later time, or the CLI claim an earlier one.
+- **No real calendar date, no unseeded random.** A run id or expectation built from today's date changes at midnight, on a month or year boundary and in another timezone.
+- **Restore what you change.** Delete every environment variable a test sets; a stale-build skip applies only outside CI.
+- **One scenario per test.** Several full setups looped inside one test outrun the default timeout under load; give each scenario its own test.
+
+A reviewed exception carries a comment `hygiene-ok:` followed by its reason on the flagged line or the line above it.

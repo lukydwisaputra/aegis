@@ -191,7 +191,7 @@ test('stays fast: the hook median is a small multiple of a bare node start taken
   const bareMs = () => {
     const t0 = process.hrtime.bigint();
     spawnSync(process.execPath, ['-e', ''], { stdio: 'ignore' });
-    return Number(process.hrtime.bigint() - t0) / 1e6;
+    return Number(process.hrtime.bigint() - t0) / 1e6; // hygiene-ok: the speed check compares the hook with a bare node start under the same load (a ratio, PR #47), never an absolute bound
   };
   const input = () => guard({ tool_name: 'Write', tool_input: { file_path: path.join(t.root, 'sandbox', 'x.txt'), content: 'x' }, agent_type: 'qa-ui-specialist', agent_id: 'a1' });
   const ratios: number[] = [];

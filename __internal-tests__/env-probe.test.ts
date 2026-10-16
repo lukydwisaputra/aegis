@@ -96,7 +96,7 @@ function fake(o: FakeOpts = {}): Fake {
       const l = o.listeners === undefined ? [{ pid: 10, ppid: 1 }] : o.listeners;
       if (l === 'own-timeout') {
         if (typeof timeoutMs !== 'number') return new Promise<never>(() => undefined);
-        return new Promise<null>((res) => setTimeout(() => res(null), timeoutMs));
+        return new Promise<null>((res) => setTimeout(() => res(null), timeoutMs)); // hygiene-ok: the fake lsof ends on the timeout it was given, as the real one does
       }
       if (l === 'throw') throw new Error('lsof crashed');
       if (l === 'hang') return new Promise<never>(() => undefined);
@@ -370,17 +370,23 @@ describe('probeEnvironment', () => {
 
     // A hung system: every call is cut at its cap, the probe returns, ok false with the reason.
     setDev({ healthChecks: [{ name: 'vault', path: '/vault' }] });
-    let started = Date.now();
+    // Each call was cut at its own 60 ms cap (the detail names the cap that fired): no wall-clock bound needed.
     const hung = await probe('execution', fake({ http: { '/': 'hang', '/vault': 'hang' }, listeners: 'hang' }), { callTimeoutMs: 60 });
-    expect(Date.now() - started).toBeLessThan(5_000);
     expect(hung).toMatchObject({ ok: false, failed: ['http', 'vault', 'listeners'] });
     expect(check('execution', 'http')).toEqual({ name: 'http', status: 'failed', detail: 'GET /: no answer within 60 ms' });
-    // The budget bounds the whole probe: once spent, the remaining calls do not run.
-    started = Date.now();
+    expect(check('execution', 'vault')!.detail).toBe('GET /vault: no answer within 60 ms');
+    expect(check('execution', 'listeners')!.detail).toBe('the listeners on port 5173: no answer within 60 ms');
+    // The budget bounds the whole probe: the calls together are granted at most the 150 ms budget (never the 10 s cap), and once it is
+    // spent the remaining calls do not run.
     const spent = await probe('execution', fake({ http: { '/': 'hang', '/vault': 'hang' }, listeners: 'hang' }), { budgetMs: 150, callTimeoutMs: 10_000 });
-    expect(Date.now() - started).toBeLessThan(5_000);
     expect(spent.ok).toBe(false);
-    expect(check('execution', 'listeners')!.detail).toMatch(/time budget spent|no answer within/);
+    const granted = ['http', 'vault', 'listeners'].map((name) => {
+      const detail = check('execution', name)!.detail!;
+      const m = /no answer within (\d+) ms$/.exec(detail);
+      if (m === null) expect(detail).toMatch(/not run \(time budget spent\)$/);
+      return m === null ? 0 : Number(m[1]);
+    });
+    expect(granted.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(150);
     // A system that throws: failed with the reason, the address and the credential redacted.
     const thrown = await probe('execution', fake({ http: { '/vault': 'throw' }, listeners: 'throw' }));
     expect(thrown).toMatchObject({ ok: false, failed: ['vault', 'listeners'] });
@@ -478,9 +484,7 @@ describe('probeEnvironment', () => {
   it('every call gets a timeout below its cap: an lsof that ends on its own timeout is not-checked (null), one with no timeout of its own is cut at the cap (failed)', async () => {
     await setup();
     const sys = fake({ listeners: 'own-timeout' });
-    const started = Date.now();
-    const r = await probe('execution', sys, { callTimeoutMs: 1_600 });
-    expect(Date.now() - started).toBeLessThan(5_000);
+    const r = await probe('execution', sys, { callTimeoutMs: 1_600 }); // a call left hanging would end this test at its timeout
     expect(sys.timeouts).toEqual([['http', 1_100], ['listeners', 1_100]]);
     expect(r).toMatchObject({ ok: true, failed: [] });
     expect(check('execution', 'listeners')).toMatchObject({ status: 'not-checked', detail: expect.stringMatching(/could not be determined .*not answering in time/) });
@@ -535,7 +539,7 @@ describe('probeEnvironment', () => {
         await new Promise<void>((acquired) => {
           holder = withRunLock(root(), runId, async () => {
             acquired();
-            await new Promise((r) => setTimeout(r, 400));
+            await new Promise((r) => setTimeout(r, 400)); // hygiene-ok: holds run.lock so the probe waits for it; the order comes from the lock
             releasedAt = Date.now();
           });
         });

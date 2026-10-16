@@ -345,7 +345,8 @@ function liveEnv(): { base: string; key: string } {
   return { base, key };
 }
 
-interface LiveCtx { plan?: MessagingPlan }
+/** pollMs: the wait between two read-backs of waitFinal (default 2000 ms). */
+interface LiveCtx { plan?: MessagingPlan; pollMs?: number }
 const ctxOf = (o: LiveCtx = {}): { plan: MessagingPlan; adapter: MessagingAdapter } => {
   const plan = o.plan ?? loadPlan();
   return { plan, adapter: adapterFor(plan.adapter) };
@@ -422,7 +423,7 @@ export async function waitFinal(id: string, timeoutSeconds: number, o: LiveCtx =
     }
     const state: FinalState = r.status === 200 ? adapter.finalState(r.body) : r.status === 401 || r.status === 403 ? "problem" : "pending";
     if (state !== "pending" || Date.now() >= until) return { state, body: r.body };
-    await sleep(Math.max(0, Math.min(2000, until - Date.now())));
+    await sleep(Math.max(0, Math.min(o.pollMs ?? 2000, until - Date.now())));
   }
 }
 
