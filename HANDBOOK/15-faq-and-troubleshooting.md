@@ -21,9 +21,15 @@ Checklist:
 - [ ] Does CI use the same Node version? Check `target-profile.json.node` vs the workflow's `node-version`
 - [ ] Are all required env vars set as GitHub secrets? `gh secret list` on the repo
 - [ ] Is the testing-env URL provisioned? Check the `TESTING_PREVIEW_URL` env var in the workflow run
-- [ ] Is Playwright running in headed or headless mode? CI requires headless; check `playwright.config.ts`
+- [ ] Is Playwright running in headed or headless mode? Every QA browser is headless by default and CI requires headless; the generated `qa-e2e` entry already forces headless whenever `CI` is set. Check `use.headless` in `playwright.config.ts`
 - [ ] Does the test depend on a timing assumption? Add `await expect(locator).toBeVisible()` instead of `page.waitForTimeout()`
 - [ ] Is there a missing `pnpm install` step before test execution?
+
+**Watching a browser (headed is opt-in).** Every browser the framework drives is headless unless you ask otherwise:
+
+- `playwright test` (the generated `qa-e2e` project): `QA_HEADED=1 npx playwright test --project=qa-e2e` shows the browser for one local command; `npx playwright test --headed` also works for a one-off. To make a clone headed by default, set `aegis.config.json.playwright.headed` to `true` before Env-auth generates the entry, or edit the `use.headless` line by hand (the engineer rewrites it on the next Env-auth). A run with `CI` set stays headless either way.
+- Playwright MCP (exploration, accessibility and UI specialists): `.mcp.json` starts the server with `--headless`. For an interactive debugging session remove that flag from your local copy of `.mcp.json` (do not commit it) and restart Claude Code.
+- `playwright-cli` (the fallback exploration tool): headless unless `open` is given `--headed`.
 
 ## 15.3 "An agent keeps making the same mistake"
 

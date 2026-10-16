@@ -207,13 +207,15 @@ if [[ $DRY_RUN -eq 0 ]]; then
     | .discovery.entryPoints        = $entries
     | .discovery.rolesToExplore     = $roles
     | .dashboard.projectName        = $projectName
+    | .playwright.headed            = (.playwright.headed // false)
     ' "$CONFIG" > "$tmp"
   mv "$tmp" "$CONFIG"
   echo "  config updated"
 else
   echo "  [dry-run] would update fields: targetProjectRoot, testsDir, sourceDirs,"
   echo "           target.platform (and remove target.apps), environments.{development,staging,production}.url,"
-  echo "           discovery.entryPoints, discovery.rolesToExplore, dashboard.projectName"
+  echo "           discovery.entryPoints, discovery.rolesToExplore, dashboard.projectName,"
+  echo "           playwright.headed (written as false when absent: headless by default; an explicit true is kept)"
 fi
 echo
 
