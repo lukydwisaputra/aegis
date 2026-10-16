@@ -403,7 +403,7 @@ export async function waitNextTasks(
   root: string,
   runId: string,
   caller: string,
-  opts: { phase?: string; waitSeconds: number; pollMs?: number }
+  opts: { phase?: string; waitSeconds: number; pollMs?: number; sleep?: (ms: number) => Promise<void> }
 ): Promise<TaskNextResult & { changed: boolean; timedOut: boolean }> {
   assertCallerAllowed(caller, "task.next");
   if (!(opts.waitSeconds > 0) || opts.waitSeconds > MAX_WAIT_SECONDS) {
@@ -414,10 +414,12 @@ export async function waitNextTasks(
   const seen = fingerprint(first);
   const until = Date.now() + opts.waitSeconds * 1000;
   const poll = opts.pollMs ?? 2000;
+  // The wait between two looks; a test passes its own to act after the first view is taken (never a race with a timer).
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   for (;;) {
     const left = until - Date.now();
     if (left <= 0) return { ...(await computeView(root, runId, opts.phase, Date.now())).result, changed: false, timedOut: true };
-    await new Promise((r) => setTimeout(r, Math.min(poll, left)));
+    await sleep(Math.min(poll, left));
     const now = (await computeView(root, runId, opts.phase, Date.now())).result;
     if (fingerprint(now) !== seen) return { ...now, changed: true, timedOut: false };
   }

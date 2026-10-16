@@ -336,26 +336,25 @@ describe('probeExplore', () => {
     expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
   });
 
-  it('a changed role set (a role newly in env-auth-report, or a role without a storage state before) or a changed discovery config gives full with a reason, even when every visited page matches', async () => {
-    const cases: Array<{ name: string; change: () => void; reason: RegExp }> = [
-      { name: 'new role', change: () => put('env-auth-report.json', { roles: [...ROLES, { role: 'staff', storageState: 'tests/qa/state/staff.json' }] }), reason: /logged-in roles changed.*now: admin, guest \(no auth state\), staff, volunteer/ },
-      { name: 'role logged in now', change: () => put('env-auth-report.json', { roles: [ROLES[0], ROLES[1], { role: 'guest', storageState: 'tests/qa/state/guest.json' }] }), reason: /then: admin, guest \(no auth state\), volunteer; now: admin, guest, volunteer/ },
-      { name: 'role gone', change: () => put('env-auth-report.json', { roles: [ROLES[0], ROLES[2]] }), reason: /logged-in roles changed/ },
-      { name: 'skip pattern', change: () => setConfig({ discovery: { skipPatterns: ['^/reports'] } }), reason: /discovery settings in aegis\.config\.json changed/ },
-    ];
-    for (const c of cases) {
-      cleanup();
-      await carriedWithBaseline();
-      c.change();
-      const f = fake(); // every page would match
-      const r = await probeExplore(root(), runId, ORCH, f.factory);
-      expect(`${c.name}: ${r.decision} ${c.reason.test(r.reason ?? '')}`).toBe(`${c.name}: full true`);
-      expect(r.reopened).toEqual(['T-explore-1']);
-      expect(f.factory).not.toHaveBeenCalled(); // decided before any page is visited
-      expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
-    }
-    // The same discovery settings written in another key order are not a change.
-    cleanup();
+  // One test per change (each with its own setup and timeout): five setups in one test outran the default timeout on a loaded machine.
+  it.each([
+    ['new role', () => put('env-auth-report.json', { roles: [...ROLES, { role: 'staff', storageState: 'tests/qa/state/staff.json' }] }), /logged-in roles changed.*now: admin, guest \(no auth state\), staff, volunteer/],
+    ['role logged in now', () => put('env-auth-report.json', { roles: [ROLES[0], ROLES[1], { role: 'guest', storageState: 'tests/qa/state/guest.json' }] }), /then: admin, guest \(no auth state\), volunteer; now: admin, guest, volunteer/],
+    ['role gone', () => put('env-auth-report.json', { roles: [ROLES[0], ROLES[2]] }), /logged-in roles changed/],
+    ['skip pattern', () => setConfig({ discovery: { skipPatterns: ['^/reports'] } }), /discovery settings in aegis\.config\.json changed/],
+  ] as Array<[string, () => void, RegExp]>)('a changed role set or discovery config gives full with a reason, even when every visited page matches: %s', async (_name, change, reason) => {
+    await carriedWithBaseline();
+    change();
+    const f = fake(); // every page would match
+    const r = await probeExplore(root(), runId, ORCH, f.factory);
+    expect(r.decision).toBe('full');
+    expect(r.reason).toMatch(reason);
+    expect(r.reopened).toEqual(['T-explore-1']);
+    expect(f.factory).not.toHaveBeenCalled(); // decided before any page is visited
+    expect(readRun(root(), runId).phases['explore']!.carried).toBeUndefined();
+  });
+
+  it('the same discovery settings written in another key order are not a change', async () => {
     await setup();
     setConfig({ discovery: { skipPatterns: ['^/reports'], entry: '/home' } });
     await takeBaseline(root(), runId, ORCH, fake().factory);

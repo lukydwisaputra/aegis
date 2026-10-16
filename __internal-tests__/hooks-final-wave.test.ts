@@ -1,4 +1,3 @@
-import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -6,6 +5,7 @@ import { staleBuild } from '@qa/alignment';
 import { readLedger } from '@qa/path-guard';
 import { CLI_COMMANDS, CLI_USAGE, createRun, routingContext, runContextFor, runJsonPath, startPhase } from '@qa/run-state';
 import { makeAegisRoot, type TmpAegis } from './helpers/aegis-root';
+import { builtCliHelp } from './helpers/cli-help';
 import { hookStale, REPO, runHook } from './helpers/hooks';
 
 // P0b-2 final fix wave: hook texts and messages (A12, A16, A17). Every command string below is test data handed to a
@@ -59,7 +59,7 @@ const cliStale = process.env['CI'] ? null : staleBuild(REPO, ['apps/cli', 'packa
 
 /** The options of a built-CLI command's help, each joined onto one line. */
 function helpOptions(group: string, verb: string): Map<string, string> {
-  const help = spawnSync(process.execPath, [path.join(REPO, 'apps', 'cli', 'dist', 'index.js'), group, verb, '--help'], { encoding: 'utf-8' }).stdout;
+  const help = builtCliHelp(REPO).get(`${group}.${verb}`) ?? '';
   const options = new Map<string, string>();
   let current: string | null = null;
   for (const line of help.split('\n')) {

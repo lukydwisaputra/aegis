@@ -197,7 +197,7 @@ describe('large tables', () => {
     const text = ['| Name | Phone |', '| --- | --- |', ...rows].join('\n');
     const started = Date.now();
     const fs = found(text);
-    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(Date.now() - started).toBeLessThan(5_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
     expect(fs.length).toBe(5000);
   });
 });

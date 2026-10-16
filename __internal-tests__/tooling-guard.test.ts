@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { TOOLING_WORD_RULES, checkToolingWords, describeToolingHits, findToolingWords, findToolingWordsIn } from '@qa/contracts';
 import { decide, type GuardContext, type HookToolInput } from '@qa/path-guard';
@@ -97,7 +98,8 @@ describe('TOOLING_WORD_RULES: paths, file names and local servers', () => {
 
 describe('H1 refuses paths, file names and ports in customer-facing files', () => {
   const RUN = 'RUN-20261002-001';
-  const ROOT = path.join(__dirname, '..');
+  // Not the checkout the tests run in: a worktree under .claude/ is framework territory for the guard, whatever the content.
+  const ROOT = path.join(os.tmpdir(), 'aegis-tg-root');
   const RUN_DIR = `${ROOT}/runs/${RUN}`;
   const ctx: GuardContext = {
     aegisRoot: ROOT, targetRoot: path.join(ROOT, '..'), testsDir: path.join(ROOT, '..', 'tests', 'qa'), runDir: RUN_DIR, activeRunId: RUN,

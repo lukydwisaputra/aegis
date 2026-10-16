@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 const tear = (s = '{"seq":2,"prevH') => fs.appendFileSync(busPath(t.root, runId), s);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms)); // hygiene-ok: polls for a condition (the lock file appears) up to a cap; it orders nothing
 
 it('a torn tail refuses every append; the owner repairs it and appends work again (CO-02)', async () => {
   const cleanBytes = fs.statSync(busPath(t.root, runId)).size;
