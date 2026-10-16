@@ -125,5 +125,5 @@
     }
   },
   "browsers": ["chromium", "firefox", "webkit"],
-  "playwright": { "headed": true }
+  "playwright": { "headed": false }
 }
