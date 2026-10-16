@@ -117,7 +117,9 @@ describe('m5: H2 acts only on a claim the CLI actually granted to this instance'
   it('a ledger claim whose CLI claim was refused neither blocks nor releases', async () => {
     // a2 holds T-1; a1 then tries the same task: H1 logs a1's claim, the CLI refuses it (a duplicate of the live holder, item 1).
     await claimAs('a2', 'T-1');
-    ledger('a1', UI, 'claim', 'T-1');
+    // a1's ledger claim is stamped strictly after a2's CLI claim (claimedAt): in the same millisecond the holder search
+    // (a claim at or before claimedAt) would pick a1 and the CLI would answer already-claimed (a flake seen on a fast runner).
+    ledger('a1', UI, 'claim', 'T-1', new Date(Date.now() + 1_000).toISOString());
     await expect(claimTask(t.root, runId, 'T-1', UI)).rejects.toThrow(/duplicate-dispatch/);
     // Without a report a1 is not held by a2's open task …
     expect(await stop('a1', UI)).toMatchObject({ block: false, released: [] });
