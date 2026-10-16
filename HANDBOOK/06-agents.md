@@ -50,7 +50,7 @@ The Orchestrator is always active.
 | `qa-accessibility-specialist` | Sonnet | WCAG 2.2 accessibility test cases |
 | `qa-performance-specialist` | Sonnet | k6 performance scripts |
 | `qa-messaging-specialist` | Sonnet | Messaging-integration test cases (contract, stub, simulated provider dev) |
-| `qa-exploratory-specialist` | Sonnet | Exploratory charters (Playwright MCP, runs first) |
+| `qa-exploratory-specialist` | Sonnet | Exploratory charters (`playwright-cli`, runs first) |
 | `qa-database-specialist` | Sonnet | Database / data-integrity test cases |
 | `qa-responsive-specialist` | Sonnet | Responsive / viewport test cases |
 | `qa-feature-flag-specialist` | Sonnet | Feature-flag matrix test cases |

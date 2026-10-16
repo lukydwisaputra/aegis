@@ -90,7 +90,7 @@ Specialist workers execute concrete tasks. Domain specialists:
 | `qa-accessibility-specialist` | Accessibility test cases (WCAG 2.2) |
 | `qa-performance-specialist` | Performance test cases (k6 scripts) |
 | `qa-messaging-specialist` | Messaging-integration test cases (contract, stub, simulated provider dev) |
-| `qa-exploratory-specialist` | Exploratory charters (Playwright MCP) |
+| `qa-exploratory-specialist` | Exploratory charters (`playwright-cli`) |
 | `qa-database-specialist` | Database / data-integrity test cases |
 | `qa-responsive-specialist` | Responsive / viewport test cases |
 | `qa-feature-flag-specialist` | Feature-flag matrix test cases |
