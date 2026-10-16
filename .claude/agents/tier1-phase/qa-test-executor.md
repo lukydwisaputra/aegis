@@ -30,9 +30,9 @@ Story-driven exploration ran in the Explore phase, before planning (spec §3.5).
 
 | Activity | Tool |
 |---|---|
-| Exploratory sessions (decision-as-you-go, dispatched to qa-exploratory-specialist) | **Playwright MCP** (`mcp__playwright__*`) — required; Playwright CLI only if MCP unavailable |
-| Issue analysis / reproducing a discovered defect | **Playwright MCP** — required; Playwright CLI fallback |
-| Scripted E2E / functional / accessibility / responsive tests | **Playwright CLI** (`@playwright/test` via `.spec.ts` / `.e2e.ts`) |
+| Exploratory sessions (decision-as-you-go, dispatched to qa-exploratory-specialist) | **Playwright CLI** (`playwright-cli`, run through Bash; headless by default, `--headed` only to watch). Playwright MCP tools exist only in a context that has them (the main thread), not in the specialists |
+| Issue analysis / reproducing a discovered defect | **Playwright CLI**, keeping page data out of the context (`playwright-cli find`, `snapshot --depth=N`, `snapshot --filename=<file>`) |
+| Scripted E2E / functional / accessibility / responsive tests | **`@playwright/test`** (via `.spec.ts` / `.e2e.ts`) |
 
 ## Inputs
 

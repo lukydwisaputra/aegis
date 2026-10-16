@@ -63,13 +63,13 @@ flowchart TD
         Gate3{{"Gate 3<br/>Closure Sign-off"}}
     end
 
-    subgraph Explore["Explore phase (MCP — story sessions before planning)"]
-        Exploratory(["qa-exploratory-specialist<br/>Playwright MCP mandatory"])
+    subgraph Explore["Explore phase (CLI — story sessions before planning)"]
+        Exploratory(["qa-exploratory-specialist<br/>Playwright CLI"])
         Sandbox["sandbox/{date}-{slug}/<br/>notes + evidence (scratch)"]
         SessionNotes["reports/exploratory/<br/>{session}-notes.md"]
     end
 
-    subgraph Scripted["Tier 2 — Scripted Specialists (up to parallelism.maxSpecialists, Playwright CLI)"]
+    subgraph Scripted["Tier 2 — Scripted Specialists (up to parallelism.maxSpecialists, @playwright/test)"]
         UI(["qa-ui-specialist"])
         API(["qa-api-specialist"])
         Security(["qa-security-specialist"])
@@ -198,7 +198,7 @@ flowchart TD
 
 1. **Discovery** (two-event barrier): `qa-context-scanner` writes `target-profile.json` (incl. `sourceInventory`) and emits `discovery.step-complete {scan}`; `qa-web-explorer` then writes `discovery-report.json` and emits `discovery.step-complete {explore}`. The orchestrator advances only when **both** events are present (`Promise.all([scan, explore])`).
 2. **Planning chain**: `qa-requirements-analyst` (source-grounded against `sourceInventory`) → `qa-test-planner` → **Gate 1** → `qa-test-designer` → `qa-environment-engineer` (writes `playwright.config.ts` with `screenshot:'always'` / `video` / `trace`).
-3. **Execution order**: story-driven exploration (`qa-exploratory-specialist`, Playwright MCP) runs in the Explore phase before planning; in Execution, `qa-test-executor` dispatches the scripted specialists (Playwright CLI, up to `aegis.config.json#parallelism.maxSpecialists` at once) with the exploration findings in their briefs.
+3. **Execution order**: story-driven exploration (`qa-exploratory-specialist`, `playwright-cli`) runs in the Explore phase before planning; in Execution, `qa-test-executor` dispatches the scripted specialists (`@playwright/test`, up to `aegis.config.json#parallelism.maxSpecialists` at once) with the exploration findings in their briefs.
 4. **Sandbox flow**: exploratory scratch → `sandbox/{date}-{slug}/`. At session end: covered observations → `reports/exploratory/`; suspected defects → `runs/{runId}/defect-candidates/` + `runs/{runId}/evidence/exploratory/`; then the specialist removes the sandbox.
 5. **Closure**: `qa-defect-manager` (triages scripted + EXP-type defects) → **Gate 2** → compliance (parallel) + `qa-closure-reporter` (reads `reports/metrics/`, writes `reports/closure/closure.{md,json}`) → **Gate 3** → `qa-executive-reporter` (PDFs in `reports/executive/`).
 6. **SPV loop**: every worker claims its task, submits a work report and releases the task through the CLI; its dispatcher (orchestrator for Tier-1, test-executor for Tier-2) dispatches the paired SPV, which submits its verdict with `aegis review submit`. The CLI appends a lesson on any non-pass verdict and escalates the third rejection.

@@ -21,17 +21,16 @@ You run every UI test case against the configured viewport matrix. You detect de
 
 You respect each test case's `viewportScope` field — a TC scoped to `"desktop"` is not run on mobile.
 
-## Browser Automation: MCP vs Playwright CLI — Routing Rule
+## Browser Automation: Playwright Test and Playwright CLI
 
-Your dominant goal is **executing a known script** via `@playwright/test` viewport projects. However, when a breakpoint defect is ambiguous — you need to visually confirm rendering at a specific viewport before asserting it in a spec — use MCP or CLI to inspect first: Specs under the specs folder import `test` and `expect` from the QA auth fixture of the tests directory, never `test` from `@playwright/test` (the spec lint refuses it).
+Your dominant goal is **executing a known script** via `@playwright/test` viewport projects. However, when a breakpoint defect is ambiguous — you need to visually confirm rendering at a specific viewport before asserting it in a spec — use `playwright-cli` to inspect first. `playwright-cli` (from `@playwright/cli`, installed by qa-environment-engineer) runs through Bash. Playwright MCP tools (`mcp__playwright__*`) exist only in a context that has them, such as the main thread; your tool allowlist has none, so never depend on them. Keep page data out of your context: `playwright-cli find "<text>"` (or `find --regex`) before any full snapshot, `playwright-cli snapshot --depth=4` or `playwright-cli snapshot <ref>` for a part, `playwright-cli snapshot --filename=<file>` to save a large page and read only the part you need. The browser is headless by default; pass `--headed` to `open` only when someone needs to watch. Save snapshot and screenshot files under your sandbox scratch directory and close the session with `playwright-cli close`. Specs under the specs folder import `test` and `expect` from the QA auth fixture of the tests directory, never `test` from `@playwright/test` (the spec lint refuses it).
 
 | Situation | Use |
 |---|---|
 | Running viewport specs — executing defined test cases | **`@playwright/test`** viewport projects (Desktop, Tablet, Mobile) |
-| Breakpoint defect is ambiguous — need to visually confirm rendering before asserting | **Playwright MCP** (`mcp__playwright__browser_resize` + `mcp__playwright__browser_snapshot`) — confirm, then switch back to spec |
-| MCP unavailable and visual confirmation needed | **Playwright CLI** (`playwright-cli open <url>`) — confirm at the viewport, then switch back |
+| Breakpoint defect is ambiguous — need to visually confirm rendering before asserting | **Playwright CLI** (`playwright-cli open <url>`, `playwright-cli resize <w> <h>`, `playwright-cli screenshot --filename=<file>`) — confirm at the viewport, then switch back to spec |
 
-The handoff is always: **MCP/CLI → confirm defect visually → write assertion in spec → run via `@playwright/test`**.
+The handoff is always: **CLI → confirm defect visually → write assertion in spec → run via `@playwright/test`**.
 
 ## Inputs
 

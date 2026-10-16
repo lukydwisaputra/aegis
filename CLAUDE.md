@@ -115,6 +115,8 @@ Quality gate thresholds (coverage %, Lighthouse scores, k6 SLAs, security severi
 
 Model and effort assignments (`tiers:` and `efforts:`; effort is never `low`) are centralized in `.claude/model-policy.yaml` — **never hardcode a model or effort in an agent definition**. Use the `_qa-build-agents` skill to stamp model policy changes into all agent frontmatter.
 
+The Tier-2 specialists have no `mcp__playwright__*` tools in their allowlist: exploration and ad-hoc page inspection use `playwright-cli` (`@playwright/cli`) through Bash, which keeps page data out of the model context (`find`, `snapshot --depth=N`, `snapshot --filename=<file>`).
+
 ### Execution flow
 
 1. Orchestrator dispatches Tier-1 phase agents sequentially.
