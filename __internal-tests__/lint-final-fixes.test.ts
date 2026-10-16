@@ -81,7 +81,7 @@ describe('I4: the two refusal texts', () => {
 });
 
 describe('I5: a hard time budget on hostile input', () => {
-  const time = (fn: () => unknown): number => { const t0 = Date.now(); fn(); return Date.now() - t0; };
+  const time = (fn: () => unknown): number => { const t0 = Date.now(); fn(); return Date.now() - t0; }; // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
   const both = (text: string) => () => { scanWithRules('closure.md', text, rules(), []); scanPii('closure.md', text, PII); };
   it.each([
     ['100k curly quotes', '“'.repeat(100_000)],
@@ -274,7 +274,7 @@ describe('round 2: names, long lines and small fixes', () => {
         const t0 = Date.now();
         scanPii('closure.md', text, PII);
         scanWithRules('closure.md', text, rules(), []);
-        expect(Date.now() - t0).toBeLessThan(30_000);
+        expect(Date.now() - t0).toBeLessThan(30_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
       }
     });
     it('a file whose only note is the long line does not count as not scanned', async () => {
@@ -312,10 +312,11 @@ describe('round 2: names, long lines and small fixes', () => {
     for (const text of ['T-'.repeat(50_000), 'T-a-'.repeat(30_000), '-T-'.repeat(50_000)]) {
       const t0 = Date.now();
       task.test(text);
-      expect(Date.now() - t0).toBeLessThan(2_000);
+      expect(Date.now() - t0).toBeLessThan(2_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
     }
     const t0 = Date.now();
     for (let i = 0; i < 250; i++) maskedLines('“'.repeat(20_000));
-    expect(Date.now() - t0).toBeLessThan(7_500); // 3 ms a line when idle; 30 ms a line is still far from a blow-up
+    // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it) (3 ms a line when idle; 30 ms a line is still far from a blow-up)
+    expect(Date.now() - t0).toBeLessThan(7_500);
   });
 });

@@ -66,11 +66,21 @@ const ids = (xs: Array<{ task: string }>) => xs.map((x) => x.task);
 const events = (type: string) => readLines(busPath(t.root, runId)).map((l) => JSON.parse(l)).filter((e) => e.type === type);
 const later = (ms: number) => new Date(Date.now() + ms);
 /**
- * Run `fn` after `ms`, as a promise the test awaits (with Promise.all beside the wait it races). A bare `setTimeout(() => void fn())`
- * let a release outlive its test: the wait returned on the task-file change, the test ended, afterEach removed the root, and the
- * release's final read ran on into the next test ("task T-2 not found").
+ * The --wait sleep of waitNextTasks that runs `fn` (a release) at its first wait, so the release happens after the wait took its first
+ * view, however slow the machine. A timer beside the wait (setTimeout(300) then the release) raced that first view: on a loaded machine
+ * the release could land first, and the wait saw no change. Later waits are the real poll interval.
  */
-const afterDelay = (ms: number, fn: () => Promise<unknown>) => new Promise((r) => setTimeout(r, ms)).then(fn);
+const releaseAtFirstWait = (fn: () => Promise<unknown>) => {
+  let done = false;
+  return async (ms: number) => {
+    if (!done) {
+      done = true;
+      await fn();
+      return;
+    }
+    await new Promise((r) => setTimeout(r, ms)); // hygiene-ok: the poll interval of the code under test, after the release ran
+  };
+};
 
 describe('aegis task next: the loop view', () => {
   beforeEach(async () => {
@@ -182,7 +192,7 @@ describe('aegis task next: the loop view', () => {
     await dispatch('T-3', API);
     await claimTask(t.root, runId, 'T-2', UI);
     await claimTask(t.root, runId, 'T-3', API);
-    const [v] = await Promise.all([waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 }), afterDelay(300, () => finish('T-2', UI))]);
+    const v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50, sleep: releaseAtFirstWait(() => finish('T-2', UI)) });
     expect(v).toMatchObject({ changed: true, timedOut: false });
     const after = await nextTasks(t.root, runId, EXEC); // the release has completed: read the settled view
     expect(after.next).toBe('act');
@@ -437,7 +447,7 @@ describe('fix 1 M1: agents a dead session left behind are ended at the resume', 
     expect(v.recover[0]!.fix).toContain('aegis task cancel --task T-2');
     await dispatch('T-2', UI);
     ledger('ui-5', UI, 'start');
-    ledger('ui-5', UI, 'claim', 'T-2');
+    ledger('ui-5', UI, 'claim', 'T-2'); // hygiene-ok: a claim after a resume ended the holder: a tie with claimedAt makes this instance the holder, the same already-claimed verdict
     await expect(claimTask(t.root, runId, 'T-2', UI)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
     await crash(); // ui-5 dies too
     const c = await cancelTask(t.root, runId, 'T-2', 'the work moves to a new task', EXEC);
@@ -460,7 +470,7 @@ describe('fix 1 M1: agents a dead session left behind are ended at the resume', 
     await claimTask(t.root, runId, 'T-1', EXEC);
     await crash();
     ledger('ex-2', EXEC, 'start');
-    ledger('ex-2', EXEC, 'claim', 'T-1');
+    ledger('ex-2', EXEC, 'claim', 'T-1'); // hygiene-ok: a claim after a resume ended the holder: a tie with claimedAt makes this instance the holder, the same already-claimed verdict
     await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
   });
 
@@ -486,7 +496,7 @@ describe('fix 1 M2: --wait returns early only when something is actionable', () 
     await requestStop(t.root, runId, 'owner stop', 'owner');
     const v = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 0.6, pollMs: 50 });
     expect(v).toMatchObject({ next: 'blocked', changed: false, timedOut: true, reason: expect.stringContaining('wait for what is in flight (T-2)') });
-    const [w] = await Promise.all([waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50 }), afterDelay(200, () => finish('T-2', UI))]);
+    const w = await waitNextTasks(t.root, runId, EXEC, { waitSeconds: 30, pollMs: 50, sleep: releaseAtFirstWait(() => finish('T-2', UI)) });
     expect(w).toMatchObject({ next: 'blocked', changed: true, timedOut: false });
   }, 60_000);
 
@@ -672,7 +682,7 @@ describe('fix 2: heartbeat liveness', () => {
   it('an agent that keeps beating across a resume stays alive: its task is running, never offered for resume, a second instance is a duplicate', async () => {
     ledger('ui-1', UI, 'start', undefined, ago(40));
     ledger('ui-1', UI, 'claim', 'T-2', ago(40));
-    await claimTask(t.root, runId, 'T-2', UI);
+    await claimTask(t.root, runId, 'T-2', UI, new Date(Date.now() - 1_000)); // claimedAt strictly before ui-2's later ledger claim (m5)
     beat('ui-1', UI, new Date(Date.now() - 30_000).toISOString()); // a beat within 90 s of the resume: it works across it
     await crash(); // a /qa-resume while it works
     beat('ui-1', UI, new Date().toISOString());
@@ -752,7 +762,7 @@ describe('fix 3: a resume ends the silent, keeps the fresh; long grace; dispatch
     beat('ui-1', UI, ago(3)); // the session died 3 minutes ago (over RESUME_FRESH_MS, 90 s)
     await crash();
     ledger('ex-2', EXEC, 'start');
-    ledger('ex-2', EXEC, 'claim', 'T-1');
+    ledger('ex-2', EXEC, 'claim', 'T-1'); // hygiene-ok: a claim after a resume ended the holder: a tie with claimedAt makes this instance the holder, the same already-claimed verdict
     await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
     const v = await nextTasks(t.root, runId, EXEC);
     expect(v.running).toEqual([]);
@@ -785,11 +795,11 @@ describe('fix 3: a resume ends the silent, keeps the fresh; long grace; dispatch
     beat('ui-0', UI, ago(200)); // the run records heartbeats
     ledger('ex-1', EXEC, 'start', undefined, ago(180));
     ledger('ex-1', EXEC, 'claim', 'T-1', ago(180));
-    await claimTask(t.root, runId, 'T-1', EXEC);
+    await claimTask(t.root, runId, 'T-1', EXEC, new Date(Date.now() - 1_000)); // claimedAt strictly before ex-2's ledger claim (m5)
     ledger('ex-2', EXEC, 'claim', 'T-1'); // three hours inside one foreground Agent call: still the holder
     await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('duplicate-dispatch') });
     await crash();
-    ledger('ex-3', EXEC, 'claim', 'T-1');
+    ledger('ex-3', EXEC, 'claim', 'T-1'); // hygiene-ok: a claim after a resume ended the holder: a tie with claimedAt makes this instance the holder, the same already-claimed verdict
     await expect(claimTask(t.root, runId, 'T-1', EXEC)).rejects.toMatchObject({ message: expect.stringContaining('already-claimed') });
   });
 });
@@ -1354,42 +1364,40 @@ describe('item 6: reviews the CLI decides at the release, in the loop', () => {
     await submitWorkReport(t.root, runId, tmp(report(UI, 'T-2', 'Carry-forward attempt: the recorded result of TC-AUTH-001 stands unchanged, nothing was re-run.')), UI);
   }
 
-  it('task next never lists a CLI-decided task under review or redrive while its release is in flight (a pause at each step of the release, both modes)', async () => {
-    const steps: Array<['returned' | 'accepted', string]> = [['returned', 'task.released'], ['returned', 'review.auto-returned'], ['accepted', 'task.released'], ['accepted', 'review.auto-accepted']];
-    for (const mode of ['batch', 'continuous'] as const) {
-      for (const [kind, step] of steps) {
-        await setup(mode);
-        await add('T-2', UI);
-        await add('T-3', API);
-        let during: Awaited<ReturnType<typeof nextTasks>> | null = null;
-        let lockHeld = false;
-        const pause = { type: step, fn: async () => { during = await nextTasks(t.root, runId, EXEC); lockHeld = true; } };
-        if (kind === 'returned') {
-          await run('T-2', UI);
-          await run('T-3', API);
-          mockPause = pause;
-          await lintReturned('T-2', UI);
-        } else {
-          await carryForwardSubmitted();
-          await run('T-3', API);
-          mockPause = pause;
-          await releaseTask(t.root, runId, 'T-2', 'done', UI);
-        }
-        mockPause = null;
-        const label = `${mode} ${kind} paused at ${step}`;
-        expect({ label, lockHeld }).toEqual({ label, lockHeld: true });
-        const v = during!;
-        expect({ label, review: ids(v.review), redrive: ids(v.redrive), reviewing: ids(v.reviewing) }).toEqual({ label, review: [], redrive: [], reviewing: [] });
-        if (step === 'task.released') expect({ label, next: v.next, reason: v.reason }).toMatchObject({ label, next: 'wait', reason: expect.stringMatching(/T-2: its release is in progress/) });
-        // afterwards the view is the settled one
-        const after = await nextTasks(t.root, runId, EXEC);
-        expect(ids(after.review)).toEqual([]);
-        if (kind === 'accepted') expect(after.settled).toContain('T-2');
-        else expect([...after.dispatch, ...after.held].map((e) => e.task)).toContain('T-2');
-        t.cleanup();
+  // One test per mode and step (each with its own setup and timeout): eight setups in one test outran the default timeout on a loaded machine.
+  const releaseSteps: Array<['batch' | 'continuous', 'returned' | 'accepted', string]> = (['batch', 'continuous'] as const).flatMap((mode) =>
+    ([['returned', 'task.released'], ['returned', 'review.auto-returned'], ['accepted', 'task.released'], ['accepted', 'review.auto-accepted']] as const).map(([kind, step]) => [mode, kind, step] as ['batch' | 'continuous', 'returned' | 'accepted', string]));
+  it.each(releaseSteps)('task next never lists a CLI-decided task under review or redrive while its release is in flight (%s, %s, a pause at %s)', async (mode, kind, step) => {
+    await setup(mode);
+    await add('T-2', UI);
+    await add('T-3', API);
+    let during: Awaited<ReturnType<typeof nextTasks>> | null = null;
+    let lockHeld = false;
+    const pause = { type: step, fn: async () => { during = await nextTasks(t.root, runId, EXEC); lockHeld = true; } };
+    try {
+      if (kind === 'returned') {
+        await run('T-2', UI);
+        await run('T-3', API);
+        mockPause = pause;
+        await lintReturned('T-2', UI);
+      } else {
+        await carryForwardSubmitted();
+        await run('T-3', API);
+        mockPause = pause;
+        await releaseTask(t.root, runId, 'T-2', 'done', UI);
       }
+    } finally {
+      mockPause = null;
     }
-    t = makeAegisRoot();
+    expect(lockHeld).toBe(true);
+    const v = during!;
+    expect({ review: ids(v.review), redrive: ids(v.redrive), reviewing: ids(v.reviewing) }).toEqual({ review: [], redrive: [], reviewing: [] });
+    if (step === 'task.released') expect({ next: v.next, reason: v.reason }).toMatchObject({ next: 'wait', reason: expect.stringMatching(/T-2: its release is in progress/) });
+    // afterwards the view is the settled one
+    const after = await nextTasks(t.root, runId, EXEC);
+    expect(ids(after.review)).toEqual([]);
+    if (kind === 'accepted') expect(after.settled).toContain('T-2');
+    else expect([...after.dispatch, ...after.held].map((e) => e.task)).toContain('T-2');
   });
 
   it('crash safety: a crash between the writes of a release leaves a state task next classifies correctly, and a dead holder never blocks it', async () => {

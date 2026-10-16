@@ -240,6 +240,6 @@ describe('decide: environment, missing run and speed', () => {
     const input = bash(`cd sandbox && cat > a.txt <<'EOF'\nx\nEOF\nAEGIS_AGENT=qa-ui-specialist pnpm aegis task claim --task T-1`, 'qa-ui-specialist');
     const t0 = Date.now();
     for (let i = 0; i < 1000; i++) decide(input, ctx, deps);
-    expect(Date.now() - t0).toBeLessThan(10_000);
+    expect(Date.now() - t0).toBeLessThan(10_000); // hygiene-ok: catastrophic-only bound on CPU-bound work (a backtracking or quadratic pattern takes minutes; idle runs take well under a tenth of it)
   });
 });
